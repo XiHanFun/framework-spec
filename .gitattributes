@@ -1,0 +1,5 @@
+# 默认使用 LF
+* text=auto eol=lf
+
+# 生成的 protobuf 代码按生成物处理
+*.pb.go linguist-generated=true

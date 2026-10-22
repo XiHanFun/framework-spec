@@ -1,0 +1,12 @@
+# Go 构建产物
+/conformance/bin/
+/conformance/dist/
+*.test
+*.out
+
+# 编辑器
+.idea/
+.vs/
+.vscode/
+*.swp
+.DS_Store
