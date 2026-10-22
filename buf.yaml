@@ -1,0 +1,21 @@
+# buf 配置：插件协议 xihan.plugin.v1 的 lint 与破坏性变更检查
+version: v2
+modules:
+  - path: plugin
+lint:
+  use:
+    - STANDARD
+  except:
+    # 协议文件与包名的目录布局由 spec 的目录结构决定（plugin/plugin.proto）
+    - PACKAGE_DIRECTORY_MATCH
+    # 服务名 Plugin / Host 是规范性名字，不加 Service 后缀
+    - SERVICE_SUFFIX
+    # LifecycleState 的数值与原语层一致（RFC-0001），零值是 Declared 而不是 Unspecified
+    - ENUM_ZERO_VALUE_SUFFIX
+    # Health 与 WatchHealth 共用 HealthRequest / HealthResponse，Plugin.Invoke 与 Host.Invoke 共用 InvokeRequest / InvokeResponse
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME
+    - RPC_REQUEST_RESPONSE_UNIQUE
+breaking:
+  use:
+    - FILE
