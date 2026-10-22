@@ -1,0 +1,68 @@
+name: CI
+
+# 规范仓库的门禁：协议 lint 与破坏性变更检查、生成物与源一致、向量可解析、运行器通过测试。
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  spec:
+    name: 协议与运行器
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出
+        uses: actions/checkout@v5
+        with:
+          # 破坏性变更检查需要基线提交
+          fetch-depth: 0
+
+      - name: 安装 Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: conformance/go.mod
+          cache-dependency-path: conformance/go.sum
+
+      - name: 安装 buf 与生成器
+        run: |
+          go install github.com/bufbuild/buf/cmd/buf@v1.75.0
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+
+      - name: 协议 lint
+        run: buf lint
+
+      - name: 协议格式
+        run: buf format --diff --exit-code
+
+      - name: 破坏性变更（相对 main）
+        if: github.event_name == 'pull_request'
+        run: buf breaking --against ".git#branch=origin/${{ github.base_ref }}"
+
+      - name: 生成物与源一致
+        run: |
+          buf generate
+          git diff --exit-code -- conformance/internal
+
+      - name: 格式与静态检查
+        working-directory: conformance
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+
+      - name: 测试（向量、规则、运行器）
+        working-directory: conformance
+        run: go test -race ./...
+
+      - name: 构建运行器
+        working-directory: conformance
+        run: go build -o bin/xihan-conformance ./cmd/xihan-conformance
