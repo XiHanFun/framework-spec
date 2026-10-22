@@ -1,6 +1,11 @@
-# XiHan Spec（草案）
+# XiHan Framework Spec
 
-语言中立的框架规范。.NET（`next/src`）是参考实现，其他语言按本规范实现并通过一致性测试。P4 公开时拆为独立仓库 `XiHanFun/xihan-spec`。
+XiHan Framework 的语言中立规范：原语语义与线上编码、清单 Schema、调用上下文与传播、管道阶段与排序、进程外插件协议 `xihan.plugin.v1` 与 Wasm 载体、协议映射、应用清单与打包，以及数据驱动的一致性向量和黑盒运行器。
+
+| 实现 | 仓库 | 角色 |
+| --- | --- | --- |
+| .NET | [XiHan.Framework](https://github.com/XiHanFun/XiHan.Framework)（`next/`） | 参考实现，以 submodule 引用本仓库到 `next/spec` |
+| Go | [framework-sdk-go](https://github.com/XiHanFun/framework-sdk-go) | 第二语言 SDK，以 submodule 引用本仓库到 `spec` |
 
 ## 目录
 
@@ -9,12 +14,10 @@ spec/
 ├─ rfcs/           # 提案：先 RFC，再 ADR，再实现
 ├─ conventions/    # 规范性：术语表、包 ID、能力 ID、操作 ID、错误码、Baggage 键
 ├─ manifest/       # 规范性：xihan.manifest.json 的 JSON Schema
-├─ primitives/     # P1 起：RFC-0001 采纳后的规范性文本
-├─ pipeline/       # P1 起：RFC-0004 采纳后的规范性文本
 ├─ plugin/         # 规范性：插件协议 plugin.proto 与握手、生命周期、调用文本；Wasm 载体 wasm.md
-├─ protocol/       # P3 起：HTTP / gRPC / MCP / CloudEvents / 命令行 映射
-├─ packaging/      # P3 起：应用清单 xihan.app.json 与 xihan pack 的产物映射
-└─ conformance/    # P1 起：数据驱动向量与运行器
+├─ protocol/       # 规范性：HTTP / gRPC / MCP / CloudEvents / 命令行 映射
+├─ packaging/      # 规范性：应用清单 xihan.app.json 与 xihan pack 的产物映射
+└─ conformance/    # 一致性向量（vectors/）与黑盒运行器（Go 模块，见 conformance/README.md）
 ```
 
 ## 规范性与信息性
@@ -29,15 +32,33 @@ spec/
 | 协议映射 | 服务器实现 |
 | 术语表、错误码、能力 ID、操作 ID、包 ID 命名 | 代码风格 |
 
+## 一致性
+
+- `conformance/vectors/`：JSON 向量，按主题分目录（`primitives/`、`plugin/`）。各语言 SDK 的单元测试直接读取这些文件；Go 可以 `go get github.com/xihanfun/framework-spec/conformance` 后经 `conformance.Vectors` 嵌入读取。
+- `conformance/cmd/xihan-conformance`：语言中立的黑盒运行器。`xihan-conformance plugin --dir <插件目录>` 以宿主身份启动任意语言写的进程外插件，按 `plugin/handshake.md`、`lifecycle.md`、`invocation.md` 核对握手行与版本协商、无共同版本时拒绝、清单一致性、Configure / Start / Health / WatchHealth / Stop 与宽限内退出、未知操作 `Unimplemented`、声明的操作都返回 `status`、订阅投递确认、stdin 关闭即退出；`xihan-conformance vectors` 校验向量文件本身。
+
+## 消费方式
+
+规范文件按相对路径互相链接，整个仓库可以作为 git submodule 放进实现仓库：
+
+```bash
+git submodule add https://github.com/XiHanFun/framework-spec.git spec
+git submodule update --init
+```
+
+`plugin/plugin.proto` 用各语言的 protobuf 工具链生成；仓库根的 `buf.yaml` 定义 lint 与破坏性变更检查，`buf.gen.yaml` 为运行器生成 Go 代码。
+
 ## RFC 流程
 
 1. 在 `rfcs/` 新建 `NNNN-<slug>.md`，状态 `草案`。
-2. 评审通过后写 ADR（`nextdocs/adr/`），RFC 状态改为 `已采纳`，正文并入对应规范性目录。
+2. 评审通过后写 ADR（XiHan.Framework 的 `nextdocs/adr/`），RFC 状态改为 `已采纳`，正文并入对应规范性目录。
 3. 实现与一致性向量随 RFC 一起合并；没有 RFC 的公开契约变更不合并。
+
+参考实现一栏的路径相对 XiHan.Framework 的 `next/src`。
 
 | RFC | 标题 | 状态 |
 | --- | --- | --- |
-| [0001](rfcs/0001-primitives.md) | 原语层 | 已采纳（参考实现 `src/XiHan.Framework.Primitives`） |
+| [0001](rfcs/0001-primitives.md) | 原语层 | 已采纳（参考实现 `XiHan.Framework.Primitives`） |
 | [0002](rfcs/0002-manifest.md) | 清单 | 已采纳（参考实现 `Kernel.Capabilities`） |
 | [0003](rfcs/0003-invocation-context.md) | 调用上下文与传播 | 已采纳（载体映射随协议适配器实现） |
 | [0004](rfcs/0004-pipeline-stages.md) | 管道阶段与排序 | 已采纳（参考实现 `Kernel.Pipeline`） |
@@ -55,3 +76,11 @@ spec/
 | [0016](rfcs/0016-packaging.md) | 应用清单与打包 | 已采纳（参考实现 `Cli` 的 `xihan pack`；规范 `packaging/`） |
 | [0017](rfcs/0017-plugin-protocol.md) | 进程外插件协议 `xihan.plugin.v1` | 已采纳（规范 `plugin/`；参考实现 `Plugins.OutOfProcess`，套件 `Plugins.Conformance`） |
 | [0018](rfcs/0018-wasm-plugins.md) | Wasm 插件 ABI（Experimental）：同一套消息经导出函数 + 线性内存 | 已采纳（规范 `plugin/wasm.md`；参考实现 `Plugins.Wasm`，套件 `Plugins.Conformance`） |
+
+## 版本
+
+规范以语义化版本打标签（`v1.x.y`）：`v1` 期间只增不改，破坏性变更进 `v2` 并与 `v1` 并存，对应原语层的冻结规则（RFC-0001）。实现仓库以 submodule 指向具体提交或标签。
+
+## 许可
+
+[MIT](LICENSE)
