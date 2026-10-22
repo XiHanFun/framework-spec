@@ -14,7 +14,7 @@ syntax = "proto3";
 package xihan.plugin.v1;
 
 option csharp_namespace = "XiHan.Framework.Plugins.Protocol.V1";
-option go_package = "github.com/xihanfun/xihan-go/plugin/v1;pluginv1";
+option go_package = "github.com/xihanfun/framework-sdk-go/plugin/v1;pluginv1";
 
 // ---------------------------------------------------------------------------
 // 服务

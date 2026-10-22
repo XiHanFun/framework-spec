@@ -1,0 +1,15 @@
+# 为黑盒运行器生成协议的 Go 代码：conformance/internal/pluginv1
+version: v2
+inputs:
+  - directory: plugin
+plugins:
+  - local: protoc-gen-go
+    out: conformance/internal/pluginv1
+    opt:
+      - paths=source_relative
+      - Mplugin.proto=github.com/xihanfun/framework-spec/conformance/internal/pluginv1
+  - local: protoc-gen-go-grpc
+    out: conformance/internal/pluginv1
+    opt:
+      - paths=source_relative
+      - Mplugin.proto=github.com/xihanfun/framework-spec/conformance/internal/pluginv1
