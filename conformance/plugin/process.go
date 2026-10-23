@@ -110,11 +110,12 @@ func resolveExecutable(directory, entry string) (string, error) {
 
 // start 启动插件进程、读握手行并连上端点；stdin 保持打开直到 close。
 func start(ctx context.Context, directory string, manifest Manifest, l launch, timeout time.Duration, log io.Writer) (*process, error) {
-	executable, err := resolveExecutable(directory, manifest.Entry)
+	// 先把目录转成绝对路径：可执行文件路径相对调用方的工作目录解析，不能依赖 cmd.Dir
+	absolute, err := filepath.Abs(directory)
 	if err != nil {
 		return nil, err
 	}
-	absolute, err := filepath.Abs(directory)
+	executable, err := resolveExecutable(absolute, manifest.Entry)
 	if err != nil {
 		return nil, err
 	}
