@@ -8,7 +8,7 @@ XiHan Framework 的语言中立规范：原语语义与线上编码、清单 Sch
 | Go | [framework-sdk-go](https://github.com/XiHanFun/framework-sdk-go) | 第二语言 SDK，以 submodule 引用本仓库到 `spec` |
 | TypeScript | [framework-sdk-typescript](https://github.com/XiHanFun/framework-sdk-typescript) | 占位，规划中（ADR-0004：Go 之后的下一个）；npm 组织 `xihan-framework` 已注册 |
 | Rust | [framework-sdk-rust](https://github.com/XiHanFun/framework-sdk-rust) | 占位，规划中（进程外与 Wasm 插件）；crates.io `xihan-framework` 0.0.1 已占名 |
-| Java | [framework-sdk-java](https://github.com/XiHanFun/framework-sdk-java) | 占位，规划中；Maven Central 命名空间 `com.xihanfun` 待验证 |
+| Java | [framework-sdk-java](https://github.com/XiHanFun/framework-sdk-java) | 占位，规划中；Maven Central 命名空间 `com.xihanfun` 已验证 |
 | Python | [framework-sdk-python](https://github.com/XiHanFun/framework-sdk-python) | 占位，规划中；PyPI `xihan-framework` 0.0.1 已占名 |
 | PHP | [framework-sdk-php](https://github.com/XiHanFun/framework-sdk-php) | 占位，规划中；Packagist `xihanfun/xihan-framework` 已提交 |
 
