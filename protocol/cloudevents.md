@@ -18,11 +18,11 @@
 - 主题 = `XiHan:Protocols:CloudEvents:Topics:<type>`，否则 `type` 本身（须满足主题文法），否则 400 `PROTOCOLS_VALIDATION_009`。
 - `Inbound = Dispatch`（默认）：`MessageDispatcher` 在请求内以新作用域、新上下文经完整内核管道执行主题的处理器（`MessageDelivery.Attempt = 1`）；成功 202 无正文；处理器失败按错误 KIND 映射 HTTP 状态（RFC 9457 Problem Details），发送方据此重试；主题没有处理器 → 404 `PROTOCOLS_NOTFOUND_003`。
 - `Inbound = Publish`：经 `IMessagePublisher` 发布，成功即 202；至少一次投递、重试与死信由代理负责（含发件箱）。
-- batch：先把每个事件的类型解析成主题，任一事件没有映射整批 400、不处理任何事件；派发模式逐个处理、第一个失败即停止并作为响应，发布模式按主题分组（保持首次出现的主题顺序与组内顺序）各一次批量发布 `PublishAsync(topic, envelopes)`、第一个失败的结果作为响应；已处理的不回滚（至少一次语义，处理器按 `id` + `source` 去重）。
+- batch：先把每个事件的类型解析成主题，任一事件没有映射整批 400、不处理任何事件；派发模式逐个处理、第一个失败即停止并作为响应，发布模式按主题分组（保持首次出现的主题顺序与组内顺序）各一次批量发布 `PublishManyAsync(topic, envelopes)`、第一个失败的结果作为响应；已处理的不回滚（至少一次语义，处理器按 `id` + `source` 去重）。
 
 ## 出站
 
 - `CloudEventsWebhookPublisher.PublishAsync(topic, envelope)`：POST 到 `XiHan:Protocols:CloudEvents:Webhooks:<topic>`；`Outbound = Binary`（默认，`ce-*` 头 + 数据体，头值按规范百分号编码非可打印 ASCII）或 `Structured`（`application/cloudevents+json` 体）。
-- `PublishAsync(topic, envelopes)`（批量优先）：一条沿用上面的模式；多条用 batch 内容模式（`application/cloudevents-batch+json`，结构化事件的数组、顺序同入参）一次 POST，接收方须支持该模式，一个响应对整批生效（逐项结果相同）。
+- `PublishManyAsync(topic, envelopes)`（批量优先）：一条沿用上面的模式；多条用 batch 内容模式（`application/cloudevents-batch+json`，结构化事件的数组、顺序同入参）一次 POST，接收方须支持该模式，一个响应对整批生效（逐项结果相同）。
 - 没有配置 → `PROTOCOLS_NOTFOUND_004`；响应非 2xx → `PROTOCOLS_UNAVAILABLE_001`（`status` 在详情里）；连接失败 → `PROTOCOLS_UNAVAILABLE_002`。重试由调用方决定（经发件箱投递即获得至少一次语义）。
 - 使用命名 HttpClient `xihan.protocols.cloudevents`。

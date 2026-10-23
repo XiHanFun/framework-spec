@@ -26,6 +26,6 @@
 | 批量删除 | `RemoveRangeAsync(entities)` / `RemoveManyAsync(keys)` | `RemoveRange` / `RemoveMany` | `<resource>.remove-many` |
 | 批量读取 | `FindManyAsync(ids)` / `GetManyAsync(keys)` | `FindMany` / `GetMany` | `<resource>.get-many` |
 | 批量写入（键值） | `SetManyAsync(entries)` | `SetMany(ctx, entries)` | `<resource>.set-many` |
-| 批量发布 | `PublishAsync(topic, envelopes)` | `Publish(ctx, topic, envelopes)` | `Host.Publish`（协议已批量） |
+| 批量发布 | `PublishManyAsync(topic, envelopes)` | `PublishMany(ctx, topic, envelopes)` | `Host.Publish`（协议已批量） |
 
 实体集合用 `Range` 后缀，键集合用 `Many` 后缀；返回逐项结果时类型是与入参等长的列表。
