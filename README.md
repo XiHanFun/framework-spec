@@ -17,6 +17,7 @@ spec/
 ├─ plugin/         # 规范性：插件协议 plugin.proto 与握手、生命周期、调用文本；Wasm 载体 wasm.md
 ├─ protocol/       # 规范性：HTTP / gRPC / MCP / CloudEvents / 命令行 映射
 ├─ packaging/      # 规范性：应用清单 xihan.app.json 与 xihan pack 的产物映射
+├─ provider/       # 规范性：远程 Provider 的通用规则与各能力的操作集（caching.distributed）
 └─ conformance/    # 一致性向量（vectors/）与黑盒运行器（Go 模块，见 conformance/README.md）
 ```
 
@@ -34,7 +35,7 @@ spec/
 
 ## 一致性
 
-- `conformance/vectors/`：JSON 向量，按主题分目录（`primitives/`、`plugin/`）。各语言 SDK 的单元测试直接读取这些文件；Go 可以 `go get github.com/xihanfun/framework-spec/conformance` 后经 `conformance.Vectors` 嵌入读取。
+- `conformance/vectors/`：JSON 向量，按主题分目录（`primitives/`、`plugin/`、`provider/`）。各语言 SDK 的单元测试直接读取这些文件；Go 可以 `go get github.com/xihanfun/framework-spec/conformance` 后经 `conformance.Vectors` 嵌入读取。
 - `conformance/cmd/xihan-conformance`：语言中立的黑盒运行器。`xihan-conformance plugin --dir <插件目录>` 以宿主身份启动任意语言写的进程外插件，按 `plugin/handshake.md`、`lifecycle.md`、`invocation.md` 核对握手行与版本协商、无共同版本时拒绝、清单一致性、Configure / Start / Health / WatchHealth / Stop 与宽限内退出、未知操作 `Unimplemented`、声明的操作都返回 `status`、订阅投递确认、stdin 关闭即退出；`xihan-conformance vectors` 校验向量文件本身。
 
 ## 消费方式
@@ -76,6 +77,7 @@ git submodule update --init
 | [0016](rfcs/0016-packaging.md) | 应用清单与打包 | 已采纳（参考实现 `Cli` 的 `xihan pack`；规范 `packaging/`） |
 | [0017](rfcs/0017-plugin-protocol.md) | 进程外插件协议 `xihan.plugin.v1` | 已采纳（规范 `plugin/`；参考实现 `Plugins.OutOfProcess`，套件 `Plugins.Conformance`） |
 | [0018](rfcs/0018-wasm-plugins.md) | Wasm 插件 ABI（Experimental）：同一套消息经导出函数 + 线性内存 | 已采纳（规范 `plugin/wasm.md`；参考实现 `Plugins.Wasm`，套件 `Plugins.Conformance`） |
+| [0019](rfcs/0019-remote-providers.md) | 远程 Provider：子系统能力经插件操作提供，首个操作集 `caching.distributed@1` | 已采纳（规范 `provider/`；适配器 `Caching.Remote`，插件 `framework-sdk-go` 的 `caching` 包） |
 
 ## 版本
 
