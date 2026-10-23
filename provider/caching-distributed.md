@@ -13,6 +13,11 @@
 | `cache-entries.try-add` | `key`、`value`、`ttlMs`?、`slidingMs`? | `added`：不存在（或已过期）时写入为 `true`，否则 `false` |
 | `cache-entries.remove` | `key` | `removed`：删除前存在且未过期为 `true` |
 | `cache-entries.try-remove` | `key`、`expected` | `removed`：当前值等于 `expected` 时删除为 `true`，不存在、已过期或值不同为 `false` |
+| `cache-entries.get-many` | `keys`：字符串数组 | `values`：与 `keys` 等长的数组，每项是 base64 或 `null` |
+| `cache-entries.set-many` | `entries`：数组，每项 `key`、`value`、`ttlMs`?、`slidingMs`? | 无（`{}`） |
+| `cache-entries.remove-many` | `keys`：字符串数组 | `removed`：与 `keys` 等长的布尔数组 |
+
+批量操作按 `conventions/batch-first.md`：逐项语义与单条相同，`get-many` 对命中的滑动过期条目逐个延长；`set-many` 里同一键出现多次后者覆盖，任一项的键或选项不合法时整批不写入并返回该项的错误（细节带 `index`）；`remove-many` 同一键出现多次第二次为 `false`；空数组不触后端、返回空数组。
 
 ## 2. 字段
 
@@ -59,4 +64,4 @@
 ## 6. 一致性
 
 - 适配器 + 插件通过 `CacheStoreConformance` 全部用例（含 32 路并发 `try-add`、256 KiB 值、真实时间的过期与滑动过期、基于存储的分布式锁）。
-- 向量 `caching-distributed.json`：操作 ID、各操作的请求 / 响应样例、非法键与非法选项样例；各语言实现的单元测试以它核对编码。
+- 向量 `caching-distributed.json`：操作 ID（含三个批量操作）、各操作的请求 / 响应样例、非法键与非法选项样例；各语言实现的单元测试以它核对编码。

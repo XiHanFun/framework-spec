@@ -1,6 +1,6 @@
 # RFC-0009 消息、CloudEvents 信封与发件箱
 
-> 状态：已采纳 | 日期：2026-10-21 | 对应 ADR：— | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ` | 一致性：`XiHan.Framework.Messaging.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量发布） | 日期：2026-10-21 | 对应 ADR：— | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ` | 一致性：`XiHan.Framework.Messaging.Conformance`
 
 ## 摘要
 
@@ -30,17 +30,18 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 3. 处理器返回失败或抛异常都算投递失败。代理重试到 `MaxAttempts`（默认 3，含首次），之后进入死信。重试的顺序由代理决定（内存实现排到队尾）。
 4. 派发不写幂等键：重试必须重新执行处理器；去重由处理器按 `id` + `source` 自理，或在 P3 由操作契约提供消息级去重。
 5. 代理在应用进入服务状态之前不派发。
+6. 发布是批量优先的（`conventions/batch-first.md`）：`IMessagePublisher` 与 `IMessageBroker` 提供 `PublishAsync(topic, envelopes)`，逐项结果与入参顺序一一对应，单条是它的特例。主题不合法时每一项都是 `MESSAGING_VALIDATION_001`；同一主题内保持入参顺序；重复 `id` 照发，去重是消费端的事。Provider 用代理的原生批量（RabbitMQ 在同一通道上连续发布并一次等待确认），内存实现一次入队。空集合不触代理。
 
 ## 发件箱
 
 `OutboxFeature` 需要 `messaging.queue@1` 与 `persistence.relational@1`：
 
-- 把 `IMessagePublisher` 换成 `OutboxPublisher`：有活动工作单元时写入 `OutboxMessage` 表（随业务事务提交或回滚），没有时直接发布。
+- 把 `IMessagePublisher` 换成 `OutboxPublisher`：有活动工作单元时写入 `OutboxMessage` 表（随业务事务提交或回滚；批量发布用仓储的 `AddRangeAsync` 一次写入），没有时直接发布。
 - 后台循环按 `PollInterval`（默认 1 秒）每轮一个工作单元：取未投递的消息（按创建时间，最多 `BatchSize`），发布，成功记投递时间，失败记次数与原因。投递是至少一次：循环提交前崩溃会重复投递。
 
 ## 一致性
 
-Provider 必须继承 `MessageBrokerConformance` 并通过全部用例。
+Provider 必须继承 `MessageBrokerConformance` 并通过全部用例，含批量发布：一次发布多条保持顺序、逐项结果、空集合、主题不合法逐项失败。
 
 ## 错误码
 

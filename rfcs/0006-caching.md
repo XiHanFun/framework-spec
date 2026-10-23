@@ -1,6 +1,6 @@
 # RFC-0006 缓存、分布式锁与幂等
 
-> 状态：已采纳 | 日期：2026-10-21 | 对应 ADR：— | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法） | 日期：2026-10-21 | 对应 ADR：— | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
 
 ## 摘要
 
@@ -24,6 +24,11 @@
 | `TryAdd` | 不存在（或已过期）才写入，原子 |
 | `Remove` | 删除并报告是否存在 |
 | `TryRemove(expected)` | 当前值等于期望值才删除，原子 |
+| `GetMany(keys)` | 逐键同 `Get`，一次往返；结果与键顺序一一对应 |
+| `SetMany(entries)` | 逐项同 `Set`（每项自带过期选项），一次往返；同一键出现多次后者覆盖 |
+| `RemoveMany(keys)` | 逐键同 `Remove`，一次往返；结果与键顺序一一对应，同一键出现多次第二次为假 |
+
+批量方法按 `conventions/batch-first.md`：空集合不触后端；基础设施失败整批抛出 `CACHING_UNAVAILABLE_001`；`TryAdd` 与 `TryRemove` 保持单键（它们是锁与幂等的原子原语，批量没有意义）。Provider 用原生批量（Redis `MGET`、管道里的 `SET` 带过期、管道里的 `DEL`），内存实现一次加锁逐项处理。
 
 - 键：非空、无空白与控制字符、不超过 512 字符、区分大小写。
 - 过期：绝对存活或滑动过期，二选一；都不设时用 Provider 的默认存活时间。
@@ -32,7 +37,7 @@
 
 ## 类型化缓存
 
-`ICache`：`GetAsync<T>`、`SetAsync<T>`、`RemoveAsync`、`GetOrCreateAsync<T>`（未命中时各自执行工厂，不合并并发）。进程内实现直接存对象引用，不序列化；跨进程实现用 `SerializingCache` 把存储与 `ICacheSerializer` 组合。默认序列化器是 System.Text.Json，要求选项带 `TypeInfoResolver`，通过 `JsonSerializerOptions.GetTypeInfo` 取类型信息，AOT 下无反射；反射版只在允许反射的运行时可用。
+`ICache`：`GetAsync<T>`、`SetAsync<T>`、`RemoveAsync`、`GetOrCreateAsync<T>`（未命中时各自执行工厂，不合并并发），以及批量的 `GetManyAsync<T>(keys)`、`SetManyAsync<T>(entries, options)`、`RemoveManyAsync(keys)`，语义与存储契约的批量方法一致，结果与入参顺序一一对应。进程内实现直接存对象引用，不序列化；跨进程实现用 `SerializingCache` 把存储与 `ICacheSerializer` 组合。默认序列化器是 System.Text.Json，要求选项带 `TypeInfoResolver`，通过 `JsonSerializerOptions.GetTypeInfo` 取类型信息，AOT 下无反射；反射版只在允许反射的运行时可用。
 
 ## 分布式锁
 
@@ -51,7 +56,7 @@ Idempotency 阶段的中间件按 Baggage `xihan.idempotency-key` 去重，作�
 
 ## 一致性
 
-Provider 必须继承 `CacheStoreConformance` 并通过全部用例（含基于存储的锁）。过期用例用真实时间等待。
+Provider 必须继承 `CacheStoreConformance` 并通过全部用例（含基于存储的锁与批量：`GetMany` 的顺序与未命中、`SetMany` 的覆盖与各自过期、`RemoveMany` 的逐键结果、空集合）。过期用例用真实时间等待。
 
 ## 错误码
 

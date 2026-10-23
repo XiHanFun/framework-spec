@@ -1,6 +1,6 @@
 # RFC-0005 领域协议与持久化
 
-> 状态：已采纳 | 日期：2026-10-21 | 对应 ADR：0005 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore` | 一致性：`XiHan.Framework.Persistence.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法） | 日期：2026-10-21 | 对应 ADR：0005 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore` | 一致性：`XiHan.Framework.Persistence.Conformance`
 
 ## 摘要
 
@@ -40,6 +40,18 @@
 | `AddAsync` | 写入创建时间、租户、并发戳 | `PERSISTENCE_CONFLICT_002` 标识重复、`PERSISTENCE_VALIDATION_001` 缺租户 |
 | `UpdateAsync` | 写入修改时间、刷新并发戳 | `PERSISTENCE_NOTFOUND_001`、`PERSISTENCE_CONFLICT_001` |
 | `RemoveAsync` | 软删除协议打标，否则物理删除 | `PERSISTENCE_NOTFOUND_001` |
+| `FindManyAsync(ids)` | 按标识集合查找；只返回存在且可见的实体，顺序按入参，缺失省略，重复标识只返回一次 | — |
+| `AddRangeAsync(entities)` | 逐项同 `AddAsync`，一次写入 | 逐项结果 |
+| `UpdateRangeAsync(entities)` | 逐项同 `UpdateAsync`，一次写入 | 逐项结果 |
+| `RemoveRangeAsync(entities)` | 逐项同 `RemoveAsync`，一次写入 | 逐项结果 |
+
+### 批量（`conventions/batch-first.md`）
+
+- 单条是批量的特例；框架内部与示例处理多个实体时调用批量方法。
+- 逐项结果与入参顺序一一对应：标识重复、缺租户、不存在、并发冲突按项报告；通过校验的项一次写入（Provider 用原生多行写入），写入阶段的基础设施失败（`PERSISTENCE_UNAVAILABLE_003`、容量）对这些项统一报告，整个工作单元随调用结果回滚。
+- 批内按入参顺序逐项施加语义：同一批新增同一标识两次，第二次返回 `PERSISTENCE_CONFLICT_002`；删除同一实体两次，第二次返回 `PERSISTENCE_NOTFOUND_001`。
+- 空集合不触后端、返回空列表，但仍要求活动的工作单元。
+- 读己之写对批量同样成立：批量新增后同一工作单元内可查到全部实体。
 
 在 Transaction 阶段之外使用仓储是装配错误，每个操作抛出携带 `PERSISTENCE_UNAVAILABLE_001` 的 `FrameworkException`，不返回 `Result`。
 
@@ -60,11 +72,11 @@
 | Provider | 角色 | 要点 |
 | --- | --- | --- |
 | `Persistence.InMemory` | default | 每类实体一张有界表；覆盖层实现读己之写，提交时原子应用；存引用不拷贝 |
-| `Persistence.EntityFrameworkCore` | provider | 应用持有 `DbContext`；工作单元在首次写入时开启数据库事务，每次写入立即 `SaveChanges`；软删除与租户过滤用 `EF.Property` 显式施加，不用全局过滤器；`ApplyPersistenceConventions()` 把并发戳设为并发令牌；游离实体更新先比对并发戳 |
+| `Persistence.EntityFrameworkCore` | provider | 应用持有 `DbContext`；工作单元在首次写入时开启数据库事务，每次写入立即 `SaveChanges`，批量写入是一次 `AddRange` / 多实体跟踪加一次 `SaveChanges`；软删除与租户过滤用 `EF.Property` 显式施加，不用全局过滤器；`ApplyPersistenceConventions()` 把并发戳设为并发令牌；游离实体更新先比对并发戳 |
 
 ## 一致性
 
-Provider 必须继承 `RepositoryConformance` 并通过全部用例。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
+Provider 必须继承 `RepositoryConformance` 并通过全部用例，含批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
 
 ## 错误码
 
@@ -74,4 +86,5 @@ Provider 必须继承 `RepositoryConformance` 并通过全部用例。套件以 
 
 - 不提供实体基类、审计基类或"全能仓储"。
 - 不在抽象层暴露 `IQueryable`；复杂查询由 Provider 专属包（如 `Persistence.EntityFrameworkCore` 的 `DbContext`）承担。
+- 不提供按查询条件的批量更新 / 删除（`UPDATE … WHERE`）：它绕过协议维护的审计、并发与软删除字段，由 Provider 专属包按需提供。
 - 不提供跨 Provider 的分布式事务。
