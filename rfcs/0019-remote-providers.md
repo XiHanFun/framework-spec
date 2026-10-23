@@ -31,6 +31,9 @@ ADR-0006 把进程外插件协议定为"跨语言插件与远程 Provider 的基
 | `cache-entries.try-add` | 同 `set` | `{ "added": bool }` | 不存在（或已过期）才写入，原子 |
 | `cache-entries.remove` | `{ "key" }` | `{ "removed": bool }` | 删除并报告是否存在 |
 | `cache-entries.try-remove` | `{ "key", "expected" }` | `{ "removed": bool }` | 当前值等于期望值才删除，原子 |
+| `cache-entries.get-many` | `{ "keys": [] }` | `{ "values": [base64 \| null] }` | 逐键同 `get`，结果与键顺序一一对应 |
+| `cache-entries.set-many` | `{ "entries": [{ "key", "value", "ttlMs"?, "slidingMs"? }] }` | `{}` | 逐项同 `set`，同一键后者覆盖 |
+| `cache-entries.remove-many` | `{ "keys": [] }` | `{ "removed": [bool] }` | 逐键同 `remove`，结果与键顺序一一对应 |
 
 值与期望值是标准 base64（带填充）；`ttlMs` 与 `slidingMs` 二选一，都不给时用插件的默认存活时间；键按 RFC-0006：非空、无空白与控制字符、不超过 512 字符、区分大小写。错误：键不合法 `CACHING_VALIDATION_001`，选项不合法 `CACHING_VALIDATION_002`，后端失败 `CACHING_UNAVAILABLE_001`。
 
@@ -47,4 +50,4 @@ ADR-0006 把进程外插件协议定为"跨语言插件与远程 Provider 的基
 ## 非目标与未决
 
 - **非目标**：插件清单里声明 `provides` 并由宿主自动生成适配器——每个能力的抽象形状不同，适配器必须按子系统手写。
-- **未决**：是否为批量读写增加 `cache-entries.get-many` / `set-many`（RFC-0006 的存储契约目前没有批量操作，先不加）；其他子系统（对象存储、消息、调度）的操作集随各自的远程 Provider 示例补充。
+- **未决**：其他子系统（对象存储、消息、调度）的操作集随各自的远程 Provider 示例补充。批量操作已随 `conventions/batch-first.md` 定下（2026-10-23）。

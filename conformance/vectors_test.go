@@ -51,7 +51,7 @@ func TestTypedLoadersAreNonEmpty(t *testing.T) {
 		t.Errorf("lifecycle transitions: %v", err)
 	}
 	caching, err := conformance.CachingDistributed()
-	if err != nil || caching.Capability != "caching.distributed@1" || len(caching.Operations) != 5 || len(caching.Samples) == 0 || len(caching.InvalidKeys) == 0 || caching.Errors["unavailable"] != "CACHING_UNAVAILABLE_001" {
+	if err != nil || caching.Capability != "caching.distributed@1" || len(caching.Operations) != 8 || len(caching.Samples) == 0 || len(caching.InvalidKeys) == 0 || caching.Errors["unavailable"] != "CACHING_UNAVAILABLE_001" {
 		t.Errorf("caching distributed: %v", err)
 	}
 	for _, sample := range caching.Samples {

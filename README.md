@@ -19,7 +19,7 @@ XiHan Framework 的语言中立规范：原语语义与线上编码、清单 Sch
 ```text
 spec/
 ├─ rfcs/           # 提案：先 RFC，再 ADR，再实现
-├─ conventions/    # 规范性：术语表、包 ID、能力 ID、操作 ID、错误码、Baggage 键
+├─ conventions/    # 规范性：术语表、包 ID、能力 ID、操作 ID、错误码、Baggage 键、批量优先
 ├─ manifest/       # 规范性：xihan.manifest.json 的 JSON Schema
 ├─ plugin/         # 规范性：插件协议 plugin.proto 与握手、生命周期、调用文本；Wasm 载体 wasm.md
 ├─ protocol/       # 规范性：HTTP / gRPC / MCP / CloudEvents / 命令行 映射
@@ -39,6 +39,7 @@ spec/
 | 插件协议 | 隔离机制 |
 | 协议映射 | 服务器实现 |
 | 术语表、错误码、能力 ID、操作 ID、包 ID 命名 | 代码风格 |
+| 批量优先：集合入参、原生批量、部分失败语义（`conventions/batch-first.md`） | 批次大小 |
 
 ## 一致性
 

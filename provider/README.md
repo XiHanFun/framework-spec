@@ -18,4 +18,4 @@
 
 | 能力 | 文件 | 操作 |
 | --- | --- | --- |
-| `caching.distributed@1` | [caching-distributed.md](caching-distributed.md) | `cache-entries.get` / `set` / `try-add` / `remove` / `try-remove` |
+| `caching.distributed@1` | [caching-distributed.md](caching-distributed.md) | `cache-entries.get` / `set` / `try-add` / `remove` / `try-remove` / `get-many` / `set-many` / `remove-many` |

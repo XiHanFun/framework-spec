@@ -1,25 +1,198 @@
 {
-  "$comment": "caching.distributed@1 的远程 Provider 操作集：操作 ID、请求 / 响应样例、非法键与非法选项；见 spec/provider/caching-distributed.md",
+  "$comment": "caching.distributed@1 的远程 Provider 操作集：操作 ID（含批量）、请求 / 响应样例、非法键与非法选项；见 spec/provider/caching-distributed.md",
   "capability": "caching.distributed@1",
   "operations": [
     "cache-entries.get",
     "cache-entries.set",
     "cache-entries.try-add",
     "cache-entries.remove",
-    "cache-entries.try-remove"
+    "cache-entries.try-remove",
+    "cache-entries.get-many",
+    "cache-entries.set-many",
+    "cache-entries.remove-many"
   ],
   "samples": [
-    { "operation": "cache-entries.set", "request": { "key": "orders:1", "value": "aGVsbG8=", "ttlMs": 60000 }, "response": {} },
-    { "operation": "cache-entries.get", "request": { "key": "orders:1" }, "response": { "value": "aGVsbG8=" } },
-    { "operation": "cache-entries.get", "request": { "key": "orders:missing" }, "response": { "value": null } },
-    { "operation": "cache-entries.try-add", "request": { "key": "lock:orders", "value": "dG9rZW4=", "ttlMs": 30000 }, "response": { "added": true } },
-    { "operation": "cache-entries.try-add", "request": { "key": "lock:orders", "value": "b3RoZXI=", "ttlMs": 30000 }, "response": { "added": false } },
-    { "operation": "cache-entries.try-remove", "request": { "key": "lock:orders", "expected": "b3RoZXI=" }, "response": { "removed": false } },
-    { "operation": "cache-entries.try-remove", "request": { "key": "lock:orders", "expected": "dG9rZW4=" }, "response": { "removed": true } },
-    { "operation": "cache-entries.remove", "request": { "key": "orders:1" }, "response": { "removed": true } },
-    { "operation": "cache-entries.remove", "request": { "key": "orders:1" }, "response": { "removed": false } },
-    { "operation": "cache-entries.set", "request": { "key": "session:a", "value": "", "slidingMs": 1000 }, "response": {} },
-    { "operation": "cache-entries.get", "request": { "key": "session:a" }, "response": { "value": "" } }
+    {
+      "operation": "cache-entries.set",
+      "request": {
+        "key": "orders:1",
+        "value": "aGVsbG8=",
+        "ttlMs": 60000
+      },
+      "response": {}
+    },
+    {
+      "operation": "cache-entries.get",
+      "request": {
+        "key": "orders:1"
+      },
+      "response": {
+        "value": "aGVsbG8="
+      }
+    },
+    {
+      "operation": "cache-entries.get",
+      "request": {
+        "key": "orders:missing"
+      },
+      "response": {
+        "value": null
+      }
+    },
+    {
+      "operation": "cache-entries.try-add",
+      "request": {
+        "key": "lock:orders",
+        "value": "dG9rZW4=",
+        "ttlMs": 30000
+      },
+      "response": {
+        "added": true
+      }
+    },
+    {
+      "operation": "cache-entries.try-add",
+      "request": {
+        "key": "lock:orders",
+        "value": "b3RoZXI=",
+        "ttlMs": 30000
+      },
+      "response": {
+        "added": false
+      }
+    },
+    {
+      "operation": "cache-entries.try-remove",
+      "request": {
+        "key": "lock:orders",
+        "expected": "b3RoZXI="
+      },
+      "response": {
+        "removed": false
+      }
+    },
+    {
+      "operation": "cache-entries.try-remove",
+      "request": {
+        "key": "lock:orders",
+        "expected": "dG9rZW4="
+      },
+      "response": {
+        "removed": true
+      }
+    },
+    {
+      "operation": "cache-entries.remove",
+      "request": {
+        "key": "orders:1"
+      },
+      "response": {
+        "removed": true
+      }
+    },
+    {
+      "operation": "cache-entries.remove",
+      "request": {
+        "key": "orders:1"
+      },
+      "response": {
+        "removed": false
+      }
+    },
+    {
+      "operation": "cache-entries.set",
+      "request": {
+        "key": "session:a",
+        "value": "",
+        "slidingMs": 1000
+      },
+      "response": {}
+    },
+    {
+      "operation": "cache-entries.get",
+      "request": {
+        "key": "session:a"
+      },
+      "response": {
+        "value": ""
+      }
+    },
+    {
+      "operation": "cache-entries.set-many",
+      "request": {
+        "entries": [
+          {
+            "key": "batch:1",
+            "value": "YQ==",
+            "ttlMs": 60000
+          },
+          {
+            "key": "batch:2",
+            "value": "Yg==",
+            "slidingMs": 60000
+          },
+          {
+            "key": "batch:1",
+            "value": "Yw=="
+          }
+        ]
+      },
+      "response": {}
+    },
+    {
+      "operation": "cache-entries.get-many",
+      "request": {
+        "keys": [
+          "batch:1",
+          "batch:missing",
+          "batch:2"
+        ]
+      },
+      "response": {
+        "values": [
+          "Yw==",
+          null,
+          "Yg=="
+        ]
+      }
+    },
+    {
+      "operation": "cache-entries.remove-many",
+      "request": {
+        "keys": [
+          "batch:1",
+          "batch:1",
+          "batch:2",
+          "batch:missing"
+        ]
+      },
+      "response": {
+        "removed": [
+          true,
+          false,
+          true,
+          false
+        ]
+      }
+    },
+    {
+      "operation": "cache-entries.get-many",
+      "request": {
+        "keys": []
+      },
+      "response": {
+        "values": []
+      }
+    },
+    {
+      "operation": "cache-entries.remove-many",
+      "request": {
+        "keys": []
+      },
+      "response": {
+        "removed": []
+      }
+    }
   ],
   "invalidKeys": [
     "",
@@ -30,10 +203,19 @@
     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   ],
   "invalidOptions": [
-    { "ttlMs": 0 },
-    { "ttlMs": -1 },
-    { "slidingMs": 0 },
-    { "ttlMs": 1000, "slidingMs": 1000 }
+    {
+      "ttlMs": 0
+    },
+    {
+      "ttlMs": -1
+    },
+    {
+      "slidingMs": 0
+    },
+    {
+      "ttlMs": 1000,
+      "slidingMs": 1000
+    }
   ],
   "errors": {
     "invalidKey": "CACHING_VALIDATION_001",
