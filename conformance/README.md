@@ -13,6 +13,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `plugin/handshake-lines.json` | 插件握手行的合法与非法样例 | `plugin/handshake.md` |
 | `plugin/protocol-versions.json` | 协议版本协商与原语层版本核对 | `plugin/handshake.md` |
 | `plugin/wasm-exports.json` | Wasm ABI v1 的导出与导入表 | `plugin/wasm.md` |
+| `provider/caching-distributed.json` | `caching.distributed@1` 远程 Provider 的操作 ID、请求 / 响应样例、非法键与选项 | `provider/caching-distributed.md` |
 
 各语言 SDK 的单元测试直接读取这些文件。Go 里 `go get github.com/xihanfun/framework-spec/conformance` 后经内嵌文件系统 `conformance.Vectors` 或类型化入口（`conformance.HandshakeLines()` 等）读取，不需要 submodule。
 

@@ -141,6 +141,28 @@ type LifecycleTransitionVectors struct {
 	Allowed [][2]string `json:"allowed"`
 }
 
+// ProviderSample 是远程 Provider 操作集的一组请求 / 响应样例。
+type ProviderSample struct {
+	Operation string          `json:"operation"`
+	Request   json.RawMessage `json:"request"`
+	Response  json.RawMessage `json:"response"`
+}
+
+// CachingDistributedVectors 对应 provider/caching-distributed.json。
+type CachingDistributedVectors struct {
+	Capability     string            `json:"capability"`
+	Operations     []string          `json:"operations"`
+	Samples        []ProviderSample  `json:"samples"`
+	InvalidKeys    []string          `json:"invalidKeys"`
+	InvalidOptions []json.RawMessage `json:"invalidOptions"`
+	Errors         map[string]string `json:"errors"`
+}
+
+// CachingDistributed 读取 caching.distributed 远程 Provider 的操作集向量。
+func CachingDistributed() (CachingDistributedVectors, error) {
+	return Load[CachingDistributedVectors]("provider/caching-distributed.json")
+}
+
 // HandshakeLines 读取握手行向量。
 func HandshakeLines() (HandshakeLineVectors, error) {
 	return Load[HandshakeLineVectors]("plugin/handshake-lines.json")
