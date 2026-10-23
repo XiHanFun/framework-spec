@@ -6,6 +6,13 @@ XiHan Framework 的语言中立规范：原语语义与线上编码、清单 Sch
 | --- | --- | --- |
 | .NET | [XiHan.Framework](https://github.com/XiHanFun/XiHan.Framework)（`next/`） | 参考实现，以 submodule 引用本仓库到 `next/spec` |
 | Go | [framework-sdk-go](https://github.com/XiHanFun/framework-sdk-go) | 第二语言 SDK，以 submodule 引用本仓库到 `spec` |
+| TypeScript | [framework-sdk-typescript](https://github.com/XiHanFun/framework-sdk-typescript) | 占位，规划中（ADR-0004：Go 之后的下一个） |
+| Rust | [framework-sdk-rust](https://github.com/XiHanFun/framework-sdk-rust) | 占位，规划中（进程外与 Wasm 插件） |
+| Java | [framework-sdk-java](https://github.com/XiHanFun/framework-sdk-java) | 占位，规划中 |
+| Python | [framework-sdk-python](https://github.com/XiHanFun/framework-sdk-python) | 占位，规划中 |
+| PHP | [framework-sdk-php](https://github.com/XiHanFun/framework-sdk-php) | 占位，规划中 |
+
+各仓库按 `framework-sdk-<语言>` 命名（ADR-0010）；SDK 成熟度：Reference（.NET）、Stable（通过全部向量）、Experimental（部分向量）、Community（社区维护）。
 
 ## 目录
 
