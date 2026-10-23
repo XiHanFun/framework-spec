@@ -138,3 +138,6 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `CLI_NOTFOUND_001` | 应用清单文件不存在 |
 | `CLI_VALIDATION_001` | 应用清单不合法，或 `--only` 的产物种类不认识 |
 | `CLI_UNAVAILABLE_001` | 无法启动 dotnet 命令行 |
+| `CLI_NOTFOUND_002` | `migrate` 的 `--path` 不存在 |
+| `CLI_VALIDATION_002` | `migrate` 的版本参数不认识（只支持 `v4`） |
+| `CLI_VALIDATION_003` | `migrate --fixers` 里有不认识的规则编号 |
