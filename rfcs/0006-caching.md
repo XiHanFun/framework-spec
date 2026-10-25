@@ -1,6 +1,6 @@
 # RFC-0006 缓存、分布式锁与幂等
 
-> 状态：已采纳（2026-10-23 修订：批量方法） | 日期：2026-10-21 | 对应 ADR：— | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配） | 日期：2026-10-21 | 对应 ADR：— | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
 
 ## 摘要
 
@@ -53,6 +53,16 @@ Idempotency 阶段的中间件按 Baggage `xihan.idempotency-key` 去重，作�
 4. 重复调用：标记仍为"处理中"返回 `CACHING_CONFLICT_002`；已完成则回放结果、不执行处理器，并在上下文标记为回放。
 
 回放的是调用结果，不是响应体；操作契约（P3）在此之上回放响应。
+
+## IDistributedCache 适配
+
+.NET 原生的 `Microsoft.Extensions.Caching.Distributed.IDistributedCache` 由 `CacheStoreDistributedCache` 架在 `ICacheStore` 上，沿用该接口的代码（会话、数据保护、第三方库）不改调用点：
+
+- 键须满足 `CacheKey` 文法，否则抛 `ArgumentException`。
+- 绝对过期（时刻或相对现在，两者都给取较早者）换算成 `TimeToLive`，已过去的时刻抛 `ArgumentOutOfRangeException`；没有绝对过期时滑动过期对应 `SlidingExpiration`；都给时绝对优先（存储不能同时表达两者）；都没有则不过期。
+- `Refresh` 是一次读取（读取即续期）；`Remove` 不存在的键不报错。
+- 同步成员在适配器边界阻塞等待异步存储，调用方应优先用异步成员。
+- 提供 `caching.distributed@1` 的 Provider 被选中时登记它（`AddXiHanDistributedCache`，幂等）；应用自己登记的 `IDistributedCache` 优先。
 
 ## 一致性
 

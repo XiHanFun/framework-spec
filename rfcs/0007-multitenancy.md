@@ -1,6 +1,6 @@
 # RFC-0007 多租户
 
-> 状态：已采纳 | 日期：2026-10-21 | 对应 ADR：— | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory` | 一致性：`XiHan.Framework.MultiTenancy.Conformance`
+> 状态：已采纳（2026-10-26 修订：租户分片） | 日期：2026-10-21 | 对应 ADR：ADR-0018（分片） | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory` | 一致性：`XiHan.Framework.MultiTenancy.Conformance`
 
 ## 摘要
 
@@ -11,7 +11,7 @@
 | 能力 | 含义 | 默认实现 |
 | --- | --- | --- |
 | `multitenancy.context@1` | 租户解析、校验与存储 | `MultiTenancy.InMemory`（从配置装载租户） |
-| `multitenancy.sharding@1` | 按租户选择数据分片（预留） | — |
+| `multitenancy.sharding@1` | 按租户选择数据连接（分库） | `MultiTenancy.InMemory`（从租户属性推出） |
 
 ## 租户 ID
 
@@ -31,9 +31,18 @@
 
 `ITenantStore`：按 ID 查找、枚举。租户信息含显示名、启用标记与字符串属性（租户专属连接、配额等）。内存实现有界（默认 1000），从 `XiHan:MultiTenancy:Tenants` 装载。
 
+## 分片
+
+`multitenancy.sharding@1`：按租户选择数据连接。Provider 实现 `ITenantShardResolver`：`ResolveAsync(tenantId)` 返回 `Result<Maybe<TenantShard>>`——无分片（共库租户、未知租户）是成功且无值，租户存储不可达返回 `MULTITENANCY_UNAVAILABLE_002`；`Invalidate(tenantId?)` 丢弃缓存（空为全部）。
+
+- `TenantShard`：租户 ID、连接串、可选的提供者名（小写，如 `postgresql`）、透传给持久化 Provider 的属性。
+- 默认解析器 `TenantStoreShardResolver` 从 `ITenantStore` 的租户属性推出分片：`ConnectionString` 有值即分库，`DatabaseProvider` 为提供者名，`Shard.<key>` 透传为 `<key>`（用点不用冒号：属性来自配置时冒号是节分隔符）。结果按租户缓存（含"无分片"），容量 `ShardCacheSize`（默认 10000，满时整体清空）；租户连接变更后调用 `Invalidate`。
+- Tenant 阶段在租户写入安全上下文之后解析分片（装配了解析器才解析），写进调用上下文（`GetTenantShard` / `SetTenantShard`）；解析失败即调用失败，不降级为共库。无租户的调用没有分片。
+- 持久化 Provider 在作用域内创建客户端时读当前调用的分片，不触存储、不阻塞：`TenantShardBinding.Resolve` 把分片表示成连接绑定（主值是分片连接串，属性并入原绑定属性、分片属性与 `tenant` / `provider`），有分片用分片连接，否则用应用默认连接；清单以可选依赖声明 `multitenancy.sharding@1?`。分片库的表结构由应用管理，框架的建表开关只作用于默认连接。
+
 ## 一致性
 
-Provider 必须继承 `TenantStoreConformance` 并通过全部用例。
+Provider 必须继承 `TenantStoreConformance` 并通过全部用例；分片解析器必须继承 `TenantShardResolverConformance`（分库租户解析出连接串、小写提供者名与去前缀的透传属性；共库与未知租户为成功无值；失效后重解析结果一致）。
 
 ## 错误码
 

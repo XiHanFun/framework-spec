@@ -136,6 +136,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `MULTITENANCY_NOTFOUND_001` | 租户不存在 |
 | `MULTITENANCY_DENIED_001` | 租户已禁用 |
 | `MULTITENANCY_UNAVAILABLE_001` | 租户存储容量已满 |
+| `MULTITENANCY_UNAVAILABLE_002` | 租户分片无法解析（租户存储不可达） |
 | `WORKFLOW_VALIDATION_001` | 工作流定义不合法（`details.errors` 列出全部问题） |
 | `WORKFLOW_VALIDATION_002` | 启动或恢复的输入不合法（缺必填变量、子流程深度超限、任务结果不在允许范围） |
 | `WORKFLOW_VALIDATION_003` | 表达式语法不合法或求值失败 |
