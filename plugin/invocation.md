@@ -4,7 +4,7 @@
 
 ## 1. 代理操作
 
-握手声明的每个操作在宿主 `OperationRegistry` 登记为代理操作：契约取 `OperationDeclaration`（`id`、`stability`、`expose`、`permission` / `policy`），Schema 取 `request_schema` / `response_schema`。代理操作与本地操作无差别：协议适配器按 `expose` 发布（HTTP 路由、gRPC 方法、MCP tool、命令行），调用经宿主的完整管道，Authorize 阶段按契约判定；Handle 阶段把载荷与上下文发给插件。
+握手声明的每个操作在宿主 `OperationRegistry` 登记为代理操作：契约取 `OperationDeclaration`（`id`、`stability`、`expose`、`permission` / `policy`），Schema 取 `request_schema` / `response_schema`。代理操作与本地操作无差别：协议适配器按 `expose` 发布（HTTP 路由、gRPC 方法、MCP tool、命令行、AI 工具），调用经宿主的完整管道，Authorize 阶段按契约判定；Handle 阶段把载荷与上下文发给插件。
 
 - 一元操作：`Plugin.Invoke`。`payload` 是请求类型的 JSON（空等价于 `{}`）；`InvokeResponse.status.ok` 为真时 `payload` 是响应类型的 JSON，否则 `error` 是业务失败。
 - 流式操作（`streaming: true`）：`Plugin.InvokeStream`。调用方先发 `start`（`InvokeRequest`，`payload` 为请求对象），再发零个或多个 `chunk`（每帧一个完整 JSON 值），最后发 `end`（`ok: true`；`ok: false` 表示中止，被调方应停止处理）；被调方发零个或多个 `chunk`，最后发 `end`。任一方收到不符合顺序的帧（`start` 不是第一帧、`end` 之后还有帧）以 gRPC `InvalidArgument` 结束流。.NET 参考实现在 RFC-0011 定义流式操作契约之前只把流式操作暴露为内部调用，不经协议适配器发布。
