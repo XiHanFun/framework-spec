@@ -126,6 +126,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `CONFIGURATION_UNAVAILABLE_001` | 远程配置不可达或超时 |
 | `CONFIGURATION_UNAVAILABLE_002` | 密钥库不可达或超时 |
 | `CONFIGURATION_DENIED_001` | 没有读取该密钥的权限 |
+| `CONFIGURATION_VALIDATION_001` | 远程配置文档不是声明的格式 |
 | `AUDITING_VALIDATION_001` | 审计查询不合法（页大小越界、起止颠倒、续页令牌不可识别） |
 | `AUDITING_UNAVAILABLE_001` | 审计存储不可达 |
 | `SECURITY_UNAVAILABLE_001` | 身份或授予存储不可达 |
