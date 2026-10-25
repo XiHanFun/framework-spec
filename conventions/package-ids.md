@@ -1,6 +1,6 @@
 # 包 ID 文法
 
-包名由"领域 + 角色"唯一推出。命名空间等于包 ID，包内子命名空间最多一层。架构测试 `PackageIds_FollowGrammar` 执行本文法。
+包名由"领域 + 角色"唯一推出。命名空间等于包 ID，包内子命名空间最多一层：按功能区命名（PascalCase 名词，如 `Kernel.Pipeline`、`Messaging.Abstractions.Outbox`），目录与子命名空间同名，包根只放能力常量、错误码、消息键、选项、特性入口与登记扩展。架构测试 `PackageIds_FollowGrammar` 与 `Namespaces_MatchFolders` 执行本文法。
 
 ```text
 PackageId  = "XiHan.Framework." Segment
