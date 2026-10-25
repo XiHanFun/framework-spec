@@ -125,7 +125,7 @@ message OperationDeclaration {
   string id = 1;
   // 稳定性：`stable` / `preview` / `experimental` / `internal` / `deprecated`。
   string stability = 2;
-  // 暴露给哪些协议：`http`、`grpc`、`mcp`、`commandline` 的任意组合；空表示不对外发布。
+  // 暴露给哪些协议：`http`、`grpc`、`mcp`、`commandline`、`ai` 的任意组合；空表示不对外发布。
   repeated string expose = 3;
   // 授权要求：权限码；与 `policy` 二选一，都空表示无要求。
   string permission = 4;

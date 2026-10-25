@@ -43,7 +43,7 @@ VersionRange   = 整数接口版本或 ^ 范围（"1"、"^1"）
 | `auditing.trail` | 审计 |
 | `workflow.execution` | 持久化执行 |
 | `search.fulltext` | 全文检索 |
-| `ai.chat` / `ai.embedding` / `ai.tools` | AI 端口 |
+| `ai.chat` / `ai.embedding` / `ai.tools` / `ai.knowledge` | AI 端口：聊天、嵌入、工具目录、知识库（RFC-0022） |
 | `actors.virtual` | 虚拟 Actor |
 | `hosting.aspnetcore` / `hosting.commandline` | 宿主 |
 | `protocols.http` / `protocols.grpc` / `protocols.mcp` / `protocols.cloudevents` | 协议适配器 |

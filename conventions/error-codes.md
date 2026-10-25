@@ -152,6 +152,16 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `WORKFLOW_UNAVAILABLE_001` | 工作流存储不可达 |
 | `WORKFLOW_UNAVAILABLE_002` | 工作流存储容量已满 |
 | `WORKFLOW_UNEXPECTED_001` | 活动抛出未处理异常或引擎内部失败 |
+| `AI_VALIDATION_001` | AI 请求不合法（Provider 缺必填项、提示词参数缺失、工具名重复） |
+| `AI_VALIDATION_002` | 嵌入维度与知识库配置的维度不一致 |
+| `AI_NOTFOUND_001` | AI Provider 未配置，或其种类没有登记工厂 |
+| `AI_NOTFOUND_002` | 提示词模板不存在 |
+| `AI_NOTFOUND_003` | AI 工具不存在 |
+| `AI_DENIED_001` | 请求被护栏拦截 |
+| `AI_TIMEOUT_001` | 模型调用超时 |
+| `AI_UNAVAILABLE_001` | 模型端点不可达或返回错误 |
+| `AI_UNAVAILABLE_002` | 知识库存储未装配、不可达或容量已满 |
+| `AI_UNEXPECTED_001` | 护栏、工具或 Provider 抛出未处理异常 |
 | `CLI_NOTFOUND_001` | 应用清单文件不存在 |
 | `CLI_VALIDATION_001` | 应用清单不合法，或 `--only` 的产物种类不认识 |
 | `CLI_UNAVAILABLE_001` | 无法启动 dotnet 命令行 |
