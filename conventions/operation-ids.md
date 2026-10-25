@@ -13,14 +13,13 @@ Verb        = 小写动词（create、get、list、update、delete、cancel、..
 | 动词 | HTTP | gRPC | MCP tool |
 | --- | --- | --- | --- |
 | `create` | `POST /{resource}` | `{Resource}.Create` | `{resource}_create` |
-| `get` | `GET /{resource}/{id}` | `{Resource}.Get` | `{resource}_get` |
 | `list` | `GET /{resource}` | `{Resource}.List` | `{resource}_list` |
-| `update` | `PUT /{resource}/{id}` | `{Resource}.Update` | `{resource}_update` |
-| `delete` | `DELETE /{resource}/{id}` | `{Resource}.Delete` | `{resource}_delete` |
-| 其他，请求含 `id` | `POST /{resource}/{id}:{verb}` | `{Resource}.{Verb}` | `{resource}_{verb}` |
-| 其他，请求不含 `id` | `POST /{resource}:{verb}` | `{Resource}.{Verb}` | `{resource}_{verb}` |
+| `get` | `GET /{resource}/{id}`；请求不含 `id` 时 `GET /{resource}` | `{Resource}.Get` | `{resource}_get` |
+| `update` | `PUT /{resource}/{id}`；请求不含 `id` 时 `PUT /{resource}` | `{Resource}.Update` | `{resource}_update` |
+| `delete` | `DELETE /{resource}/{id}`；请求不含 `id` 时 `DELETE /{resource}` | `{Resource}.Delete` | `{resource}_delete` |
+| 其他 | `POST /{resource}/{id}:{verb}`；请求不含 `id` 时 `POST /{resource}:{verb}` | `{Resource}.{Verb}` | `{resource}_{verb}` |
 
-自定义动词按请求对象是否声明 `id` 属性（序列化名，不分大小写）分实例级与集合级：实例级形如 `POST /orders/{id}:cancel`，集合级形如 `POST /orders:export`（Google AIP 自定义方法的两种形态）。标准动词 `get` / `update` / `delete` 恒为实例级，`create` / `list` 恒为集合级，与请求形状无关。HTTP 适配器从操作描述的请求序列化元数据判定，不用反射。
+HTTP 路由按请求对象是否声明 `id` 属性（序列化名，不分大小写）分实例级与集合级：有 `id` 的路径带 `/{id}` 段（`GET /orders/{id}`、`POST /orders/{id}:cancel`），没有的落在集合或单例资源上（`GET /profile`、`PUT /profile`、`POST /orders:export`；Google AIP 的两种形态）。`create` 与 `list` 恒为集合级。两个操作推导出同一条路由（如无 `id` 的 `get` 与 `list`）时 HTTP 适配器启动失败（`PROTOCOLS_CONFLICT_002`），用显式覆盖解决。HTTP 适配器从操作描述的请求序列化元数据判定，不用反射；没有类型化元数据的描述（插件代理）看请求 Schema 的 `properties`，两者都没有按集合级处理。
 
 命令行：`<resource> <verb> [--field value ...]`，即 `invoke <resource>.<verb>`（`protocol/commandline.md`）。
 
