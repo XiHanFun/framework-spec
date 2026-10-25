@@ -95,6 +95,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PROTOCOLS_NOTFOUND_001` | MCP：JSON-RPC 方法不受支持 |
 | `PROTOCOLS_NOTFOUND_002` | MCP：tool 未登记 |
 | `PROTOCOLS_CONFLICT_001` | MCP：两个操作得到同一个 tool 名（启动失败） |
+| `PROTOCOLS_CONFLICT_002` | HTTP：两个操作推导出同一条路由（方法与模板都相同，启动失败） |
 | `PROTOCOLS_VALIDATION_005` | gRPC：请求不是合法的 protobuf 消息或与 Schema 不符 |
 | `PROTOCOLS_VALIDATION_006` | gRPC：暴露给 gRPC 的操作没有 Schema，或 Schema 无法映射为 protobuf（启动失败） |
 | `PROTOCOLS_VALIDATION_007` | gRPC：推导或配置的服务 / 方法名不合法（启动失败） |
