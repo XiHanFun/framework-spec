@@ -1,6 +1,6 @@
 # RFC-0006 缓存、分布式锁与幂等
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配） | 日期：2026-10-21 | 对应 ADR：— | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配、两级缓存） | 日期：2026-10-21 | 对应 ADR：— | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
 
 ## 摘要
 
@@ -10,7 +10,7 @@
 
 | 能力 | 含义 | 默认实现 |
 | --- | --- | --- |
-| `caching.local@1` | 进程内缓存，`ICache` | `Caching.InMemory` |
+| `caching.local@1` | 进程内缓存，`ICache` | `Caching.InMemory`（`Caching.Hybrid` 以两级缓存顶替） |
 | `caching.distributed@1` | 跨进程共享缓存，`ISharedCache`、`IDistributedLock`、幂等中间件 | `Caching.InMemory`（单实例下正确；多实例换 `Caching.Redis`） |
 
 内存实现同时声明两种能力；另有显式 Provider 提供 `caching.distributed` 时，内存实现只为被选中的 `caching.local` 注册服务（RFC-0002 第 4 条）。
@@ -53,6 +53,16 @@ Idempotency 阶段的中间件按 Baggage `xihan.idempotency-key` 去重，作�
 4. 重复调用：标记仍为"处理中"返回 `CACHING_CONFLICT_002`；已完成则回放结果、不执行处理器，并在上下文标记为回放。
 
 回放的是调用结果，不是响应体；操作契约（P3）在此之上回放响应。
+
+## 两级缓存
+
+`Caching.Hybrid` 提供 `caching.local@1`、依赖 `caching.distributed@1`：`ICache` 是 L1（进程内对象引用，有界 LRU）在前、L2（被选中的 `ISharedCache`）在后的两级缓存。
+
+- 读：L1 命中直接返回；未命中读 L2，命中后写进 L1。批量读先在 L1 取全部，只把未命中的键一次交给 L2。
+- 写与删：先 L2 再 L1；`GetOrCreate` 两级都未命中才执行工厂，结果写两级。
+- L1 的存活时间是条目过期与 `LocalTimeToLive`（默认 30 秒）的较小者，滑动过期在 L1 里按绝对时间处理；`LocalCapacity`（默认 10000）满时淘汰最久未访问的条目。
+- 别的实例的写入与删除不会主动失效本实例的 L1：读到旧值的时间最长为 `LocalTimeToLive`，需要更强一致的键应直接用 `ISharedCache`。
+- `ICache.Store` 是 L2 的字节存储；L1 直接存对象引用，调用方不得修改取回的对象。
 
 ## IDistributedCache 适配
 

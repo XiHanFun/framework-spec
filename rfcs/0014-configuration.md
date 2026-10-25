@@ -1,6 +1,6 @@
 # RFC-0014 远程配置与密钥
 
-> 状态：已采纳 | 日期：2026-10-23 | 对应 ADR：— | 参考实现：`XiHan.Framework.Configuration.Abstractions` | 一致性：`XiHan.Framework.Configuration.Conformance`
+> 状态：已采纳（2026-10-26 修订：Nacos Provider） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance`
 
 ## 摘要
 
@@ -16,7 +16,7 @@
 ## 远程配置
 
 - 文档 `ConfigurationDocument(Version, Values)`：`Values` 的键已是 `IConfiguration` 的键形式（`A:B:C`），Provider 负责把自己的格式（JSON、YAML、properties）展平；`Version` 非空，每次变化都不同（ETag、修订号或内容哈希）。
-- `FetchAsync(namespace, knownVersion)`：`knownVersion` 为空时总是返回文档；非空且远端未变化时返回无值。实现可以长轮询：阻塞到变化或自己的窗口到期，收到取消时返回无值而不是抛出。命名空间不存在 → `CONFIGURATION_NOTFOUND_001`；不可达 → `CONFIGURATION_UNAVAILABLE_001`。
+- `FetchAsync(namespace, knownVersion)`：`knownVersion` 为空时总是返回文档；非空且远端未变化时返回无值。实现可以长轮询：阻塞到变化或自己的窗口到期，收到取消时返回无值而不是抛出。命名空间不存在 → `CONFIGURATION_NOTFOUND_001`；不可达 → `CONFIGURATION_UNAVAILABLE_001`；远端文档不是声明的格式（JSON 不合法等）→ `CONFIGURATION_VALIDATION_001`。
 - 适配器 `AddXiHanRemoteConfiguration(client, options)`：构建配置时同步加载一次（`IConfigurationProvider.Load` 是同步契约，受 `LoadTimeout` 约束）；失败时 `Optional` 为假则抛出让启动失败，为真则为空并回调 `OnError`。之后按 `PollInterval`（默认 30 秒，`null` 关闭）带已知版本轮询，拿到新版本就替换整份数据并触发重载令牌；轮询失败保留最后一份成功的数据并回调 `OnError`。`Prefix` 把文档挂到某个节下。
 
 ## 密钥
@@ -25,6 +25,15 @@
 - `GetAsync(names[])` 批量逐项返回 `SecretLookup(Name, Result<SecretValue>)`，顺序与入参一致，重复项各自作答，空集合返回空；不存在 → `CONFIGURATION_NOTFOUND_002`，无权限 → `CONFIGURATION_DENIED_001`，不可达 → `CONFIGURATION_UNAVAILABLE_002`。
 - `SecretValue.ToString()` 固定返回遮蔽文本，防止进入日志。
 - 适配器 `AddXiHanSecrets(store, options)`：`Mappings` 把配置键映射到密钥名，构建时一次批量读取；缺失或失败时 `Optional` 为假则抛出，为真则跳过并回调 `OnError`；`RefreshInterval` 非空时周期性重读，失败的项保留旧值。
+
+## Nacos Provider
+
+`Configuration.Nacos` 实现 `IRemoteConfigurationClient`，直接用 Nacos 的 HTTP 配置接口（v1，Nacos 2.x 兼容），不依赖 SDK：
+
+- 命名空间参数即 Nacos 的 `dataId`；`Group`（默认 `DEFAULT_GROUP`）与 `Tenant`（Nacos 命名空间 ID，默认公共）来自选项。
+- 版本是内容的 MD5（小写十六进制），与 Nacos 监听接口的约定一致。`knownVersion` 非空时先以该 MD5 长轮询监听（`LongPollTimeout`，默认 30 秒），服务端报告变化才取整份文档，窗口到期或取消返回无值。
+- 文档格式 `Format`：`Json`（默认，对象按 `A:B` 展平、数组按下标、`null` 保留为空值）或 `Properties`（`a.b=c` → `a:b`，`#` / `!` 行是注释）。
+- 配置了 `Username` / `Password` 时先登录取 `accessToken`，到期前自动续；`ServiceUrl` 可以是多个地址，按序尝试。
 
 ## 一致性
 

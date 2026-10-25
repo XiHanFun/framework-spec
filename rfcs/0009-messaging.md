@@ -1,6 +1,6 @@
 # RFC-0009 消息、CloudEvents 信封与发件箱
 
-> 状态：已采纳（2026-10-23 修订：批量发布） | 日期：2026-10-21 | 对应 ADR：— | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ` | 一致性：`XiHan.Framework.Messaging.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka` | 一致性：`XiHan.Framework.Messaging.Conformance`
 
 ## 摘要
 
@@ -11,13 +11,13 @@
 | 能力 | 含义 | 默认实现 |
 | --- | --- | --- |
 | `messaging.queue@1` | 工作队列：发布、按主题消费、至少一次、重试、死信 | `Messaging.InMemory`（单进程） |
-| `messaging.stream@1` | 流（预留） | — |
+| `messaging.stream@1` | 有序分区流：在队列语义之上，按分区键有序、按消费组保存位点、可按时刻重放 | —（`Messaging.Kafka`） |
 
 ## 信封
 
 CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`datacontenttype`（默认 `application/json`）、`data`。线上编码为结构化 JSON（`application/cloudevents+json`）：JSON 数据内联在 `data`，其他数据放 `data_base64`，扩展属性是顶层成员。
 
-框架扩展属性：`xihantenant`（→ Baggage `xihan.tenant`）、`xihancorrelation`（→ `xihan.correlation`）、`traceparent`（→ 追踪 ID 与父跨度）。扩展属性名 `^[a-z0-9]{1,20}$`。
+框架扩展属性：`xihantenant`（→ Baggage `xihan.tenant`）、`xihancorrelation`（→ `xihan.correlation`）、`traceparent`（→ 追踪 ID 与父跨度）、`xihankey`（分区键，见「流」）。扩展属性名 `^[a-z0-9]{1,20}$`。
 
 主题文法 `^[a-z0-9][a-z0-9._-]{0,127}$`；死信主题为主题加 `DeadLetterSuffix`（默认 `.dlq`）。
 
@@ -32,6 +32,16 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 5. 代理在应用进入服务状态之前不派发。
 6. 发布是批量优先的（`conventions/batch-first.md`）：`IMessagePublisher` 与 `IMessageBroker` 提供 `PublishManyAsync(topic, envelopes)`，逐项结果与入参顺序一一对应，单条是它的特例。主题不合法时每一项都是 `MESSAGING_VALIDATION_001`；同一主题内保持入参顺序；重复 `id` 照发，去重是消费端的事。Provider 用代理的原生批量（RabbitMQ 在同一通道上连续发布并一次等待确认），内存实现一次入队。空集合不触代理。
 
+## 流
+
+`messaging.stream@1` 的 Provider 同时提供 `messaging.queue@1`，在队列语义之上保证：
+
+1. 分区键：信封扩展属性 `xihankey` 决定分区，同一主题内同键的消息按发布顺序投递；没有键的消息由 Provider 分配分区，只在主题只有一个分区时全局有序。
+2. 消费位点：按消费组保存，投递完成（成功、重试耗尽进死信、无法解码进死信）后提交；重启续接，仍是至少一次。重试在原位进行（不重新入队），保持分区内顺序。
+3. 重放：`IMessageReplayer.ReplayAsync(topic, since)` 用独立的消费位点把该时刻起的消息重新投递给当前订阅的处理器，经完整管道、按同样的重试与死信规则；不影响正常消费的位点；主题不存在或该时刻之后没有消息时成功返回。重放是有意的重复投递，去重仍由处理器自理。
+
+`Messaging.Kafka`：主题映射为 `<TopicPrefix><topic>`（默认 `xihan.`），消费组 `GroupId`（默认 `xihan`），每个订阅主题一个消费者；生产者幂等且 `acks=all`，批量发布用客户端的原生批量后一次等待全部投递报告；无法解码或重试耗尽的消息发布到 `<topic><DeadLetterSuffix>`；`Properties:<key>` 透传 librdkafka 配置（`security.protocol`、`sasl.*`、`ssl.*`）。连接不上在启动时失败。
+
 ## 发件箱
 
 `OutboxFeature` 需要 `messaging.queue@1` 与 `persistence.relational@1`：
@@ -41,7 +51,7 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 
 ## 一致性
 
-Provider 必须继承 `MessageBrokerConformance` 并通过全部用例，含批量发布：一次发布多条保持顺序、逐项结果、空集合、主题不合法逐项失败。
+Provider 必须继承 `MessageBrokerConformance` 并通过全部用例，含批量发布：一次发布多条保持顺序、逐项结果、空集合、主题不合法逐项失败。提供 `messaging.stream@1` 的 Provider 还要继承 `MessageStreamConformance`（同键有序、按时刻重放）。
 
 ## 错误码
 
