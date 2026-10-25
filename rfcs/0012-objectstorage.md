@@ -1,6 +1,6 @@
 # RFC-0012 对象存储
 
-> 状态：已采纳 | 日期：2026-10-23 | 对应 ADR：— | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem` | 一致性：`XiHan.Framework.ObjectStorage.Conformance`
+> 状态：已采纳（2026-10-26 修订：S3 Provider） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3` | 一致性：`XiHan.Framework.ObjectStorage.Conformance`
 
 ## 摘要
 
@@ -42,9 +42,19 @@
 
 `ObjectStorage.FileSystem`：根目录（默认 `<AppContext.BaseDirectory>/blobs`）下 `<container>/data/<key>` 存内容、`<container>/meta/<key>.json` 存元数据；写入先落临时文件再原子替换；`ETag` 是内容的 SHA-256；配额 `MaxTotalBytes`（默认 1 GiB）与 `MaxBlobBytes`（默认 256 MiB），启动时扫描目录得到已用量，之后在进程内计量；单进程正确，多进程共享目录时配额只是近似。
 
+## S3 Provider
+
+`ObjectStorage.S3`：容器即桶，键即对象键，经 AWS SDK 访问 Amazon S3 与兼容服务（MinIO、阿里云 OSS、腾讯云 COS、Cloudflare R2 等），不再为每家云单独做包。
+
+- `Overwrite = false` 先 `Head` 再带 `If-None-Match: *` 写入，服务端支持条件写入（Amazon S3、MinIO）时由它保证原子；已存在 → `OBJECTSTORAGE_CONFLICT_001`。不可定位的内容流先落临时文件取得长度，不整体装进内存。
+- 批量删除：S3 不报告对象是否存在过，先逐键 `Head` 定存在性（同一批里重复的键只有第一次算存在），再把存在的键按每批 1000 个 `DeleteObjects`；删除失败只影响本次负责删除的项。
+- 列举经 `ListObjectsV2`（S3 保证键的序数顺序），续页标记是其 continuation token；条目只有键、长度、`ETag` 与修改时间，内容类型为默认值、自定义元数据为空，需要时再 `Head`——列举条目的元数据因此是"可能不完整"的，一致性套件只校验键顺序、长度与 `ETag`。不符合键文法的对象（以 `/` 结尾的"目录"占位）跳过。
+- 不存在的键与桶 → `OBJECTSTORAGE_NOTFOUND_001`；桶不存在的列举是空页；其余服务端错误、网络错误与 SDK 超时 → `OBJECTSTORAGE_UNAVAILABLE_001`。没有配额（由桶策略管理）。`EnsureBuckets` 开启时写入遇到桶不存在就建桶再重试一次，默认由基础设施预先建桶。
+- 配置 `XiHan:ObjectStorage:S3`（`ServiceUrl`、`Region`、`AccessKey`、`SecretKey`、`ForcePathStyle`、`EnsureBuckets`），绑定 `objectstorage`（`storage:object`）的主值与属性覆盖之；没有密钥时走 SDK 默认凭据链；应用自己注册的 `IAmazonS3` 优先。
+
 ## 一致性
 
-Provider 必须继承 `BlobStoreConformance` 并通过全部用例。
+Provider 必须继承 `BlobStoreConformance` 并通过全部用例（S3 Provider 对 MinIO 通过）。
 
 ## 错误码
 
