@@ -88,6 +88,7 @@ git submodule update --init
 | [0018](rfcs/0018-wasm-plugins.md) | Wasm 插件 ABI（Experimental）：同一套消息经导出函数 + 线性内存 | 已采纳（规范 `plugin/wasm.md`；参考实现 `Plugins.Wasm`，套件 `Plugins.Conformance`） |
 | [0019](rfcs/0019-remote-providers.md) | 远程 Provider：子系统能力经插件操作提供，首个操作集 `caching.distributed@1` | 已采纳（规范 `provider/`；适配器 `Caching.Remote`，插件 `framework-sdk-go` 的 `caching` 包） |
 | [0020](rfcs/0020-migration-v4.md) | 从 4.x 迁移：`xihan migrate v4` 的语法级重写规则，不做运行期兼容桥 | 已采纳（规范 `migration/v4.md`；实现 `XiHan.Framework.Cli`） |
+| [0021](rfcs/0021-workflow.md) | 工作流：持久化执行 | 已采纳（参考实现 `Workflow.Abstractions`、`Workflow.InMemory`，套件 `Workflow.Conformance`） |
 
 ## 版本
 
