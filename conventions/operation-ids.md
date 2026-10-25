@@ -17,7 +17,10 @@ Verb        = 小写动词（create、get、list、update、delete、cancel、..
 | `list` | `GET /{resource}` | `{Resource}.List` | `{resource}_list` |
 | `update` | `PUT /{resource}/{id}` | `{Resource}.Update` | `{resource}_update` |
 | `delete` | `DELETE /{resource}/{id}` | `{Resource}.Delete` | `{resource}_delete` |
-| 其他 | `POST /{resource}/{id}:{verb}` | `{Resource}.{Verb}` | `{resource}_{verb}` |
+| 其他，请求含 `id` | `POST /{resource}/{id}:{verb}` | `{Resource}.{Verb}` | `{resource}_{verb}` |
+| 其他，请求不含 `id` | `POST /{resource}:{verb}` | `{Resource}.{Verb}` | `{resource}_{verb}` |
+
+自定义动词按请求对象是否声明 `id` 属性（序列化名，不分大小写）分实例级与集合级：实例级形如 `POST /orders/{id}:cancel`，集合级形如 `POST /orders:export`（Google AIP 自定义方法的两种形态）。标准动词 `get` / `update` / `delete` 恒为实例级，`create` / `list` 恒为集合级，与请求形状无关。HTTP 适配器从操作描述的请求序列化元数据判定，不用反射。
 
 命令行：`<resource> <verb> [--field value ...]`，即 `invoke <resource>.<verb>`（`protocol/commandline.md`）。
 
