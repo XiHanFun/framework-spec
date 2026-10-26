@@ -1,6 +1,6 @@
 # RFC-0005 领域协议与持久化
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
 
 ## 摘要
 
@@ -11,7 +11,7 @@
 | 协议 | 字段 | Provider 行为 |
 | --- | --- | --- |
 | `IEntity<TKey>` | `Id` | 标识；`TKey` 必须可比较相等 |
-| `IAggregateRoot<TKey>` | `DomainEvents`、`ClearDomainEvents()` | 提交后派发并清空（派发由 Messaging 子系统承担） |
+| `IAggregateRoot<TKey>` | `DomainEvents`、`ClearDomainEvents()` | 仓储把本工作单元内新增 / 更新 / 删除过的聚合登记到 `IUnitOfWork.DomainEvents`（按首次写入顺序、同一实例一次）；Transaction 阶段在处理器成功后、提交前把它们尚未派发的事件交给 `IDomainEventDispatcher`（由 Messaging 子系统注册，见 RFC-0009），派发成功即清空缓冲，派发失败回滚并以失败结果结束调用；有事件却没有注册派发器 → `PERSISTENCE_VALIDATION_003`（不静默丢弃） |
 | `IHasCreationTime` | `CreatedAt` | 新增时写入当前 UTC 时间 |
 | `IHasModificationTime` | `ModifiedAt` | 更新时写入当前 UTC 时间 |
 | `IHasConcurrencyStamp` | `ConcurrencyStamp` | 新增与更新时刷新；更新时比对，不符返回 `PERSISTENCE_CONFLICT_001` |
@@ -29,6 +29,7 @@
 - 调用结果为成功则提交；结果为失败或抛出异常则回滚。提交失败（并发冲突、标识重复、容量）作为调用结果返回。
 - 只读工作单元拒绝写入，返回 `PERSISTENCE_VALIDATION_002`；Provider 可在写入时或提交时拒绝。
 - 读己之写：同一工作单元内新增、更新、删除对随后的查找与查询可见；提交前对其他工作单元不可见。
+- 领域事件在提交前派发（`UnitOfWorkMiddleware`：处理器成功 → 派发 → 提交）：装配了发件箱时事件随业务写入同一事务落进发件箱表，提交后由投递循环发出；没有发件箱时直接发布到代理，发布失败回滚业务写入（至多一次、先于提交）。派发只在 Transaction 阶段的中间件里发生，直接使用工作单元的调用方自己负责。
 
 ## 仓储
 

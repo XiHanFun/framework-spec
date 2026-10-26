@@ -42,6 +42,16 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 
 `Messaging.Kafka`：主题映射为 `<TopicPrefix><topic>`（默认 `xihan.`），消费组 `GroupId`（默认 `xihan`），每个订阅主题一个消费者；生产者幂等且 `acks=all`，批量发布用客户端的原生批量后一次等待全部投递报告；无法解码或重试耗尽的消息发布到 `<topic><DeadLetterSuffix>`；`Properties:<key>` 透传 librdkafka 配置（`security.protocol`、`sasl.*`、`ssl.*`）。连接不上在启动时失败。
 
+## 领域事件
+
+聚合（`IAggregateRoot<TKey>`，RFC-0005）在工作单元内记录的领域事件由 Messaging 子系统派发：
+
+1. 应用登记事件类型：`services.AddDomainEvent<OrderPlaced>(topic: "orders", type: "orders.placed", jsonContext.OrderPlaced, subject: e => $"order/{e.OrderId:N}")`——主题（主题文法）、CloudEvents `type`、源生成的序列化元数据（不经反射）与可选的 `subject` 选择器进 `DomainEventRegistry`（容量 10000）；首次登记同时注册 `IDomainEventDispatcher` 的实现 `DomainEventDispatcher`（作用域，用当前作用域的 `IMessagePublisher`）。同一事件类型重复登记抛 `FrameworkException`（`MESSAGING_VALIDATION_004`）。
+2. 派发时机由 Transaction 阶段决定（RFC-0005）：处理器成功后、提交前，把工作单元登记的聚合的事件按登记映射成信封：`id` 为新 UUID v7（`N` 格式）、`source` 为 `/{topic}`、`type` 为登记的类型、`subject` 由选择器给出（没有则省略）、`time` 为 `IDomainEvent.OccurredAt`、`data` 为事件对象的 JSON；当前工作单元有租户时带 `xihantenant` 扩展。
+3. 同一主题的事件一次 `PublishManyAsync`（批量优先），主题按首次出现顺序；任一项失败即派发失败（返回第一个失败），调用回滚。全部成功后清空每个聚合的缓冲。
+4. 装配了发件箱时 `IMessagePublisher` 是 `OutboxPublisher`：事件随业务写入同一事务落进发件箱表；没有发件箱时直接发布到代理。
+5. 事件类型未登记 → `MESSAGING_VALIDATION_003`（不静默跳过）。
+
 ## 发件箱
 
 `OutboxFeature` 需要 `messaging.queue@1` 与 `persistence.relational@1`：
