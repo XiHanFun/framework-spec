@@ -43,6 +43,8 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `KERNEL_NOTFOUND_001` | 操作未登记 |
 | `KERNEL_VALIDATION_001` | 操作载荷不合法（非 JSON、null 或类型不匹配） |
 | `KERNEL_VALIDATION_002` | 类型化调用的请求或响应类型与登记不符 |
+| `KERNEL_VALIDATION_003` | 请求不满足操作契约的 JSON Schema（类型、必填、枚举、范围、长度、模式、元素数）；Validate 阶段拒绝，不进 Handle |
+| `KERNEL_VALIDATION_004` | 请求对象的自校验（`IValidatableObject`）失败；Validate 阶段拒绝，不进 Handle |
 | `KERNEL_OPERATION_001` | 操作 ID 重复登记 |
 | `KERNEL_OPERATION_002` | 操作登记表已满 |
 | `PLUGINS_VALIDATION_001` | 插件清单、种类或隔离级别不合法 |
