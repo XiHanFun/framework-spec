@@ -38,7 +38,7 @@
 - `TenantShard`：租户 ID、连接串、可选的提供者名（小写，如 `postgresql`）、透传给持久化 Provider 的属性。
 - 默认解析器 `TenantStoreShardResolver` 从 `ITenantStore` 的租户属性推出分片：`ConnectionString` 有值即分库，`DatabaseProvider` 为提供者名，`Shard.<key>` 透传为 `<key>`（用点不用冒号：属性来自配置时冒号是节分隔符）。结果按租户缓存（含"无分片"），容量 `ShardCacheSize`（默认 10000，满时整体清空）；租户连接变更后调用 `Invalidate`。
 - Tenant 阶段在租户写入安全上下文之后解析分片（装配了解析器才解析），写进调用上下文（`GetTenantShard` / `SetTenantShard`）；解析失败即调用失败，不降级为共库。无租户的调用没有分片。
-- 持久化 Provider 在作用域内创建客户端时读当前调用的分片，不触存储、不阻塞：`TenantShardBinding.Resolve` 把分片表示成连接绑定（主值是分片连接串，属性并入原绑定属性、分片属性与 `tenant` / `provider`），有分片用分片连接，否则用应用默认连接；清单以可选依赖声明 `multitenancy.sharding@1?`。分片库的表结构由应用管理，框架的建表开关只作用于默认连接。
+- 持久化 Provider 在作用域内创建客户端时读当前调用的分片，不触存储、不阻塞：`TenantShardBinding.Resolve` 把分片表示成连接绑定（主值是分片连接串，属性并入原绑定属性、分片属性与 `tenant` / `provider`）；清单以可选依赖声明 `multitenancy.sharding@1?`。分片是**实体级**落点而不是整个作用域的切换：带分片的调用里，Provider 同时持有应用默认连接与分片连接，租户数据（实现 `IMultiTenant` 的实体）走分片连接，平台目录表（租户、授予、翻译、发件箱等不带租户的实体）仍走默认连接，两者在同一工作单元里一起提交或回滚（`Persistence.SqlSugar` 经多 `ConfigId` 客户端与 `AsTenant()` 事务实现；`Persistence.EntityFrameworkCore` 一个 `DbContext` 一个连接，分片调用整体切到分片连接，平台表要另起 `DbContext` 由应用处理）。分片库的表结构由应用管理，框架的建表开关只作用于默认连接。
 
 ## 一致性
 
