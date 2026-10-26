@@ -18,7 +18,7 @@ ingress → observe → resilience → authenticate → tenant → authorize →
 | --- | --- |
 | `ingress` | 协议消息归一化、大小限制、构造上下文 |
 | `observe` | Trace、日志、指标 |
-| `resilience` | 超时、限流、自适应并发、熔断 |
+| `resilience` | 超时、限流、并发上限、熔断：内核内置 `DeadlineMiddleware`（截止时间，`KERNEL_TIMEOUT_001`）与 `ResilienceMiddleware`（按操作 ID 的熔断 / 固定窗口限流 / 并发上限，`KERNEL_UNAVAILABLE_002` – `004`，见「Resilience 阶段」） |
 | `authenticate` | 主体解析 |
 | `tenant` | 租户解析与隔离上下文 |
 | `authorize` | 策略判定 |
@@ -27,6 +27,44 @@ ingress → observe → resilience → authenticate → tenant → authorize →
 | `transaction` | 工作单元 |
 | `handle` | 调用操作 |
 | `egress` | 结果与错误翻译、响应信封、写回传播字段 |
+
+## Resilience 阶段
+
+内核内置两个中间件，都归属内核清单、放在阶段开头，`DeadlineMiddleware` 在前：
+
+- `DeadlineMiddleware`：按调用的截止时间取消下游，超时 `KERNEL_TIMEOUT_001`、外部取消 `KERNEL_CANCELLED_001`。
+- `ResilienceMiddleware`：只作用于带操作描述的调用（宿主自定义端点、消息派发不受限），按操作 ID 各持一份限制实例，判定顺序固定为熔断 → 限流 → 并发；任一拒绝都以 UNAVAILABLE 种类的内核错误码结束调用、不进后续阶段，`details` 带 `id`，限流与熔断另带 `retryAfter`（秒，向上取整、至少 1）。没有任何限制的操作直接透传。
+
+| 限制 | 语义 | 拒绝码 |
+| --- | --- | --- |
+| 熔断 | 连续失败达到 `FailureThreshold` 即打开 `BreakDuration`；到期半开，只放一次试探，成功关闭、失败重新打开；只有 KIND 为 `UNAVAILABLE` / `TIMEOUT` / `UNEXPECTED` 的结果与未处理异常算失败，校验、不存在、拒绝等调用方错误不算；打开期间仍在途的调用结束时不改变状态 | `KERNEL_UNAVAILABLE_004` |
+| 限流 | 固定窗口：`Window` 内最多 `PermitLimit` 次，超出的最多 `QueueLimit` 个排队到下一窗口，其余拒绝 | `KERNEL_UNAVAILABLE_002` |
+| 并发 | 同时执行最多 `ConcurrencyLimit` 次，超出的最多 `ConcurrencyQueueLimit` 个排队，其余拒绝 | `KERNEL_UNAVAILABLE_003` |
+
+排队等待受调用的取消令牌约束：截止时间到了由 `DeadlineMiddleware` 按 `KERNEL_TIMEOUT_001` 结束，不会无限等。
+
+配置节 `XiHan:Kernel:Resilience`：节本身的键是默认策略（`PermitLimit`、`WindowSeconds`、`QueueLimit`、`ConcurrencyLimit`、`ConcurrencyQueueLimit`、`FailureThreshold`、`BreakSeconds`），`Operations:<操作 ID>` 下同名键覆盖该操作，缺省键沿用默认策略；非法值在构建应用时拒绝。
+
+```json
+{
+  "XiHan": {
+    "Kernel": {
+      "Resilience": {
+        "PermitLimit": 1000,
+        "WindowSeconds": 1,
+        "ConcurrencyLimit": 64,
+        "FailureThreshold": 5,
+        "BreakSeconds": 30,
+        "Operations": {
+          "reports.export": { "ConcurrencyLimit": 2, "PermitLimit": 10, "WindowSeconds": 60 }
+        }
+      }
+    }
+  }
+}
+```
+
+`XiHan:Kernel:UseBuiltInMiddleware=false` 时两个中间件都不登记，配置节不读取。按调用方（主体、租户）分桶与自适应并发不在内核范围，应用在本阶段加自己的中间件。
 
 ## 排序规则
 

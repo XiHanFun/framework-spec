@@ -35,6 +35,9 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `KERNEL_HOSTING_003` | 特性停止超时 |
 | `KERNEL_HOSTING_004` | 应用状态不允许该操作（重复构建、未就绪时调用） |
 | `KERNEL_UNAVAILABLE_001` | 应用未就绪或正在停止，暂不接收调用（HTTP 503） |
+| `KERNEL_UNAVAILABLE_002` | 操作被限流：固定窗口的许可用尽且队列已满；Resilience 阶段拒绝，`retryAfter` 秒后重试 |
+| `KERNEL_UNAVAILABLE_003` | 操作已达并发上限且队列已满；Resilience 阶段拒绝 |
+| `KERNEL_UNAVAILABLE_004` | 操作的熔断器打开，暂不执行；Resilience 阶段拒绝，`retryAfter` 秒后重试 |
 | `KERNEL_TIMEOUT_001` | 调用超过截止时间 |
 | `KERNEL_CANCELLED_001` | 调用被取消 |
 | `KERNEL_UNEXPECTED_001` | 调用期间发生未处理异常 |
