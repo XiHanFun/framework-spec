@@ -25,7 +25,7 @@ spec/
 ├─ protocol/       # 规范性：HTTP / gRPC / MCP / CloudEvents / 命令行 映射
 ├─ packaging/      # 规范性：应用清单 xihan.app.json 与 xihan pack 的产物映射
 ├─ provider/       # 规范性：远程 Provider 的通用规则与各能力的操作集（caching.distributed）
-├─ migration/      # 规范性：xihan migrate v4 的修复规则、映射表、标记与报告格式
+├─ migration/      # 规范性：xihan migrate 的通用约定（命令、标记、报告格式）与各来源版本的规则集
 └─ conformance/    # 一致性向量（vectors/）与黑盒运行器（Go 模块，见 conformance/README.md）
 ```
 
@@ -87,7 +87,7 @@ git submodule update --init
 | [0017](rfcs/0017-plugin-protocol.md) | 进程外插件协议 `xihan.plugin.v1` | 已采纳（规范 `plugin/`；参考实现 `Plugins.OutOfProcess`，套件 `Plugins.Conformance`） |
 | [0018](rfcs/0018-wasm-plugins.md) | Wasm 插件 ABI（Experimental）：同一套消息经导出函数 + 线性内存 | 已采纳（规范 `plugin/wasm.md`；参考实现 `Plugins.Wasm`，套件 `Plugins.Conformance`） |
 | [0019](rfcs/0019-remote-providers.md) | 远程 Provider：子系统能力经插件操作提供，首个操作集 `caching.distributed@1` | 已采纳（规范 `provider/`；适配器 `Caching.Remote`，插件 `framework-sdk-go` 的 `caching` 包） |
-| [0020](rfcs/0020-migration-v4.md) | 从 4.x 迁移：`xihan migrate v4` 的语法级重写规则，不做运行期兼容桥 | 已采纳（规范 `migration/v4.md`；实现 `XiHan.Framework.Cli`） |
+| [0020](rfcs/0020-migration.md) | 版本迁移：`xihan migrate <来源版本>` 按规则集做语法级重写，不做运行期兼容桥 | 已采纳（2026-10-26 修订：撤掉 4.x 规则集，见 ADR-0021；规范 `migration/README.md`；实现 `XiHan.Framework.Cli`） |
 | [0021](rfcs/0021-workflow.md) | 工作流：持久化执行 | 已采纳（2026-10-26 修订：触发式启动、事件网关、外部任务、HTTP 与补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；参考实现 `Workflow.Abstractions`、`Workflow.InMemory`、`Workflow.Database`，套件 `Workflow.Conformance`） |
 | [0022](rfcs/0022-ai.md) | AI：聊天、嵌入、工具与知识 | 已采纳（参考实现 `AI.Abstractions`、`AI.OpenAI`、`AI.VectorData`，套件 `AI.Conformance`） |
 
