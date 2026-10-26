@@ -1,6 +1,6 @@
 # RFC-0015 审计
 
-> 状态：已采纳 | 日期：2026-10-23 | 对应 ADR：— | 参考实现：`XiHan.Framework.Auditing.Abstractions`、`XiHan.Framework.Auditing.InMemory` | 一致性：`XiHan.Framework.Auditing.Conformance`
+> 状态：已采纳（2026-10-27 修订：数据库 Provider） | 日期：2026-10-23 | 对应 ADR：ADR-0028（数据库 Provider） | 参考实现：`XiHan.Framework.Auditing.Abstractions`、`XiHan.Framework.Auditing.InMemory`、`XiHan.Framework.Auditing.Database` | 一致性：`XiHan.Framework.Auditing.Conformance`
 
 ## 摘要
 
@@ -21,6 +21,10 @@
 ## 默认实现
 
 `Auditing.InMemory`：容量 `XiHan:Auditing:InMemory:Capacity`（默认 10000）的环形缓冲，满了丢最旧的；`LogEvents`（默认开）时每条事件以 Information 级写日志（内核日志薄桥）。配置节 `XiHan:Auditing`：`Selection`、`IncludeSuccesses`。
+
+## 数据库 Provider
+
+`Auditing.Database`（ADR-0028）：事件先进有界队列（`XiHan:Auditing:Database`：`QueueCapacity` 默认 10000；满了丢新到的并计数、节流告警，调用路径不阻塞），后台按批（`BatchSize` 默认 100）或按周期（`FlushIntervalSeconds` 默认 1）在新作用域直接开工作单元批量落库（不经管道），落库失败只记日志；停止时先停循环、停止接收，再刷完剩余事件。行只追加（动作、结果、错误码 / 消息键 / 文案 / 细节、trace-id、资源、主体、租户、细节 JSON、进程内写入序号），不实现 `IMultiTenant`；查询按写入序号升序分页，续页令牌是序号；`Error.Inner` 不持久化。`LogEvents`（默认开）同内存实现。清单依赖 `persistence.relational@1`。
 
 ## 一致性
 
