@@ -22,7 +22,7 @@ ingress → observe → resilience → authenticate → tenant → authorize →
 | `authenticate` | 主体解析 |
 | `tenant` | 租户解析与隔离上下文 |
 | `authorize` | 策略判定 |
-| `validate` | 契约校验 |
+| `validate` | 契约校验：内核内置 `ValidationMiddleware` 按操作的请求 JSON Schema 校验载荷（`KERNEL_VALIDATION_003`），解码后对实现 `IValidatableObject` 的请求执行自校验（`KERNEL_VALIDATION_004`），不通过不进 Handle（RFC-0011） |
 | `idempotency` | 幂等键去重 |
 | `transaction` | 工作单元 |
 | `handle` | 调用操作 |
