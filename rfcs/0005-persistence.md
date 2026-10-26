@@ -1,6 +1,6 @@
 # RFC-0005 领域协议与持久化
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
 
 ## 摘要
 
@@ -35,7 +35,7 @@
 | 操作 | 语义 | 可恢复失败 |
 | --- | --- | --- |
 | `FindAsync(id)` | 已软删除或不属于当前租户视为不存在 | — |
-| `ListAsync(query)` | 过滤、排序、分页；`Take` 上限默认 1000，Provider 不得超出 | — |
+| `ListAsync(query)` | 过滤、排序、分页；`Take` 上限默认 1000，Provider 不得超出；`TimeRange`（`Within(from, to)`）是时间范围提示——按时间分表 / 分区的 Provider 据此只扫描范围内的表，不是过滤条件，不分表的实体与不支持范围的 Provider 忽略它 | — |
 | `CountAsync(query)` | 忽略排序与分页 | — |
 | `AddAsync` | 写入创建时间、租户、并发戳 | `PERSISTENCE_CONFLICT_002` 标识重复、`PERSISTENCE_VALIDATION_001` 缺租户 |
 | `UpdateAsync` | 写入修改时间、刷新并发戳 | `PERSISTENCE_NOTFOUND_001`、`PERSISTENCE_CONFLICT_001` |
@@ -73,11 +73,11 @@
 | --- | --- | --- |
 | `Persistence.InMemory` | default | 每类实体一张有界表；覆盖层实现读己之写，提交时原子应用；存引用不拷贝 |
 | `Persistence.EntityFrameworkCore` | provider | 应用持有 `DbContext`；工作单元在首次写入时开启数据库事务，每次写入立即 `SaveChanges`，批量写入是一次 `AddRange` / 多实体跟踪加一次 `SaveChanges`；软删除与租户过滤用 `EF.Property` 显式施加，不用全局过滤器；`ApplyPersistenceConventions()` 把并发戳设为并发令牌；游离实体更新先比对并发戳 |
-| `Persistence.SqlSugar` | provider | 作用域内的 `ISqlSugarClient` 由特性按回调创建或由应用注册，可以带多个连接（`ConfigId`）：特性创建时默认连接的 `ConfigId` 是 `default`，带租户分片的调用再加一个 `shard` 连接；每个实体落在哪个连接由 `IEntityConnectionSelector` 决定（默认规则：SqlSugar `[Tenant(configId)]` 特性指定的连接 → 实现 `IMultiTenant` 且客户端有 `shard` 连接时 `shard` → 否则默认连接），平台目录表始终走默认连接、租户表走分片连接；工作单元经 `AsTenant()` 开启、提交、回滚事务，同一调用触及的全部连接一起提交或回滚（顺序提交，不是两阶段提交）；每次写入立即执行；批量用 `Insertable(list)` / `Updateable(list)` / `Deleteable().In(ids)`；软删除与租户过滤以表达式显式施加；`SqlSugarConventions.Apply()` 按协议配置主键、并发戳长度、`DateTimeOffset` 的 UTC 往返、可空列与忽略列，实体不继承 SqlSugar 基类；更新与删除先在事务内加行锁取回当前行比对并发戳 |
+| `Persistence.SqlSugar` | provider | 作用域内的 `ISqlSugarClient` 由特性按回调创建或由应用注册，可以带多个连接（`ConfigId`）：特性创建时默认连接的 `ConfigId` 是 `default`，带租户分片的调用再加一个 `shard` 连接；每个实体落在哪个连接由 `IEntityConnectionSelector` 决定（默认规则：SqlSugar `[Tenant(configId)]` 特性指定的连接 → 实现 `IMultiTenant` 且客户端有 `shard` 连接时 `shard` → 否则默认连接），平台目录表始终走默认连接、租户表走分片连接；工作单元经 `AsTenant()` 开启、提交、回滚事务，同一调用触及的全部连接一起提交或回滚（顺序提交，不是两阶段提交）；每次写入立即执行；批量用 `Insertable(list)` / `Updateable(list)` / `Deleteable().In(ids)`；软删除与租户过滤以表达式显式施加；`SqlSugarConventions.Apply()` 按协议配置主键、并发戳长度、`DateTimeOffset` 的 UTC 往返、可空列与忽略列，实体不继承 SqlSugar 基类；更新与删除先在事务内加行锁取回当前行比对并发戳；带 SqlSugar `[SplitTable]` 的实体自动走分表入口——查询在过滤条件之后 `SplitTable(from, to)`（按 `TimeRange` 的 UTC 时刻，没有提示扫全部分表），写入经 `InsertableByObject(x).SplitTable()` 等按 `[SplitField]` 落表，分表实体不加行锁靠并发戳，启动建表走 `CodeFirst.SplitTables()` |
 
 ## 一致性
 
-Provider 必须继承 `RepositoryConformance` 并通过全部用例，含批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
+Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
 
 ## 错误码
 
