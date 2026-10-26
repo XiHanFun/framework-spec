@@ -96,6 +96,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `SECURITY_DENIED_004` | 缺少权限 |
 | `SECURITY_VALIDATION_001` | 不支持的认证方案或凭据格式不合法 |
 | `SECURITY_NOTFOUND_001` | 策略不存在或权限码未登记 |
+| `SECURITY_NOTFOUND_002` | 要撤销的授予不存在 |
 | `PROTOCOLS_VALIDATION_001` | MCP：消息不是合法的 JSON 或不是合法的 JSON-RPC 2.0 请求 |
 | `PROTOCOLS_VALIDATION_002` | MCP：协议版本不受支持 |
 | `PROTOCOLS_VALIDATION_003` | MCP：tool 参数不是 JSON 对象 |
