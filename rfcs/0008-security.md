@@ -1,6 +1,6 @@
 # RFC-0008 认证与授权
 
-> 状态：已采纳 | 日期：2026-10-21 | 对应 ADR：— | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect` | 一致性：`XiHan.Framework.Security.Conformance`
+> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database` | 一致性：`XiHan.Framework.Security.Conformance`
 
 ## 摘要
 
@@ -11,7 +11,7 @@
 | 能力 | 含义 | 默认实现 |
 | --- | --- | --- |
 | `security.authentication@1` | 凭据 → 主体 | `Security.InMemory`（`ApiKey` 方案，配置装载） |
-| `security.authorization@1` | 策略判定与权限授予 | `Security.InMemory`（RBAC 授予存储） |
+| `security.authorization@1` | 策略判定与权限授予 | `Security.InMemory`（RBAC 授予存储）；`Security.Database` 是授予进数据库的显式 Provider |
 
 `Security.Jwt`（`Bearer`，HS256 对称密钥）与 `Security.OpenIdConnect`（`Bearer`，签发者 JWKS 的非对称密钥）是显式的认证 Provider，同一时刻只装配其一。
 
@@ -42,6 +42,7 @@
 - 主体是用户（`user:<id>`）或角色（`role:<name>`）；授予是（主体，权限码，租户?）。租户为空的授予对任何租户生效，租户专属授予只对该租户生效。
 - 检查器取用户本身的授予与其角色授予之并集；`*` 匹配任何权限。
 - `IPermissionGrantStore` 由 Provider 实现；内存实现从 `XiHan:Security:InMemory:Grants` 装载全局授予，有界。
+- `Security.Database`（ADR-0027）：授予是实体行（主体种类、主体 ID、权限码、租户列；全局授予以空串存储），`IPermissionGrantStore` 单例在新作用域直接开只读工作单元读仓储（不经管道），一次查出主体的全局授予与当前租户的授予，按（主体，租户）有界缓存并按 TTL 失效（`XiHan:Security:Database`：`CacheSize` 默认 10000、`CacheTimeToLiveSeconds` 默认 30，0 为不过期）；`PermissionGrantRecordStore` 在调用方的工作单元里批量授予 / 撤销并逐项返回结果，撤销不存在的授予返回 `SECURITY_NOTFOUND_002`，写入后失效该主体的缓存，跨实例的失效靠 TTL 收敛。清单依赖 `persistence.relational@1`。
 
 ## 一致性
 
