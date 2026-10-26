@@ -47,7 +47,7 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 → `SCHEDULING_UNAVAILABLE_003`，容量已满（内存实现的历史）→ `SCHEDULING_UNAVAILABLE_004`：
 
 - `IsShared`：存储是否跨实例共享（抢占即集群唯一）。`false`（内存实现）时不共享的"集群只运行一次"作业只在持有领导租约的实例上按计划运行；`true`（数据库实现）时由抢占保证。
-- 作业：`FindJobAsync`、`ListJobsAsync`、`SaveJobsAsync`（新增或替换）、`DeleteJobsAsync`（级联触发器）。`JobRecord`：定义的持久化形态（`JobTypeName` 为类型键）加 `Paused`、`ActiveRunId`（不允许并发时正在运行的运行 ID）、`Source`、`UpdatedAt`。
+- 作业：`FindJobAsync`、`ListJobsAsync`、`SaveJobsAsync`（新增或替换定义与暂停状态；已有行的 `ActiveRunId` 由存储保留，只有 `TryBeginRunAsync` / `CompleteRunAsync` / `RecoverNodesAsync` 改它）、`DeleteJobsAsync`（级联触发器）。`JobRecord`：定义的持久化形态（`JobTypeName` 为类型键）加 `Paused`、`ActiveRunId`（不允许并发时正在运行的运行 ID）、`Source`、`UpdatedAt`。
 - 触发器：`TriggersAsync(job?)`、`SaveTriggersAsync`、`DeleteTriggersAsync`、`AcquireDueAsync(dueBefore, limit, nodeId, now)`（原子地把 `Waiting` 且到期的非本地触发器改成 `Acquired(nodeId)`，按到期时刻升序、优先级降序取至多 `limit` 条；多个节点同时调用时每条触发器只被一个节点拿到）。`TriggerRecord`：定义加 `State`（`Waiting` / `Paused` / `Acquired` / `Blocked` / `Complete` / `Error`）、`NextFireAt`、`PreviousFireAt`、`AcquiredBy`、`AcquiredAt`、`FireCount`、`Error`、`Local`。
 - 运行：`TryBeginRunAsync(run, exclusive)`（写入运行记录；`exclusive` 时原子地占用作业的 `ActiveRunId`，已被占用返回 `false`）、`CompleteRunAsync(run)`（写回结果，释放 `ActiveRunId`，把该作业 `Blocked` 的触发器改回 `Waiting`）、`RunsAsync(query)`、`RunningAsync(job?)`、`LastRunsAsync(jobs[])`、`RequestCancelAsync(runIds[])`、`CancelRequestedRunsAsync(nodeId)`、`PurgeRunsAsync(before)`。
 - 节点：`HeartbeatAsync(node)`、`NodesAsync()`、`RecoverNodesAsync(nodeIds[], now)`（失联节点 `Acquired` / `Blocked` 的触发器改回 `Waiting`，`Running` 的运行记为 `Lost`，释放其 `ActiveRunId`，删除节点记录，返回标记为 `Lost` 的运行）。
