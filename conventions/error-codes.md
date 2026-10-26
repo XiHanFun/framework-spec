@@ -116,10 +116,16 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `OBJECTSTORAGE_UNAVAILABLE_001` | 对象存储不可达或 IO 失败 |
 | `OBJECTSTORAGE_UNAVAILABLE_002` | 配额或单对象大小超限 |
 | `SCHEDULING_NOTFOUND_001` | 作业未登记 |
+| `SCHEDULING_NOTFOUND_002` | 作业类型未登记 |
+| `SCHEDULING_NOTFOUND_003` | 触发器不存在 |
+| `SCHEDULING_NOTFOUND_004` | 运行不存在或已结束 |
+| `SCHEDULING_VALIDATION_001` | 作业定义不合法（触发器名重复、日历未登记、计划不合法） |
 | `SCHEDULING_CONFLICT_001` | 作业正在运行且不允许并发 |
 | `SCHEDULING_CONFLICT_002` | 领导租约被其他持有者占用 |
 | `SCHEDULING_UNAVAILABLE_001` | 调度器未运行 |
 | `SCHEDULING_UNAVAILABLE_002` | 领导选举的存储（如 Kubernetes API Server）不可达或超时 |
+| `SCHEDULING_UNAVAILABLE_003` | 作业存储不可达 |
+| `SCHEDULING_UNAVAILABLE_004` | 作业存储容量已满（内存实现的运行历史） |
 | `SCHEDULING_UNEXPECTED_001` | 作业抛出未处理异常 |
 | `CONFIGURATION_NOTFOUND_001` | 远程配置的命名空间不存在 |
 | `CONFIGURATION_NOTFOUND_002` | 密钥不存在 |
@@ -139,7 +145,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `MULTITENANCY_UNAVAILABLE_001` | 租户存储容量已满 |
 | `MULTITENANCY_UNAVAILABLE_002` | 租户分片无法解析（租户存储不可达） |
 | `WORKFLOW_VALIDATION_001` | 工作流定义不合法（`details.errors` 列出全部问题） |
-| `WORKFLOW_VALIDATION_002` | 启动或恢复的输入不合法（缺必填变量、子流程深度超限、任务结果不在允许范围） |
+| `WORKFLOW_VALIDATION_002` | 启动或恢复的输入不合法（缺必填变量、子流程深度超限、任务结果不在允许范围、跳转目标不存在、迁移目标不兼容） |
 | `WORKFLOW_VALIDATION_003` | 表达式语法不合法或求值失败 |
 | `WORKFLOW_NOTFOUND_001` | 工作流定义不存在或没有已发布版本 |
 | `WORKFLOW_NOTFOUND_002` | 工作流实例不存在 |
@@ -148,8 +154,10 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `WORKFLOW_CONFLICT_001` | 实例状态不允许该操作 |
 | `WORKFLOW_CONFLICT_002` | 定义状态不允许该操作 |
 | `WORKFLOW_CONFLICT_003` | 书签不可恢复（实例不在运行中、键不匹配） |
-| `WORKFLOW_CONFLICT_004` | 指派人已在任务上 |
+| `WORKFLOW_CONFLICT_004` | 指派人已在任务上或任务已被认领 |
+| `WORKFLOW_CONFLICT_005` | 同一关联 ID 下已有未结束的实例（`ReusePolicy.RejectActive`） |
 | `WORKFLOW_DENIED_001` | 操作者不是任务的指派人 |
+| `WORKFLOW_DENIED_002` | 工作者没有持有外部任务的锁或锁已过期 |
 | `WORKFLOW_TIMEOUT_001` | 实例锁等待超时 |
 | `WORKFLOW_UNAVAILABLE_001` | 工作流存储不可达 |
 | `WORKFLOW_UNAVAILABLE_002` | 工作流存储容量已满 |
