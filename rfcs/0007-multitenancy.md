@@ -1,6 +1,6 @@
 # RFC-0007 多租户
 
-> 状态：已采纳（2026-10-26 修订：租户分片） | 日期：2026-10-21 | 对应 ADR：ADR-0018（分片） | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory` | 一致性：`XiHan.Framework.MultiTenancy.Conformance`
+> 状态：已采纳（2026-10-26 修订：租户分片；2026-10-27 修订：租户目录的数据库 Provider） | 日期：2026-10-21 | 对应 ADR：ADR-0018（分片）、ADR-0026（数据库 Provider） | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory`、`XiHan.Framework.MultiTenancy.Database` | 一致性：`XiHan.Framework.MultiTenancy.Conformance`
 
 ## 摘要
 
@@ -10,8 +10,8 @@
 
 | 能力 | 含义 | 默认实现 |
 | --- | --- | --- |
-| `multitenancy.context@1` | 租户解析、校验与存储 | `MultiTenancy.InMemory`（从配置装载租户） |
-| `multitenancy.sharding@1` | 按租户选择数据连接（分库） | `MultiTenancy.InMemory`（从租户属性推出） |
+| `multitenancy.context@1` | 租户解析、校验与存储 | `MultiTenancy.InMemory`（从配置装载租户）；`MultiTenancy.Database` 是租户目录进数据库的显式 Provider |
+| `multitenancy.sharding@1` | 按租户选择数据连接（分库） | `MultiTenancy.InMemory`（从租户属性推出）；`MultiTenancy.Database` 同样从数据库里的租户属性推出 |
 
 ## 租户 ID
 
@@ -30,6 +30,8 @@
 ## 存储
 
 `ITenantStore`：按 ID 查找、枚举。租户信息含显示名、启用标记与字符串属性（租户专属连接、配额等）。内存实现有界（默认 1000），从 `XiHan:MultiTenancy:Tenants` 装载。
+
+`MultiTenancy.Database`（ADR-0026）：租户是实体行 `TenantRecord`（ID、显示名、启用标记、属性 JSON、创建 / 修改时间与并发戳；不按租户过滤、不软删除），`ITenantStore` 单例在新作用域直接开只读工作单元读仓储（不经管道），按租户有界缓存查找结果（含"不存在"）并按 TTL 失效（`XiHan:MultiTenancy:Database`：`CacheSize` 默认 10000、`CacheTimeToLiveSeconds` 默认 30 且 0 为不过期、`MaxListedTenants` 默认 10000）；`TenantRecordStore` 在调用方的工作单元里批量新增 / 更新 / 删除并逐项返回结果，写入后失效目录与分片解析器的缓存。它不在清单里声明对 `persistence.relational@1` 的依赖（持久化 Provider 以可选依赖引用 `multitenancy.sharding@1`，再声明即成环），改为启动期核对能力图谱里有持久化 Provider，没有即以 `KERNEL_CAPABILITY_001` 中断启动。
 
 ## 分片
 
