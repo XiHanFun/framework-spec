@@ -38,6 +38,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `KERNEL_UNAVAILABLE_002` | 操作被限流：固定窗口的许可用尽且队列已满；Resilience 阶段拒绝，`retryAfter` 秒后重试 |
 | `KERNEL_UNAVAILABLE_003` | 操作已达并发上限且队列已满；Resilience 阶段拒绝 |
 | `KERNEL_UNAVAILABLE_004` | 操作的熔断器打开，暂不执行；Resilience 阶段拒绝，`retryAfter` 秒后重试 |
+| `KERNEL_UNAVAILABLE_005` | 健康探针失败或超时（`PeriodicHealthContributor`：条目 Degraded，`name`、`reason`） |
 | `KERNEL_TIMEOUT_001` | 调用超过截止时间 |
 | `KERNEL_CANCELLED_001` | 调用被取消 |
 | `KERNEL_UNEXPECTED_001` | 调用期间发生未处理异常 |
@@ -77,6 +78,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `CACHING_VALIDATION_001` | 缓存键或幂等键不合法 |
 | `CACHING_VALIDATION_002` | 条目选项不合法（绝对与滑动过期同时设置等） |
 | `CACHING_UNAVAILABLE_001` | 缓存存储不可达或操作失败 |
+| `CACHING_UNAVAILABLE_002` | 缓存存储已达容量上限（健康项 Degraded 的信号；LRU 不拒绝写入） |
 | `CACHING_CONFLICT_001` | 分布式锁被其他持有者占用 |
 | `CACHING_CONFLICT_002` | 同一幂等键的调用仍在处理中 |
 | `MESSAGING_VALIDATION_001` | 主题不合法 |
