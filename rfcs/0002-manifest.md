@@ -1,6 +1,6 @@
 # RFC-0002 清单
 
-> 状态：已采纳 | 日期：2026-10-21 | 对应 ADR：0002、0006 | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`
+> 状态：已采纳（2026-10-27 修订：健康项的实现义务） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项） | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
 
 ## 摘要
 
@@ -35,6 +35,14 @@
 4. 排序：拓扑排序；循环报 `KERNEL_CAPABILITY_002`，缺失报 `KERNEL_CAPABILITY_001`，版本冲突报 `KERNEL_CAPABILITY_003`，报错必须列出冲突双方。
 5. 可选依赖缺失不阻止启动，对应特性进入 `Degraded`。
 6. 输出已解析图；`xihan graph` 与启动日志打印同一份。
+
+## 健康项
+
+`contributes.health` 声明的每个条目名（`^[a-z][a-z0-9.-]*$`，约定 `<领域>.<机制>.<对象>`，如 `caching.redis.connection`、`persistence.inmemory.capacity`）必须由同一个包以内核的 `IHealthContributor` 实现并登记，反之登记了 `IHealthContributor` 的包必须声明条目（插件宿主例外：它们的条目名来自各插件自己的清单）；参考实现的架构测试核对两者一致。条目进入宿主健康快照的 `contributions`，Degraded / Failed 只把应用从 Ready 压成 Degraded，不退出。
+
+- 连接类 Provider（数据库、缓存、消息代理、对象存储等外部服务）用内核的 `PeriodicHealthContributor(name, probe, interval)` 周期探测：启动时同步探一次，之后按 `HealthProbeIntervalSeconds`（各 Provider 配置节，默认 15）重探；探针失败或超时记 `KERNEL_UNAVAILABLE_005`（`name`、`reason`）并报 Degraded，恢复后报 Ready；探测不经管道、不受应用服务状态影响。
+- 容量类 Provider（内存实现的存储、队列）同步上报：达到容量即 Degraded，错误码取所属领域的 UNAVAILABLE 容量码（如 `CACHING_UNAVAILABLE_002`、`OBJECTSTORAGE_UNAVAILABLE_002`）。
+- 自带刷新循环的 Provider（如数据库翻译加载器）按最近一次刷新的结果上报，不另起探测循环。
 
 ## 与 .NET 的映射
 
