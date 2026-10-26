@@ -36,7 +36,7 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 - `PauseAsync(names[])` / `ResumeAsync(names[])`：暂停或恢复作业的全部触发器（暂停期间手动触发仍可用）；恢复时按 misfire 策略处理暂停期间错过的运行。`PauseTriggersAsync(keys[])` / `ResumeTriggersAsync(keys[])` 作用于单个触发器；触发器不存在 → `SCHEDULING_NOTFOUND_003`。
 - `TriggerAsync(requests[])`（`JobTriggerRequest(Name, Data?)`）：在本实例立即运行并等待结果，逐项 `JobTriggerResult`；不受暂停与领导限制；未登记 → `SCHEDULING_NOTFOUND_001`，正在运行且不允许并发 → `SCHEDULING_CONFLICT_001`。
 - `EnqueueAsync(requests[])`：插入一个立即到期的一次性触发器（名 `manual-<id>`），由集群中任一节点运行，不等待；返回触发器名。
-- `CancelRunsAsync(runIds[])`：请求取消运行——本实例的运行立即取消其令牌，其他节点的运行在下一个轮询周期取消；不在运行中 → `SCHEDULING_NOTFOUND_004`。取消的运行记为 `Canceled`。
+- `CancelRunsAsync(runIds[])`：请求取消运行——本实例的运行立即取消其令牌，其他节点的运行在下一个轮询周期取消；不在运行中 → `SCHEDULING_NOTFOUND_004`。取消的运行记为 `Canceled`，等待它的手动触发得到 `SCHEDULING_CONFLICT_003`。
 - `StatusAsync(name)` / `StatusesAsync()`：`JobStatus`（作业记录、是否暂停、每个触发器的状态与下一次 / 上一次运行时刻与次数、运行中数量、最近一次完成的运行与结果）。
 - `RunsAsync(query)`：运行历史（按作业、状态、时间范围，分页，计划时刻降序）。
 
