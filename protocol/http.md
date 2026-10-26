@@ -24,6 +24,7 @@
 
 - `MapXiHanOpenApi()` 发布 OpenAPI 3.1 文档（默认 `/openapi.json`，`application/json`），在第一次请求时从 `OperationRegistry` 生成并缓存；端点绕过内核管道，不鉴权。
 - `paths` 按路由模板分组，方法小写；`operationId` = 操作 ID，`tags` = 资源段，非 `Stable` 的操作带 `x-xihan-stability`。
+- 授权扩展（ADR-0031）：按权限码授权的操作带 `x-xihan-permission: "<权限码>"`，按策略授权的带 `x-xihan-policy: "<策略名>"`（二选一，都没有不写，与 `x-xihan-stability` 并列）；`components["x-xihan-permissions"]` 列权限定义，键为权限码、序数排序，值为 `{ "code", "displayName", "description" }`（`description` 为空省略），收录范围 = 文档里已发布操作引用的权限码 ∪ 内核 `PermissionRegistry` 已登记的权限；被引用但未登记的只有 `code`。只给 gRPC / MCP 的操作与 `Stability.Internal` 的操作不进文档，它们引用的权限码不算被引用。前端据此隐藏没有权限的入口、按权限定义生成授权界面。
 - 参数：路由模板里的 `{name}` 为必填 `path` 参数；GET / DELETE 的请求 Schema 里其余属性为 `query` 参数，`required` 按 Schema；POST / PUT / PATCH 的请求 Schema 整体作为 `requestBody`（`application/json`，必填）。
 - 响应：成功状态码同操作映射，正文 Schema 为响应 Schema；`default` 为 `application/problem+json`，引用 `components/schemas/ProblemDetails`（`type`、`title`、`status`、`detail`、`instance`、`code`、`traceId`）。
 - Schema 里的 `$defs` 提升为 `components/schemas/<名>`，`#/$defs/<名>` 改写为 `#/components/schemas/<名>`；同名定义以先到者为准；`$schema` 不进文档。没有 `OperationSchema` 的操作只发布路径、方法与 `operationId`。
