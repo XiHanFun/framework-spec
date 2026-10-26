@@ -64,6 +64,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PLUGINS_UNAVAILABLE_003` | Wasm：宿主进程不满足载体要求（Windows 强制用户态影子栈 / CET 时陷阱会终止进程，宿主可执行项目须设 `CETCompat=false`） |
 | `PERSISTENCE_VALIDATION_001` | 多租户实体在没有当前租户的调用中新增 |
 | `PERSISTENCE_VALIDATION_002` | 工作单元状态不允许该操作（重复开始、未开始就提交、只读却写入） |
+| `PERSISTENCE_VALIDATION_003` | 工作单元里的聚合有未派发的领域事件，但没有注册领域事件派发器 |
 | `PERSISTENCE_NOTFOUND_001` | 更新或删除的实体不存在（含已软删除、不属于当前租户） |
 | `PERSISTENCE_CONFLICT_001` | 乐观并发冲突：并发戳不匹配 |
 | `PERSISTENCE_CONFLICT_002` | 新增的标识已存在 |
@@ -77,6 +78,8 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `CACHING_CONFLICT_002` | 同一幂等键的调用仍在处理中 |
 | `MESSAGING_VALIDATION_001` | 主题不合法 |
 | `MESSAGING_VALIDATION_002` | 信封不合法或无法解码 |
+| `MESSAGING_VALIDATION_003` | 领域事件类型未登记（`AddDomainEvent`） |
+| `MESSAGING_VALIDATION_004` | 领域事件类型重复登记或登记表已满（以异常抛出） |
 | `MESSAGING_UNAVAILABLE_001` | 消息代理不可达或操作失败 |
 | `MESSAGING_UNAVAILABLE_002` | 队列已满 |
 | `MESSAGING_UNEXPECTED_001` | 处理器抛出未处理异常（代理侧记录） |
