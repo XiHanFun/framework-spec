@@ -1,6 +1,6 @@
 # RFC-0005 领域协议与持久化
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
 
 ## 摘要
 
@@ -18,7 +18,7 @@
 | `ISoftDeletable` | `IsDeleted`、`DeletedAt` | 删除改为打标；查询默认过滤 |
 | `IMultiTenant` | `TenantId` | 新增时写入当前租户；查询只返回当前租户的实体；无当前租户时新增返回 `PERSISTENCE_VALIDATION_001` |
 | `IValueObject` | — | 标记；用 `record` 取得值相等 |
-| `ISpecification<T>` | `Criteria`、`IsSatisfiedBy` | 同一条件既能内存判定也能交给查询提供器；`And` / `Or` / `Not` 组合必须共享同一参数 |
+| `ISpecification<T>` | `Criteria`、`IsSatisfiedBy` | 同一条件既能内存判定也能交给查询提供器；`And` / `Or` / `Not` 组合必须共享同一参数；可空值类型（`DateTimeOffset?`、`int?` 等）与 null 的 `==` / `!=` 按存在性翻译（`IS NULL` / `IS NOT NULL`，与 `HasValue` 等价），Provider 不得译成 `= NULL` |
 
 领域事件集合有界（默认 256），超出抛出 `InvalidOperationException`：那是忘记提交的编程错误。
 
@@ -98,7 +98,7 @@
 
 ## 一致性
 
-Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
+Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合；可空值类型与 null 的相等 / 不等按存在性过滤（字面量 null、闭包里的 null 变量、左右互换、与 `HasValue` 一致，组合到别的条件里也成立）。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
 
 标识生成器必须通过 `IdGeneratorConformance<TKey>`：顺序生成与多线程并发生成不重复、时钟前进后生成的标识更大；`GuidV7IdGenerator` 与 `SnowflakeIdGenerator` 都通过。
 
