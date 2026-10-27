@@ -1,6 +1,6 @@
 # RFC-0005 领域协议与持久化
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
 
 ## 摘要
 
@@ -60,12 +60,32 @@
 
 应用用 `AddRepository<TEntity, TKey>()` 登记实体；Provider 的特性在配置阶段通过 `IRepositoryRegistrar` 为每个登记注册闭合泛型的 `IRepository<TEntity, TKey>`。不用开放泛型注册，不用反射扫描；AOT 友好。
 
+## 标识生成
+
+`IIdGenerator<TKey>` 是标识生成端口。持久化 Provider 注册 `IIdGenerator<Guid>`（`GuidV7IdGenerator`：UUID 版本 7，时间有序）；应用显式装配 `SnowflakeIdFeature` 后得到 `IIdGenerator<long>`（`SnowflakeIdGenerator`），Profile 不缺省装配它。
+
+### 雪花标识
+
+| 位 | 含义 | 范围 |
+| --- | --- | --- |
+| 63 | 符号位，恒为 0 | — |
+| 62–22（41 位） | 自 epoch 起的毫秒数 | 约 69.7 年 |
+| 21–12（10 位） | 机器位 | 0–1023 |
+| 11–0（12 位） | 同一毫秒内的序列 | 0–4095 |
+
+- epoch 缺省 `2026-01-01T00:00:00Z`，可配；同一套数据的 epoch 一经写入不得再改，否则已有标识解析出的时间戳会错位。
+- 机器位两种来源，不做随机：`XiHan:Persistence:Snowflake:WorkerId` 显式指定；未指定时由容器里的 `IDistributedLock`（`caching.distributed` 的 Provider 注册）租约分配——启动时从 0 起逐个尝试锁资源 `persistence:snowflake:worker:<n>`，取得第一个空位，存活时间 `LeaseTimeToLiveSeconds`（缺省 30），每三分之一存活时间续约一次（锁不续约，续约 = 释放再获取同一机器位；释放与重新获取之间空位被别的实例拿走，或存储不可达，都按丢失处理并重新分配）；本地按获取时刻 + 存活时间判定有效，过期未续上即没有机器位。容器里没有分布式锁、或 1024 个机器位都被占用时启动失败。
+- 时钟回拨不超过 `ClockDriftToleranceMilliseconds`（缺省 100）时等待时钟追平；超过时抛出携带 `PERSISTENCE_UNAVAILABLE_004` 的 `FrameworkException`。同一毫秒序列用尽时等待下一毫秒。生成器线程安全，单实例上限 4096 个 / 毫秒。
+- 没有机器位（租约尚未取得或已丢失）时抛出携带 `PERSISTENCE_UNAVAILABLE_005` 的 `FrameworkException`；租约状态以健康项 `persistence.snowflake.worker` 上报（持有 Ready，没有 Degraded）。
+- `SnowflakeId.Parse(value, epoch)`（或生成器的 `Parse(value)`）还原时间戳、机器位与序列。
+- 线格式保持 JSON number（框架标准类型），不转字符串；超过 2^53 的值在 JavaScript 的 `number` 里会丢精度，前端类型化客户端应按字符串处理。
+
 ## 能力与配置
 
 | 项 | 值 |
 | --- | --- |
 | 能力 | `persistence.relational@1`；`persistence.document@1` 预留 |
-| 配置节 | `XiHan:Persistence`；内存实现 `XiHan:Persistence:InMemory:MaxEntitiesPerType`（默认 100000） |
+| 配置节 | `XiHan:Persistence`；内存实现 `XiHan:Persistence:InMemory:MaxEntitiesPerType`（默认 100000）；雪花标识 `XiHan:Persistence:Snowflake`：`Epoch`（ISO 8601，默认 `2026-01-01T00:00:00Z`）、`WorkerId`（0–1023，缺省租约分配）、`ClockDriftToleranceMilliseconds`（默认 100）、`LeaseTimeToLiveSeconds`（默认 30） |
 | 默认实现 | `XiHan.Framework.Persistence.InMemory`，`role: default`，`stability: preview`，只用于开发与测试 |
 
 ## Provider
@@ -79,6 +99,8 @@
 ## 一致性
 
 Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
+
+标识生成器必须通过 `IdGeneratorConformance<TKey>`：顺序生成与多线程并发生成不重复、时钟前进后生成的标识更大；`GuidV7IdGenerator` 与 `SnowflakeIdGenerator` 都通过。
 
 ## 错误码
 
