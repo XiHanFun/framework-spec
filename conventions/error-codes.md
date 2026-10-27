@@ -75,6 +75,8 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_UNAVAILABLE_001` | 没有活动的工作单元（仓储在 Transaction 阶段之外使用；以异常抛出） |
 | `PERSISTENCE_UNAVAILABLE_002` | 存储容量已满（内存实现的每类实体上限） |
 | `PERSISTENCE_UNAVAILABLE_003` | 存储不可达 |
+| `PERSISTENCE_UNAVAILABLE_004` | 雪花标识生成器的时钟回拨超过容忍阈值（以异常抛出） |
+| `PERSISTENCE_UNAVAILABLE_005` | 雪花标识生成器没有可用的机器位：未配置且容器里没有分布式锁、1024 个机器位都被占用、租约尚未取得或已丢失（启动期与生成时以异常抛出，健康项以结果上报） |
 | `CACHING_VALIDATION_001` | 缓存键或幂等键不合法 |
 | `CACHING_VALIDATION_002` | 条目选项不合法（绝对与滑动过期同时设置等） |
 | `CACHING_UNAVAILABLE_001` | 缓存存储不可达或操作失败 |
