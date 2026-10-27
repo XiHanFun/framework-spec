@@ -1,6 +1,6 @@
 # RFC-0004 管道阶段与排序
 
-> 状态：已采纳 | 日期：2026-10-21 | 对应 ADR：0002 | 参考实现：`XiHan.Framework.Kernel.Pipeline.PipelineBuilder`
+> 状态：已采纳（2026-10-28 修订：跨包依赖必须声明约束） | 日期：2026-10-21 | 对应 ADR：0002 | 参考实现：`XiHan.Framework.Kernel.Pipeline.PipelineBuilder`
 
 ## 摘要
 
@@ -74,6 +74,7 @@ ingress → observe → resilience → authenticate → tenant → authorize →
 4. 显式 `Use<T>()` 不带阶段时归入 `transaction` 阶段末尾。
 6. 阶段内先按 `Placement`（Beginning 在前），再按归属（清单 ID 字典序），再按注册顺序，最后应用 `before` / `after` 约束做稳定拓扑排序。
 5. 未知阶段名报 `KERNEL_PIPELINE_002`。
+8. 跨包依赖必须显式声明：一个包的中间件要用到另一个包中间件的产出（认证后的主体、解析后的租户、开启的工作单元）时，必须以 `before` / `after` 声明次序，不能依赖第 6 条的基准次序——归属字典序只保证结果可复现（`xihan.basicapp.identity` 会排在 `xihan.security.jwt` 之前），不表达依赖；内核不按清单的 `requires` 推导中间件次序。
 7. 同一中间件类型默认只登记一次；需要同类型多个实例时（如插件贡献的多个中间件）按名字登记，名字在类型内唯一，打印时以 `类型名[名字]` 标出；按类型声明的 `before` / `after` 在该类型有多个实例时不可用（`KERNEL_PIPELINE_003`）。
 
 ## 打印格式
