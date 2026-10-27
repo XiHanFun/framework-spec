@@ -1,6 +1,6 @@
 # RFC-0010 本地化
 
-> 状态：已采纳 | 日期：2026-10-21 | 对应 ADR：— | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/localization/`（P3 补）
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线） | 日期：2026-10-21 | 对应 ADR：0038 | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/localization/`（P3 补）
 
 ## 摘要
 
@@ -27,7 +27,7 @@
 
 ```text
 MessageKey = Domain ("." Segment)+
-Domain     = 术语表领域词的小写（kernel、persistence、security …）或应用自定义的小写标识
+Domain     = Segment；术语表领域词的小写（kernel、persistence、security …）或应用自定义的小写标识，操作 ID 的资源段把连字符换成下划线后即是（tenant_members）
 Segment    = [a-z][a-z0-9_]*
 ```
 
