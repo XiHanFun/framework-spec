@@ -1,6 +1,6 @@
 # RFC-0001 原语层
 
-> 状态：已采纳 | 日期：2026-10-21 | 对应 ADR：0002 | 参考实现：`next/src/XiHan.Framework.Primitives`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线） | 日期：2026-10-21 | 对应 ADR：0002、0038 | 参考实现：`next/src/XiHan.Framework.Primitives`
 
 ## 摘要
 
@@ -102,7 +102,7 @@ public static class ErrorCode
 
 - `Code` 必须符合 `<领域大写>_<KIND>_<NNN>`；工厂方法校验 KIND 段与方法名一致。
 - `Message` 面向人，不参与程序判断；`Details` 只允许 JSON 可表示的值。
-- `MessageKey` 文法 `^[a-z][a-z0-9]*(\.[a-z][a-z0-9_]*)+$`，文案在语言文件里（RFC-0010）；`message` 线上字段是发送端已解析的文案，`messageKey` 让接收端可再翻译。
+- `MessageKey` 文法 `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`（首段与后段同形，操作 ID 的资源段把连字符换成下划线后可直接作首段，如 `tenant_members.list.description`），文案在语言文件里（RFC-0010）；`message` 线上字段是发送端已解析的文案，`messageKey` 让接收端可再翻译。
 
 ### Maybe
 
