@@ -10,7 +10,7 @@ gRPC 元数据就是 HTTP/2 头，复用 HTTP 载体的映射（`protocol/http.m
 
 - 方法名按 `conventions/operation-ids.md`：服务 `{Resource}`（资源段 PascalCase，连字符分段），方法 `{Verb}`（动词 PascalCase）；路径 `/{package}.{Service}/{Method}`，`package` 来自 `XiHan:Protocols:Grpc:Package`（空则无前缀）；显式覆盖 `XiHan:Protocols:Grpc:Methods:<操作 ID>` = `Service/Method`。名字文法 `^[A-Za-z_][A-Za-z0-9_]*$`；不合法或重复即启动失败（`PROTOCOLS_VALIDATION_007` / `PROTOCOLS_CONFLICT_002`）。
 - 发布范围：`Expose` 含 `Grpc` 且非 `Stability.Internal` 的操作；必须有 `OperationSchema`，否则启动失败（`PROTOCOLS_VALIDATION_006`）。
-- 消息：请求与响应的 JSON Schema 各对应一个 protobuf 消息（名字取 `title`，`$defs` 里的每个定义一个消息）。字段号按 `properties` 的声明顺序从 1 起；JSON 名就是属性名，`.proto` 里的字段名是其 lower_snake_case（proto 推导的 `json_name` 与属性名不同时显式标注）。
+- 消息：请求与响应的 JSON Schema 各对应一个 protobuf 消息（名字取 `title`；封闭泛型的 `title` 带实参名——`<外层名>Of<实参名>`，多个实参以 `And` 连接、嵌套递归，如 `PageResultOfUserResponse`，不同实参的同一泛型因此是不同消息；`$defs` 里的每个对象定义一个消息，不是对象的定义——字符串枚举——不建消息，`$ref` 到它的字段按其标量映射）。字段号按 `properties` 的声明顺序从 1 起；JSON 名就是属性名，`.proto` 里的字段名是其 lower_snake_case（proto 推导的 `json_name` 与属性名不同时显式标注）。
 
 | JSON Schema | protobuf | 说明 |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ gRPC 元数据就是 HTTP/2 头，复用 HTTP 载体的映射（`protocol/http.m
 | `number` 其他（decimal、无格式） | `string` | 十进制文本，JSON 侧为数字 |
 | `array` | `repeated T` | 元素只能是标量或消息；数值与布尔打包写出，读取接受打包与不打包 |
 | `object` + `additionalProperties` | `map<string, T>` | 值只能是标量或消息 |
-| `$ref` | 消息 | 递归允许 |
+| `$ref` | 消息 | 递归允许；指向字符串枚举这类标量定义时按该标量（`string`），不建 proto enum，线格式不变 |
 | `type` 含 `null` / `anyOf` 含 `null` | `optional` | JSON `null` 与缺席等价，不上线 |
 | 无约束（`{}`） | `string` | JSON 文本原样 |
 
