@@ -36,7 +36,7 @@ gRPC 元数据就是 HTTP/2 头，复用 HTTP 载体的映射（`protocol/http.m
 | VALIDATION | `InvalidArgument` |
 | NOTFOUND | `NotFound` |
 | CONFLICT | `Aborted` |
-| DENIED（`SECURITY_DENIED_001` 未认证） | `PermissionDenied`（`Unauthenticated`） |
+| DENIED（`SECURITY_DENIED_001` 未认证、`SECURITY_DENIED_003` 凭据无效） | `PermissionDenied`（这两个为 `Unauthenticated`，与 HTTP 的 401 对应） |
 | UNAVAILABLE | `Unavailable` |
 | TIMEOUT | `DeadlineExceeded` |
 | CANCELLED | `Cancelled` |
