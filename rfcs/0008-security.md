@@ -1,6 +1,6 @@
 # RFC-0008 认证与授权
 
-> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database` | 一致性：`XiHan.Framework.Security.Conformance`
+> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region` | 一致性：`XiHan.Framework.Security.Conformance`
 
 ## 摘要
 
@@ -59,6 +59,14 @@
 - 编译：属性未登记、运算符与值种类不搭配、条件值解析不了都是 `SECURITY_VALIDATION_002`，消息键说明具体原因（RFC-0010 本地化）。出错的子句保留在编译结果里，求值时恒为无法判定，存量脏数据不会让整个条件集失效；保存前据编译错误拒绝。
 - 求值：子句结果是命中、不命中、无法判定、待定。属性取不到（`SECURITY_NOTFOUND_003`）或值不是登记的种类（`SECURITY_VALIDATION_003`）为无法判定，按不命中计且取反不翻转；属性暂不可得（`SECURITY_UNAVAILABLE_004`，如模型绑定前的资源行属性）为待定。为空 / 不为空把取不到、空列表、全是空白的字符串当空，可以取反。多值属性按任一元素判定，否定运算符按没有元素判定。组：任一子句不命中或无法判定即不命中，否则任一待定即待定，否则命中。条件集：任一组命中即命中，否则任一组待定即待定，否则不命中。时间类属性按编译时区折算成日期、时刻。
 - 说明模式：试算时逐组逐子句给出结果、取到的属性值（不变文化文本）与无法判定 / 待定的原因（带错误码与消息键的错误）；不要说明时短路求值，只取被引用到的属性。
+
+## IP 归属地
+
+IP 归属地（ADR-0047）是能力 `security.ip-region@1`：`IIpRegionResolver.Resolve(IPAddress)` 返回可能缺失的归属地（国家、省份、城市、运营商、两位国家代码，各段可缺）。条件属性 `environment.geo.*`、登录日志与命中记录的归属地列用它。
+
+- 实现不访问网络、线程安全；IPv4 映射的 IPv6 地址按 IPv4 查；回环、私有网段、保留地址、数据不可用、查不到都返回无值，不抛出。
+- 宿主可以不装：没有本能力时调用方把归属地当作取不到（条件子句为无法判定，为空 / 不为空照常判定）。
+- 参考实现 `Security.Ip2Region`：ip2region 离线库，IPv4 与 IPv6 各一个由宿主提供的 xdb 文件，配置节 `XiHan:Security:Ip2Region`；某个地址族的文件缺失或加载失败只记警告，该族一律无值。
 
 ## 一致性
 
