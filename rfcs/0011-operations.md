@@ -1,6 +1,6 @@
 # RFC-0011 操作契约与 XGI
 
-> 状态：已采纳（2026-10-28 修订：Schema 命名——封闭泛型带实参名、字符串枚举进 `$defs`） | 日期：2026-10-22 | 对应 ADR：0034 | 参考实现：`XiHan.Framework.Kernel.Operations` | 一致性：`conformance/vectors/operations/`（随协议适配器补）
+> 状态：已采纳（2026-10-28 修订：Schema 命名——封闭泛型带实参名、字符串枚举进 `$defs`；2026-10-28 修订：程序集级 Expose 缺省与只读声明） | 日期：2026-10-22 | 对应 ADR：0034、0041 | 参考实现：`XiHan.Framework.Kernel.Operations` | 一致性：`conformance/vectors/operations/`（随协议适配器补）
 
 ## 摘要
 
@@ -21,7 +21,9 @@ public sealed class CreateOrder : IOperation<CreateOrderRequest, OrderResponse>
 ```
 
 - `IOperation<TRequest, TResponse>.HandleAsync` 返回 `Result<TResponse>`；可恢复失败走 `Result`，不抛异常。成功值不能为 `null`。
-- `[Operation]` 是源生成器与工具链的输入，运行期不读；运行期形态是 `OperationContract(id, stability, expose, policy, permission)`，`policy` 与 `permission` 二选一。
+- `[Operation]` 是源生成器与工具链的输入，运行期不读；运行期形态是 `OperationContract(id, stability, expose, policy, permission, readOnly)`，`policy` 与 `permission` 二选一。
+- 暴露协议的缺省（ADR-0041）：操作没写 `Expose` 时取程序集级 `[assembly: OperationDefaults(Expose = …)]`，程序集也没声明时为 `Expose.All`；生成器把落定的值写进契约，运行期登记表与之一致。生成器诊断 `XHG004`（缺省关闭）在操作依赖隐式的 `Expose.All` 时报告，应用以 `dotnet_diagnostic.XHG004.severity = error` 打开即可强制写明。
+- 只读（ADR-0041）：`OperationContract.IsReadOnly` 为真当且仅当动词是 `get` / `list`，或操作以 `ReadOnly = true` 声明了只读的非标准动词（`tree`、`list-online` 等查询变体）；`create` / `update` / `delete` 不能声明只读（生成器 `XHG005`，契约构造抛出 `ArgumentException`）。协议据此推导行为：MCP 的只读与幂等提示（`protocol/mcp.md`）、HTTP 方法（`conventions/operation-ids.md`）；没有约定的 `get-*` / `list-*` 前缀规则，只认显式声明。
 - 登记：特性在 `Configure` 里 `context.AddOperation<CreateOrder, CreateOrderRequest, OrderResponse>(contract, jsonContext.CreateOrderRequest, jsonContext.OrderResponse)`；操作按作用域注册到容器，描述进入 `OperationRegistry`（ID 唯一，容量 10000）。`Kernel.Generators` 从 `[Operation]` 生成这段登记代码（`GeneratedOperations.Add<类名>` 与 `AddGeneratedOperations`）与 Schema，特性只写 `context.AddGeneratedOperations()`。
 - `OperationDescriptor`：契约、归属特性、实现/请求/响应类型、可选的 `OperationSchema`，以及不经反射的 `DecodeRequest`、`EncodeResponse`、`ExecuteAsync`。
 - `OperationSchema`：请求与响应的 JSON Schema（draft 2020-12）文本，两段都必须是 JSON 对象。根 `title` 与 `$defs` 定义名取类型名，封闭泛型为 `<外层名>Of<实参名>`（多个实参以 `And` 连接、嵌套递归，如 `PageResultOfUserResponse`、`EnvelopeOfListOfUserResponseAndInt32`；数组加 `Array`，可空值类型加 `Nullable` 前缀，基元类型用 CLR 名），不同实参的同一泛型是不同的 Schema；属性名按序列化上下文的命名策略，`required` 为不可空且无默认值的属性，嵌套对象进 `$defs`，枚举按整数（`JsonStringEnumConverter` 时按字符串：进 `$defs/<枚举类型名>` 为 `type: string` + `enum`，属性以 `$ref` 引用，可空为 `anyOf` 带 `null`）。请求类型属性（含位置记录的主构造参数）上的 DataAnnotations 折进 Schema：`[Required]` 进 `required` 并去掉可空（字符串还加 `minLength: 1`，`AllowEmptyStrings = true` 除外），`[Range]` → `minimum` / `maximum`，`[StringLength]` / `[MinLength]` / `[MaxLength]` / `[Length]` → 字符串的 `minLength` / `maxLength` 或集合的 `minItems` / `maxItems`，`[RegularExpression]` → `pattern`；其他注解（`[EmailAddress]` 等）不折。生成器产出，手写登记可省略；协议适配器据此发布描述（HTTP 的 OpenAPI、MCP 的 tool 描述）。

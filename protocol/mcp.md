@@ -14,7 +14,7 @@ Streamable HTTP 传输复用 HTTP 载体的头部映射（`protocol/http.md`）�
   - `inputSchema` = 操作的请求 Schema（`OperationSchema.Request`，`type` 须为 `object`，否则 `{"type":"object"}`）；
   - `outputSchema` = 响应 Schema，仅当其 `type` 为 `object`；
   - `title` / `description` = 消息目录里 `<操作 ID>.title` / `<操作 ID>.description`（ID 里的 `-` 换成 `_`）按调用方区域的文案，没有就不给；
-  - `annotations.readOnlyHint` / `destructiveHint` / `idempotentHint` 按动词：`get` / `list` 只读且幂等，`update` 幂等，`delete` 破坏性且幂等，`create` 既不破坏也不幂等，其他动词按 MCP 默认（可能破坏、不幂等）。
+  - `annotations.readOnlyHint` / `destructiveHint` / `idempotentHint` 按契约：只读契约（`get` / `list`，或声明了只读的非标准动词，RFC-0011）只读且幂等，`update` 幂等，`delete` 破坏性且幂等，`create` 既不破坏也不幂等，其他动词按 MCP 默认（可能破坏、不幂等）。
 - `tools/call`：`arguments`（缺省为 `{}`，必须是对象）就是 XGI 载荷。成功：`content[0]` 为 `text`，文本是响应 JSON；响应为对象时同时给 `structuredContent`。操作失败（校验、未授权、冲突……）：`isError: true`，`content[0].text` = `<错误码>: <文案>`，文案按调用方区域翻译；不是协议错误。
 - JSON-RPC 错误：`error.data.code` 携带框架错误码。
 
