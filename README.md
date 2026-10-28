@@ -75,7 +75,7 @@ git submodule update --init
 | [0005](rfcs/0005-persistence.md) | 领域协议与持久化 | 已采纳（参考实现 `Domain`、`Persistence.Abstractions`，套件 `Persistence.Conformance`） |
 | [0006](rfcs/0006-caching.md) | 缓存、分布式锁与幂等 | 已采纳（参考实现 `Caching.Abstractions`、`Caching.InMemory`、`Caching.Redis`、`Caching.Hybrid`，套件 `Caching.Conformance`） |
 | [0007](rfcs/0007-multitenancy.md) | 多租户 | 已采纳（参考实现 `MultiTenancy.Abstractions`、`MultiTenancy.InMemory`，套件 `MultiTenancy.Conformance`）；Provider `MultiTenancy.Database` |
-| [0008](rfcs/0008-security.md) | 认证与授权 | 已采纳（参考实现 `Security.Abstractions`、`Security.InMemory`、`Security.Jwt`、`Security.OpenIdConnect`，套件 `Security.Conformance`）；Provider `Security.Database` |
+| [0008](rfcs/0008-security.md) | 认证与授权 | 已采纳（参考实现 `Security.Abstractions`、`Security.InMemory`、`Security.Jwt`、`Security.OpenIdConnect`，套件 `Security.Conformance`）；Provider `Security.Database`、`Security.Ip2Region`（IP 归属地） |
 | [0009](rfcs/0009-messaging.md) | 消息、CloudEvents 信封与发件箱 | 已采纳（参考实现 `Messaging.Abstractions`、`Messaging.InMemory`、`Messaging.RabbitMQ`、`Messaging.Kafka`，套件 `Messaging.Conformance`） |
 | [0010](rfcs/0010-localization.md) | 本地化：默认英文与 10 种内置区域 | 已采纳（参考实现 `Localization.Abstractions`、`Localization.InMemory`）；Provider `Localization.Database`，套件 `Localization.Conformance` |
 | [0011](rfcs/0011-operations.md) | 操作契约与 XGI 消息 | 已采纳（参考实现 `Kernel.Operations`） |

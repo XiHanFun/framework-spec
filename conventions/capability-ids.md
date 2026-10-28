@@ -34,6 +34,7 @@ VersionRange   = 整数接口版本或 ^ 范围（"1"、"^1"）
 | `caching.local` / `caching.distributed` | 缓存与分布式锁 |
 | `messaging.queue` / `messaging.stream` | 队列与流 |
 | `security.authentication` / `security.authorization` | 认证与授权 |
+| `security.ip-region` | IP 归属地解析（RFC-0008，离线、可不装） |
 | `multitenancy.context` / `multitenancy.sharding` | 租户上下文与分片 |
 | `objectstorage.blob` | 对象存储 |
 | `scheduling.jobs` / `scheduling.leader` | 任务与领导选举 |
