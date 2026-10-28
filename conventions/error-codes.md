@@ -99,8 +99,11 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `SECURITY_DENIED_003` | 凭据无效、过期或签名不符 |
 | `SECURITY_DENIED_004` | 缺少权限 |
 | `SECURITY_VALIDATION_001` | 不支持的认证方案或凭据格式不合法 |
+| `SECURITY_VALIDATION_002` | 条件无效：子句编译出错（属性未登记、运算符与值种类不搭配、条件值解析不了） |
+| `SECURITY_VALIDATION_003` | 条件属性的值不是登记的值种类 |
 | `SECURITY_NOTFOUND_001` | 策略不存在或权限码未登记 |
 | `SECURITY_NOTFOUND_002` | 要撤销的授予不存在 |
+| `SECURITY_NOTFOUND_003` | 取不到条件属性的值 |
 | `PROTOCOLS_VALIDATION_001` | MCP：消息不是合法的 JSON 或不是合法的 JSON-RPC 2.0 请求 |
 | `PROTOCOLS_VALIDATION_002` | MCP：协议版本不受支持 |
 | `PROTOCOLS_VALIDATION_003` | MCP：tool 参数不是 JSON 对象 |
@@ -153,6 +156,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `SECURITY_UNAVAILABLE_001` | 身份或授予存储不可达 |
 | `SECURITY_UNAVAILABLE_002` | 身份或授予存储容量已满 |
 | `SECURITY_UNAVAILABLE_003` | 签发者的发现文档或 JWKS 不可达且没有缓存 |
+| `SECURITY_UNAVAILABLE_004` | 条件属性暂不可得，补齐后再求值 |
 | `MULTITENANCY_VALIDATION_001` | 租户 ID 不合法 |
 | `MULTITENANCY_VALIDATION_002` | 调用必须带租户但没有解析到 |
 | `MULTITENANCY_NOTFOUND_001` | 租户不存在 |
