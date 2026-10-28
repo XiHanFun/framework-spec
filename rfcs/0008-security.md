@@ -1,6 +1,6 @@
 # RFC-0008 认证与授权
 
-> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database` | 一致性：`XiHan.Framework.Security.Conformance`
+> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database` | 一致性：`XiHan.Framework.Security.Conformance`
 
 ## 摘要
 
@@ -41,6 +41,7 @@
 
 - 主体是用户（`user:<id>`）或角色（`role:<name>`）；授予是（主体，权限码，租户?）。租户为空的授予对任何租户生效，租户专属授予只对该租户生效。
 - 检查器取用户本身的授予与其角色授予之并集；`*` 匹配任何权限。
+- 收窄（ADR-0039）：授予命中之后，检查器按登记顺序逐个调用全部 `IPermissionFilter`（单例），任一返回假即不持有、后面的不再调用；匿名主体与授予未命中时不调用。过滤器收到的是具体权限码（通配命中也一样），只能拿走权限、不能凭空给出；用于套餐白名单、显式拒绝、委托到期等授予之外的约束。被收窄的权限在权限策略上同样返回 `SECURITY_DENIED_004`。替换 `IPermissionChecker` 的实现必须同样在授予命中之后施加全部过滤器。
 - `IPermissionGrantStore` 由 Provider 实现；内存实现从 `XiHan:Security:InMemory:Grants` 装载全局授予，有界。
 - `Security.Database`（ADR-0027）：授予是实体行（主体种类、主体 ID、权限码、租户列；全局授予以空串存储），`IPermissionGrantStore` 单例在新作用域直接开只读工作单元读仓储（不经管道），一次查出主体的全局授予与当前租户的授予，按（主体，租户）有界缓存并按 TTL 失效（`XiHan:Security:Database`：`CacheSize` 默认 10000、`CacheTimeToLiveSeconds` 默认 30，0 为不过期）；`PermissionGrantRecordStore` 在调用方的工作单元里批量授予 / 撤销并逐项返回结果，撤销不存在的授予返回 `SECURITY_NOTFOUND_002`，写入后失效该主体的缓存，跨实例的失效靠 TTL 收敛。清单依赖 `persistence.relational@1`。
 
