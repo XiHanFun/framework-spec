@@ -1,6 +1,6 @@
 # RFC-0008 认证与授权
 
-> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database` | 一致性：`XiHan.Framework.Security.Conformance`
+> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database` | 一致性：`XiHan.Framework.Security.Conformance`
 
 ## 摘要
 
@@ -45,6 +45,20 @@
 - 授予来源（ADR-0045）：与收窄对称，`IPermissionGrantSource`（单例）给出主体在授予存储之外的额外授予（权限码或 `*`），用于角色继承、限时委托等不落在主体自己授予行上的授予。检查器在用户与角色的存储授予都没命中时按登记顺序逐个查询，任一命中即算授予命中，之后照常经全部过滤器收窄；匿名主体不查询。来源只能加、不能拿走；替换 `IPermissionChecker` 的实现必须同样并上全部来源。
 - `IPermissionGrantStore` 由 Provider 实现；内存实现从 `XiHan:Security:InMemory:Grants` 装载全局授予，有界。
 - `Security.Database`（ADR-0027）：授予是实体行（主体种类、主体 ID、权限码、租户列；全局授予以空串存储），`IPermissionGrantStore` 单例在新作用域直接开只读工作单元读仓储（不经管道），一次查出主体的全局授予与当前租户的授予，按（主体，租户）有界缓存并按 TTL 失效（`XiHan:Security:Database`：`CacheSize` 默认 10000、`CacheTimeToLiveSeconds` 默认 30，0 为不过期）；`PermissionGrantRecordStore` 在调用方的工作单元里批量授予 / 撤销并逐项返回结果，撤销不存在的授予返回 `SECURITY_NOTFOUND_002`，写入后失效该主体的缓存，跨实例的失效靠 TTL 收敛。清单依赖 `persistence.relational@1`。
+
+## 条件
+
+条件（ADR-0046）是访问策略、权限条件与约束规则共用的属性判定，引擎在 `Security.Abstractions.Conditions`，与存储无关：应用提供属性来源（主体、资源、环境）与条件的存储，引擎负责登记、编译、求值。
+
+- 结构：条件集由组构成，组由子句构成；组内且、组间或。子句是（属性名，运算符，条件值原文，是否取反，标识）。没有非空组的条件集是"无条件"，求值恒为命中；需要拒绝空条件的场景由调用方在保存时拦下。
+- 运算符（整数值是持久化契约，不得调整）：`Equals` 0、`NotEquals` 1、`GreaterThan` 2、`GreaterThanOrEquals` 3、`LessThan` 4、`LessThanOrEquals` 5、`Contains` 6、`NotContains` 7、`In` 8、`NotIn` 9、`Between` 10、`StartsWith` 11、`EndsWith` 12、`IsNull` 13、`IsNotNull` 14。带 Not 的是对应运算符的否定，子句取反再作用于结果。
+- 值种类（整数值同样是契约）：`String` 0（不区分大小写的序数比较）、`Number` 1（十进制）、`Boolean` 2（`true` / `false` / `1` / `0`）、`DateTime` 3（ISO 8601，不带偏移的按编译时区的墙钟解释）、`Date` 4、`TimeOfDay` 5（`HH:mm[:ss]`）、`IpAddress` 6（IPv4 只收四段点分，IPv4 映射的 IPv6 还原为 IPv4，不收区域标识）。
+- 搭配：等于、不等于、在集合中、不在集合中、为空、不为空对任何属性可用；比大小与区间只用于数字、日期时间、日期、时刻；包含 / 不包含用于多值属性与字符串（单值字符串为子串）；开头 / 结尾只用于字符串。编辑界面按同一规则列运算符。
+- 属性登记：登记名不区分大小写，可带旧名别名；以 `.*` 结尾的是一族属性（如 `resource.route.*`），按最长前缀匹配，精确登记优先；查找顺序精确名 → 别名 → 族。登记项带值种类与是否多值；重名、别名冲突在登记表建立时报错。编译选项可带只对这一次生效的额外登记项，优先于登记表。
+- 值语法：集合写 JSON 数组（元素只能是字符串、数字、布尔）或以逗号、全角逗号、换行分隔，不能为空；IP 集合可写 CIDR 网段，主机位必须为零、前缀不超过地址位数。区间写 `下限,上限`、`[下限,上限]` 或 `{"min":下限,"max":上限}`（键不区分大小写），正好两个值，下限不得大于上限——时刻例外，下限大于上限表示跨零点。标量可写成 JSON 字符串（去掉引号）；为空 / 不为空不需要条件值。
+- 编译：属性未登记、运算符与值种类不搭配、条件值解析不了都是 `SECURITY_VALIDATION_002`，消息键说明具体原因（RFC-0010 本地化）。出错的子句保留在编译结果里，求值时恒为无法判定，存量脏数据不会让整个条件集失效；保存前据编译错误拒绝。
+- 求值：子句结果是命中、不命中、无法判定、待定。属性取不到（`SECURITY_NOTFOUND_003`）或值不是登记的种类（`SECURITY_VALIDATION_003`）为无法判定，按不命中计且取反不翻转；属性暂不可得（`SECURITY_UNAVAILABLE_004`，如模型绑定前的资源行属性）为待定。为空 / 不为空把取不到、空列表、全是空白的字符串当空，可以取反。多值属性按任一元素判定，否定运算符按没有元素判定。组：任一子句不命中或无法判定即不命中，否则任一待定即待定，否则命中。条件集：任一组命中即命中，否则任一组待定即待定，否则不命中。时间类属性按编译时区折算成日期、时刻。
+- 说明模式：试算时逐组逐子句给出结果、取到的属性值（不变文化文本）与无法判定 / 待定的原因（带错误码与消息键的错误）；不要说明时短路求值，只取被引用到的属性。
 
 ## 一致性
 
