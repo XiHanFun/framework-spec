@@ -37,6 +37,7 @@ VersionRange   = 整数接口版本或 ^ 范围（"1"、"^1"）
 | `security.ip-region` | IP 归属地解析（RFC-0008，离线、可不装） |
 | `multitenancy.context` / `multitenancy.sharding` | 租户上下文与分片 |
 | `objectstorage.blob` | 对象存储 |
+| `objectstorage.multipart` / `objectstorage.presign` | 分片上传与预签名地址（RFC-0012） |
 | `scheduling.jobs` / `scheduling.leader` | 任务与领导选举 |
 | `configuration.remote` / `configuration.secrets` | 远程配置与密钥 |
 | `observability.export` | 导出器 |
