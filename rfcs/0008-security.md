@@ -1,6 +1,6 @@
 # RFC-0008 认证与授权
 
-> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region` | 一致性：`XiHan.Framework.Security.Conformance`
+> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地、绕过管道的端点） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地）、ADR-0051（绕过管道的端点） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Hosting.AspNetCore`（绕过管道的端点）、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region` | 一致性：`XiHan.Framework.Security.Conformance`
 
 ## 摘要
 
@@ -17,10 +17,25 @@
 
 ## 认证
 
-1. 宿主在 Ingress 阶段把协议凭据（HTTP `Authorization: <scheme> <value>`）放入上下文，自己不解释它。
+1. 宿主在 Ingress 阶段把协议凭据（HTTP `Authorization: <scheme> <value>`；没有时，登记过的查询串令牌路径下取 `access_token`，见「绕过管道的端点」）放入上下文，自己不解释它。
 2. Authenticate 阶段：没有凭据保持匿名；有凭据交给方案匹配（不区分大小写）的 `IAuthenticationHandler`。不支持的方案返回 `SECURITY_VALIDATION_001`；凭据无效返回 `SECURITY_DENIED_003`，不区分原因对外暴露；它与 `SECURITY_DENIED_001` 同是认证失败（HTTP 401 并带 `WWW-Authenticate`，gRPC `Unauthenticated`，ADR-0042），客户端据此刷新凭据，其余 DENIED 才是已认证但无权限；成功写入 `SecurityContext.Principal`，保留已有租户。
 3. `XiHan:Security:RequireAuthentication` 为真时匿名调用在此被拒绝（`SECURITY_DENIED_001`）；默认由策略决定。
 4. 声明按原始类型名保留，不映射为 .NET 长类型；角色声明类型由 `XiHan:Security:RoleClaim`（默认 `role`）决定，租户声明类型由多租户选项决定。
+
+## 绕过管道的端点（2026-10-29 增补，ADR-0051）
+
+长连接（SignalR Hub、Server-Sent Events）一类端点不经内核管道：不受截止时间约束，内核停止时也不被 503 打断。它们由 ASP.NET Core 的认证与授权把关。`Hosting.AspNetCore` 提供认证方案 `XiHan`（`AddAuthentication().AddXiHan(...)`），把它接到内核已装配的认证处理器上，校验项只有一份，JWT、OpenID Connect、ApiKey 都适用。
+
+1. 凭据：先取 `Authorization` 头。没有时，只有请求路径（不含 PathBase）按路径段落在登记的查询串令牌路径前缀（`QueryTokenPaths`）下，才接受查询串 `access_token`（只有一个非空值），作为 `Bearer` 凭据。
+   - 没有登记的路径带查询串令牌一律忽略，请求按匿名处理，受保护的端点回 401。
+   - 前缀不能为空也不能是 `/`。查询串令牌会进入访问日志与代理日志，只给带不了请求头的客户端（浏览器的 WebSocket 与 EventSource）用。
+2. 认证：以请求建调用上下文（与管道同一套载体映射：链路、区域、来源、凭据），交给方案匹配的 `IAuthenticationHandler`，与 Authenticate 阶段是同一个处理器。
+   - 方案只认带绕过元数据的端点：只登记了这一个方案时 ASP.NET Core 会把它当作缺省方案，普通请求仍由管道认证，此处按未认证处理，不重复认证，也不调用挂点。
+   - 没有凭据是未认证，不是失败。
+   - 方案不支持、凭据无效都是认证失败：401，质询与管道一致（ADR-0042）；方案不支持时按已装配的方案质询。
+3. 挂点：认证成功后，依次调用应用登记的 `IInvocationAuthenticationFilter`（如按会话状态核对令牌所属的会话仍然有效），任一返回失败即认证失败。框架不判定会话；管道内的会话门禁仍是应用自己的 Authenticate 阶段中间件。
+4. 主体：转成 `ClaimsPrincipal`，身份的认证类型为 `XiHan`。声明按原始类型名保留，另加一条 `ClaimTypes.NameIdentifier` 承载主体 ID 并作为名称声明（SignalR 的用户标识随之可用）。角色声明类型取 `XiHan:Security:RoleClaim`。
+5. 在这类端点里发起内核调用：`HttpInvocation.CreateContext(httpContext, services)` 按第 1 条的同一规则带上凭据，调用经管道时照常重新认证与过会话门禁。长连接上的令牌过期后，新的调用会被拒。
 
 ## OpenID Connect
 
