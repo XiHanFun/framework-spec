@@ -1,6 +1,6 @@
 # RFC-0003 调用上下文与传播
 
-> 状态：已采纳（2026-10-29 修订：调用来源） | 日期：2026-10-21 | 对应 ADR：0002、0043（调用来源） | 参考实现：`InvocationContext`、`DeadlineMiddleware`、`InvocationOrigin`
+> 状态：已采纳（2026-10-29 修订：调用来源、端点身份） | 日期：2026-10-21 | 对应 ADR：0002、0043（调用来源）、0048（端点身份） | 参考实现：`InvocationContext`、`DeadlineMiddleware`、`InvocationOrigin`
 
 ## 摘要
 
@@ -24,11 +24,11 @@
 3. Baggage 只传已登记的键；未登记键在 Egress 阶段剥离。
 4. 安全上下文（主体、租户）由 Authenticate 与 Tenant 阶段写入，之后不可变；Baggage 中只传 ID。
 5. 载体映射见 `spec/conventions/baggage-keys.md`。
-6. 调用来源（2026-10-29 增补，ADR-0043）：协议适配器与派发器建上下文时在 `Items` 写入一次 `InvocationOrigin`，之后只读、不跨进程传播；访问日志、异常日志、登录与会话记录据此取客户端信息，与协议无关。字段为协议、请求目标、远端地址（IP 文本，不含端口，IPv4 映射的 IPv6 还原为 IPv4）、User-Agent 与来源页，没有的记空。内部发起的调用（缓存回源、存储维护、测试宿主）没有来源。
+6. 调用来源（2026-10-29 增补，ADR-0043）：协议适配器与派发器建上下文时在 `Items` 写入一次 `InvocationOrigin`，之后只读、不跨进程传播；访问日志、异常日志、登录与会话记录据此取客户端信息，与协议无关。字段为协议、请求目标、远端地址（IP 文本，不含端口，IPv4 映射的 IPv6 还原为 IPv4）、User-Agent 与来源页，以及宿主匹配到的端点的路由模板与名字（ADR-0048，没有匹配到端点或协议没有端点时为空），没有的记空。内部发起的调用（缓存回源、存储维护、测试宿主）没有来源。
 
 | 协议 | 请求目标 | 远端地址 / User-Agent / 来源页 |
 | --- | --- | --- |
-| `http` | 方法与路径（含 PathBase，不含查询串），如 `GET /api/orders` | 连接对端地址（宿主在接入点之前启用转发头处理时为转发头改写后的客户端地址）、`User-Agent`、`Referer` |
+| `http` | 方法与路径（含 PathBase，不含查询串），如 `GET /api/orders/42`；另记路由模板（如 `/api/orders/{id}`）与端点名 | 连接对端地址（宿主在接入点之前启用转发头处理时为转发头改写后的客户端地址）、`User-Agent`、`Referer` |
 | `grpc` | 方法全名，如 `/orders.Orders/Get` | 承载它的 HTTP/2 请求 |
 | `mcp` | `tools/call` 的 tool 名 | HTTP 传输沿用外层请求；stdio 传输没有 |
 | `cli` | 被调用的操作 ID | 没有 |
