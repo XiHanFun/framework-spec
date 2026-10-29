@@ -130,8 +130,10 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `HOSTING_NOTFOUND_002` | 命令行：命令不存在 |
 | `OBJECTSTORAGE_NOTFOUND_001` | 对象不存在 |
 | `OBJECTSTORAGE_NOTFOUND_002` | 分片上传不存在或已结束 |
+| `OBJECTSTORAGE_NOTFOUND_003` | 命名存储实例不存在 |
 | `OBJECTSTORAGE_VALIDATION_001` | 读取范围的起点不在对象内 |
 | `OBJECTSTORAGE_VALIDATION_002` | 完成分片上传时的分片清单不合法 |
+| `OBJECTSTORAGE_VALIDATION_003` | 命名存储实例的定义不合法（Provider 未登记或设置不合法） |
 | `OBJECTSTORAGE_DENIED_001` | 预签名地址无效或已过期 |
 | `OBJECTSTORAGE_CONFLICT_001` | 对象已存在且不允许覆盖 |
 | `OBJECTSTORAGE_UNAVAILABLE_001` | 对象存储不可达或 IO 失败 |

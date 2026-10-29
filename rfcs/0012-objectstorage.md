@@ -68,9 +68,23 @@
 - 文件系统：范围读取定位后只交出该段；分片暂存在容器的 `uploads/<上传标识>/`，分片文件名带内容的 SHA-256，完成时拼接成同目录临时文件再原子替换并计入配额；暂存的分片不计入配额，单片与拼接后的对象受单对象上限约束；超过 `MultipartExpiry`（默认 7 天）未完成的上传在启动扫描时清掉。
 - S3：范围读取经 `Range` 头；分片直接映射 S3 multipart（不覆盖的完成先 `Head` 再带 `If-None-Match: *`）；预签名经 SDK（签名 V4），兼容服务的端点是 http 时按 http 签。
 
+## 命名存储实例（2026-10-29 增补，ADR-0050）
+
+一个应用同时用多个存储：按租户或按用途各配一个桶、各有自己的端点与密钥（4.x 的存储配置），定义可以写在配置里，也可以在运行时来自应用自己的库。
+
+- 定义 `BlobStoreDefinition`：实例名（`^[a-z0-9][a-z0-9-]{0,63}$`）、Provider 名（`filesystem`、`s3`，不区分大小写）与设置。设置的键同该 Provider 的配置节，不区分大小写；未知的键是错误，拼错的键不会被静默忽略。
+- Provider `IBlobStoreProvider`：每个存储包一个，按定义建实例、探测实例。文件系统的命名实例必须给 `RootPath`（不给就会与缺省实例落在同一目录）；S3 的命名实例各建各的客户端，不读连接绑定，探测间隔不在设置里。
+- 注册表 `BlobStores`（单例；装配任一个存储包即有）：
+  - `Get(name)`：已建的直接返回；配置节 `XiHan:ObjectStorage:Stores:<name>`（`Provider` 加设置）里有定义的首次取用时建出；都没有 → `OBJECTSTORAGE_NOTFOUND_003`。
+  - `GetOrAdd(definition)`：同名同定义（Provider 名与设置完全相同）返回同一实例；定义变了建新实例替换并释放旧的，替换时仍在旧实例上的调用可能失败。Provider 未登记或设置不合法 → `OBJECTSTORAGE_VALIDATION_003`，后端此刻建不出来（目录无权限、磁盘错误）→ `OBJECTSTORAGE_UNAVAILABLE_001`；这两种情况已有的同名实例都不受影响。
+  - `Remove(name)` 移除并释放；应用停止时释放全部。
+  - 缺省的 `IBlobStore` 注入方式不变，命名实例与缺省实例互不相干。
+- 命名实例的能力随实例本身：S3 实例同时是 `IBlobMultipartStore` 与 `IBlobUrlSigner`（直连存储）；文件系统实例实现分片，预签名由宿主代收发——宿主签名器的 `ForStore(name)` 签出的地址带 `x-store=<name>`，实例名在签名里（改成别的实例或去掉即签名不符），端点经注册表取实例；签名有效但实例不存在 → `OBJECTSTORAGE_NOTFOUND_003`（HTTP 404）。
+- 健康：每个实例一条 `objectstorage.store.<name>`，按 `XiHan:ObjectStorage:StoreHealthProbeIntervalSeconds`（缺省 15 秒）在后台逐个探测，新实例建出后立即探一次；尚未探过为 Started，探测失败为 Degraded（实例仍可取用）。文件系统看总配额是否还有余量，S3 对实例的 `HealthBucket` 做 `Head`（没配时列桶）。条目名随实例而定，存储包的清单不列出它们。
+
 ## 一致性
 
-Provider 必须继承 `BlobStoreConformance` 并通过全部用例（S3 Provider 对 MinIO 通过）；实现了 `IBlobMultipartStore` 的 Provider 同样要通过分片用例（不实现时这些用例跳过）。
+Provider 必须继承 `BlobStoreConformance` 并通过全部用例（S3 Provider 对 MinIO 通过）；实现了 `IBlobMultipartStore` 的 Provider 同样要通过分片用例（不实现时这些用例跳过）。命名实例的 Provider 必须继承 `BlobStoreProviderConformance` 并通过全部用例：按定义建出可读写且探测通过的实例、未知的设置键被拒绝、经注册表同定义复用 / 定义变了替换 / 移除后不存在、定义错误翻译为 `OBJECTSTORAGE_VALIDATION_003` 且不影响已有实例。
 
 ## 错误码
 
