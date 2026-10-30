@@ -142,6 +142,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `SCHEDULING_NOTFOUND_002` | 作业类型未登记 |
 | `SCHEDULING_NOTFOUND_003` | 触发器不存在 |
 | `SCHEDULING_NOTFOUND_004` | 运行不存在或已结束 |
+| `SCHEDULING_NOTFOUND_005` | 作业没有代码定义（不能恢复为代码定义） |
 | `SCHEDULING_VALIDATION_001` | 作业定义不合法（触发器名重复、日历未登记、计划不合法） |
 | `SCHEDULING_CONFLICT_001` | 作业正在运行且不允许并发 |
 | `SCHEDULING_CONFLICT_002` | 领导租约被其他持有者占用 |

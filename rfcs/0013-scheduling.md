@@ -20,7 +20,7 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 - 名字 `JobName`：`^[a-z0-9][a-z0-9._-]{0,127}$`（与主题文法相同）；触发器名、领导选举的资源名同文法。触发器键 `TriggerKey(Job, Trigger)`。
 - 作业定义 `JobDefinition`：`Name`、`JobType`（实现 `IJob` 的类型，必须已登记）、`Triggers`（可空：没有触发器的作业只能手动触发，持久保留）、`Data`（`JsonObject`，运行时随 `JobRun.Data` 传给作业）、`AllowConcurrent`（默认 `false`：整个集群同一作业同一时刻最多一次运行，按计划的触发被阻塞直至上一次结束、手动触发返回 `SCHEDULING_CONFLICT_001`）、`RunOnEveryInstance`（默认 `false`：按计划的触发在集群只运行一次；`true`：每个实例各自按本地时钟运行，不经存储抢占）、`RequestsRecovery`（默认 `false`：运行所在节点失联时由领导者重新入队一次，`JobTrigger.Recovery`）、`Description`。便利构造 `JobDefinition(name, schedule, jobType)` 生成一个名为 `default` 的触发器。
 - 触发器定义 `JobTriggerDefinition`：`Name`、`Schedule`、`Data`（覆盖作业 `Data` 的同名键）、`Priority`（默认 5，到期的触发器多于可运行名额时大者先）、`MisfirePolicy`、`Description`。
-- 作业类型登记：`services.AddJobType<TJob>()`（键 = 类型全名）或 `AddJobType<TJob>(key)`；`services.AddJob<TJob>(definition)` / `AddJob<TJob>(name, schedule)` 同时登记类型与作业（启动时写入存储，来源 `Code`）。同名重复 `AddJob` 是编程错误；运行时 `ScheduleAsync` 同名即替换。
+- 作业类型登记：`services.AddJobType<TJob>()`（键 = 类型全名）或 `AddJobType<TJob>(key)`；`services.AddJob<TJob>(definition)` / `AddJob<TJob>(name, schedule)` 同时登记类型与作业（启动时写入存储，来源 `Code`）。同名重复 `AddJob` 是编程错误；运行时 `ScheduleAsync` 同名即替换。`JobTypeRegistry.Keys` 按序数列出已登记的类型键，管理界面据此列出运行时新建作业可选的类型（ADR-0053）。
 - 计划 `JobSchedule`：`Manual`（只手动触发）、`Every(interval, repeatCount?)`（上一次完成后再等一个间隔，固定延迟；`RepeatCount` 为总运行次数，空为无限）、`FromCron(expression, timeZoneId?)`（cron，默认 UTC；时区按 `TimeZoneInfo` ID）、`Once(at)`（一次）；任何计划可带 `StartAt`（之前不运行）、`EndAt`（之后转为 `Complete`）与 `Calendar`（排除日历名）。`ToString()` / `Parse` 为文本往返（`manual`、`every 00:10:00 x5`、`cron 0 0 9 * * MON-FRI tz=Asia/Shanghai`、`once 2026-…`，可附 `start=`、`end=`、`calendar=`），存储以文本持久化。
 - cron `CronExpression`：5 段（`m h dom mon dow`，秒 = 0）或 6 段（`s m h dom mon dow`），可选第 7 段年份；`*`、`?`、列表、范围、步长、月与星期名、`L`、`L-n`、`W`、`LW`、`nL`、`n#k`；星期 0/7 = 周日、1 = 周一（Unix 约定，不是 Quartz 的 1 = 周日）；日与星期同时限定取并集；`Next(after)` 按 UTC，`Next(after, timeZone)` 按该时区墙上时间，夏令时跳过的时刻不运行、重复的时刻只运行第一次；搜索上限 5 年。
 - 日历 `IJobCalendar.IsExcluded(at)`：`services.AddJobCalendar(name, calendar)` 按名登记；内置 `HolidayCalendar`（日期集合）、`WeeklyCalendar`（星期集合）、`DailyCalendar`（每日时段）、`CronCalendar`（匹配 cron 的时刻）、`CompositeCalendar`（任一排除即排除）。推算下一次运行时跳过被排除的时刻（`Every` 的下一次也顺延到首个未排除时刻）。未登记的日历名 → `SCHEDULING_VALIDATION_001`。
@@ -31,25 +31,33 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 
 全部按批量、逐项结果：
 
-- `ScheduleAsync(definitions[])`：新增或整体替换作业与触发器（来源 `Runtime`；替换保留暂停状态与同名触发器的上一次运行时刻），立即生效，集群内其他节点在下一个轮询周期看到。作业类型未登记 → `SCHEDULING_NOTFOUND_002`；触发器名重复、日历未登记、计划不合法 → `SCHEDULING_VALIDATION_001`。
-- `UnscheduleAsync(names[])`：删除作业与触发器（进行中的运行照常结束，历史保留）；未登记 → `SCHEDULING_NOTFOUND_001`。
+- `ScheduleAsync(definitions[])`：新增或整体替换作业与触发器（来源 `Runtime`；替换代码登记的作业时来源记为 `Overridden`，见下；替换保留暂停状态与同名触发器的上一次运行时刻），立即生效，集群内其他节点在下一个轮询周期看到。作业类型未登记 → `SCHEDULING_NOTFOUND_002`；触发器名重复、日历未登记、计划不合法 → `SCHEDULING_VALIDATION_001`。
+- `UnscheduleAsync(names[])`：删除作业与触发器（进行中的运行照常结束，历史保留）；未登记 → `SCHEDULING_NOTFOUND_001`。删除代码登记的作业只到下次启动：启动时按代码重新写入。
+- `RestoreAsync(names[])`（ADR-0053）：把运行时改过的代码作业恢复为代码定义（来源回到 `Code`，保留暂停状态与同名触发器的进度）；作业没有代码定义 → `SCHEDULING_NOTFOUND_005`。
 - `PauseAsync(names[])` / `ResumeAsync(names[])`：暂停或恢复作业的全部触发器（暂停期间手动触发仍可用）；恢复时按 misfire 策略处理暂停期间错过的运行。`PauseTriggersAsync(keys[])` / `ResumeTriggersAsync(keys[])` 作用于单个触发器；触发器不存在 → `SCHEDULING_NOTFOUND_003`。
 - `TriggerAsync(requests[])`（`JobTriggerRequest(Name, Data?)`）：在本实例立即运行并等待结果，逐项 `JobTriggerResult`；不受暂停与领导限制；未登记 → `SCHEDULING_NOTFOUND_001`，正在运行且不允许并发 → `SCHEDULING_CONFLICT_001`。
 - `EnqueueAsync(requests[])`：插入一个立即到期的一次性触发器（名 `manual-<id>`），由集群中任一节点运行，不等待；返回触发器名。
 - `CancelRunsAsync(runIds[])`：请求取消运行——本实例的运行立即取消其令牌，其他节点的运行在下一个轮询周期取消；不在运行中 → `SCHEDULING_NOTFOUND_004`。取消的运行记为 `Canceled`，等待它的手动触发得到 `SCHEDULING_CONFLICT_003`。
 - `StatusAsync(name)` / `StatusesAsync()`：`JobStatus`（作业记录、是否暂停、每个触发器的状态与下一次 / 上一次运行时刻与次数、运行中数量、最近一次完成的运行与结果）。
-- `RunsAsync(query)`：运行历史（按作业、状态、时间范围，分页，计划时刻降序）。
+- `RunsAsync(query)`：运行历史（按作业、状态、时间范围、触发器名、执行节点、有无错误，分页，计划时刻降序）；`CountRunsAsync(query)` 给出同一组过滤项下的总数（不看分页），管理界面分页用（ADR-0053）。
 
-调度器在应用进入服务状态之前不按计划运行；启动后首个周期把代码登记的作业写入存储；停止时等待进行中的运行结束（按宿主停止令牌取消）。
+调度器在应用进入服务状态之前不按计划运行；启动后首个周期把代码登记的作业写入存储：
+
+- 每个代码作业记下代码定义的指纹 `CodeFingerprint`（类型键、数据、标志与各触发器的 SHA-256）。
+- 存储里的作业来源是 `Overridden`（运行时 `ScheduleAsync` 改过的代码作业），且记下的指纹与当前代码定义相同时，保留运行时的修改。
+- 其余情况（新作业、来源是 `Code`、代码定义变了）按代码写入，来源 `Code`；覆盖掉运行时修改时记一条警告。
+- 暂停状态一律保留。
+
+停止时等待进行中的运行结束（按宿主停止令牌取消）。
 
 ## 存储 `IJobStore`
 
 Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 → `SCHEDULING_UNAVAILABLE_003`，容量已满（内存实现的历史）→ `SCHEDULING_UNAVAILABLE_004`：
 
 - `IsShared`：存储是否跨实例共享（抢占即集群唯一）。`false`（内存实现）时不共享的"集群只运行一次"作业只在持有领导租约的实例上按计划运行；`true`（数据库实现）时由抢占保证。
-- 作业：`FindJobAsync`、`ListJobsAsync`、`SaveJobsAsync`（新增或替换定义与暂停状态；已有行的 `ActiveRunId` 由存储保留，只有 `TryBeginRunAsync` / `CompleteRunAsync` / `RecoverNodesAsync` 改它）、`DeleteJobsAsync`（级联触发器）。`JobRecord`：定义的持久化形态（`JobTypeName` 为类型键）加 `Paused`、`ActiveRunId`（不允许并发时正在运行的运行 ID）、`Source`、`UpdatedAt`。
+- 作业：`FindJobAsync`、`ListJobsAsync`、`SaveJobsAsync`（新增或替换定义与暂停状态；已有行的 `ActiveRunId` 由存储保留，只有 `TryBeginRunAsync` / `CompleteRunAsync` / `RecoverNodesAsync` 改它）、`DeleteJobsAsync`（级联触发器）。`JobRecord`：定义的持久化形态（`JobTypeName` 为类型键）加 `Paused`、`ActiveRunId`（不允许并发时正在运行的运行 ID）、`Source`（`Code` / `Runtime` / `Overridden`）、`CodeFingerprint`（代码作业最近一次按代码写入时的指纹，运行时作业为空）、`UpdatedAt`。
 - 触发器：`TriggersAsync(job?)`、`SaveTriggersAsync`、`DeleteTriggersAsync`、`AcquireDueAsync(dueBefore, limit, nodeId, now)`（原子地把 `Waiting` 且到期的非本地触发器改成 `Acquired(nodeId)`，按到期时刻升序、优先级降序取至多 `limit` 条；多个节点同时调用时每条触发器只被一个节点拿到）。`TriggerRecord`：定义加 `State`（`Waiting` / `Paused` / `Acquired` / `Blocked` / `Complete` / `Error`）、`NextFireAt`、`PreviousFireAt`、`AcquiredBy`、`AcquiredAt`、`FireCount`、`Error`、`Local`。
-- 运行：`TryBeginRunAsync(run, exclusive)`（写入运行记录；`exclusive` 时原子地占用作业的 `ActiveRunId`，已被占用返回 `false`）、`CompleteRunAsync(run)`（写回结果，释放 `ActiveRunId`，把该作业 `Blocked` 的触发器改回 `Waiting`）、`RunsAsync(query)`、`RunningAsync(job?)`、`LastRunsAsync(jobs[])`、`RequestCancelAsync(runIds[])`、`CancelRequestedRunsAsync(nodeId)`、`PurgeRunsAsync(before)`。
+- 运行：`TryBeginRunAsync(run, exclusive)`（写入运行记录；`exclusive` 时原子地占用作业的 `ActiveRunId`，已被占用返回 `false`）、`CompleteRunAsync(run)`（写回结果，释放 `ActiveRunId`，把该作业 `Blocked` 的触发器改回 `Waiting`）、`RunsAsync(query)`、`CountRunsAsync(query)`、`RunningAsync(job?)`、`LastRunsAsync(jobs[])`、`RequestCancelAsync(runIds[])`、`CancelRequestedRunsAsync(nodeId)`、`PurgeRunsAsync(before)`。
 - 节点：`HeartbeatAsync(node)`、`NodesAsync()`、`RecoverNodesAsync(nodeIds[], now)`（失联节点 `Acquired` / `Blocked` 的触发器改回 `Waiting`，`Running` 的运行记为 `Lost`，释放其 `ActiveRunId`，删除节点记录，返回标记为 `Lost` 的运行）。
 
 ## 引擎
