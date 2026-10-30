@@ -73,7 +73,7 @@ Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkfl
 
 ## 表达式
 
-`IWorkflowExpressionEvaluator`：`Evaluate(expression, scope)` → `Result<JsonNode?>`、`EvaluateCondition` → `Result<bool>`（结果不是 bool 即失败）、`Render(template, scope)` → `Result<string>`（`{{ 表达式 }}` 占位，引号内的 `}}` 不算结束）。默认实现是无依赖的小语言：`||`、`&&`、`== !=`、`< <= > >=`、`+ -`、`* / %`、一元 `! -`、成员 `.x` 与索引 `[i]`、字面量（数字为 decimal、单双引号字符串、`true` / `false` / `null`）、标识符与函数调用；`+` 任一侧是字符串即拼接；`==` 跨数字类型宽松、字符串序数比较；未知根变量是错误（不是 null），缺少的成员或键是 null；函数 `len`、`contains`、`startsWith`、`endsWith`、`upper`、`lower`、`trim`、`isNullOrEmpty`、`abs`、`min`、`max`、`round`、`toNumber`、`toString`、`now`、`date`（名字不区分大小写）。语法或求值失败 → `WORKFLOW_VALIDATION_003`。已解析的表达式按文本缓存，上限 `ExpressionCacheSize`。
+`IWorkflowExpressionEvaluator`：`Evaluate(expression, scope)` → `Result<Maybe<JsonNode>>`（结果是 `null`——字面量 `null`、缺少的成员或键、值为 null 的变量——时是成功的无值，不是失败；ADR-0059）、`EvaluateCondition` → `Result<bool>`（结果不是 bool 即失败，无值也算不是 bool）、`Render(template, scope)` → `Result<string>`（`{{ 表达式 }}` 占位，引号内的 `}}` 不算结束，无值渲染成空串）。活动里的 `ActivityContext.EvaluateProperty(name)` 同样返回 `Result<Maybe<JsonNode>>`：没有这个属性是无值，字符串属性当表达式求值，其余属性原样作为有值。默认实现是无依赖的小语言：`||`、`&&`、`== !=`、`< <= > >=`、`+ -`、`* / %`、一元 `! -`、成员 `.x` 与索引 `[i]`、字面量（数字为 decimal、单双引号字符串、`true` / `false` / `null`）、标识符与函数调用；`+` 任一侧是字符串即拼接；`==` 跨数字类型宽松、字符串序数比较；未知根变量是错误（不是 null），缺少的成员或键是 null；函数 `len`、`contains`、`startsWith`、`endsWith`、`upper`、`lower`、`trim`、`isNullOrEmpty`、`abs`、`min`、`max`、`round`、`toNumber`、`toString`、`now`、`date`（名字不区分大小写）。语法或求值失败 → `WORKFLOW_VALIDATION_003`。已解析的表达式按文本缓存，上限 `ExpressionCacheSize`。
 
 ## 存储契约
 
