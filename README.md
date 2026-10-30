@@ -90,6 +90,7 @@ git submodule update --init
 | [0020](rfcs/0020-migration.md) | 版本迁移：`xihan migrate <来源版本>` 按规则集做语法级重写，不做运行期兼容桥 | 已采纳（2026-10-26 修订：撤掉 4.x 规则集，见 ADR-0021；规范 `migration/README.md`；实现 `XiHan.Framework.Cli`） |
 | [0021](rfcs/0021-workflow.md) | 工作流：持久化执行 | 已采纳（2026-10-26 修订：触发式启动、事件网关、外部任务、HTTP 与补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；参考实现 `Workflow.Abstractions`、`Workflow.InMemory`、`Workflow.Database`，套件 `Workflow.Conformance`） |
 | [0022](rfcs/0022-ai.md) | AI：聊天、嵌入、工具与知识 | 已采纳（参考实现 `AI.Abstractions`、`AI.OpenAI`、`AI.VectorData`，套件 `AI.Conformance`） |
+| [0023](rfcs/0023-observability.md) | 可观测性：导出与运行信息 | 已采纳（参考实现 `Observability.Abstractions`、`Observability.Host`、`Observability.OpenTelemetry`；运行信息不启动外部命令，与 4.x 的差异见正文） |
 
 ## 版本
 

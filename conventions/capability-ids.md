@@ -41,6 +41,7 @@ VersionRange   = 整数接口版本或 ^ 范围（"1"、"^1"）
 | `scheduling.jobs` / `scheduling.leader` | 任务与领导选举 |
 | `configuration.remote` / `configuration.secrets` | 远程配置与密钥 |
 | `observability.export` | 导出器 |
+| `observability.host` | 进程与主机的运行信息（RFC-0023） |
 | `localization.resources` | 本地化资源 |
 | `auditing.trail` | 审计 |
 | `workflow.execution` | 持久化执行 |
