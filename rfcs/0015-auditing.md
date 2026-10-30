@@ -24,7 +24,7 @@
 
 ## 数据库 Provider
 
-`Auditing.Database`（ADR-0028）：事件先进有界队列（`XiHan:Auditing:Database`：`QueueCapacity` 默认 10000；满了丢新到的并计数、节流告警，调用路径不阻塞），后台按批（`BatchSize` 默认 100）或按周期（`FlushIntervalSeconds` 默认 1）在新作用域直接开工作单元批量落库（不经管道），落库失败只记日志；停止时先停循环、停止接收，再刷完剩余事件。行只追加（动作、结果、错误码 / 消息键 / 文案 / 细节、trace-id、资源、主体、租户、细节 JSON、进程内写入序号），不实现 `IMultiTenant`；查询按写入序号升序分页，续页令牌是序号；`Error.Inner` 不持久化。`LogEvents`（默认开）同内存实现。清单依赖 `persistence.relational@1`。记录的字符串列显式声明长度（`[StringLength(n)]`，动作 256、错误码 64、消息键 256、trace-id 64、资源 1024、主体 256、租户 128）；错误文案、错误细节 JSON 与细节 JSON 是长文本列（`Persistence.Abstractions` 的 `[LongText]`），SqlSugar 的 CodeFirst 与 EF Core 都据此建表，不再落成 `varchar(255)`。
+`Auditing.Database`（ADR-0028）：事件先进有界队列（`XiHan:Auditing:Database`：`QueueCapacity` 默认 10000；满了丢新到的并计数、节流告警，调用路径不阻塞），后台按批（`BatchSize` 默认 100）或按周期（`FlushIntervalSeconds` 默认 1）在新作用域直接开工作单元批量落库（不经管道），落库失败只记日志；停止时先停循环、停止接收，再刷完剩余事件。行只追加（动作、结果、错误码 / 消息键 / 文案 / 细节、trace-id、资源、主体、租户、细节 JSON、进程内写入序号），不实现 `IMultiTenant`；查询按写入序号升序分页，续页令牌是序号；`Error.Inner` 不持久化。审计记录是平台级数据：落库与查询都在根提供者的新作用域里进行、不绑定租户分片，独立库租户的记录也落应用默认连接，靠租户列区分（ADR-0057 核对）。`LogEvents`（默认开）同内存实现。清单依赖 `persistence.relational@1`。记录的字符串列显式声明长度（`[StringLength(n)]`，动作 256、错误码 64、消息键 256、trace-id 64、资源 1024、主体 256、租户 128）；错误文案、错误细节 JSON 与细节 JSON 是长文本列（`Persistence.Abstractions` 的 `[LongText]`），SqlSugar 的 CodeFirst 与 EF Core 都据此建表，不再落成 `varchar(255)`。
 
 ## 一致性
 
