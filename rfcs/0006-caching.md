@@ -49,6 +49,19 @@
 - 内存实现按键的序数顺序分页，续页标记是上一页最后一个键。
 - Redis 实现按单个端点的 `SCAN` 分页：续页标记是 SCAN 游标，页大小是提示值，同一个键可能出现在两页；前缀里的 glob 字符转义。
 
+对象条目（ADR-0058）：进程内的类型化缓存把对象引用存在自己的表里，不经 `ICache.Store` 的字节存储，`ICacheStoreInspector` 看不到。这样的缓存实现可选的 `ICacheInspector`：
+
+| 操作 | 语义 |
+| --- | --- |
+| `ListKeys(query)` | 同字节存储：按前缀分页列出对象条目的键 |
+| `Inspect(key)` | 条目里对象的类型全名、剩余存活时间（不过期为空）与滑动窗口；不存在或已过期为无值；不读出值、不延长滑动过期 |
+| `RemoveByPrefix(prefix)` | 删除前缀下的对象条目，返回删除数；前缀不能为空 |
+
+- 管理界面把 `ICache` / `ISharedCache` 转成 `ICacheInspector` 得到对象条目，再把它的 `Store` 转成 `ICacheStoreInspector` 得到字节条目，两份合起来是这个缓存的全部条目，来源即条目所在的层；同一个键可以两边都有。
+- 删单个对象条目用 `ICache.RemoveAsync`，读值用 `ICache.GetAsync<object>`。
+- `InMemoryObjectCache`（`caching.local` 与内存实现的 `caching.distributed`）实现它；序列化缓存（Redis 等）的条目都在字节存储里，不实现。
+- 两级缓存的 L1 只订阅 L2 存储的变更通知：L2 是进程内对象缓存时（单实例开发环境），经本接口删除的对象条目在 L1 里最长 `LocalTimeToLive` 后才消失。
+
 ### 变更通知（可选，ADR-0055）
 
 共享存储实现 `ICacheChangeFeed`：`Subscribe(handler)` 收到本实例与其他实例对存储的写入与删除（`CacheChange`：键列表，或按前缀删除时的前缀）。
