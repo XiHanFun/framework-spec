@@ -15,7 +15,7 @@
 | `ObjectStorage` | `objectstorage` | `XiHan:ObjectStorage` | `OBJECTSTORAGE` | 对象存储 |
 | `Scheduling` | `scheduling` | `XiHan:Scheduling` | `SCHEDULING` | 定时与后台任务、领导选举 |
 | `Configuration` | `configuration` | `XiHan:Configuration` | `CONFIGURATION` | 远程配置与密钥的 Provider |
-| `Observability` | `observability` | `XiHan:Observability` | `OBSERVABILITY` | 导出器与采样配置 |
+| `Observability` | `observability` | `XiHan:Observability` | `OBSERVABILITY` | 导出器与采样配置；进程与主机的运行信息（RFC-0023） |
 | `Localization` | `localization` | `XiHan:Localization` | `LOCALIZATION` | 资源与文化 |
 | `Auditing` | `auditing` | `XiHan:Auditing` | `AUDITING` | 审计写入 |
 | `Workflow` | `workflow` | `XiHan:Workflow` | `WORKFLOW` | 持久化执行 |
