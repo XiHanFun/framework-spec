@@ -42,6 +42,13 @@
 
 - 连接类 Provider（数据库、缓存、消息代理、对象存储等外部服务）用内核的 `PeriodicHealthContributor(name, probe, interval)` 周期探测：启动时同步探一次，之后按 `HealthProbeIntervalSeconds`（各 Provider 配置节，默认 15）重探；探针失败或超时记 `KERNEL_UNAVAILABLE_005`（`name`、`reason`）并报 Degraded，恢复后报 Ready；探测不经管道、不受应用服务状态影响。
 - 容量类 Provider（内存实现的存储、队列）同步上报：达到容量即 Degraded，错误码取所属领域的 UNAVAILABLE 容量码（如 `CACHING_UNAVAILABLE_002`、`OBJECTSTORAGE_UNAVAILABLE_002`）。
+- 条目详情（ADR-0054）：`ContributorStatus` 除名字、状态与错误外可带：
+  - `Description`：检查的是什么。
+  - `CheckedAt`：检查时刻。
+  - `Duration`：检查耗时。
+  - `Data`：名字到标量的字典（字符串、布尔、数值或空），不是标量即 `ArgumentException`。
+
+  周期探测的条目由 `PeriodicHealthContributor` 记下每次探测完成的时刻与耗时，说明由构造参数给出；容量类条目在 `Data` 里给出已用量与上限。宿主探针端点的 `contributions` 照写（`description`、`checkedAt`、`durationMs`、`data`，没有的省略）。
 - 自带刷新循环的 Provider（如数据库翻译加载器）按最近一次刷新的结果上报，不另起探测循环。
 
 ## 与 .NET 的映射
