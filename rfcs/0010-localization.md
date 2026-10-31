@@ -1,6 +1,6 @@
 # RFC-0010 本地化
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线） | 日期：2026-10-21 | 对应 ADR：0038 | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/localization/`（P3 补）
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长） | 日期：2026-10-21 | 对应 ADR：0038 | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/localization/`（P3 补）
 
 ## 摘要
 
@@ -21,7 +21,7 @@
 | `pt-BR` | 葡萄牙语（巴西） |
 | `ru-RU` | 俄语 |
 
-区域名文法 `^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$`，比较不区分大小写，规范形式为语言小写、地区大写、文字首字母大写（`LocaleName`）。
+区域名文法 `^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$`，最长 35 个字符（`LocaleName.MaxLength`），比较不区分大小写，规范形式为语言小写、地区大写、文字首字母大写（`LocaleName`）。存放区域名的列（如数据库 Provider 的 `MessageTranslation.Locale`）长度取这个上限，合法的区域名都能写入。
 
 ## 消息键
 
