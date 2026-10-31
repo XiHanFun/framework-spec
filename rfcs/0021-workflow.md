@@ -1,6 +1,6 @@
 # RFC-0021 工作流：持久化执行
 
-> 状态：已采纳 | 日期：2026-10-26，同日修订（ADR-0020：`Workflow.Database`、触发式启动、事件网关、外部任务、HTTP 活动、补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理） | 对应 ADR：ADR-0016、ADR-0020 | 参考实现：`XiHan.Framework.Workflow.Abstractions`、`XiHan.Framework.Workflow.InMemory`、`XiHan.Framework.Workflow.Database` | 一致性：`XiHan.Framework.Workflow.Conformance`
+> 状态：已采纳 | 日期：2026-10-26，同日修订（ADR-0020：`Workflow.Database`、触发式启动、事件网关、外部任务、HTTP 活动、补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；2026-11-01 修订：外部任务领取的条数上限与下推） | 对应 ADR：ADR-0016、ADR-0020 | 参考实现：`XiHan.Framework.Workflow.Abstractions`、`XiHan.Framework.Workflow.InMemory`、`XiHan.Framework.Workflow.Database` | 一致性：`XiHan.Framework.Workflow.Conformance`
 
 ## 摘要
 
@@ -69,7 +69,7 @@ Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkfl
 
 ## 外部任务
 
-`ExternalTask` 活动以 `External` 书签（Key = 主题，载荷 `topic`、`payload`、`lockedBy`、`lockedUntil`、`notBefore`）挂起。`IWorkflowExternalTaskService`：`FetchAsync(topic, workerId, lockDuration, maxTasks)`（领取当前租户下该主题未锁定（或锁已过期）且已到 `notBefore` 的任务：在实例锁内把 `lockedBy` / `lockedUntil` 写回书签；返回 `ExternalTask` 视图：`Id`、`InstanceId`、`Topic`、`Payload`、`Variables`、`LockedUntil`、`Attempt`）；`CompleteAsync(completions[])`（`taskId`、`workerId`、`outputs`：工作者必须持有未过期的锁 → 否则 `WORKFLOW_DENIED_002`；输出合并进实例变量后节点完成）；`FailAsync(failures[])`（`taskId`、`workerId`、`error`、`retryAfter?`：有 `retryAfter` 时解锁并把 `notBefore` 后推、任务 `attempt + 1`；没有时节点以该错误故障，按节点重试策略处理）；`ExtendLockAsync(extensions[])`。锁到期的任务自动解锁（书签 `DueAt` = `lockedUntil`，到期由轮询驱动、活动重新挂起）。
+`ExternalTask` 活动以 `External` 书签（Key = 主题，载荷 `topic`、`payload`、`lockedBy`、`lockedUntil`、`notBefore`）挂起。`IWorkflowExternalTaskService`：`FetchAsync(topic, workerId, lockDuration, maxTasks)`（领取当前租户下该主题未锁定（或锁已过期）且已到 `notBefore` 的任务，按创建时间最多 `maxTasks` 条：`maxTasks` 取 1 到 `MaxTasksPerFetch`（100），`lockDuration` 须为正，越界 → `WORKFLOW_VALIDATION_002`；租户、可领取时刻与条数经 `IWorkflowBookmarkStore.AvailableAsync` 下推到存储查询，不读回该主题的全部书签；候选在实例锁内重读，仍可领取才把 `lockedBy` / `lockedUntil` 写回书签，被别的工作者抢先或实例已不在运行中的跳过，所以结果可能少于 `maxTasks`；返回 `ExternalTask` 视图：`Id`、`InstanceId`、`Topic`、`Payload`、`Variables`、`LockedUntil`、`Attempt`）；`CompleteAsync(completions[])`（`taskId`、`workerId`、`outputs`：工作者必须持有未过期的锁 → 否则 `WORKFLOW_DENIED_002`；输出合并进实例变量后节点完成）；`FailAsync(failures[])`（`taskId`、`workerId`、`error`、`retryAfter?`：有 `retryAfter` 时解锁并把 `notBefore` 后推、任务 `attempt + 1`；没有时节点以该错误故障，按节点重试策略处理）；`ExtendLockAsync(extensions[])`。锁到期的任务自动解锁（书签 `DueAt` = `lockedUntil`，到期由轮询驱动、活动重新挂起）。
 
 ## 表达式
 
@@ -77,11 +77,11 @@ Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkfl
 
 ## 存储契约
 
-三个存储都不按租户过滤（调用方负责），不做乐观并发（实例锁串行化写入），写入按批量（ADR-0012）：
+三个存储都不按租户过滤（调用方负责；`AvailableAsync` 的租户是查询键，按相等比较），不做乐观并发（实例锁串行化写入），写入按批量（ADR-0012）：
 
 - `IWorkflowDefinitionStore`：`FindAsync(id)`、`FindManyAsync(ids[])`、`FindAsync(name, version)`、`FindLatestPublishedAsync(name)`、`MaxVersionAsync(name)`、`ListAsync(name?, status?)`（名字升序、版本降序）、`SaveAsync(definitions[])`（新增或整体替换）、`DeleteAsync(ids[])`。
 - `IWorkflowInstanceStore`：`FindAsync(id)`、`FindManyAsync(ids[])`、`ListAsync(WorkflowInstanceQuery)`（`Status` / `Statuses`、`DefinitionName`、`CorrelationId`、`ParentInstanceId`、`StarterId`、`TenantId`、`CreatedFrom` / `CreatedTo`、`EndedBefore`、`Skip`、`Limit` ≤ 1000；创建时间降序）、`CountAsync(query)`、`SaveAsync(instances[])`、`DeleteAsync(ids[])`（级联节点实例）；节点实例 `FindNodeInstanceAsync(id)`、`NodeInstancesAsync(instanceId)`（开始时间升序、同刻按创建顺序）、`SaveNodeInstancesAsync(nodeInstances[])`。
-- `IWorkflowBookmarkStore`：`FindAsync(id)`、`FindManyAsync(ids[])`、`ByInstanceAsync(instanceId)`、`DueAsync(now, limit)`（`DueAt` ≤ now，`DueAt` 升序）、`ByKindAndKeyAsync(kind, key)`（创建时间升序）、`BySignalAsync(name, correlationId?)`、`SaveAsync(bookmarks[])`、`DeleteAsync(ids[])`、`DeleteByInstanceAsync(instanceIds[])`。
+- `IWorkflowBookmarkStore`：`FindAsync(id)`、`FindManyAsync(ids[])`、`ByInstanceAsync(instanceId)`、`DueAsync(now, limit)`（`DueAt` ≤ now，`DueAt` 升序）、`ByKindAndKeyAsync(kind, key)`（创建时间升序）、`AvailableAsync(kind, key, tenantId?, now, limit)`（种类与键匹配、`TenantId` 与给定租户相等（空只匹配无租户）、`DueAt` 为空或 ≤ now，创建时间升序，最多 limit 条；外部任务领取用）、`BySignalAsync(name, correlationId?)`、`SaveAsync(bookmarks[])`、`DeleteAsync(ids[])`、`DeleteByInstanceAsync(instanceIds[])`。
 - 存储不可达 → `WORKFLOW_UNAVAILABLE_001`；容量已满（内存默认实现）→ `WORKFLOW_UNAVAILABLE_002`。
 
 ## 默认实现与 Provider
@@ -92,7 +92,7 @@ Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkfl
 
 ## 一致性
 
-Provider 继承 `WorkflowStoreConformance`（三个存储的查询、排序、分页与计数、批量与级联语义、实例锁）与 `WorkflowEngineConformance`（顺序流、决策、并行与汇合、三种完成策略与阈值的用户任务、认领与退回、转办与加签、延时与超时、信号与事件网关、信号与定时启动、子流程与 ForEach、外部任务、HTTP 活动、补偿活动、重试与继续、取消 / 终止 / 挂起 / 恢复 / 跳转 / 迁移 / 改变量、实例级超时、清理、事件主题）并通过全部用例。
+Provider 继承 `WorkflowStoreConformance`（三个存储的查询、排序、分页与计数、批量与级联语义、可领取书签的过滤与上限、实例锁）与 `WorkflowEngineConformance`（顺序流、决策、并行与汇合、三种完成策略与阈值的用户任务、认领与退回、转办与加签、延时与超时、信号与事件网关、信号与定时启动、子流程与 ForEach、外部任务、HTTP 活动、补偿活动、重试与继续、取消 / 终止 / 挂起 / 恢复 / 跳转 / 迁移 / 改变量、实例级超时、清理、事件主题）并通过全部用例。
 
 ## 错误码
 
