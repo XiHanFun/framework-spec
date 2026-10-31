@@ -1,6 +1,6 @@
 # RFC-0006 缓存、分布式锁与幂等
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配、两级缓存） | 日期：2026-10-21 | 对应 ADR：— | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配、两级缓存；2026-11-01 修订：幂等回放操作的响应） | 日期：2026-10-21 | 对应 ADR：ADR-0064（幂等响应回放） | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
 
 ## 摘要
 
@@ -83,11 +83,14 @@
 Idempotency 阶段的中间件按 Baggage `xihan.idempotency-key` 去重，作用域为（租户、主体、键）：
 
 1. 首次调用用 `TryAdd` 写入"处理中"标记（`InProgressTimeToLive`，默认 60 秒）并执行处理器。
-2. 处理器完成后用调用结果（成功，或错误码与消息）替换标记，保留 `TimeToLive`（默认 24 小时）。
+2. 处理器完成后用调用结果（成功，或错误码与消息）替换标记，保留 `TimeToLive`（默认 24 小时）。操作调用（上下文里有操作描述，RFC-0011）另记操作 ID；成功时把上下文里的响应对象按描述编成 XGI 的 JSON 一起记（`EncodeResponse`，已经过响应过滤，与首次调用拿到的一致）。
 3. 处理器抛出异常时比较删标记，允许重试。
-4. 重复调用：标记仍为"处理中"返回 `CACHING_CONFLICT_002`；已完成则回放结果、不执行处理器，并在上下文标记为回放。
+4. 重复调用：标记仍为"处理中"返回 `CACHING_CONFLICT_002`；已完成则回放、不执行处理器，并在上下文标记为回放：
+   - 记录的操作 ID 必须与本次调用的一致（都不是操作调用时都为空），否则返回 `CACHING_CONFLICT_003`（消息键 `caching.idempotency.key_reused`）：同一个键被另一个操作、或在操作与非操作调用之间复用，不把别人的结果当成本次的结果。
+   - 失败记录回放为同一个错误。
+   - 成功的操作调用把记录的响应解码（`OperationDescriptor.DecodeResponse`）放回上下文，调用器的 XGI 入口返回同样的载荷，类型化入口返回同样的响应对象，HTTP 端点写出同样的状态码与正文（RFC-0011）。记录里没有响应或解码失败返回 `CACHING_CONFLICT_003`（消息键 `caching.idempotency.response_unavailable`），不返回空载荷。
 
-回放的是调用结果，不是响应体；操作契约（P3）在此之上回放响应。
+回放的是首次调用的结果与（操作调用的）响应，不比对请求内容：同一个键配不同的请求体照样回放首次的响应，键由调用方按「一次业务意图一个键」生成。
 
 ## 两级缓存
 

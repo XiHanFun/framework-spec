@@ -83,6 +83,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `CACHING_UNAVAILABLE_002` | 缓存存储已达容量上限（健康项 Degraded 的信号；LRU 不拒绝写入） |
 | `CACHING_CONFLICT_001` | 分布式锁被其他持有者占用 |
 | `CACHING_CONFLICT_002` | 同一幂等键的调用仍在处理中 |
+| `CACHING_CONFLICT_003` | 幂等记录不能回放给本次调用：同一幂等键已被另一个调用（另一个操作，或操作与非操作调用之间）使用，或记录里的操作响应无法还原 |
 | `MESSAGING_VALIDATION_001` | 主题不合法 |
 | `MESSAGING_VALIDATION_002` | 信封不合法或无法解码 |
 | `MESSAGING_VALIDATION_003` | 领域事件类型未登记（`AddDomainEvent`） |

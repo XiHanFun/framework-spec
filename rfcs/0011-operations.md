@@ -1,6 +1,6 @@
 # RFC-0011 操作契约与 XGI
 
-> 状态：已采纳（2026-10-28 修订：Schema 命名——封闭泛型带实参名、字符串枚举进 `$defs`；2026-10-28 修订：程序集级 Expose 缺省与只读声明） | 日期：2026-10-22 | 对应 ADR：0034、0041 | 参考实现：`XiHan.Framework.Kernel.Operations` | 一致性：`conformance/vectors/operations/`（随协议适配器补）
+> 状态：已采纳（2026-10-28 修订：Schema 命名——封闭泛型带实参名、字符串枚举进 `$defs`；2026-10-28 修订：程序集级 Expose 缺省与只读声明；2026-11-01 修订：幂等回放还原响应） | 日期：2026-10-22 | 对应 ADR：0034、0041、0064 | 参考实现：`XiHan.Framework.Kernel.Operations` | 一致性：`conformance/vectors/operations/`（随协议适配器补）
 
 ## 摘要
 
@@ -60,6 +60,10 @@ JSON 是 XGI 的规范编码；gRPC 等二进制协议在适配器里转换（`P
    - 过滤器返回的对象必须是操作响应类型的实例（可以是新实例），否则抛出 `InvalidOperationException`，与过滤器自己抛出的异常一样由 Observe 阶段翻译为 `KERNEL_UNEXPECTED_001`。
    - 失败的调用不过滤；没有登记过滤器时不解析、不分配。
    - 用途是按调用者裁剪响应（字段级权限的掩码等）；改变响应结构或失败语义不在此列。
+8. 幂等回放（RFC-0006，ADR-0064）：Idempotency 阶段回放成功的操作调用时，把记录的响应经 `OperationDescriptor.DecodeResponse`（`EncodeResponse` 的逆，缺省按 `ResponseInfo` 解码；插件代理原样包成载荷）解码后写进上下文，Handle 不执行。
+   - `InvokeAsync` 的两种入口照常从上下文取响应：XGI 返回同样的载荷，类型化返回同样的响应对象，不是空载荷或 `KERNEL_UNEXPECTED_001`。
+   - 宿主端点不执行时由宿主写出：`Protocols.Http` 把写出方式（`OperationResponseWriter`：状态码、内容类型与正文）挂在端点元数据上，`UseXiHan()` 在管道成功结束、响应未开始而上下文里有响应对象时用它写出，与端点执行时写出的一致。
+   - 回放不再经过响应过滤：记录里的响应在首次调用时已经过滤，回放给的是同一个（租户、主体、键）。
 
 ## 校验
 
