@@ -89,6 +89,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `MESSAGING_VALIDATION_004` | 领域事件类型重复登记或登记表已满（以异常抛出） |
 | `MESSAGING_UNAVAILABLE_001` | 消息代理不可达或操作失败 |
 | `MESSAGING_UNAVAILABLE_002` | 队列已满 |
+| `MESSAGING_UNAVAILABLE_003` | 内存代理的主题数已达上限（`MaxTopics`），不能再创建新主题 |
 | `MESSAGING_UNEXPECTED_001` | 处理器抛出未处理异常（代理侧记录） |
 | `LOCALIZATION_VALIDATION_001` | 区域名不合法 |
 | `LOCALIZATION_VALIDATION_002` | 消息目录不合法（JSON、键或区域名错误） |

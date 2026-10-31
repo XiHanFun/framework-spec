@@ -13,6 +13,8 @@
 | `messaging.queue@1` | 工作队列：发布、按主题消费、至少一次、重试、死信 | `Messaging.InMemory`（单进程） |
 | `messaging.stream@1` | 有序分区流：在队列语义之上，按分区键有序、按消费组保存位点、可按时刻重放 | —（`Messaging.Kafka`） |
 
+`Messaging.InMemory` 每个主题一条有界通道（`MaxQueuedMessages`，默认 10000），满时发布返回 `MESSAGING_UNAVAILABLE_002`；主题在首次发布或订阅时创建、不回收，主题数上限 `MaxTopics`（默认 1000），已达上限时发布到新主题逐项返回 `MESSAGING_UNAVAILABLE_003`（不创建主题），订阅的主题超出上限时启动失败。
+
 ## 信封
 
 CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`datacontenttype`（默认 `application/json`）、`data`。线上编码为结构化 JSON（`application/cloudevents+json`）：JSON 数据内联在 `data`，其他数据放 `data_base64`，扩展属性是顶层成员。
