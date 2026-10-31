@@ -1,6 +1,6 @@
 # RFC-0007 多租户
 
-> 状态：已采纳（2026-10-26 修订：租户分片；2026-10-27 修订：租户目录的数据库 Provider） | 日期：2026-10-21 | 对应 ADR：ADR-0018（分片）、ADR-0026（数据库 Provider） | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory`、`XiHan.Framework.MultiTenancy.Database` | 一致性：`XiHan.Framework.MultiTenancy.Conformance`
+> 状态：已采纳（2026-10-26 修订：租户分片；2026-10-27 修订：租户目录的数据库 Provider；2026-11-01 修订：资源名租户段与租户 ID 同一文法） | 日期：2026-10-21 | 对应 ADR：ADR-0018（分片）、ADR-0026（数据库 Provider） | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory`、`XiHan.Framework.MultiTenancy.Database` | 一致性：`XiHan.Framework.MultiTenancy.Conformance`
 
 ## 摘要
 
@@ -15,7 +15,7 @@
 
 ## 租户 ID
 
-`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`，区分大小写。它出现在 Baggage `xihan.tenant`、`xrn` 资源名的租户段、持久化实体的 `TenantId` 中，三处同一文法。
+`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`，区分大小写。它出现在 Baggage `xihan.tenant`、`xrn` 资源名的租户段（RFC-0008「资源名」）、持久化实体的 `TenantId` 中，三处同一文法：任何合法的租户 ID 在三处都原样可用，不改写大小写、不替换字符。
 
 ## 解析
 
