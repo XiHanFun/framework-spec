@@ -1,6 +1,6 @@
 # RFC-0016 应用清单与打包
 
-> 状态：已采纳 | 日期：2026-10-23 | 对应 ADR：— | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
+> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照） | 日期：2026-10-23 | 对应 ADR：— | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
 
 ## 摘要
 
@@ -11,7 +11,7 @@
 字段与约束见 `spec/packaging/app-manifest.md`；JSON Schema 见 `spec/packaging/app.schema.json`。要点：
 
 - `name` 是 DNS 标签（`^[a-z][a-z0-9-]{0,62}$`），同时作为镜像仓库名、k8s 资源名与 Compose 项目名的默认值。
-- `bindings` 的类型限定为 `connection:relational`、`cache:distributed`、`queue`、`blob`，与清单 `bindings` 的资源类型一致（RFC-0002）。每个绑定对应一个 k8s Secret（按 Service Binding 规范挂到 `SERVICE_BINDING_ROOT`）、一个 Compose 依赖服务与一个 Aspire 资源。
+- `bindings` 的类型限定为 `connection:relational`、`cache:distributed`、`queue`、`blob`，与清单 `bindings` 的资源类型一致（RFC-0002）。每个绑定对应一个 k8s Secret（按 Service Binding 规范挂到 `SERVICE_BINDING_ROOT`）、一个 Compose 依赖服务与一个 Aspire 资源。框架 Provider 声明的绑定类型：持久化（EF Core、SqlSugar）`connection:relational`，`Caching.Redis` `cache:distributed`，`Messaging.RabbitMQ` `queue`，`ObjectStorage.S3` `blob`。`Messaging.Kafka` 声明的 `stream` 与 `Configuration.Nacos` 声明的 `configuration:remote` 不在这个词表里，`xihan pack` 目前不支持这两种绑定，用到它们的应用自己提供 `XiHan:Bindings:<名字>`（两者都是可选绑定，也可以只用各自的配置节）。
 - `shutdown.graceSeconds` 同时写进 `XiHan:Kernel:StopTimeoutSeconds` 与 `terminationGracePeriodSeconds`（后者多 5 秒，让内核先完成 Draining 再被 kubelet 终止）。
 - `probes` 映射为 startup / readiness / liveness 探针，路径固定为宿主的 `/health/startup`、`/health/ready`、`/health/live`。
 - `config` 把列出的文件做成 ConfigMap 挂到 `mountPath`，并设环境变量 `XIHAN_CONFIG_PATH`；宿主按该目录装载并监听文件（P3-12 实现）。
