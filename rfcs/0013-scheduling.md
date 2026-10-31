@@ -18,14 +18,21 @@
 Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作业可以有多个触发器，每个触发器各自推算下一次运行。
 
 - 名字 `JobName`：`^[a-z0-9][a-z0-9._-]{0,127}$`（与主题文法相同）；触发器名、领导选举的资源名同文法。触发器键 `TriggerKey(Job, Trigger)`。
-- 作业定义 `JobDefinition`：`Name`、`JobType`（实现 `IJob` 的类型，必须已登记）、`Triggers`（可空：没有触发器的作业只能手动触发，持久保留）、`Data`（`JsonObject`，运行时随 `JobRun.Data` 传给作业）、`AllowConcurrent`（默认 `false`：整个集群同一作业同一时刻最多一次运行，按计划的触发被阻塞直至上一次结束、手动触发返回 `SCHEDULING_CONFLICT_001`）、`RunOnEveryInstance`（默认 `false`：按计划的触发在集群只运行一次；`true`：每个实例各自按本地时钟运行，不经存储抢占）、`RequestsRecovery`（默认 `false`：运行所在节点失联时由领导者重新入队一次，`JobTrigger.Recovery`）、`Description`。便利构造 `JobDefinition(name, schedule, jobType)` 生成一个名为 `default` 的触发器。
+- 作业定义 `JobDefinition`：`Name`、`JobType`（实现 `IJob` 的类型，必须已登记）、`Triggers`（可空：没有触发器的作业只能手动触发，持久保留）、`Data`（`JsonObject`，运行时随 `JobRun.Data` 传给作业）、`AllowConcurrent`（默认 `false`：整个集群同一作业同一时刻最多一次运行，按计划的触发被阻塞直至上一次结束、手动触发返回 `SCHEDULING_CONFLICT_001`）、`RunOnEveryInstance`（默认 `false`：按计划的触发在集群只运行一次；`true`：每个实例各自按本地时钟运行，不经存储抢占）、`RequestsRecovery`（默认 `false`：运行所在节点失联时由领导者重新入队一次，`JobTrigger.Recovery`）、`Retry`（重试策略，空为不重试，见下）、`Timeout`（单次执行时限，空为不限，见下）、`Description`。便利构造 `JobDefinition(name, schedule, jobType)` 生成一个名为 `default` 的触发器。
 - 触发器定义 `JobTriggerDefinition`：`Name`、`Schedule`、`Data`（覆盖作业 `Data` 的同名键）、`Priority`（默认 5，到期的触发器多于可运行名额时大者先）、`MisfirePolicy`、`Description`。
 - 作业类型登记：`services.AddJobType<TJob>()`（键 = 类型全名）或 `AddJobType<TJob>(key)`；`services.AddJob<TJob>(definition)` / `AddJob<TJob>(name, schedule)` 同时登记类型与作业（启动时写入存储，来源 `Code`）。同名重复 `AddJob` 是编程错误；运行时 `ScheduleAsync` 同名即替换。`JobTypeRegistry.Keys` 按序数列出已登记的类型键，管理界面据此列出运行时新建作业可选的类型（ADR-0053）。
 - 计划 `JobSchedule`：`Manual`（只手动触发）、`Every(interval, repeatCount?)`（上一次完成后再等一个间隔，固定延迟；`RepeatCount` 为总运行次数，空为无限）、`FromCron(expression, timeZoneId?)`（cron，默认 UTC；时区按 `TimeZoneInfo` ID）、`Once(at)`（一次）；任何计划可带 `StartAt`（之前不运行）、`EndAt`（之后转为 `Complete`）与 `Calendar`（排除日历名）。`ToString()` / `Parse` 为文本往返（`manual`、`every 00:10:00 x5`、`cron 0 0 9 * * MON-FRI tz=Asia/Shanghai`、`once 2026-…`，可附 `start=`、`end=`、`calendar=`），存储以文本持久化。
 - cron `CronExpression`：5 段（`m h dom mon dow`，秒 = 0）或 6 段（`s m h dom mon dow`），可选第 7 段年份；`*`、`?`、列表、范围、步长、月与星期名、`L`、`L-n`、`W`、`LW`、`nL`、`n#k`；星期 0/7 = 周日、1 = 周一（Unix 约定，不是 Quartz 的 1 = 周日）；日与星期同时限定取并集；`Next(after)` 按 UTC，`Next(after, timeZone)` 按该时区墙上时间，夏令时跳过的时刻不运行、重复的时刻只运行第一次；搜索上限 5 年。
 - 日历 `IJobCalendar.IsExcluded(at)`：`services.AddJobCalendar(name, calendar)` 按名登记；内置 `HolidayCalendar`（日期集合）、`WeeklyCalendar`（星期集合）、`DailyCalendar`（每日时段）、`CronCalendar`（匹配 cron 的时刻）、`CompositeCalendar`（任一排除即排除）。推算下一次运行时跳过被排除的时刻（`Every` 的下一次也顺延到首个未排除时刻）。未登记的日历名 → `SCHEDULING_VALIDATION_001`。
 - misfire：触发器的到期时刻落后当前时刻超过 `MisfireThreshold`（默认 60 秒；进程停机、暂停期间、节点失联都会造成）时按 `MisfirePolicy`：`RunOnce`（默认，立即运行一次，再从现在推算下一次）、`Skip`（不补，从现在推算下一次）、`RunAll`（按原计划逐次补齐，每个轮询周期补一次直至追平）。
-- 运行 `JobRun`：`Id`、`Name`、`TriggerName`（手动为空）、`ScheduledAt`、`Trigger`（`Schedule` / `Manual` / `Recovery`）、`Data`（作业 `Data` ← 触发器 `Data` ← 手动触发的 `Data` 逐层覆盖）。`JobDispatcher` 为每次运行开新作用域，构造上下文（关联 ID = 运行 ID，运行信息可由 `JobDispatcher.GetRun(context)` 取得），经完整管道执行 `IJob.RunAsync`；返回失败或抛出异常都算失败（异常翻译为 `SCHEDULING_UNEXPECTED_001`）。不写幂等键。作业拿到的取消令牌在 `CancelRunsAsync` 与宿主停止时取消。
+- 重试（ADR-0060）：`JobRetryPolicy`：`MaxRetries`（1–100，失败后最多再运行几次）、`Delay`（第一次重试前的等待，大于零）、`Backoff`（`Fixed` 每次都等 `Delay`；`Exponential` 第 n 次重试等 `Delay × 2^(n-1)`）、`MaxDelay`（指数退避的上限，空为不设）；等待时间与上限都在 30 天以内，指数退避算出的等待超过 30 天按 30 天。
+  - 只有失败的运行重试：作业返回失败、抛出异常或超过执行时限。被取消的运行（`CancelRunsAsync`、宿主停止）与失联的运行（`Lost`）不重试。
+  - 重试是一次新运行：`Trigger` 为 `Retry`，`Attempt` 加一（首次为 1），`RetryOf` 是首次运行的 ID，`Data` 与失败的那次相同。
+  - 集群唯一的作业把重试写成存储里的一次性触发器，到期时刻 = 失败时刻 + 等待时间，任一节点抢占运行，进程重启不丢；不允许并发的作业照常独占（上一次未结束时阻塞到它结束）。`RunOnEveryInstance` 的作业在失败的实例上进程内等待重试，实例停止时未到期的重试丢弃。
+  - 手动 `TriggerAsync` 失败也按策略重试，调用方拿到的是第一次的结果。
+- 执行时限（ADR-0060）：`Timeout`（大于零、不超过 30 天）到时取消作业拿到的令牌；作业返回之前时限已过，运行记为失败，错误码 `SCHEDULING_TIMEOUT_001`（作业不响应取消时，运行在它返回后才结束）。时限内取消请求或宿主停止仍记为取消。
+- 重试策略与执行时限随作业持久化，代码作业指纹包含它们（设置了才计入，没设的作业指纹不变），运行时 `ScheduleAsync` 修改与 `RestoreAsync` 恢复同改计划的语义；`JobStatus.Job` 带出两项。
+- 运行 `JobRun`：`Id`、`Name`、`TriggerName`（手动为空）、`ScheduledAt`、`Trigger`（`Schedule` / `Manual` / `Recovery` / `Retry`）、`Attempt`（第几次尝试，从 1 起）、`RetryOf`（重试时为首次运行的 ID）、`Data`（作业 `Data` ← 触发器 `Data` ← 手动触发的 `Data` 逐层覆盖）。`JobDispatcher` 为每次运行开新作用域，构造上下文（关联 ID = 运行 ID，运行信息可由 `JobDispatcher.GetRun(context)` 取得），经完整管道执行 `IJob.RunAsync`；返回失败或抛出异常都算失败（异常翻译为 `SCHEDULING_UNEXPECTED_001`）。不写幂等键。作业拿到的取消令牌在 `CancelRunsAsync` 与宿主停止时取消。
 
 ## 调度器 `IJobScheduler`
 
@@ -43,7 +50,8 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 
 调度器在应用进入服务状态之前不按计划运行；启动后首个周期把代码登记的作业写入存储：
 
-- 每个代码作业记下代码定义的指纹 `CodeFingerprint`（类型键、数据、标志与各触发器的 SHA-256）。
+- `ScheduleAsync`、`RestoreAsync`、`UnscheduleAsync` 与 `TriggerAsync`、暂停 / 恢复一样，先把代码作业写进存储：宿主刚启动、首个轮询周期之前的修改也按下面的规则判定来源（ADR-0060）。
+- 每个代码作业记下代码定义的指纹 `CodeFingerprint`（类型键、数据、标志、重试策略与执行时限（设置了才计入）与各触发器的 SHA-256）。
 - 存储里的作业来源是 `Overridden`（运行时 `ScheduleAsync` 改过的代码作业），且记下的指纹与当前代码定义相同时，保留运行时的修改。
 - 其余情况（新作业、来源是 `Code`、代码定义变了）按代码写入，来源 `Code`；覆盖掉运行时修改时记一条警告。
 - 暂停状态一律保留。
@@ -87,7 +95,7 @@ Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 �
 
 ## 一致性
 
-Provider 必须继承 `JobSchedulerConformance`（触发与状态、间隔与 cron 计划、并发、失败、动态登记与删除、暂停与恢复、misfire、多触发器与优先级、历史、取消、本地作业）、`JobStoreConformance`（存储的查询、抢占原子性、独占运行、恢复）与 `LeaderElectionConformance` 并通过全部用例。过期用例用真实时间等待。
+Provider 必须继承 `JobSchedulerConformance`（触发与状态、间隔与 cron 计划、并发、失败、重试与执行时限、动态登记与删除、暂停与恢复、misfire、多触发器与优先级、历史、取消、本地作业）、`JobStoreConformance`（存储的查询、抢占原子性、独占运行、恢复）与 `LeaderElectionConformance` 并通过全部用例。过期用例用真实时间等待。
 
 ## 错误码
 
@@ -101,3 +109,4 @@ Provider 必须继承 `JobSchedulerConformance`（触发与状态、间隔与 cr
 | `DynamicJobWorker`（每租户的运行时作业） | `IJobScheduler.ScheduleAsync`（运行时作业，持久化在存储里） |
 | Quartz `JobDataMap` / 多触发器 / misfire / 暂停 / 集群 | `JobDefinition.Data`、`Triggers`、`MisfirePolicy`、`PauseAsync`、`Scheduling.Database` |
 | `LeaderOnly` | `RunOnEveryInstance`（取反） |
+| 任务的 `maxRetryCount` / `timeoutSeconds` | `JobDefinition.Retry`（另有固定 / 指数退避与上限）/ `JobDefinition.Timeout` |

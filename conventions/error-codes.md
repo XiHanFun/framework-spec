@@ -151,6 +151,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `SCHEDULING_UNAVAILABLE_002` | 领导选举的存储（如 Kubernetes API Server）不可达或超时 |
 | `SCHEDULING_UNAVAILABLE_003` | 作业存储不可达 |
 | `SCHEDULING_UNAVAILABLE_004` | 作业存储容量已满（内存实现的运行历史） |
+| `SCHEDULING_TIMEOUT_001` | 运行超过作业的执行时限（`JobDefinition.Timeout`） |
 | `SCHEDULING_UNEXPECTED_001` | 作业抛出未处理异常 |
 | `CONFIGURATION_NOTFOUND_001` | 远程配置的命名空间不存在 |
 | `CONFIGURATION_NOTFOUND_002` | 密钥不存在 |
