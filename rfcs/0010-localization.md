@@ -1,6 +1,6 @@
 # RFC-0010 本地化
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域） | 日期：2026-10-21 | 对应 ADR：0038 | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/localization/`（P3 补）
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域、目录名冲突与区域名错误的报告方式） | 日期：2026-10-21 | 对应 ADR：0038、0070 | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/localization/`（P3 补）
 
 ## 摘要
 
@@ -38,7 +38,7 @@ Segment    = [a-z][a-z0-9_]*
 - 位置 `Localization/<区域>.json`，内容是键 → 模板的平面对象；以 `<EmbeddedResource Include="Localization/*.json" LogicalName="Localization/%(Filename)%(Extension)" />` 嵌入。
 - 10 种内置区域每种一个文件，键集完全一致，各区域模板的占位符与 `en-US` 一致（架构测试 `LocalizationTests`）。
 - 模板语法：`{name}` 按名字、`{0}` 按位置，可带 `:format` 格式说明符（`{amount:N2}`、`{when:yyyy-MM-dd}`），按命中区域的文化格式化；`{{`、`}}` 转义。
-- `MessageCatalog.FromEmbeddedResources(name, typeof(AnyTypeInThatAssembly))` 装载一个程序集的全部语言文件；同名目录只注册一次（`AddMessageCatalog`）。原语层与内核的目录由 `Localization.InMemory` 代为注册；子系统目录由其 Provider 在 `Configure` 里注册；`Plugins.InProcess` 与应用的目录由应用注册。
+- `MessageCatalog.FromEmbeddedResources(name, typeof(AnyTypeInThatAssembly))` 装载一个程序集的全部语言文件。`AddMessageCatalog` 把同名目录合并为一份，留在先注册的位置：内容相同（如多个 Provider 都带同一个抽象包的目录）时什么都不变；互为补充（如插件握手带来两种语言、宿主包带全部十种）时区域与键取并集；同一键同一区域的模板不同则抛出携带 `LOCALIZATION_CONFLICT_001` 的 `FrameworkException`，应用启动失败。任何一份都不会被静默丢弃。原语层与内核的目录由 `Localization.InMemory` 代为注册；子系统目录由其 Provider 在 `Configure` 里注册；`Plugins.InProcess` 与应用的目录由应用注册。
 
 ## 解析
 
@@ -55,6 +55,7 @@ Segment    = [a-z][a-z0-9_]*
 - 幂等记录保存 `ErrorMessageKey` 与字符串化的 `ErrorDetails`，回放时仍可按调用方区域翻译。
 - 架构测试 `ErrorCallSites_UseMessageKeyConstants`：正式包里的 `Error.*`/`new Error(` 第二个参数必须是 `<领域>Messages` 常量，`Error.Literal` 只允许在 `FrameworkException.ToError` 与 `IdempotencyRecord`。
 - `FrameworkException`（配置与编程错误）不走消息键，消息为英文。
+- 区域名不合法不单独占用错误码：传给 API 或写在选项里的区域名不合法是编程或配置错误，由 `LocaleName.Validate` 与各构造函数、`FromConfiguration` 在调用处抛出 `ArgumentException`；语言文件名或目录里的区域名不合法归目录不合法（`LOCALIZATION_VALIDATION_002`）；外部输入里的区域名（Baggage `xihan.locale`、`Accept-Language`）不合法时在协商中忽略，不报错。原先登记的 `LOCALIZATION_VALIDATION_001`（区域名不合法）没有任何路径会产生，已撤销登记，序号不复用。
 
 ## 协商与宿主
 
