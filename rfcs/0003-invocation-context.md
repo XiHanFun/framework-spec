@@ -1,6 +1,6 @@
 # RFC-0003 调用上下文与传播
 
-> 状态：已采纳（2026-10-29 修订：调用来源、端点身份） | 日期：2026-10-21 | 对应 ADR：0002、0043（调用来源）、0048（端点身份） | 参考实现：`InvocationContext`、`DeadlineMiddleware`、`InvocationOrigin`
+> 状态：已采纳（2026-10-29 修订：调用来源、端点身份；2026-11-01 修订：追踪标志与 Activity 父级） | 日期：2026-10-21 | 对应 ADR：0002、0043（调用来源）、0048（端点身份）、0065（追踪标志与 Activity 父级） | 参考实现：`InvocationContext`、`DeadlineMiddleware`、`InvocationOrigin`
 
 ## 摘要
 
@@ -12,7 +12,8 @@
 | --- | --- | --- |
 | `CancellationToken` | 取消 | 由载体的连接取消或插件协议取消驱动 |
 | `Deadline` | 绝对截止时间（UTC），基于 `TimeProvider` | `xihan-deadline`（RFC 3339） |
-| `TraceId` / `SpanId` | W3C Trace Context | `traceparent` |
+| `TraceId` / `SpanId` | W3C Trace Context：trace-id 与 parent-id | `traceparent` |
+| `TraceFlags` | W3C trace-flags（采样位 `01`）；没有上游时为空，这次调用是链路的根 | `traceparent` |
 | `Baggage` | 已登记的键（`spec/conventions/baggage-keys.md`） | W3C `baggage` |
 | `Items` | 请求作用域对象袋 | 不传播 |
 | `Services` | 作用域服务提供器 | 不传播 |
@@ -35,6 +36,10 @@
 | `messaging` | 主题 | 没有 |
 | `job` | 作业名 | 没有 |
 | `workflow` | 活动类型 | 没有 |
+
+7. 追踪（2026-11-01 增补，ADR-0065）：
+   - 来源：载体带合法的 `traceparent` 时取它的 trace-id、parent-id 与 trace-flags，上游「不采样」（`-00`）原样保留；没有时并入宿主当前的 W3C Activity（ASP.NET Core 的请求 Span、外层调用的 Span），取它的 trace-id 与 span-id，它有采样决定（经具名 ActivitySource 创建，或有父级）时连同标志；都没有时内核生成 trace-id 与 parent-id，标志为空。只给 trace-id 不给标志的创建方按上游已采样处理。
+   - Observe 阶段的 `xihan.invoke` Span：当前 Activity 与上下文同一 trace 且有采样决定时是它的子 Span；否则上下文有标志时以 trace-id、parent-id 与标志为远端父级，采样随上游；标志为空时它是链路的根 Span——trace-id 用上下文的（与 Problem Details、审计、日志里的一致），没有父级，采样交给采样器的根规则。
 
 ## .NET 形态
 
