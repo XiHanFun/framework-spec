@@ -65,7 +65,7 @@ Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 �
 - `IsShared`：存储是否跨实例共享（抢占即集群唯一）。`false`（内存实现）时不共享的"集群只运行一次"作业只在持有领导租约的实例上按计划运行；`true`（数据库实现）时由抢占保证。
 - 作业：`FindJobAsync`、`ListJobsAsync`、`SaveJobsAsync`（新增或替换定义与暂停状态；已有行的 `ActiveRunId` 由存储保留，只有 `TryBeginRunAsync` / `CompleteRunAsync` / `RecoverNodesAsync` 改它）、`DeleteJobsAsync`（级联触发器）。`JobRecord`：定义的持久化形态（`JobTypeName` 为类型键）加 `Paused`、`ActiveRunId`（不允许并发时正在运行的运行 ID）、`Source`（`Code` / `Runtime` / `Overridden`）、`CodeFingerprint`（代码作业最近一次按代码写入时的指纹，运行时作业为空）、`UpdatedAt`。
 - 触发器：`TriggersAsync(job?)`、`SaveTriggersAsync`、`DeleteTriggersAsync`、`AcquireDueAsync(dueBefore, limit, nodeId, now)`（原子地把 `Waiting` 且到期的非本地触发器改成 `Acquired(nodeId)`，按到期时刻升序、优先级降序取至多 `limit` 条；多个节点同时调用时每条触发器只被一个节点拿到）。`TriggerRecord`：定义加 `State`（`Waiting` / `Paused` / `Acquired` / `Blocked` / `Complete` / `Error`）、`NextFireAt`、`PreviousFireAt`、`AcquiredBy`、`AcquiredAt`、`FireCount`、`Error`、`Local`。
-- 运行：`TryBeginRunAsync(run, exclusive)`（写入运行记录；`exclusive` 时原子地占用作业的 `ActiveRunId`，已被占用返回 `false`）、`CompleteRunAsync(run)`（写回结果，释放 `ActiveRunId`，把该作业 `Blocked` 的触发器改回 `Waiting`）、`RunsAsync(query)`、`CountRunsAsync(query)`、`RunningAsync(job?)`、`LastRunsAsync(jobs[])`、`RequestCancelAsync(runIds[])`、`CancelRequestedRunsAsync(nodeId)`、`PurgeRunsAsync(before)`。
+- 运行：`TryBeginRunAsync(run, exclusive)`（写入运行记录；`exclusive` 时原子地占用作业的 `ActiveRunId`，已被占用返回 `false`）、`CompleteRunAsync(run)`（写回结果，释放 `ActiveRunId`，把该作业 `Blocked` 的触发器改回 `Waiting`）、`BlockTriggerAsync(trigger)`（`TryBeginRunAsync` 返回 `false` 之后用：同一个原子操作里确认 `ActiveRunId` 仍指向未结束的运行，是则存为 `Blocked` 返回 `true`，占用已释放则存为 `Waiting` 返回 `false`，都清掉抢占者；与 `CompleteRunAsync` 的释放互斥，阻塞的触发器总能在占用释放时回到 `Waiting`，ADR-0062）、`RunsAsync(query)`、`CountRunsAsync(query)`、`RunningAsync(job?)`、`LastRunsAsync(jobs[])`、`RequestCancelAsync(runIds[])`、`CancelRequestedRunsAsync(nodeId)`、`PurgeRunsAsync(before)`。
 - 节点：`HeartbeatAsync(node)`、`NodesAsync()`、`RecoverNodesAsync(nodeIds[], now)`（失联节点 `Acquired` / `Blocked` 的触发器改回 `Waiting`，`Running` 的运行记为 `Lost`，释放其 `ActiveRunId`，删除节点记录，返回标记为 `Lost` 的运行）。
 
 ## 引擎
@@ -75,7 +75,7 @@ Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 �
 1. 心跳（`IsShared` 时）；尝试获取或续约领导租约（`LeaseResource`，默认 `scheduling.jobs`）。
 2. 领导者每 `HousekeepingInterval`（默认 60 秒）做一次维护：心跳超过 `NodeTimeout`（默认 90 秒）的节点视为失联并恢复，`RequestsRecovery` 的失联运行以 `Recovery` 触发重新入队；删除早于 `HistoryRetention`（默认 7 天，0 = 不删）的历史。
 3. 取消：本节点被请求取消的运行取消其令牌。
-4. 抢占：可运行名额 = `MaxConcurrentRuns`（默认 32）− 本节点运行中数量；`AcquireDueAsync(now, 名额, nodeId)`。对每条：作业暂停或类型未登记 → 触发器改为 `Paused` / `Error`；misfire 按策略；`TryBeginRunAsync` 失败（不允许并发且上一次未结束）→ 触发器 `Blocked`，上一次结束时自动回到 `Waiting` 并按 misfire 策略处理；否则推算下一次（cron / 一次性从计划时刻推算并立刻回到 `Waiting`，间隔计划完成后再推算，次数用尽或超过 `EndAt` → `Complete`）并在后台运行。运行结束时先推算间隔触发器的下一次、再把运行标为完成，状态里不会出现「已不在运行、也没有下一次」的空档。同一节点上对触发器的读改写（抢占后运行、结束时推算、暂停与恢复、登记与删除）互斥，抢占到的触发器在互斥内按存储里的当前状态重读，暂停等写入不会被随后的写回覆盖。
+4. 抢占：可运行名额 = `MaxConcurrentRuns`（默认 32）− 本节点运行中数量；`AcquireDueAsync(now, 名额, nodeId)`。对每条：作业暂停或类型未登记 → 触发器改为 `Paused` / `Error`；misfire 按策略；`TryBeginRunAsync` 失败（不允许并发且上一次未结束）→ `BlockTriggerAsync` 把触发器存为 `Blocked`，上一次结束时自动回到 `Waiting` 并按 misfire 策略处理（上一次恰在两步之间结束则直接回到 `Waiting`，下个周期再抢占）；否则推算下一次（cron / 一次性从计划时刻推算并立刻回到 `Waiting`，间隔计划完成后再推算，次数用尽或超过 `EndAt` → `Complete`）并在后台运行。间隔触发器在运行结束时先写下一次时刻（仍由本节点持有），运行标为完成、占用释放之后才回到 `Waiting`：状态里不会出现「已不在运行、也没有下一次」的空档，别的节点也不会在本次运行结束前抢到它、再因占用未释放把它阻塞（ADR-0062）。同一节点上对触发器的读改写（抢占后运行、结束时推算、暂停与恢复、登记与删除）互斥，抢占到的触发器在互斥内按存储里的当前状态重读，暂停等写入不会被随后的写回覆盖。
 5. 本地触发器（`RunOnEveryInstance`）由每个实例按自己的时钟推算与运行，不经抢占；运行同样写入历史。
 
 事件：装配了 `messaging.queue` 时经 `IMessagePublisher` 发布 CloudEvents 信封（`Source` = `/scheduling`，`Data` = `SchedulingEventData` JSON）：`scheduling.job.scheduled|unscheduled|paused|resumed`、`scheduling.run.started|succeeded|failed|canceled|lost`；发布失败只记日志。
@@ -95,7 +95,7 @@ Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 �
 
 ## 一致性
 
-Provider 必须继承 `JobSchedulerConformance`（触发与状态、间隔与 cron 计划、并发、失败、重试与执行时限、动态登记与删除、暂停与恢复、misfire、多触发器与优先级、历史、取消、本地作业）、`JobStoreConformance`（存储的查询、抢占原子性、独占运行、恢复）与 `LeaderElectionConformance` 并通过全部用例。调度器用例用真实时间等待（条件成立即止）；选举的过期用例按套件传入的时钟推进，与机器快慢无关。
+Provider 必须继承 `JobSchedulerConformance`（触发与状态、间隔与 cron 计划、并发、失败、重试与执行时限、动态登记与删除、暂停与恢复、misfire、多触发器与优先级、历史、取消、本地作业）、`JobStoreConformance`（存储的查询、抢占原子性、独占运行、阻塞与释放、恢复）与 `LeaderElectionConformance` 并通过全部用例。调度器用例用真实时间等待（条件成立即止）；选举的过期用例按套件传入的时钟推进，与机器快慢无关。
 
 ## 错误码
 
