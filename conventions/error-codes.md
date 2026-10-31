@@ -59,7 +59,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PLUGINS_UNEXPECTED_001` | 插件加载、配置、启动或停止时发生未处理异常 |
 | `PLUGINS_VALIDATION_003` | 进程外：握手行不合法，或协议版本没有交集 |
 | `PLUGINS_VALIDATION_004` | 进程外：握手响应与清单不一致（原语层版本、清单字段、未声明或重复的操作 / 健康项 / 订阅） |
-| `PLUGINS_DENIED_002` | 进程外：插件回调的会话令牌无效，或所需权限未授予 |
+| `PLUGINS_DENIED_002` | 插件回调被拒：会话令牌无效（进程外），或所需权限未在清单声明、未被宿主授予（进程外与 Wasm） |
 | `PLUGINS_UNAVAILABLE_001` | 进程外：插件进程未就绪、正在停止、已退出或不可达 |
 | `PLUGINS_TIMEOUT_001` | 进程外：握手、配置、启动或停止超时 |
 | `PLUGINS_UNEXPECTED_002` | 进程外：插件进程异常退出；Wasm：陷阱或导出函数返回 0 |

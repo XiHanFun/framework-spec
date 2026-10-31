@@ -58,7 +58,7 @@ Wasm 插件是 `xihan.plugin.v1` 的第二种载体：**同一套消息（`plugi
 | `publish` | `(ptr: i32, len: i32) -> i64` | `capability:messaging.queue` | `PublishRequest` → `PublishResponse`，语义同 `Host.Publish` |
 
 - 导入函数的响应由宿主经 `xihan_alloc` 写进客体内存并返回 `(ptr << 32) | len`（宿主函数回调客体导出是允许的，同一实例内重入）。
-- 权限未授予不陷阱：返回 `Status.error = PLUGINS_DENIED_002`，与 gRPC 回调的 `PermissionDenied` 对应。
+- 权限须在清单声明且已被授予（授予而未声明的不放行，同 `invocation.md` §5）；未声明或未授予不陷阱：返回 `Status.error = PLUGINS_DENIED_002`，与 gRPC 回调的 `PermissionDenied` 对应。
 - 回调在当前调用的截止时间内完成；嵌套深度上限 8，超过返回 `PLUGINS_UNAVAILABLE_002`。
 - **再入**：插件经 `invoke` / `publish` 回调宿主时，宿主管道可能再次进入同一插件（它自己贡献的中间件、它自己的操作或订阅）。这种再入在同一执行线程上、导入函数返回前同步完成（wasmtime 允许导入函数内再调导出），不另设截止时间、受外层调用的截止时间约束；嵌套深度计入回调上限。模块必须允许导出在导入调用返回前被再次调用：跨导入调用不得持有不可重入的借用或锁。
 - WASI preview 1 由宿主提供：时钟、随机数；stdout / stderr 写到插件工作目录下的 `stdout.log` / `stderr.log`（宿主不逐行转发，日志应走 `xihan.log`）；stdin 为空；无参数；环境变量只有 `XIHAN_PLUGIN_PRIMITIVES`、`XIHAN_PLUGIN_PROTOCOL_VERSIONS`、`XIHAN_PLUGIN_INSTANCE`、`XIHAN_PLUGIN_LOCALE`（没有会话令牌与宿主地址，它们在 Wasm 里没有意义）。

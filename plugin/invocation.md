@@ -52,7 +52,7 @@
 | `Host.Invoke` | `capability:kernel.pipeline` | 以新的调用经宿主完整管道执行操作（含 Authorize：插件主体须被授予操作要求的权限）；未登记的操作 `KERNEL_NOTFOUND_001` |
 | `Host.Publish` | `capability:messaging.queue` | 经宿主消息代理发布，逐项结果；`topic` 为空的信封 `MESSAGING_VALIDATION_002` |
 
-权限未授予返回 gRPC `PermissionDenied` + `PLUGINS_DENIED_002`。`net.outbound:` 与 `fs.*:` 权限不经协议表达，由宿主通过操作系统沙箱（若启用）强制。
+回调所需的权限必须**在清单 `permissions` 里声明并且已被宿主授予**才生效：清单是插件权限的唯一事实源（RFC-0017），宿主授予而清单没有声明的权限不放行回调。未声明或未授予都返回 gRPC `PermissionDenied` + `PLUGINS_DENIED_002`。`net.outbound:` 与 `fs.*:` 权限不经协议表达，由宿主通过操作系统沙箱（若启用）强制。
 
 ## 6. 日志与诊断
 

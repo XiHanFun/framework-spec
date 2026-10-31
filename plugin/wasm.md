@@ -49,7 +49,7 @@ Wasm 插件与进程外插件共用同一套消息；本文只定义载体：模
 | `publish` | `(ptr: i32, len: i32) -> i64` | `capability:messaging.queue` | `PublishRequest` → `PublishResponse`，语义同 `Host.Publish` |
 
 - 导入函数的响应由宿主经 `xihan_alloc` 写入客体内存并返回 `(ptr << 32) | len`。
-- 权限未授予不陷阱：返回 `Status.error = PLUGINS_DENIED_002`。
+- 权限判定同 `invocation.md` §5：须在清单声明且已被授予，授予而未声明的不放行；未声明或未授予不陷阱，返回 `Status.error = PLUGINS_DENIED_002`。
 - 回调在当前调用的截止时间内完成；嵌套深度上限 8，超过返回 `PLUGINS_UNAVAILABLE_002`。
 - WASI：时钟与随机数可用；stdin 为空；stdout / stderr 写到插件工作目录下的 `stdout.log` / `stderr.log`（宿主不逐行转发，日志应走 `xihan.log`）；无参数；环境变量只有 `XIHAN_PLUGIN_PRIMITIVES`、`XIHAN_PLUGIN_PROTOCOL_VERSIONS`、`XIHAN_PLUGIN_INSTANCE`、`XIHAN_PLUGIN_LOCALE`。
 - 文件系统：`fs.read:<客体路径>` / `fs.write:<客体路径>` 各预开放一个目录（只读 / 可写）；宿主侧目录由宿主配置映射，未映射视为未授予（`PLUGINS_DENIED_001`）。
