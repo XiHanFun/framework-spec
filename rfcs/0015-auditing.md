@@ -10,7 +10,7 @@
 
 - `AuditMiddleware` 挂在 Observe 阶段末尾（`ObserveMiddleware` 之内），调用结束后决定是否记录：动作来自 `context.SetAuditAction(...)` 的显式声明，否则来自当前操作（`AuditSelection.Protected`：只记声明了权限的操作，默认；`All`：所有操作；`None`：只记显式声明的）。没有动作就不记。事件的主体与租户优先取安全上下文（认证后的 `Principal.Id`、解析后的 `TenantContext.Id`），没有时回退到 Baggage 的 `xihan.principal` / `xihan.tenant`（插件协议、消息派发、命令行写入的）；Observe 在 Authenticate 之外、事件在调用结束时构造，安全上下文此时已就绪。
 - 结果优先取管道里已写入的 outcome；没有写入而抛出了异常，按异常记失败（`KERNEL_UNEXPECTED_001`，取消为 `KERNEL_CANCELLED_001`）；正常返回却没写结果视为成功。`IncludeSuccesses` 为假时只记失败。
-- 主体与租户来自 baggage（`xihan.principal`、`xihan.tenant`），trace-id 来自上下文；资源与细节来自 `SetAuditResource` / `AddAuditDetail`。
+- trace-id 来自上下文（主体与租户见本节第一条：安全上下文优先、Baggage 回退）；资源与细节来自 `SetAuditResource` / `AddAuditDetail`。
 - 接收器写入失败只记日志，不影响业务调用的结果；写入不带调用的取消令牌，被取消的调用同样记录。
 
 ## 查询

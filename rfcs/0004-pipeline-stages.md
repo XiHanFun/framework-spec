@@ -1,6 +1,6 @@
 # RFC-0004 管道阶段与排序
 
-> 状态：已采纳（2026-10-28 修订：跨包依赖必须声明约束；2026-11-01 修订：登记入口、归属与容器登记） | 日期：2026-10-21 | 对应 ADR：0002 | 参考实现：`XiHan.Framework.Kernel.Pipeline.PipelineBuilder`
+> 状态：已采纳（2026-10-28 修订：跨包依赖必须声明约束；2026-11-01 修订：登记入口、归属与容器登记，排序规则与打印格式按参考实现重写） | 日期：2026-10-21 | 对应 ADR：0002 | 参考实现：`XiHan.Framework.Kernel.Pipeline.PipelineBuilder`
 
 ## 摘要
 
@@ -82,26 +82,31 @@ ingress → observe → resilience → authenticate → tenant → authorize →
 
 ## 排序规则
 
-1. 先按阶段。
-2. 阶段内按 `before` / `after` 约束做拓扑排序；约束成环报 `KERNEL_PIPELINE_001`。
-3. 仍未定序的按包 ID 字典序。
-4. 显式 `Use<T>()` 不带阶段时归入 `transaction` 阶段末尾。
-6. 阶段内先按 `Placement`（Beginning 在前），再按归属（清单 ID 字典序），再按注册顺序，最后应用 `before` / `after` 约束做稳定拓扑排序。
-5. 未知阶段名报 `KERNEL_PIPELINE_002`。
-8. 跨包依赖必须显式声明：一个包的中间件要用到另一个包中间件的产出（认证后的主体、解析后的租户、开启的工作单元）时，必须以 `before` / `after` 声明次序，不能依赖第 6 条的基准次序——归属字典序只保证结果可复现（`xihan.basicapp.identity` 会排在 `xihan.security.jwt` 之前），不表达依赖；内核不按清单的 `requires` 推导中间件次序。
-7. 同一中间件类型默认只登记一次；需要同类型多个实例时（如插件贡献的多个中间件）按名字登记，名字在类型内唯一，打印时以 `类型名[名字]` 标出；按类型声明的 `before` / `after` 在该类型有多个实例时不可用（`KERNEL_PIPELINE_003`）。
+1. 先按阶段（顺序见「阶段」）；未知阶段名报 `KERNEL_PIPELINE_002`。显式 `Use<T>()` 不带阶段时归入 `transaction` 阶段末尾。
+2. 阶段内先按 `Placement`：`Beginning` 在前，`End` 在后。
+3. 同一位置按归属（清单 ID 或 `app`）的序数字典序。
+4. 同一归属按注册顺序。
+5. 第 2–4 条排出基准次序后，按 `before` / `after` 约束做稳定拓扑排序：约束只调整必要的相对位置，其余保持基准次序；约束成环报 `KERNEL_PIPELINE_001`，约束引用了未登记或不在同一阶段的中间件报 `KERNEL_PIPELINE_003`。
+6. 跨包依赖必须显式声明：一个包的中间件要用到另一个包中间件的产出（认证后的主体、解析后的租户、开启的工作单元）时，必须以 `before` / `after` 声明次序，不能依赖第 3 条的基准次序——归属字典序只保证结果可复现（`xihan.basicapp.identity` 会排在 `xihan.security.jwt` 之前），不表达依赖；内核不按清单的 `requires` 推导中间件次序。
+7. 同一中间件类型默认只登记一次（重复登记报 `KERNEL_PIPELINE_003`）；需要同类型多个实例时（如插件贡献的多个中间件）按名字登记，名字在类型内唯一，打印时以 `类型名[名字]` 标出；按类型声明的 `before` / `after` 在该类型有多个实例时不可用（`KERNEL_PIPELINE_003`）。
 
 ## 打印格式
 
-`xihan pipeline dump` 与启动日志输出同一格式，一行一个中间件：
+命令行宿主的 `pipeline` 命令（经 `xihan` 工具转发即 `xihan pipeline`）、`App.DescribePipeline()` / `PipelineBuilder.Dump()` 与启动日志（Information 级别）输出同一格式：一行一个中间件，阶段名左对齐占 13 列，后接类型全名；按名字登记的实例在类型名后以 `[名字]` 标出。装配了内置中间件以及认证、多租户、授权、幂等、工作单元各一个 Provider 时：
 
 ```text
-ingress      XiHan.Framework.Kernel.Pipeline.RequestNormalizationMiddleware
-observe      XiHan.Framework.Kernel.Pipeline.ObserveMiddleware
-...
-handle       XiHan.Framework.Kernel.Pipeline.OperationDispatchMiddleware
-egress       XiHan.Framework.Protocols.Http.ProblemDetailsMiddleware
+observe      XiHan.Framework.Kernel.Diagnostics.ObserveMiddleware
+resilience   XiHan.Framework.Kernel.Pipeline.DeadlineMiddleware
+resilience   XiHan.Framework.Kernel.Resilience.ResilienceMiddleware
+authenticate XiHan.Framework.Security.Abstractions.Authentication.AuthenticationMiddleware
+tenant       XiHan.Framework.MultiTenancy.Abstractions.Resolution.TenantResolutionMiddleware
+authorize    XiHan.Framework.Security.Abstractions.Authorization.AuthorizationMiddleware
+validate     XiHan.Framework.Kernel.Validation.ValidationMiddleware
+idempotency  XiHan.Framework.Caching.Abstractions.Idempotency.IdempotencyMiddleware
+transaction  XiHan.Framework.Persistence.Abstractions.UnitOfWork.UnitOfWorkMiddleware
 ```
+
+没有登记中间件的阶段不打印。内核与框架包都不在 `ingress`、`handle`、`egress` 阶段登记中间件：协议宿主在管道之外构造上下文、翻译结果与错误，操作在管道的终点执行；这三个阶段留给应用与插件。
 
 ## .NET 形态
 
