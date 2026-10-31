@@ -37,7 +37,7 @@
 | --- | --- | --- | --- | --- |
 | `ports` | `ENV Kestrel__Endpoints__Http__Url`（gRPC 另加 `Protocols=Http2`）、`EXPOSE` | 容器端口 `http` / `grpc`，Service 同名端口 | `ports` | `WithHttpEndpoint` |
 | `shutdown.graceSeconds` | `ENV XiHan__Kernel__StopTimeoutSeconds` | 同左 + `terminationGracePeriodSeconds = graceSeconds + 5` | `stop_grace_period` | — |
-| `probes` | — | startup（`failureThreshold = ⌈startup / period⌉`）、readiness、liveness | `healthcheck`（`/health/ready`） | — |
+| `probes` | 构建阶段编译就绪探针（见下文） | startup（`failureThreshold = ⌈startup / period⌉`）、readiness、liveness | `healthcheck`：就绪探针请求 `/health/ready`，`interval` = `periodSeconds`、`timeout` = `timeoutSeconds`、`start_period` = `startupSeconds` | — |
 | `bindings` | — | Secret 挂载 `/bindings/<name>`（`type`、`uri` 两个键），`SERVICE_BINDING_ROOT=/bindings` | 依赖服务 + `XiHan__Bindings__<name>__type/value` | 资源 + `WithEnvironment("XiHan__Bindings__<name>__value", 资源)` |
 | `config` | — | ConfigMap 挂载 `mountPath`，`XIHAN_CONFIG_PATH`，`DOTNET_USE_POLLING_FILE_WATCHER=1`（ConfigMap 以符号链接切换更新，须轮询监视） | — | — |
 | `resources` | — | `resources` | — | — |
@@ -53,6 +53,14 @@
 | `cache:distributed` | `redis:7-alpine` | `<name>:6379` | `AddRedis(<name>)` |
 | `queue` | `rabbitmq:4-alpine` | `amqp://guest:guest@<name>:5672` | `AddRabbitMQ(<name>)` |
 | `blob` | `minio/minio` | `http://<name>:9000` | `AddContainer(<name>, "minio/minio")` |
+
+## 就绪探针
+
+Compose 的 `healthcheck` 在容器内执行，而 chiseled 运行镜像（`aspnet` 与 `runtime-deps`）里没有 shell、`curl`、`wget`，`runtime-deps` 里连 `dotnet` 也没有，镜像自带的工具探测不了 `/health/ready`。Dockerfile 因此在构建阶段从内联的源码编译一个就绪探针，复制进运行镜像：
+
+- 位置 `/xihan/healthprobe`：`image.aot` 为真时是 Native AOT 的原生可执行文件 `XiHanHealthProbe`，否则是框架依赖的 `XiHanHealthProbe.dll`，以 `dotnet` 运行。
+- 用法 `XiHanHealthProbe <端口> <路径>`：向 `127.0.0.1:<端口><路径>` 发一次 HTTP/1.1 `GET`，状态码 2xx 退出 0；其余状态、连接失败或 10 秒内没有应答退出 1，参数不合法退出 2。
+- Compose 以 `ports.http` 与 `/health/ready` 调用它。Kubernetes 用 `httpGet` 探针，不使用它。
 
 ## 安全基线
 
