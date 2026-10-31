@@ -119,7 +119,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PROTOCOLS_VALIDATION_005` | gRPC：请求不是合法的 protobuf 消息或与 Schema 不符 |
 | `PROTOCOLS_VALIDATION_006` | gRPC：暴露给 gRPC 的操作没有 Schema，或 Schema 无法映射为 protobuf（启动失败） |
 | `PROTOCOLS_VALIDATION_007` | gRPC：推导或配置的服务 / 方法名不合法（启动失败） |
-| `PROTOCOLS_CONFLICT_002` | gRPC：两个操作得到同一个服务 / 方法名（启动失败） |
+| `PROTOCOLS_CONFLICT_004` | gRPC：两个操作得到同一个服务 / 方法名（启动失败） |
 | `PROTOCOLS_CONFLICT_003` | gRPC：同名 protobuf 消息在不同操作里形状不同（启动失败） |
 | `PROTOCOLS_UNEXPECTED_001` | gRPC：操作的响应无法按 Schema 编码为 protobuf |
 | `PROTOCOLS_VALIDATION_008` | CloudEvents：请求不是 CloudEvent（内容类型既非结构化 / 批量格式，也没有 `ce-specversion` 头） |
