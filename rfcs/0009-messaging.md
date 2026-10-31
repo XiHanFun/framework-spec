@@ -19,7 +19,23 @@
 
 CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`datacontenttype`（默认 `application/json`）、`data`。线上编码为结构化 JSON（`application/cloudevents+json`）：JSON 数据内联在 `data`，其他数据放 `data_base64`，扩展属性是顶层成员。
 
-框架扩展属性：`xihantenant`（→ Baggage `xihan.tenant`）、`xihancorrelation`（→ `xihan.correlation`）、`traceparent`（→ 追踪 ID 与父跨度）、`xihankey`（分区键，见「流」）。扩展属性名 `^[a-z0-9]{1,20}$`。
+框架扩展属性：`xihantenant`（→ Baggage `xihan.tenant`）、`xihanprincipal`（→ `xihan.principal`）、`xihancorrelation`（→ `xihan.correlation`）、`xihanlocale`（→ `xihan.locale`）、`traceparent`（→ 追踪 ID 与父跨度）、`xihankey`（分区键，见「流」）。扩展属性名 `^[a-z0-9]{1,20}$`。前四个与 Baggage 的对应以 `conventions/baggage-keys.md` 的 CloudEvents 载体为准（`EnvelopeExtensions.BaggageMappings`）；幂等键 `xihan.idempotency-key` 不进入消息（投递第 4 条）。
+
+发布侧补齐：`DirectPublisher` 与 `OutboxPublisher` 在调用内发布时（`IInvocationAccessor` 有当前上下文），给每个信封补上缺失的扩展：
+
+| 扩展 | 取值 |
+| --- | --- |
+| `traceparent` | `00-<TraceId>-<SpanId>-01`，取当前调用的追踪 ID 与跨度 ID |
+| `xihantenant` | 安全上下文的租户；没有再取 Baggage `xihan.tenant` |
+| `xihanprincipal` | 已认证主体的 ID；匿名时取 Baggage `xihan.principal` |
+| `xihancorrelation` | Baggage `xihan.correlation` |
+| `xihanlocale` | Baggage `xihan.locale` |
+
+- 信封上已有的扩展保持不变：调用方显式设置的值优先。
+- 不在调用内（后台循环、调用之外的作用域）不补。
+- 代理（`IMessageBroker`）与发件箱投递循环不补：发件箱里的信封在写入时已经补齐，投递时原样发出。
+
+派发侧按同一张对应表把扩展放进新调用的 Baggage，`traceparent` 合法时成为新调用的追踪 ID 与父跨度，不合法视为缺失。
 
 主题文法 `^[a-z0-9][a-z0-9._-]{0,127}$`；死信主题为主题加 `DeadLetterSuffix`（默认 `.dlq`）。
 
@@ -52,7 +68,7 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 聚合（`IAggregateRoot<TKey>`，RFC-0005）在工作单元内记录的领域事件由 Messaging 子系统派发：
 
 1. 应用登记事件类型：`services.AddDomainEvent<OrderPlaced>(topic: "orders", type: "orders.placed", jsonContext.OrderPlaced, subject: e => $"order/{e.OrderId:N}")`——主题（主题文法）、CloudEvents `type`、源生成的序列化元数据（不经反射）与可选的 `subject` 选择器进 `DomainEventRegistry`（容量 10000）；首次登记同时注册 `IDomainEventDispatcher` 的实现 `DomainEventDispatcher`（作用域，用当前作用域的 `IMessagePublisher`）。同一事件类型重复登记抛 `FrameworkException`（`MESSAGING_VALIDATION_004`）。
-2. 派发时机由 Transaction 阶段决定（RFC-0005）：处理器成功后、提交前，把工作单元登记的聚合的事件按登记映射成信封：`id` 为新 UUID v7（`N` 格式）、`source` 为 `/{topic}`、`type` 为登记的类型、`subject` 由选择器给出（没有则省略）、`time` 为 `IDomainEvent.OccurredAt`、`data` 为事件对象的 JSON；当前工作单元有租户时带 `xihantenant` 扩展。
+2. 派发时机由 Transaction 阶段决定（RFC-0005）：处理器成功后、提交前，把工作单元登记的聚合的事件按登记映射成信封：`id` 为新 UUID v7（`N` 格式）、`source` 为 `/{topic}`、`type` 为登记的类型、`subject` 由选择器给出（没有则省略）、`time` 为 `IDomainEvent.OccurredAt`、`data` 为事件对象的 JSON；当前工作单元有租户时带 `xihantenant` 扩展；其余扩展由发布者按「信封」一节从当前调用补齐（追踪链、关联 ID 不断开）。
 3. 同一主题的事件一次 `PublishManyAsync`（批量优先），主题按首次出现顺序；任一项失败即派发失败（返回第一个失败），调用回滚。全部成功后清空每个聚合的缓冲。
 4. 装配了发件箱时 `IMessagePublisher` 是 `OutboxPublisher`：事件随业务写入同一事务落进发件箱表；没有发件箱时直接发布到代理。
 5. 事件类型未登记 → `MESSAGING_VALIDATION_003`（不静默跳过）。

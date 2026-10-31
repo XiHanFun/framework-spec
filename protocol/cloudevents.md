@@ -4,7 +4,7 @@
 
 ## 信封映射（RFC-0009）
 
-信封就是 CloudEvents 1.0 事件：`id`、`source`、`type` 必填，`time`、`subject`、`datacontenttype`、`data` 可选，扩展属性名 `^[a-z0-9]{1,20}$`。框架扩展 `xihantenant`、`xihancorrelation`、`traceparent` 在派发时进入调用上下文（租户、关联 ID、追踪）。
+信封就是 CloudEvents 1.0 事件：`id`、`source`、`type` 必填，`time`、`subject`、`datacontenttype`、`data` 可选，扩展属性名 `^[a-z0-9]{1,20}$`。框架扩展 `xihantenant`、`xihanprincipal`、`xihancorrelation`、`xihanlocale`（按 `conventions/baggage-keys.md` 的 CloudEvents 载体进入 Baggage）与 `traceparent`（追踪）在派发时进入调用上下文。
 
 ## 入站（RFC-0003 上下文：承载请求的头部按 `protocol/http.md` 映射；事件自身的上下文来自扩展属性）
 
