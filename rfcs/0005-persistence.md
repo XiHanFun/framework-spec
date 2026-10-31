@@ -1,6 +1,6 @@
 # RFC-0005 领域协议与持久化
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
 
 ## 摘要
 
@@ -12,23 +12,28 @@
 | --- | --- | --- |
 | `IEntity<TKey>` | `Id` | 标识；`TKey` 必须可比较相等 |
 | `IAggregateRoot<TKey>` | `DomainEvents`、`ClearDomainEvents()` | 仓储把本工作单元内新增 / 更新 / 删除过的聚合登记到 `IUnitOfWork.DomainEvents`（按首次写入顺序、同一实例一次）；Transaction 阶段在处理器成功后、提交前把它们尚未派发的事件交给 `IDomainEventDispatcher`（由 Messaging 子系统注册，见 RFC-0009），派发成功即清空缓冲，派发失败回滚并以失败结果结束调用；有事件却没有注册派发器 → `PERSISTENCE_VALIDATION_003`（不静默丢弃） |
-| `IHasCreationTime` | `CreatedAt` | 新增时写入当前 UTC 时间 |
+| `IHasCreationTime` | `CreatedAt` | 新增时写入当前 UTC 时间；之后不再改变，见下文「协议字段只由 Provider 写入」 |
 | `IHasModificationTime` | `ModifiedAt` | 更新时写入当前 UTC 时间 |
 | `IHasConcurrencyStamp` | `ConcurrencyStamp` | 新增与更新时刷新；更新时比对，不符返回 `PERSISTENCE_CONFLICT_001` |
-| `ISoftDeletable` | `IsDeleted`、`DeletedAt` | 删除改为打标；查询默认过滤 |
-| `IMultiTenant` | `TenantId` | 新增时写入当前租户；查询只返回当前租户的实体；无当前租户时新增返回 `PERSISTENCE_VALIDATION_001` |
+| `ISoftDeletable` | `IsDeleted`、`DeletedAt` | 删除改为在存储的当前行上打标；更新沿用存储的删除标记；查询默认过滤 |
+| `IMultiTenant` | `TenantId` | 新增时写入当前租户，之后不再改变（更新与删除不能把实体改到别的租户）；查询只返回当前租户的实体；无当前租户时新增返回 `PERSISTENCE_VALIDATION_001` |
 | `IValueObject` | — | 标记；用 `record` 取得值相等 |
 | `ISpecification<T>` | `Criteria`、`IsSatisfiedBy` | 同一条件既能内存判定也能交给查询提供器；`And` / `Or` / `Not` 组合必须共享同一参数；可空值类型（`DateTimeOffset?`、`int?` 等）与 null 的 `==` / `!=` 按存在性翻译（`IS NULL` / `IS NOT NULL`，与 `HasValue` 等价），Provider 不得译成 `= NULL` |
 
 领域事件集合有界（默认 256），超出抛出 `InvalidOperationException`：那是忘记提交的编程错误。
+
+### 协议字段只由 Provider 写入
+
+创建时间、租户只在新增时写入，删除标记只经删除写入，修改时间与并发戳由每次更新写入。更新时创建时间、租户与删除标记沿用存储里当前行的值，删除只写删除标记与删除时间；调用方实例上的这些值——自己构造的游离实例，或读出后改过的实例——一律不生效，更新不会把行改到别的租户或改掉创建时间，也不会借更新打上或去掉删除标记。写入成功后调用方实例上是存储里的协议字段值。`PersistenceConventions.ApplyOnUpdate(entity, stored, now)` 是 Provider 共用的实现：把存储行的创建时间、租户与删除标记写回调用方实例，再写修改时间、刷新并发戳。
 
 ## 工作单元
 
 - 作用域生命周期，一次调用一个；由 Transaction 阶段的 `UnitOfWorkMiddleware` 开启，用安全上下文中的租户作为当前租户。
 - 状态机：`NotStarted → Active → Committed | RolledBack`。违反顺序抛出携带 `PERSISTENCE_VALIDATION_002` 的 `FrameworkException`。
 - 调用结果为成功则提交；结果为失败或抛出异常则回滚。提交失败（并发冲突、标识重复、容量）作为调用结果返回。
+- 并发新增同一标识：两个工作单元先后新增同一标识，检查时对方尚未提交——先提交者的行保留，后到者以 `PERSISTENCE_CONFLICT_002` 失败，不静默覆盖。关系型 Provider 在写入时由主键约束发现（写入等对方事务结束才报错），数据库报错后 Provider 核对该标识的行确已存在才按标识重复报告，否则异常原样抛出；此后该工作单元只能回滚，处理器忽略这次失败而返回成功时，提交回滚并返回同一错误。内存实现在提交时发现，提交返回该错误。
 - 只读工作单元拒绝写入，返回 `PERSISTENCE_VALIDATION_002`；Provider 可在写入时或提交时拒绝。
-- 读己之写：同一工作单元内新增、更新、删除对随后的查找与查询可见；提交前对其他工作单元不可见。
+- 读己之写：同一工作单元内新增、更新、删除对随后的查找与查询可见；提交前对其他工作单元不可见；回滚后存储里不留任何痕迹，包括 Provider 写入的修改时间、并发戳与删除标记。
 - 领域事件在提交前派发（`UnitOfWorkMiddleware`：处理器成功 → 派发 → 提交）：装配了发件箱时事件随业务写入同一事务落进发件箱表，提交后由投递循环发出；没有发件箱时直接发布到代理，发布失败回滚业务写入（至多一次、先于提交）。派发只在 Transaction 阶段的中间件里发生，直接使用工作单元的调用方自己负责。
 
 ## 仓储
@@ -51,6 +56,7 @@
 - 单条是批量的特例；框架内部与示例处理多个实体时调用批量方法。
 - 逐项结果与入参顺序一一对应：标识重复、缺租户、不存在、并发冲突按项报告；通过校验的项一次写入（Provider 用原生多行写入），写入阶段的基础设施失败（`PERSISTENCE_UNAVAILABLE_003`、容量）对这些项统一报告，整个工作单元随调用结果回滚。
 - 批内按入参顺序逐项施加语义：同一批新增同一标识两次，第二次返回 `PERSISTENCE_CONFLICT_002`；删除同一实体两次，第二次返回 `PERSISTENCE_NOTFOUND_001`。
+- 写入阶段才发现的标识重复（检查之后另一个工作单元提交了同一标识，见「工作单元」）按写入阶段的失败处理：这次写入的项统一返回 `PERSISTENCE_CONFLICT_002`，`id` 是按入参顺序第一个撞上的标识，工作单元随后只能回滚。
 - 空集合不触后端、返回空列表，但仍要求活动的工作单元。
 - 读己之写对批量同样成立：批量新增后同一工作单元内可查到全部实体。
 
@@ -77,6 +83,8 @@
 - 机器位两种来源，不做随机：`XiHan:Persistence:Snowflake:WorkerId` 显式指定；未指定时由容器里的 `IDistributedLock`（`caching.distributed` 的 Provider 注册）租约分配——启动时从 0 起逐个尝试锁资源 `persistence:snowflake:worker:<n>`，取得第一个空位，存活时间 `LeaseTimeToLiveSeconds`（缺省 30），每三分之一存活时间续约一次（锁不续约，续约 = 释放再获取同一机器位；释放与重新获取之间空位被别的实例拿走，或存储不可达，都按丢失处理并重新分配）；本地按获取时刻 + 存活时间判定有效，过期未续上即没有机器位。容器里没有分布式锁、或 1024 个机器位都被占用时启动失败。
 - 时钟回拨不超过 `ClockDriftToleranceMilliseconds`（缺省 100）时等待时钟追平；超过时抛出携带 `PERSISTENCE_UNAVAILABLE_004` 的 `FrameworkException`。同一毫秒序列用尽时等待下一毫秒。生成器线程安全，单实例上限 4096 个 / 毫秒。
 - 没有机器位（租约尚未取得或已丢失）时抛出携带 `PERSISTENCE_UNAVAILABLE_005` 的 `FrameworkException`；租约状态以健康项 `persistence.snowflake.worker` 上报（持有 Ready，没有 Degraded）。
+- 调用里抛出的 `PERSISTENCE_UNAVAILABLE_004` / `005` 由 `SnowflakeIdFeature` 登记在 Resilience 阶段末尾的中间件转为同码的 UNAVAILABLE 结果（HTTP 503、gRPC `Unavailable`，可重试；消息键 `persistence.snowflake.clock_moved_backwards` / `persistence.snowflake.worker_unavailable`），不经 Observe 阶段包成 `KERNEL_UNEXPECTED_001`。它在幂等与工作单元之外：异常经过内层时工作单元已回滚、幂等标记已清除，重试会重新执行；截止时间与熔断在外层照常计数。其他异常不受影响；管道之外直接调用生成器仍以异常失败。
+- `SnowflakeIdFeature` 的清单声明可选依赖 `caching.distributed@1`：装配了提供它的 Provider 时，能力图谱把雪花特性排在其后——锁存储启动之后才取租约、停止时先释放租约再停锁存储，与 `UseFeature` 的先后无关。固定机器位且没有任何 `caching.distributed` Provider 时，按 RFC-0002 可选依赖缺失，特性进入 `Degraded`，生成不受影响。
 - `SnowflakeId.Parse(value, epoch)`（或生成器的 `Parse(value)`）还原时间戳、机器位与序列。
 - 线格式保持 JSON number（框架标准类型），不转字符串；超过 2^53 的值在 JavaScript 的 `number` 里会丢精度，前端类型化客户端应按字符串处理。
 
@@ -92,13 +100,13 @@
 
 | Provider | 角色 | 要点 |
 | --- | --- | --- |
-| `Persistence.InMemory` | default | 每类实体一张有界表；覆盖层实现读己之写，提交时原子应用；存引用不拷贝 |
-| `Persistence.EntityFrameworkCore` | provider | 应用持有 `DbContext`；工作单元在首次写入时开启数据库事务，每次写入立即 `SaveChanges`，批量写入是一次 `AddRange` / 多实体跟踪加一次 `SaveChanges`；软删除与租户过滤用 `EF.Property` 显式施加，不用全局过滤器；`ApplyPersistenceConventions()` 把并发戳设为并发令牌；游离实体更新先比对并发戳 |
-| `Persistence.SqlSugar` | provider | 作用域内的 `ISqlSugarClient` 由特性按回调创建或由应用注册，可以带多个连接（`ConfigId`）：特性创建时默认连接的 `ConfigId` 是 `default`，带租户分片的调用再加一个 `shard` 连接；每个实体落在哪个连接由 `IEntityConnectionSelector` 决定（默认规则：SqlSugar `[Tenant(configId)]` 特性指定的连接 → 实现 `IMultiTenant` 且客户端有 `shard` 连接时 `shard` → 否则默认连接），平台目录表始终走默认连接、租户表走分片连接；工作单元经 `AsTenant()` 开启、提交、回滚事务，同一调用触及的全部连接一起提交或回滚（顺序提交，不是两阶段提交）；每次写入立即执行；批量用 `Insertable(list)` / `Updateable(list)` / `Deleteable().In(ids)`；软删除与租户过滤以表达式显式施加；`SqlSugarConventions.Apply()` 按协议配置主键、并发戳长度、`DateTimeOffset` 的 UTC 往返（写入取 UTC 时刻；读取按驱动交出的 `DateTime.Kind` 还原——Npgsql legacy 时间戳模式把 `timestamptz` 换算成本地时间、Kind=Local 交出，须换回 UTC，否则多出本地时区偏移且经实体回写逐次累加；Utc / Unspecified 按 UTC；一致性套件除 SQLite 外还要在真实 PostgreSQL 上跑，环境变量 `XIHAN_TEST_POSTGRES`）、可空列与忽略列，实体不继承 SqlSugar 基类；更新与删除先在事务内加行锁取回当前行比对并发戳；带 SqlSugar `[SplitTable]` 的实体自动走分表入口——查询在过滤条件之后 `SplitTable(from, to)`（按 `TimeRange` 的 UTC 时刻，没有提示扫全部分表），写入经 `InsertableByObject(x).SplitTable()` 等按 `[SplitField]` 落表，分表实体不加行锁靠并发戳，启动建表走 `CodeFirst.SplitTables()`字符串列的长度：`[StringLength(n)]`（或 `[MaxLength(n)]`）→ 长度 n，`Persistence.Abstractions` 的 `[LongText]`（或无参 `[MaxLength]`）→ 数据库的长文本类型，DataAnnotations 的 `[MaxLength]` 构造函数带 `RequiresUnreferencedCode`、框架记录不用；没有注解的沿用 SqlSugar 默认（PostgreSQL 为 `varchar(255)`），框架自己的数据库记录全部显式标注（架构测试门禁）；`InitTables`（ADR-0040）建缺表、加缺列，删列、改名、改类型不在契约内，是开发与测试的便利，生产库结构演进走迁移脚本——给已有行的表加非可空列时，PostgreSQL 上非可空的数值 / 枚举 / 布尔 / Guid 列由约定配 CLR 缺省值（`0` / `false` / 全零 Guid）回填旧行，SQLite 由 SqlSugar 加成可空列（旧行读回 CLR 缺省值），非可空字符串与日期时间列及其他数据库不受支持（声明成可空，或重建 / 迁移）；约定只作用于实体，声明在 BCL 类型上的属性原样交还 |
+| `Persistence.InMemory` | default | 每类实体一张有界表；覆盖层实现读己之写；读写都复制（字段逐一的浅复制）：查找与查询交出副本，写入存调用方实例的副本，读出的实例改了不经仓储写回就碰不到存储，集合等引用类型字段（含领域事件缓冲）仍与副本共享、不在隔离范围内；覆盖层记下每个写过的标识首次读到的已提交状态，提交时按涉及的表依次加锁、逐一校验（新增的标识已被提交 → `PERSISTENCE_CONFLICT_002`；更新或删除的行已不在、带并发戳的行戳已变 → `PERSISTENCE_CONFLICT_001`；容量 → `PERSISTENCE_UNAVAILABLE_002`），全部通过才应用，跨表原子 |
+| `Persistence.EntityFrameworkCore` | provider | 应用持有 `DbContext`；工作单元在首次写入时开启数据库事务，每次写入立即 `SaveChanges`，批量写入是一次 `AddRange` / 多实体跟踪加一次 `SaveChanges`；软删除与租户过滤用 `EF.Property` 显式施加，不用全局过滤器；`ApplyPersistenceConventions()` 把并发戳设为并发令牌；游离实体更新先比对并发戳；更新与删除时创建时间、租户与删除标记回到跟踪实例的原值（OriginalValues），写入路径按原值判定可见性，提交时保存的残余变更同样不改创建时间与租户；新增撞上主键约束时，SaveChanges 已回到自动建的保存点，在同一事务里核对标识，确已存在即按标识重复报告并把这次新增的实体移出跟踪 |
+| `Persistence.SqlSugar` | provider | 作用域内的 `ISqlSugarClient` 由特性按回调创建或由应用注册，可以带多个连接（`ConfigId`）：特性创建时默认连接的 `ConfigId` 是 `default`，带租户分片的调用再加一个 `shard` 连接；每个实体落在哪个连接由 `IEntityConnectionSelector` 决定（默认规则：SqlSugar `[Tenant(configId)]` 特性指定的连接 → 实现 `IMultiTenant` 且客户端有 `shard` 连接时 `shard` → 否则默认连接），平台目录表始终走默认连接、租户表走分片连接；工作单元经 `AsTenant()` 开启、提交、回滚事务，同一调用触及的全部连接一起提交或回滚（顺序提交，不是两阶段提交）；每次写入立即执行；批量用 `Insertable(list)` / `Updateable(list)` / `Deleteable().In(ids)`；软删除与租户过滤以表达式显式施加；`SqlSugarConventions.Apply()` 按协议配置主键、并发戳长度、`DateTimeOffset` 的 UTC 往返（写入取 UTC 时刻；读取按驱动交出的 `DateTime.Kind` 还原——Npgsql legacy 时间戳模式把 `timestamptz` 换算成本地时间、Kind=Local 交出，须换回 UTC，否则多出本地时区偏移且经实体回写逐次累加；Utc / Unspecified 按 UTC；一致性套件除 SQLite 外还要在真实 PostgreSQL 上跑，环境变量 `XIHAN_TEST_POSTGRES`）、可空列与忽略列，实体不继承 SqlSugar 基类；更新与删除先在事务内加行锁取回当前行比对并发戳，更新时创建时间、租户与删除标记换成当前行的值，软删除在当前行上打标；新增撞上主键约束时另开一个不在事务里的连接（`CopyNew`，同一份连接配置）核对标识是否已被提交（PostgreSQL 系语句失败后事务已中止，不能在原事务里再查），确已存在即按标识重复报告；带 SqlSugar `[SplitTable]` 的实体自动走分表入口——查询在过滤条件之后 `SplitTable(from, to)`（按 `TimeRange` 的 UTC 时刻，没有提示扫全部分表），写入经 `InsertableByObject(x).SplitTable()` 等按 `[SplitField]` 落表，分表实体不加行锁靠并发戳，启动建表走 `CodeFirst.SplitTables()`字符串列的长度：`[StringLength(n)]`（或 `[MaxLength(n)]`）→ 长度 n，`Persistence.Abstractions` 的 `[LongText]`（或无参 `[MaxLength]`）→ 数据库的长文本类型，DataAnnotations 的 `[MaxLength]` 构造函数带 `RequiresUnreferencedCode`、框架记录不用；没有注解的沿用 SqlSugar 默认（PostgreSQL 为 `varchar(255)`），框架自己的数据库记录全部显式标注（架构测试门禁）；`InitTables`（ADR-0040）建缺表、加缺列，删列、改名、改类型不在契约内，是开发与测试的便利，生产库结构演进走迁移脚本——给已有行的表加非可空列时，PostgreSQL 上非可空的数值 / 枚举 / 布尔 / Guid 列由约定配 CLR 缺省值（`0` / `false` / 全零 Guid）回填旧行，SQLite 由 SqlSugar 加成可空列（旧行读回 CLR 缺省值），非可空字符串与日期时间列及其他数据库不受支持（声明成可空，或重建 / 迁移）；约定只作用于实体，声明在 BCL 类型上的属性原样交还 |
 
 ## 一致性
 
-Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合；可空值类型与 null 的相等 / 不等按存在性过滤（字面量 null、闭包里的 null 变量、左右互换、与 `HasValue` 一致，组合到别的条件里也成立）。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
+Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合；可空值类型与 null 的相等 / 不等按存在性过滤（字面量 null、闭包里的 null 变量、左右互换、与 `HasValue` 一致，组合到别的条件里也成立）；更新沿用存储的创建时间、租户与删除标记、删除不改创建时间（游离实例与读出后改过的实例两种）；两个工作单元先后新增同一标识只有一个成功、另一个返回 `PERSISTENCE_CONFLICT_002`、留下的是成功者的行；回滚的调用在存储里不留修改、并发戳与删除标记，提交前另一个工作单元读到的是旧值。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
 
 标识生成器必须通过 `IdGeneratorConformance<TKey>`：顺序生成与多线程并发生成不重复、时钟前进后生成的标识更大；`GuidV7IdGenerator` 与 `SnowflakeIdGenerator` 都通过。
 

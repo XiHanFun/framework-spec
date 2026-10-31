@@ -70,13 +70,13 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_VALIDATION_002` | 工作单元状态不允许该操作（重复开始、未开始就提交、只读却写入） |
 | `PERSISTENCE_VALIDATION_003` | 工作单元里的聚合有未派发的领域事件，但没有注册领域事件派发器 |
 | `PERSISTENCE_NOTFOUND_001` | 更新或删除的实体不存在（含已软删除、不属于当前租户） |
-| `PERSISTENCE_CONFLICT_001` | 乐观并发冲突：并发戳不匹配 |
-| `PERSISTENCE_CONFLICT_002` | 新增的标识已存在 |
+| `PERSISTENCE_CONFLICT_001` | 乐观并发冲突：并发戳不匹配；内存实现提交时发现更新或删除的行已被别的工作单元删除或改过 |
+| `PERSISTENCE_CONFLICT_002` | 新增的标识已存在；含并发新增：检查之后另一个工作单元提交了同一标识（关系型在写入时、内存实现在提交时返回） |
 | `PERSISTENCE_UNAVAILABLE_001` | 没有活动的工作单元（仓储在 Transaction 阶段之外使用；以异常抛出） |
 | `PERSISTENCE_UNAVAILABLE_002` | 存储容量已满（内存实现的每类实体上限） |
 | `PERSISTENCE_UNAVAILABLE_003` | 存储不可达 |
-| `PERSISTENCE_UNAVAILABLE_004` | 雪花标识生成器的时钟回拨超过容忍阈值（以异常抛出） |
-| `PERSISTENCE_UNAVAILABLE_005` | 雪花标识生成器没有可用的机器位：未配置且容器里没有分布式锁、1024 个机器位都被占用、租约尚未取得或已丢失（启动期与生成时以异常抛出，健康项以结果上报） |
+| `PERSISTENCE_UNAVAILABLE_004` | 雪花标识生成器的时钟回拨超过容忍阈值（以异常抛出；调用里由 `SnowflakeIdFeature` 的中间件转为结果，HTTP 503） |
+| `PERSISTENCE_UNAVAILABLE_005` | 雪花标识生成器没有可用的机器位：未配置且容器里没有分布式锁、1024 个机器位都被占用、租约尚未取得或已丢失（启动期与生成时以异常抛出，调用里由 `SnowflakeIdFeature` 的中间件转为结果、HTTP 503，健康项以结果上报） |
 | `CACHING_VALIDATION_001` | 缓存键或幂等键不合法 |
 | `CACHING_VALIDATION_002` | 条目选项不合法（绝对与滑动过期同时设置等） |
 | `CACHING_UNAVAILABLE_001` | 缓存存储不可达或操作失败 |
