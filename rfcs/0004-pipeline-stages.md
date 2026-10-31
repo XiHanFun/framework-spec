@@ -1,6 +1,6 @@
 # RFC-0004 管道阶段与排序
 
-> 状态：已采纳（2026-10-28 修订：跨包依赖必须声明约束） | 日期：2026-10-21 | 对应 ADR：0002 | 参考实现：`XiHan.Framework.Kernel.Pipeline.PipelineBuilder`
+> 状态：已采纳（2026-10-28 修订：跨包依赖必须声明约束；2026-11-01 修订：登记入口、归属与容器登记） | 日期：2026-10-21 | 对应 ADR：0002 | 参考实现：`XiHan.Framework.Kernel.Pipeline.PipelineBuilder`
 
 ## 摘要
 
@@ -66,6 +66,20 @@ ingress → observe → resilience → authenticate → tenant → authorize →
 
 `XiHan:Kernel:UseBuiltInMiddleware=false` 时两个中间件都不登记，配置节不读取。按调用方（主体、租户）分桶与自适应并发不在内核范围，应用在本阶段加自己的中间件。
 
+## 登记入口（2026-11-01 增补）
+
+中间件经两个入口写进同一个 `PipelineBuilder`，规则相同：
+
+| 入口 | 归属（owner） | 用途 |
+| --- | --- | --- |
+| 特性 `FeatureContext.AddMiddleware<T>(stage, placement)` | 特性的清单 ID | 能力包贡献的中间件 |
+| 应用 `AppBuilder.ConfigurePipeline(p => p.UseAt<T>(stage, placement, owner))`；特性也可以直接用 `FeatureContext.Pipeline` | 调用方给出，缺省 `app`（`PipelineBuilder.AppOwner`） | 应用自己的中间件 |
+
+- 按类型登记（`Use<T>`、`UseAt<T>`、`AddMiddleware<T>`）的中间件每次调用从调用作用域解析。构建应用（`AppBuilder.Build`）时内核以单例把它们补登记进容器，应用自己的登记（含 Scoped）不覆盖；不会等到第一次调用才因为没有注册而失败。
+- 按实例登记（`UseInstance`、`UseNamedInstance`）的不进容器，每次调用用同一个实例。
+- 不经 `AppBuilder` 直接构建的 `PipelineBuilder`（工具、测试）由调用方自己注册按类型登记的中间件。
+- 归属只参与阶段内的基准次序（排序规则第 3 条），不表达依赖。
+
 ## 排序规则
 
 1. 先按阶段。
@@ -104,9 +118,11 @@ public enum Placement { Beginning, End }
 
 public sealed class PipelineBuilder
 {
-    public PipelineBuilder Use<TMiddleware>() where TMiddleware : IPipelineMiddleware;
-    public PipelineBuilder UseAt<TMiddleware>(PipelineStage stage, Placement placement = Placement.End, string owner = "app") where TMiddleware : IPipelineMiddleware;
-    public PipelineBuilder UseInstance<TMiddleware>(TMiddleware instance, PipelineStage stage, Placement placement = Placement.End, string owner = "app") where TMiddleware : IPipelineMiddleware;
+    public const string AppOwner = "app";
+    public PipelineBuilder Use<TMiddleware>() where TMiddleware : IPipelineMiddleware;     // = UseAt<TMiddleware>(PipelineStage.Transaction)
+    public PipelineBuilder UseAt<TMiddleware>(PipelineStage stage, Placement placement = Placement.End, string owner = AppOwner) where TMiddleware : IPipelineMiddleware;
+    public PipelineBuilder UseInstance<TMiddleware>(TMiddleware instance, PipelineStage stage, Placement placement = Placement.End, string owner = AppOwner) where TMiddleware : IPipelineMiddleware;
+    public PipelineBuilder UseNamedInstance(string name, IPipelineMiddleware instance, PipelineStage stage, Placement placement = Placement.End, string owner = AppOwner);
     public PipelineBuilder Before<TMiddleware, TOther>() where TMiddleware : IPipelineMiddleware where TOther : IPipelineMiddleware;
     public PipelineBuilder After<TMiddleware, TOther>() where TMiddleware : IPipelineMiddleware where TOther : IPipelineMiddleware;
     public PipelineStep Build(PipelineStep terminal);          // 中间件在每次调用时从 InvocationContext.Services 解析
