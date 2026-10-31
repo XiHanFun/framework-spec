@@ -101,7 +101,7 @@ Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkfl
 
 - `Workflow.InMemory`（`role: default`）：三个存储是有界内存表（`XiHan:Workflow:InMemory:MaxDefinitions` 默认 1000、`MaxInstances` 10000、`MaxNodeInstances` 100000、`MaxBookmarks` 100000），保存深拷贝；实例锁是按实例的进程内信号量；`DueBookmarkPoller` 由特性在应用进入服务状态后以 `XiHan:Workflow:InMemory:PollIntervalSeconds`（默认 1）轮询，每次取 `BatchSize`（默认 100）条到期书签逐条恢复，停止时等待进行中的波次。
 - `Workflow.Database`（`role: provider`，依赖 `persistence.relational@1`）：定义、实例、节点实例、书签以 JSON 文档列加查询列的实体经仓储读写，每个存储操作在自己的管道调用（Transaction 阶段）里提交；实例锁是租约行（`XiHan:Workflow:Database:LockLeaseSeconds` 默认 60，持有期间自动续约，并发戳 CAS 接管过期租约）；轮询只在持有 `workflow.poller` 租约的节点上进行（`PollIntervalSeconds`、`BatchSize` 同上）。
-- 引擎选项（`XiHan:Workflow`）：`MaxNodeExecutionsPerBurst`（1000）、`MaxSubWorkflowDepth`（16）、`LockTimeoutSeconds`（10）、`NotResumableBackoffSeconds`（300）、`ExpressionCacheSize`（10000）、`RetentionDays`（0 = 不自动清理）、`HousekeepingIntervalSeconds`（3600）、`HttpTimeoutSeconds`（30）。
+- 引擎选项（`XiHan:Workflow`）：`MaxNodeExecutionsPerBurst`（1000）、`MaxSubWorkflowDepth`（16）、`LockTimeoutSeconds`（10）、`NotResumableBackoffSeconds`（300）、`ExpressionCacheSize`（10000）、`RetentionDays`（0 = 不自动清理）、`HousekeepingIntervalSeconds`（3600）、`HttpTimeoutSeconds`（30）。引擎与两个 Provider 的选项读取时值不合法即抛出（解析不了 → `ArgumentException`，超出取值范围 → `ArgumentOutOfRangeException`，消息带配置键与原值），应用启动失败，不按缺省处理；`XiHan:Workflow:Database:HolderId` 空白视为未配置。
 
 ## 一致性
 
