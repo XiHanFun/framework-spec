@@ -18,6 +18,7 @@
 - 文档 `ConfigurationDocument(Version, Values)`：`Values` 的键已是 `IConfiguration` 的键形式（`A:B:C`），Provider 负责把自己的格式（JSON、YAML、properties）展平；`Version` 非空，每次变化都不同（ETag、修订号或内容哈希）。
 - `FetchAsync(namespace, knownVersion)`：`knownVersion` 为空时总是返回文档；非空且远端未变化时返回无值。实现可以长轮询：阻塞到变化或自己的窗口到期，收到取消时返回无值而不是抛出。命名空间不存在 → `CONFIGURATION_NOTFOUND_001`；不可达 → `CONFIGURATION_UNAVAILABLE_001`；远端文档不是声明的格式（JSON 不合法等）→ `CONFIGURATION_VALIDATION_001`。
 - 适配器 `AddXiHanRemoteConfiguration(client, options)`：构建配置时同步加载一次（`IConfigurationProvider.Load` 是同步契约，受 `LoadTimeout` 约束）。首次加载的失败有三种：客户端返回失败结果（错误码照用）、超时（`CONFIGURATION_UNAVAILABLE_001`，原因 `load timeout`）、客户端抛出任何异常（`CONFIGURATION_UNAVAILABLE_001`，原因取异常消息）；三种一样处理——先回调 `OnError`，`Optional` 为假则抛出带该错误码的 `FrameworkException` 让启动失败（客户端抛出的异常作为内部异常），为真则该源为空。不论首次加载成败，`PollInterval`（默认 30 秒，`null` 关闭）非空时都按周期带已知版本轮询（首次失败时已知版本为空，第一次成功的轮询装入整份文档；计时用 `Clock`，默认系统时钟，测试换成可推进的时钟由用例触发轮询），拿到新版本就替换整份数据，键值有变化才触发重载令牌；轮询中客户端返回失败或抛出异常都回调 `OnError` 并保留最后一份成功的数据。`Prefix` 把文档挂到某个节下。
+- 客户端的归属：`AddXiHanRemoteConfiguration(client, options)` 传入的客户端由调用方持有，配置根释放时不释放它；`AddXiHanRemoteConfiguration(clientFactory, options)` 由配置源按工厂创建客户端，每次构建 Provider（构建配置根，或 `ConfigurationManager` 重建全部源）新建一个、归这个 Provider 所有，Provider 释放时先停轮询再释放它（实现 `IDisposable` 时）。
 - `OnError` 是唯一的报告渠道（配置在日志之前构建），它自己抛出的异常没有更上一层可报告，被丢弃：不改变首次加载按 `Optional` 得出的结果，也不终止轮询或重读。密钥配置同此。
 
 ## 密钥
@@ -34,6 +35,7 @@
 - 命名空间参数即 Nacos 的 `dataId`；`Group`（默认 `DEFAULT_GROUP`）与 `Tenant`（Nacos 命名空间 ID，默认公共）来自选项。
 - 版本是内容的 MD5（小写十六进制），与 Nacos 监听接口的约定一致：监听时服务端拿报来的值与它存的内容 MD5（按 UTF-8 编码计算）逐字比较。取配置响应的 `Content-MD5` 头（HTTP 上它是内容头）原文；没有这个头时按同样的算法自己算，不得换成别的摘要，否则监听永远报告变化、退化成普通轮询。`knownVersion` 非空时先以该 MD5 长轮询监听（`LongPollTimeout`，默认 30 秒），服务端报告变化才取整份文档，窗口到期或取消返回无值。
 - 文档格式 `Format`：`Json`（默认，对象按 `A:B` 展平、数组按下标、`null` 保留为空值）或 `Properties`（`a.b=c` → `a:b`，`#` / `!` 行是注释）。
+- 配置构建期的入口 `AddXiHanNacos(options, remote)` 经工厂重载自建客户端（自带 `HttpClient`），随配置根释放；运行期由特性登记进容器的客户端归容器。
 - 配置了 `Username` / `Password` 时先登录取 `accessToken`，到期前自动续；`ServiceUrl` 可以是多个地址，按序尝试。
 
 ## 一致性
