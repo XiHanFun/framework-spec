@@ -30,7 +30,7 @@
 | `pipeline` | `App.DescribePipeline()` |
 | `operations` | 每行 `ID<TAB>稳定性<TAB>暴露<TAB>permission=…/policy=…/-` |
 | `invoke` | 见上 |
-| `mcp`（`Protocols.Mcp` 注册） | stdio 传输：stdin / stdout 每行一条 JSON-RPC 消息 |
+| `mcp`（`Protocols.Mcp` 注册） | stdio 传输：stdin / stdout 每行一条 JSON-RPC 消息；接受与 `invoke` 相同的上下文选项（`--authorization` 或 `XIHAN_AUTHORIZATION`、`--tenant`、`--correlation`、`--locale`、`--timeout`），作用于会话里的每个 `tools/call`，见 `protocol/mcp.md` |
 
 ## 进程约定
 
