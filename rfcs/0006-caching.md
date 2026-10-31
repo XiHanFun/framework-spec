@@ -76,7 +76,7 @@
 
 ## 分布式锁
 
-租约锁：`TryAcquire(resource, ttl)` 即 `TryAdd("lock:" + resource, token, ttl)`；释放即 `TryRemove(key, token)`。不可重入、不续约；到期后他人可获取，原持有者释放返回 `false`。
+租约锁：`TryAcquire(resource, ttl)` 即 `TryAdd("lock:" + resource, token, ttl)`；释放即 `TryRemove(key, token)`。不可重入、不续约；到期后他人可获取，原持有者释放返回 `false`。`TryAcquire` 被占用时只是无值；要把占用当作调用失败返回时用结果式的 `Acquire(resource, ttl)`（`DistributedLockExtensions.AcquireAsync`），被占用返回 `CACHING_CONFLICT_001`（消息键 `caching.lock.held`，参数 `resource`）。
 
 ## 幂等
 

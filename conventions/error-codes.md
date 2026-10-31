@@ -79,10 +79,10 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_UNAVAILABLE_004` | 雪花标识生成器的时钟回拨超过容忍阈值（以异常抛出；调用里由 `SnowflakeIdFeature` 的中间件转为结果，HTTP 503） |
 | `PERSISTENCE_UNAVAILABLE_005` | 雪花标识生成器没有可用的机器位：未配置且容器里没有分布式锁、1024 个机器位都被占用、租约尚未取得或已丢失（启动期与生成时以异常抛出，调用里由 `SnowflakeIdFeature` 的中间件转为结果、HTTP 503，健康项以结果上报） |
 | `CACHING_VALIDATION_001` | 缓存键或幂等键不合法 |
-| `CACHING_VALIDATION_002` | 条目选项不合法（绝对与滑动过期同时设置等） |
+| `CACHING_VALIDATION_002` | 条目选项不合法（绝对与滑动过期同时设置等）：远程缓存插件按操作集校验 `ttlMs` / `slidingMs` 时返回（`provider/caching-distributed.md`），适配器原样成为异常的错误码；.NET 侧构造或使用不合法的 `CacheEntryOptions` 时直接抛 `ArgumentException`（编程错误），不产生错误码 |
 | `CACHING_UNAVAILABLE_001` | 缓存存储不可达或操作失败 |
 | `CACHING_UNAVAILABLE_002` | 缓存存储已达容量上限（健康项 Degraded 的信号；LRU 不拒绝写入） |
-| `CACHING_CONFLICT_001` | 分布式锁被其他持有者占用 |
+| `CACHING_CONFLICT_001` | 分布式锁被其他持有者占用：结果式获取 `AcquireAsync` 返回（RFC-0006）；`TryAcquireAsync` 被占用时只是无值 |
 | `CACHING_CONFLICT_002` | 同一幂等键的调用仍在处理中 |
 | `CACHING_CONFLICT_003` | 幂等记录不能回放给本次调用：同一幂等键已被另一个调用（另一个操作，或操作与非操作调用之间）使用，或记录里的操作响应无法还原 |
 | `MESSAGING_VALIDATION_001` | 主题不合法 |
