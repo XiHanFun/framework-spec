@@ -149,7 +149,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `SCHEDULING_CONFLICT_001` | 作业正在运行且不允许并发 |
 | `SCHEDULING_CONFLICT_002` | 领导租约被其他持有者占用 |
 | `SCHEDULING_CONFLICT_003` | 运行被取消（`CancelRunsAsync` 或宿主停止） |
-| `SCHEDULING_UNAVAILABLE_001` | 调度器未运行 |
+| `SCHEDULING_UNAVAILABLE_001` | 调度器未运行：本实例的调度器已开始停止，手动触发不再起新的运行 |
 | `SCHEDULING_UNAVAILABLE_002` | 领导选举的存储（如 Kubernetes API Server）不可达或超时 |
 | `SCHEDULING_UNAVAILABLE_003` | 作业存储不可达 |
 | `SCHEDULING_UNAVAILABLE_004` | 作业存储容量已满（内存实现的运行历史） |
