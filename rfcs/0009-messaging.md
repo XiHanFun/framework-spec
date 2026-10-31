@@ -1,6 +1,6 @@
 # RFC-0009 消息、CloudEvents 信封与发件箱
 
-> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka` | 一致性：`XiHan.Framework.Messaging.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka` | 一致性：`XiHan.Framework.Messaging.Conformance`
 
 ## 摘要
 
@@ -78,7 +78,15 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 `OutboxFeature` 需要 `messaging.queue@1` 与 `persistence.relational@1`：
 
 - 把 `IMessagePublisher` 换成 `OutboxPublisher`：有活动工作单元时写入 `OutboxMessage` 表（随业务事务提交或回滚；批量发布用仓储的 `AddRangeAsync` 一次写入），没有时直接发布。
-- 后台循环按 `PollInterval`（默认 1 秒）每轮一个工作单元：取未投递的消息（按创建时间，最多 `BatchSize`），发布，成功记投递时间，失败记次数与原因。投递是至少一次：循环提交前崩溃会重复投递。
+- 后台循环按 `PollInterval`（默认 1 秒）每轮一个工作单元：取到期的消息（未投递、未进死信、`NextAttemptAt` 为空或已到；按创建时间，最多 `BatchSize`，默认 100），按主题批量发布，每条计一次尝试：
+  - 成功记投递时间 `DispatchedAt`。
+  - 失败记原因 `LastError`，`NextAttemptAt` 推后 `RetryDelay`（默认 5 秒）乘以 2 的（尝试次数减一）次方，不超过 `MaxRetryDelay`（默认 5 分钟）。
+  - 尝试达到 `MaxAttempts`（默认 10），或载荷无法解码（`MESSAGING_VALIDATION_002`，重试也解不开），记 `DeadLetteredAt` 进死信：不再取到，行保留供排查；把 `DeadLetteredAt` 置空、`NextAttemptAt` 设为现在即重新投递。
+  - 退避中与死信的消息不占批次，永久失败的消息不挡后面的消息。
+- 代理整批抛出（不可达）时本轮回滚，不计尝试：代理故障不消耗尝试次数，恢复后照常投递。
+- 投递成功的行保留 `DispatchedRetention`（默认 1 天）后由循环删除，每轮最多 `BatchSize` 行，与投递同一工作单元；为 0 时投递成功即在同一工作单元删除。死信行不自动删除。
+- 表结构：`Topic` 长 128（主题文法上限），`LastError` 为长文本，`NextAttemptAt` 与 `DeadLetteredAt` 可空（加在已有数据的表上时旧行为空，视为到期、未进死信）。
+- 投递是至少一次：循环提交前崩溃会重复投递。
 
 ## 一致性
 
