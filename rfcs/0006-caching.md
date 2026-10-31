@@ -108,7 +108,7 @@ Idempotency 阶段的中间件按 Baggage `xihan.idempotency-key` 去重，作�
 .NET 原生的 `Microsoft.Extensions.Caching.Distributed.IDistributedCache` 由 `CacheStoreDistributedCache` 架在 `ICacheStore` 上，沿用该接口的代码（会话、数据保护、第三方库）不改调用点：
 
 - 键须满足 `CacheKey` 文法，否则抛 `ArgumentException`。
-- 绝对过期（时刻或相对现在，两者都给取较早者）换算成 `TimeToLive`，已过去的时刻抛 `ArgumentOutOfRangeException`；没有绝对过期时滑动过期对应 `SlidingExpiration`；都给时绝对优先（存储不能同时表达两者）；都没有则不过期。
+- 绝对过期（时刻或相对现在，两者都给取较早者）换算成 `TimeToLive`，已过去的时刻抛 `ArgumentOutOfRangeException`；没有绝对过期时滑动过期对应 `SlidingExpiration`；都给时绝对优先（存储不能同时表达两者）；都没有时是 `CacheEntryOptions.Default`，即存储的默认存活时间（内存与 Redis 实现缺省 5 分钟，远程插件用自己的默认），不是不过期。
 - `Refresh` 是一次读取（读取即续期）；`Remove` 不存在的键不报错。
 - 同步成员在适配器边界阻塞等待异步存储，调用方应优先用异步成员。
 - 提供 `caching.distributed@1` 的 Provider 被选中时登记它（`AddXiHanDistributedCache`，幂等）；应用自己登记的 `IDistributedCache` 优先。
