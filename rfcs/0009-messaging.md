@@ -33,6 +33,9 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 4. 派发不写幂等键：重试必须重新执行处理器；去重由处理器按 `id` + `source` 自理，或在 P3 由操作契约提供消息级去重。
 5. 代理在应用进入服务状态之前不派发。
 6. 发布是批量优先的（`conventions/batch-first.md`）：`IMessagePublisher` 与 `IMessageBroker` 提供 `PublishManyAsync(topic, envelopes)`，逐项结果与入参顺序一一对应，单条是它的特例。主题不合法时每一项都是 `MESSAGING_VALIDATION_001`；同一主题内保持入参顺序；重复 `id` 照发，去重是消费端的事。Provider 用代理的原生批量（RabbitMQ 在同一通道上连续发布并一次等待确认），内存实现一次入队。空集合不触代理。
+7. 发布成功表示代理已收下：远程代理的发布等到代理的确认（RabbitMQ 的发布确认、Kafka 的投递报告）才返回成功，没有得到确认的发布不报告成功。重试与死信的重新发布同样等确认，确认了才了结原消息（确认或提交位点），否则原消息留给代理再投递，不丢消息。
+
+`Messaging.RabbitMQ`：主题映射为持久队列 `<QueuePrefix><topic>`（默认 `xihan.`）；发布通道开启发布确认并由客户端跟踪，消息以 `mandatory` 发出，`basic.nack` 与 `basic.return` 都按未确认处理，逐项返回 `MESSAGING_UNAVAILABLE_001`（批量也逐项），连接或通道异常整批抛出；失败的投递重新发布到队尾（尝试次数在消息头 `x-xihan-attempt`）或死信队列 `<queue><DeadLetterSuffix>`，重新发布确认后才 `basic.ack` 原消息，未确认时 `basic.nack` 并重新入队。
 
 ## 流
 
