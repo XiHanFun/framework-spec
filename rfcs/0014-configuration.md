@@ -1,6 +1,6 @@
 # RFC-0014 远程配置与密钥
 
-> 状态：已采纳（2026-10-26 修订：Nacos Provider） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance`
+> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance`
 
 ## 摘要
 
@@ -17,14 +17,15 @@
 
 - 文档 `ConfigurationDocument(Version, Values)`：`Values` 的键已是 `IConfiguration` 的键形式（`A:B:C`），Provider 负责把自己的格式（JSON、YAML、properties）展平；`Version` 非空，每次变化都不同（ETag、修订号或内容哈希）。
 - `FetchAsync(namespace, knownVersion)`：`knownVersion` 为空时总是返回文档；非空且远端未变化时返回无值。实现可以长轮询：阻塞到变化或自己的窗口到期，收到取消时返回无值而不是抛出。命名空间不存在 → `CONFIGURATION_NOTFOUND_001`；不可达 → `CONFIGURATION_UNAVAILABLE_001`；远端文档不是声明的格式（JSON 不合法等）→ `CONFIGURATION_VALIDATION_001`。
-- 适配器 `AddXiHanRemoteConfiguration(client, options)`：构建配置时同步加载一次（`IConfigurationProvider.Load` 是同步契约，受 `LoadTimeout` 约束）；失败时 `Optional` 为假则抛出让启动失败，为真则为空并回调 `OnError`。之后按 `PollInterval`（默认 30 秒，`null` 关闭）带已知版本轮询（计时用 `Clock`，默认系统时钟，测试换成可推进的时钟由用例触发轮询），拿到新版本就替换整份数据，键值有变化才触发重载令牌；轮询失败保留最后一份成功的数据并回调 `OnError`。`Prefix` 把文档挂到某个节下。
+- 适配器 `AddXiHanRemoteConfiguration(client, options)`：构建配置时同步加载一次（`IConfigurationProvider.Load` 是同步契约，受 `LoadTimeout` 约束）。首次加载的失败有三种：客户端返回失败结果（错误码照用）、超时（`CONFIGURATION_UNAVAILABLE_001`，原因 `load timeout`）、客户端抛出任何异常（`CONFIGURATION_UNAVAILABLE_001`，原因取异常消息）；三种一样处理——先回调 `OnError`，`Optional` 为假则抛出带该错误码的 `FrameworkException` 让启动失败（客户端抛出的异常作为内部异常），为真则该源为空。不论首次加载成败，`PollInterval`（默认 30 秒，`null` 关闭）非空时都按周期带已知版本轮询（首次失败时已知版本为空，第一次成功的轮询装入整份文档；计时用 `Clock`，默认系统时钟，测试换成可推进的时钟由用例触发轮询），拿到新版本就替换整份数据，键值有变化才触发重载令牌；轮询中客户端返回失败或抛出异常都回调 `OnError` 并保留最后一份成功的数据。`Prefix` 把文档挂到某个节下。
+- `OnError` 是唯一的报告渠道（配置在日志之前构建），它自己抛出的异常没有更上一层可报告，被丢弃：不改变首次加载按 `Optional` 得出的结果，也不终止轮询或重读。密钥配置同此。
 
 ## 密钥
 
 - 名字 `SecretName`：`^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$`，不含 `..`、`//`，不以 `/` 结尾。
 - `GetAsync(names[])` 批量逐项返回 `SecretLookup(Name, Result<SecretValue>)`，顺序与入参一致，重复项各自作答，空集合返回空；不存在 → `CONFIGURATION_NOTFOUND_002`，无权限 → `CONFIGURATION_DENIED_001`，不可达 → `CONFIGURATION_UNAVAILABLE_002`。
 - `SecretValue.ToString()` 固定返回遮蔽文本，防止进入日志。
-- 适配器 `AddXiHanSecrets(store, options)`：`Mappings` 把配置键映射到密钥名，构建时一次批量读取；缺失或失败时 `Optional` 为假则抛出，为真则跳过并回调 `OnError`；`RefreshInterval` 非空时周期性重读（计时用 `Clock`，同上），失败的项保留旧值；重读到的值有变化才触发重载，同样的内容不触发（订阅者不会因轮询反复重绑）。
+- 适配器 `AddXiHanSecrets(store, options)`：`Mappings` 把配置键映射到密钥名，构建时一次批量读取。失败分两类：逐项失败（不存在、无权限等）每项回调一次 `OnError`；整体失败——超时（原因 `load timeout`）、密钥库抛出任何异常（原因取异常消息）、返回的条数与请求不一致——是一个 `CONFIGURATION_UNAVAILABLE_002`，回调一次。首次读取有失败时，`Optional` 为假则随后抛出 `FrameworkException`（逐项失败列出失败的配置键，整体失败带密钥库抛出的异常作为内部异常），为真则跳过失败的项（整体失败时该源为空）。不论首次读取成败，`RefreshInterval` 非空时都周期性重读（计时用 `Clock`，同上）：逐项失败的项保留旧值，整体失败（含条数不一致）回调 `OnError` 并保留全部旧值；重读到的值有变化才触发重载，同样的内容不触发（订阅者不会因轮询反复重绑）。
 
 ## Nacos Provider
 
