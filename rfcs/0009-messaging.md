@@ -19,13 +19,13 @@
 
 CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`datacontenttype`（默认 `application/json`）、`data`。线上编码为结构化 JSON（`application/cloudevents+json`）：JSON 数据内联在 `data`，其他数据放 `data_base64`，扩展属性是顶层成员。
 
-框架扩展属性：`xihantenant`（→ Baggage `xihan.tenant`）、`xihanprincipal`（→ `xihan.principal`）、`xihancorrelation`（→ `xihan.correlation`）、`xihanlocale`（→ `xihan.locale`）、`traceparent`（→ 追踪 ID 与父跨度）、`xihankey`（分区键，见「流」）。扩展属性名 `^[a-z0-9]{1,20}$`。前四个与 Baggage 的对应以 `conventions/baggage-keys.md` 的 CloudEvents 载体为准（`EnvelopeExtensions.BaggageMappings`）；幂等键 `xihan.idempotency-key` 不进入消息（投递第 4 条）。
+框架扩展属性：`xihantenant`（→ Baggage `xihan.tenant`）、`xihanprincipal`（→ `xihan.principal`）、`xihancorrelation`（→ `xihan.correlation`）、`xihanlocale`（→ `xihan.locale`）、`traceparent`（→ 追踪 ID、父跨度与采样标志）、`xihankey`（分区键，见「流」）。扩展属性名 `^[a-z0-9]{1,20}$`。前四个与 Baggage 的对应以 `conventions/baggage-keys.md` 的 CloudEvents 载体为准（`EnvelopeExtensions.BaggageMappings`）；幂等键 `xihan.idempotency-key` 不进入消息（投递第 4 条）。
 
 发布侧补齐：`DirectPublisher` 与 `OutboxPublisher` 在调用内发布时（`IInvocationAccessor` 有当前上下文），给每个信封补上缺失的扩展：
 
 | 扩展 | 取值 |
 | --- | --- |
-| `traceparent` | `00-<TraceId>-<SpanId>-01`，取当前调用的追踪 ID 与跨度 ID |
+| `traceparent` | `00-<TraceId>-<父跨度>-<标志>`：当前 Activity 与调用同一 trace 且有采样决定（Observe 阶段的 `xihan.invoke` 或它的子 Span）时，父跨度与标志取它的；否则取调用的 `SpanId` 与 `TraceFlags`，上游「不采样」写 `00`，没有标志（链路的根）按已采样写 `01`（RFC-0003 规则 7） |
 | `xihantenant` | 安全上下文的租户；没有再取 Baggage `xihan.tenant` |
 | `xihanprincipal` | 已认证主体的 ID；匿名时取 Baggage `xihan.principal` |
 | `xihancorrelation` | Baggage `xihan.correlation` |
@@ -35,7 +35,7 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 - 不在调用内（后台循环、调用之外的作用域）不补。
 - 代理（`IMessageBroker`）与发件箱投递循环不补：发件箱里的信封在写入时已经补齐，投递时原样发出。
 
-派发侧按同一张对应表把扩展放进新调用的 Baggage，`traceparent` 合法时成为新调用的追踪 ID 与父跨度，不合法视为缺失。
+派发侧按同一张对应表把扩展放进新调用的 Baggage，`traceparent` 合法时成为新调用的追踪 ID、父跨度与采样标志（与 HTTP 入站一致，上游「不采样」原样保留），不合法视为缺失。
 
 主题文法 `^[a-z0-9][a-z0-9._-]{0,127}$`；死信主题为主题加 `DeadLetterSuffix`（默认 `.dlq`）。
 
