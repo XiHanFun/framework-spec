@@ -55,6 +55,11 @@ JSON 是 XGI 的规范编码；gRPC 等二进制协议在适配器里转换（`P
 4. 宿主端点在进入管道前就绑定载荷：`Protocols.Http` 的端点元数据携带 `OperationPayloadBinder`，`UseXiHan()` 据此在构造上下文时把路由值、请求体与查询串绑定为载荷放进上下文（绑定失败直接写 Problem Details，不进管道），端点内 `ExecuteAsync` 用 Validate 阶段解码好的请求。
 5. 操作抛出的异常由 Observe 阶段翻译为 `KERNEL_UNEXPECTED_001`，与普通调用一致。
 6. 宿主端点可用 `OperationDescriptor` 作为端点元数据，`Hosting.AspNetCore` 的 `UseXiHan()` 在构造上下文时把它放入上下文，端点内再 `ExecuteAsync`。
+7. 响应过滤（ADR-0061）：操作成功后、响应对象写进上下文之前，调用器从调用的服务作用域里取出全部 `IOperationResponseFilter`（任意生命周期），按登记顺序调用 `FilterAsync(context, descriptor, response)`，后一个拿到前一个的输出，最后的对象才写进上下文。
+   - 四个入口（`InvokeAsync` / `ExecuteAsync` 的 XGI 与类型化形式）都经过它，HTTP、gRPC、MCP 编码出去的与类型化调用拿到的都是过滤后的响应。
+   - 过滤器返回的对象必须是操作响应类型的实例（可以是新实例），否则抛出 `InvalidOperationException`，与过滤器自己抛出的异常一样由 Observe 阶段翻译为 `KERNEL_UNEXPECTED_001`。
+   - 失败的调用不过滤；没有登记过滤器时不解析、不分配。
+   - 用途是按调用者裁剪响应（字段级权限的掩码等）；改变响应结构或失败语义不在此列。
 
 ## 校验
 
