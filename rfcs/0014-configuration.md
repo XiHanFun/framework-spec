@@ -32,7 +32,7 @@
 `Configuration.Nacos` 实现 `IRemoteConfigurationClient`，直接用 Nacos 的 HTTP 配置接口（v1，Nacos 2.x 兼容），不依赖 SDK：
 
 - 命名空间参数即 Nacos 的 `dataId`；`Group`（默认 `DEFAULT_GROUP`）与 `Tenant`（Nacos 命名空间 ID，默认公共）来自选项。
-- 版本是内容的 MD5（小写十六进制），与 Nacos 监听接口的约定一致。`knownVersion` 非空时先以该 MD5 长轮询监听（`LongPollTimeout`，默认 30 秒），服务端报告变化才取整份文档，窗口到期或取消返回无值。
+- 版本是内容的 MD5（小写十六进制），与 Nacos 监听接口的约定一致：监听时服务端拿报来的值与它存的内容 MD5（按 UTF-8 编码计算）逐字比较。取配置响应的 `Content-MD5` 头（HTTP 上它是内容头）原文；没有这个头时按同样的算法自己算，不得换成别的摘要，否则监听永远报告变化、退化成普通轮询。`knownVersion` 非空时先以该 MD5 长轮询监听（`LongPollTimeout`，默认 30 秒），服务端报告变化才取整份文档，窗口到期或取消返回无值。
 - 文档格式 `Format`：`Json`（默认，对象按 `A:B` 展平、数组按下标、`null` 保留为空值）或 `Properties`（`a.b=c` → `a:b`，`#` / `!` 行是注释）。
 - 配置了 `Username` / `Password` 时先登录取 `accessToken`，到期前自动续；`ServiceUrl` 可以是多个地址，按序尝试。
 
