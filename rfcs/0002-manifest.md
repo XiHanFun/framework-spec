@@ -21,7 +21,7 @@
 | `provides` | 否 | 提供的能力及接口版本 |
 | `requires` | 否 | 依赖的能力、版本范围、是否可选 |
 | `bindings` | 否 | 需要宿主注入的资源 |
-| `contributes` | 否 | 管道中间件、操作、配置节与 Schema、权限码、健康项 |
+| `contributes` | 否 | 管道中间件、操作、配置节与 Schema、权限码、健康项；配置节 `contributes.config.section` 是领域节 `XiHan:<领域>`（`^XiHan:[A-Z][A-Za-z0-9]*$`），同一领域的各 Provider 都声明领域节，自己的子节（如 `XiHan:Caching:Redis`、`XiHan:Scheduling:Kubernetes`）包含在内、不单独声明 |
 | `activation` | 否 | 激活事件，默认 `onStartup` |
 | `permissions` | 插件 | 所需权限，宿主配置授予 |
 | `entry` | 否 | 入口类型 |
