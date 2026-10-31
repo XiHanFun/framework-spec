@@ -78,7 +78,7 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 `OutboxFeature` 需要 `messaging.queue@1` 与 `persistence.relational@1`：
 
 - 把 `IMessagePublisher` 换成 `OutboxPublisher`：有活动工作单元时写入 `OutboxMessage` 表（随业务事务提交或回滚；批量发布用仓储的 `AddRangeAsync` 一次写入），没有时直接发布。
-- 后台循环按 `PollInterval`（默认 1 秒）每轮一个工作单元：取到期的消息（未投递、未进死信、`NextAttemptAt` 为空或已到；按创建时间，最多 `BatchSize`，默认 100），按主题批量发布，每条计一次尝试：
+- 后台循环按 `PollInterval`（默认 1 秒）每轮一个工作单元：取到期的消息（未投递、未进死信、`NextAttemptAt` 为空或已到；按创建时间，最多 `BatchSize`，默认 100，取 1 到 `EntityQuery.DefaultMaxTake`（1000）：每轮按它分页查发件箱表，超出在解析配置时拒绝），按主题批量发布，每条计一次尝试：
   - 成功记投递时间 `DispatchedAt`。
   - 失败记原因 `LastError`，`NextAttemptAt` 推后 `RetryDelay`（默认 5 秒）乘以 2 的（尝试次数减一）次方，不超过 `MaxRetryDelay`（默认 5 分钟）。
   - 尝试达到 `MaxAttempts`（默认 10），或载荷无法解码（`MESSAGING_VALIDATION_002`，重试也解不开），记 `DeadLetteredAt` 进死信：不再取到，行保留供排查；把 `DeadLetteredAt` 置空、`NextAttemptAt` 设为现在即重新投递。

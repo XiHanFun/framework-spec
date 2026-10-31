@@ -41,7 +41,7 @@
 | 操作 | 语义 | 可恢复失败 |
 | --- | --- | --- |
 | `FindAsync(id)` | 已软删除或不属于当前租户视为不存在 | — |
-| `ListAsync(query)` | 过滤、排序、分页；`Take` 上限默认 1000，Provider 不得超出；`TimeRange`（`Within(from, to)`）是时间范围提示——按时间分表 / 分区的 Provider 据此只扫描范围内的表，不是过滤条件，不分表的实体与不支持范围的 Provider 忽略它 | — |
+| `ListAsync(query)` | 过滤、排序、分页；`Take` 取 1 到 `EntityQuery.DefaultMaxTake`（1000），缺省取上限，超出在构造查询时抛出 `ArgumentOutOfRangeException`（与 `Skip` 为负、`Take` 小于 1 相同），不静默截断，要更多行就分页；Provider 不得返回超过 `Take` 的结果；`TimeRange`（`Within(from, to)`）是时间范围提示——按时间分表 / 分区的 Provider 据此只扫描范围内的表，不是过滤条件，不分表的实体与不支持范围的 Provider 忽略它 | — |
 | `CountAsync(query)` | 忽略排序与分页 | — |
 | `AddAsync` | 写入创建时间、租户、并发戳 | `PERSISTENCE_CONFLICT_002` 标识重复、`PERSISTENCE_VALIDATION_001` 缺租户 |
 | `UpdateAsync` | 写入修改时间、刷新并发戳 | `PERSISTENCE_NOTFOUND_001`、`PERSISTENCE_CONFLICT_001` |
@@ -106,7 +106,7 @@
 
 ## 一致性
 
-Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合；可空值类型与 null 的相等 / 不等按存在性过滤（字面量 null、闭包里的 null 变量、左右互换、与 `HasValue` 一致，组合到别的条件里也成立）；判空与取反嵌套在与 / 或条件里照常过滤（或条件在与条件右侧、判空或取反是或条件的左操作数、取反整个与 / 或条件、双重否定）；更新沿用存储的创建时间、租户与删除标记、删除不改创建时间（游离实例与读出后改过的实例两种）；两个工作单元先后新增同一标识只有一个成功、另一个返回 `PERSISTENCE_CONFLICT_002`、留下的是成功者的行；回滚的调用在存储里不留修改、并发戳与删除标记，提交前另一个工作单元读到的是旧值。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
+Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合；可空值类型与 null 的相等 / 不等按存在性过滤（字面量 null、闭包里的 null 变量、左右互换、与 `HasValue` 一致，组合到别的条件里也成立）；一次查询最多取 `EntityQuery.DefaultMaxTake` 条、超过的取出条数在构造查询时被拒绝；判空与取反嵌套在与 / 或条件里照常过滤（或条件在与条件右侧、判空或取反是或条件的左操作数、取反整个与 / 或条件、双重否定）；更新沿用存储的创建时间、租户与删除标记、删除不改创建时间（游离实例与读出后改过的实例两种）；两个工作单元先后新增同一标识只有一个成功、另一个返回 `PERSISTENCE_CONFLICT_002`、留下的是成功者的行；回滚的调用在存储里不留修改、并发戳与删除标记，提交前另一个工作单元读到的是旧值。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
 
 标识生成器必须通过 `IdGeneratorConformance<TKey>`：顺序生成与多线程并发生成不重复、时钟前进后生成的标识更大；`GuidV7IdGenerator` 与 `SnowflakeIdGenerator` 都通过。
 
