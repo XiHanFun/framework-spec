@@ -1,6 +1,6 @@
 # RFC-0021 工作流：持久化执行
 
-> 状态：已采纳 | 日期：2026-10-26，同日修订（ADR-0020：`Workflow.Database`、触发式启动、事件网关、外部任务、HTTP 活动、补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；2026-11-01 修订：外部任务领取的条数上限与下推、重用策略查重与创建原子） | 对应 ADR：ADR-0016、ADR-0020 | 参考实现：`XiHan.Framework.Workflow.Abstractions`、`XiHan.Framework.Workflow.InMemory`、`XiHan.Framework.Workflow.Database` | 一致性：`XiHan.Framework.Workflow.Conformance`
+> 状态：已采纳 | 日期：2026-10-26，同日修订（ADR-0020：`Workflow.Database`、触发式启动、事件网关、外部任务、HTTP 活动、补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；2026-11-01 修订：外部任务领取的条数上限与下推、重用策略查重与创建原子、定义按租户隔离） | 对应 ADR：ADR-0016、ADR-0020、ADR-0066 | 参考实现：`XiHan.Framework.Workflow.Abstractions`、`XiHan.Framework.Workflow.InMemory`、`XiHan.Framework.Workflow.Database` | 一致性：`XiHan.Framework.Workflow.Conformance`
 
 ## 摘要
 
@@ -16,7 +16,7 @@ Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkfl
 
 ## 名字与值
 
-- 定义名 `WorkflowName`：`^[a-z0-9][a-z0-9._-]{0,127}$`（与主题文法相同；一个定义名下多个版本）。
+- 定义名 `WorkflowName`：`^[a-z0-9][a-z0-9._-]{0,127}$`（与主题文法相同；一个定义名下多个版本；名字与版本号在租户的名字空间里，见「定义的租户」）。
 - 节点 ID、转移 ID：`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`，定义内唯一。
 - 活动类型 `ActivityType`：`^[A-Za-z][A-Za-z0-9._-]{0,63}$`；内置活动用 PascalCase 名（`Start`、`UserTask`）。
 - 实例、节点实例、书签、任务的 ID 由引擎生成：UUID v7 的 32 位十六进制；存储不解释它们。
@@ -34,7 +34,13 @@ Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkfl
 
 **校验**（`WorkflowDefinitionValidator`，发布与启动前执行；失败 → `WORKFLOW_VALIDATION_001`，`details.errors` 列出全部问题）：名字与版本合法；至少一个节点；节点 ID 唯一；每个活动类型已登记；恰好一个 `Start` 且无入边；转移两端存在；条件表达式与输出映射表达式语法合法；每个节点最多一条默认出边；`Join` 的 `Mode`、`UserTask` 的 `CompletionPolicy`、`EmptyAssigneeStrategy` 与 `ApprovalThreshold` 取值合法；`End` 的 `Outcome` 不为空串；每个 `UserTask` 至少一个指派来源且规则类型已登记；`Start.Cron` 是合法 cron；`EventGateway` 至少一个信号；`Http` 的 `Url` 非空、`Method` 合法；所有节点自 `Start` 可达。
 
-**目录**（`IWorkflowDefinitionCatalog`）：`CreateAsync(definition)`（新版本号 = 同名最大版本 + 1，状态 Draft）、`UpdateAsync(definition)`（只允许 Draft）、`PublishAsync(ids[])`（只允许 Draft，先校验；带 `Start.Cron` 的建定义级定时书签）、`NewVersionAsync(name)`（以最新版本为底复制成 Draft）、`DisableAsync(ids[])`（只允许 Published）、`ArchiveAsync(ids[])`、`DeleteAsync(ids[])`（只允许 Draft）、`FindAsync(id)`、`FindPublishedAsync(name, version?)`、`ListAsync(name?, status?)`、`ActivityTypes()`（已登记活动的描述符：类型、显示名、分类、输入属性，供设计器使用）。按标识的操作都是批量、逐项结果；状态不允许 → `WORKFLOW_CONFLICT_002`。`WorkflowDefinitionBuilder` 以流式 API 生成定义；`WorkflowDefinitionJson.Serialize / Deserialize` 为定义的 JSON 往返（应用的设计器与存储用）。
+**定义的租户**：定义属于一个租户（`TenantId`），或是全局定义（`TenantId` 为空）。每个租户、以及全局，各是一个名字空间：(`TenantId`, `Name`, `Version`) 唯一，同名定义在不同名字空间里各自从版本 1 编号、互不占号。调用方的租户是当前调用的租户（RFC-0007），无租户的调用（平台）落在全局名字空间。
+
+- 看得到：有租户的调用看得到本租户与全局定义；无租户的调用看得到全部。看不到的定义一律按不存在处理（`WORKFLOW_NOTFOUND_001`），不泄露别的租户有没有这个定义。
+- 改得动：有租户的调用只改得动本租户的定义（全局定义由平台维护）；无租户的调用改得动全部。
+- 按名字解析（启动、`FindPublishedAsync`、子流程与 ForEach）：先在调用方租户的名字空间里找，没有已发布的匹配版本再找全局定义；本租户发布了同名定义就用本租户的。
+
+**目录**（`IWorkflowDefinitionCatalog`）：`CreateAsync(definition)`（租户缺省取当前调用的租户；新版本号 = 该租户名字空间里同名最大版本 + 1，状态 Draft）、`UpdateAsync(definition)`（只允许 Draft）、`PublishAsync(ids[])`（只允许 Draft，先校验；带 `Start.Cron` 的建定义级定时书签）、`NewVersionAsync(name)`（以当前租户名字空间里的最新版本为底复制成 Draft，新草稿留在同一名字空间；没有 → `WORKFLOW_NOTFOUND_001`）、`DisableAsync(ids[])`（只允许 Published）、`ArchiveAsync(ids[])`、`DeleteAsync(ids[])`（只允许 Draft）、`FindAsync(id)`、`FindPublishedAsync(name, version?)`（按名字解析：本租户，再全局）、`ListAsync(name?, status?)`（只列看得到的）、`ActivityTypes()`（已登记活动的描述符：类型、显示名、分类、输入属性，供设计器使用）。按标识的操作都是批量、逐项结果；看不到或改不动 → `WORKFLOW_NOTFOUND_001`，状态不允许 → `WORKFLOW_CONFLICT_002`。`WorkflowDefinitionBuilder` 以流式 API 生成定义；`WorkflowDefinitionJson.Serialize / Deserialize` 为定义的 JSON 往返（应用的设计器与存储用）。
 
 ## 活动
 
@@ -50,11 +56,11 @@ Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkfl
 
 `WorkflowInstance`：`Id`、`DefinitionId`、`DefinitionName`、`DefinitionVersion`、`DisplayName`、`Status`（`Running` / `Suspended` / `Completed` / `Canceled` / `Faulted` / `Terminated`）、`Variables`、`JoinStates`、`CorrelationId`、`StarterId`、`ParentInstanceId`、`ParentNodeInstanceId`、`Depth`、`TenantId`、`CreatedAt`、`StartedAt`、`EndedAt`、`Fault`（`Error?`）、`FaultNodeId`、`FaultNodeInstanceId`、`CancellationReason`、`Outcome`。`WorkflowNodeInstance`：`Id`、`InstanceId`、`NodeId`、`ActivityType`、`Status`（`Running` / `Suspended` / `Completed` / `Canceled` / `Faulted` / `Compensated`）、`Attempt`（从 1 起，重试复用同一记录）、`StartedAt`、`EndedAt`、`Inputs`、`Outputs`、`State`、`Fault`、`CompensatedAt`。
 
-- `StartAsync(WorkflowStartRequest)`：按 `DefinitionId` 或 `Name` + `Version`（缺省最新已发布）找定义，必须 Published（否则 `WORKFLOW_NOTFOUND_001`）；声明的变量缺省补默认值，缺必填 → `WORKFLOW_VALIDATION_002`；深度超过 `MaxSubWorkflowDepth` → `WORKFLOW_VALIDATION_002`。租户取请求的 `TenantId`，缺省取当前调用的租户。`ReusePolicy`（按 `CorrelationId` + 定义名找未结束的实例：`AllowDuplicate` 默认；`RejectActive` → `WORKFLOW_CONFLICT_005`；`ReturnActive` 返回已有实例；没有 `CorrelationId` 时忽略）。要查重时，查重与写入新实例在同一把 `IWorkflowInstanceLock` 锁里完成（锁键 `start.` + 定义名与关联 ID 的 SHA-256 十六进制），写入完成才释放：并发的同键启动串行化，后到者一定看得到先到者，`RejectActive` 只有一个成功、`ReturnActive` 都拿到同一个实例；等锁超过 `LockTimeout` → `WORKFLOW_TIMEOUT_001`。`StartAt` 为延迟启动。定义有 `Timeout` 时建 `InstanceTimeout` 书签。实例先写入存储再加锁执行第一个波次。
+- `StartAsync(WorkflowStartRequest)`：按 `DefinitionId` 或 `Name` + `Version`（缺省最新已发布）找定义，必须 Published 且对实例将属于的租户（请求的 `TenantId`，缺省当前调用的租户）看得到：按名字在该租户的名字空间里解析、没有再找全局定义，按 ID 指向别的租户的定义按不存在处理（否则 `WORKFLOW_NOTFOUND_001`）；声明的变量缺省补默认值，缺必填 → `WORKFLOW_VALIDATION_002`；深度超过 `MaxSubWorkflowDepth` → `WORKFLOW_VALIDATION_002`。租户取请求的 `TenantId`，缺省取当前调用的租户，都没有时取定义的租户（平台按 ID 启动租户的定义）。`ReusePolicy`（按 `CorrelationId` + 定义名在同一租户里找未结束的实例：`AllowDuplicate` 默认；`RejectActive` → `WORKFLOW_CONFLICT_005`；`ReturnActive` 返回已有实例；没有 `CorrelationId` 时忽略）。要查重时，查重与写入新实例在同一把 `IWorkflowInstanceLock` 锁里完成（锁键 `start.` + 实例租户、定义名与关联 ID 的 SHA-256 十六进制），写入完成才释放：并发的同键启动串行化，后到者一定看得到先到者，`RejectActive` 只有一个成功、`ReturnActive` 都拿到同一个实例；等锁超过 `LockTimeout` → `WORKFLOW_TIMEOUT_001`。`StartAt` 为延迟启动。定义有 `Timeout` 时建 `InstanceTimeout` 书签。实例先写入存储再加锁执行第一个波次。
 - **波次**：在实例锁内从队列逐个执行节点直到队列空或实例不再 Running；一个波次执行节点数超过 `MaxNodeExecutionsPerBurst` → 实例故障（`workflow.engine.runaway`）。波次结束：有 `EndInstance` 或没有剩余书签（实例级超时书签不计）且没有未凑齐的 Join → `Completed`；否则实例保持 Running 等待书签。子流程启动与通知父流程在锁释放后进行（避免死锁）。
 - **书签**（`WorkflowBookmark`：`Id`、`InstanceId`、`NodeId`、`NodeInstanceId`、`Kind`、`Key`、`Payload`、`DueAt`、`CorrelationId`、`CreatedAt`、`TenantId`）。种类 `BookmarkKinds`：`UserTask`（Key = 指派人）、`Timer`、`Signal`（Key = 信号名）、`SubWorkflow`（Key = 父节点实例 ID）、`Retry`、`NodeTimeout`、`External`（Key = 主题）、`Reminder`（用户任务提醒）、`InstanceTimeout`（实例级超时）、`DefinitionTimer`（定时启动，`InstanceId` = 定义 ID）。`ResumeAsync(bookmarkId, inputs?, expectedKey?)`：消费书签（删除）后恢复节点；实例不是 Running → `WORKFLOW_CONFLICT_003`（`DueBookmarkPoller` 对此类书签把 `DueAt` 后推 `NotResumableBackoff`）；`expectedKey` 与书签 `Key` 不同 → `WORKFLOW_CONFLICT_003`。`Reminder`、`InstanceTimeout`、`DefinitionTimer` 由引擎直接处理，不经活动。`SignalAsync(name, payload?, correlationId?)` 消费当前租户下匹配的全部 Signal 书签（`CorrelationId` 为空的书签接受任意关联），再按触发式启动规则启动实例，返回消费数（含启动数）。
 - **故障与重试**：节点失败时按顺序：有重试策略且未用尽 → 节点 Faulted、插入 Retry 书签（`DueAt` = now + `FirstDelay × BackoffFactor^(Attempt−1)`），实例保持 Running；`ContinueOnError` → 节点 Faulted、变量 `lastError` = 错误码与消息、以 `outcome = "error"` 流出；否则实例 Faulted（记录 `Fault`、`FaultNodeId`、`FaultNodeInstanceId`；`CompensateOnFault` 时补偿）。`RetryAsync(ids[])` 只接受 Faulted 且有 `FaultNodeInstanceId` 的实例：清故障、从故障节点重试（`Attempt + 1`）；引擎级故障（死 Join、波次上限）不可重试 → `WORKFLOW_CONFLICT_001`。
-- **控制**（批量，逐项结果）：`SuspendAsync(ids[], reason?)`（只允许 Running）、`ResumeInstancesAsync(ids[])`（只允许 Suspended；不重新驱动书签，到期书签由轮询接续）、`CancelAsync(ids[], reason?)`、`TerminateAsync(ids[], reason?)`（Running / Suspended / Faulted 可取消或终止，已结束的幂等返回；清掉非终态节点与全部书签；取消且 `EnableCompensation` 时执行补偿；级联到未结束的子流程并通知父流程）、`RetryAsync(ids[])`、`SetVariablesAsync(updates[])`（Running / Suspended：合并变量、删除指定键）、`JumpAsync(jumps[])`（Running / Suspended / Faulted：取消全部未结束节点与书签、清 Join 状态，从目标节点重新执行；目标不存在 → `WORKFLOW_VALIDATION_002`）、`MigrateAsync(migrations[])`（Running / Suspended 迁到同名的另一个已发布版本：每个未结束节点在目标定义里必须存在且活动类型相同，否则 `WORKFLOW_VALIDATION_002`；只改定义引用，节点实例与书签原样保留）、`PurgeAsync(request)`（删除早于给定时刻结束的实例及其节点实例与书签，可按状态与定义名过滤，返回条数；`XiHan:Workflow:RetentionDays` > 0 时由轮询器每 `HousekeepingIntervalSeconds` 自动执行）。状态不允许 → `WORKFLOW_CONFLICT_001`。单实例的写法是扩展方法。
+- **控制**（批量，逐项结果）：`SuspendAsync(ids[], reason?)`（只允许 Running）、`ResumeInstancesAsync(ids[])`（只允许 Suspended；不重新驱动书签，到期书签由轮询接续）、`CancelAsync(ids[], reason?)`、`TerminateAsync(ids[], reason?)`（Running / Suspended / Faulted 可取消或终止，已结束的幂等返回；清掉非终态节点与全部书签；取消且 `EnableCompensation` 时执行补偿；级联到未结束的子流程并通知父流程）、`RetryAsync(ids[])`、`SetVariablesAsync(updates[])`（Running / Suspended：合并变量、删除指定键）、`JumpAsync(jumps[])`（Running / Suspended / Faulted：取消全部未结束节点与书签、清 Join 状态，从目标节点重新执行；目标不存在 → `WORKFLOW_VALIDATION_002`）、`MigrateAsync(migrations[])`（Running / Suspended 迁到同一名字空间里同名的另一个已发布版本，别的名字空间的同名定义按不存在处理：每个未结束节点在目标定义里必须存在且活动类型相同，否则 `WORKFLOW_VALIDATION_002`；只改定义引用，节点实例与书签原样保留）、`PurgeAsync(request)`（删除早于给定时刻结束的实例及其节点实例与书签，可按状态与定义名过滤，返回条数；`XiHan:Workflow:RetentionDays` > 0 时由轮询器每 `HousekeepingIntervalSeconds` 自动执行）。状态不允许 → `WORKFLOW_CONFLICT_001`。单实例的写法是扩展方法。
 - **子流程**：`SubWorkflow` / `ForEach` 的子实例带 `ParentInstanceId`、`ParentNodeInstanceId`、`Depth + 1`，继承父实例的租户、`CorrelationId` 与 `StarterId`；子实例到达终态时以 `SubWorkflow` 书签（Key = 父节点实例 ID）回调父实例，输入 `childInstanceId`、`childStatus`、`childVariables`、`childFault`；父节点实例 `State.childInstanceIds` 记录本轮启动的子实例，过期回调忽略。父实例正常完成不级联到不等待的子实例；`End(Outcome)` 与 `Terminate` 级联终止。
 - **锁**：`IWorkflowInstanceLock.AcquireAsync(instanceId, ct)` → `Result<IAsyncDisposable>`；等待超过 `LockTimeout` → `WORKFLOW_TIMEOUT_001`。不可重入。锁键是不透明字符串：实例 ID，定时启动用定义 ID，重用策略查重用 `start.` 开头的派生键，Provider 不得假设它是实例 ID（长度不超过 128）。
 - **事件**：装配了 `messaging.queue` 时经 `IMessagePublisher` 发布 CloudEvents 信封（`Source` = `/workflow`，`Type` = 主题，`Data` = `WorkflowEventData` JSON，扩展 `tenant` / `correlation`）；没有发布者时跳过；发布失败只记日志。主题：`workflow.instance.started|completed|faulted|canceled|terminated|suspended|resumed|jumped|migrated|timedout`、`workflow.node.executing|executed|faulted`（`WillRetry`）、`workflow.task.created|completed|transferred|claimed|released|returned|urged|reminder`、`workflow.external.created|completed|failed`、`workflow.custom`（`Subject` = 事件名）。
@@ -77,9 +83,9 @@ Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkfl
 
 ## 存储契约
 
-三个存储都不按租户过滤（调用方负责；`AvailableAsync` 的租户是查询键，按相等比较），不做乐观并发（实例锁串行化写入），写入按批量（ADR-0012）：
+三个存储都不按租户过滤（调用方负责；定义按名字的查询与书签的 `AvailableAsync` 以租户为查询键，按相等比较），不做乐观并发（实例锁串行化写入），写入按批量（ADR-0012）：
 
-- `IWorkflowDefinitionStore`：`FindAsync(id)`、`FindManyAsync(ids[])`、`FindAsync(name, version)`、`FindLatestPublishedAsync(name)`、`MaxVersionAsync(name)`、`ListAsync(name?, status?)`（名字升序、版本降序）、`SaveAsync(definitions[])`（新增或整体替换）、`DeleteAsync(ids[])`。
+- `IWorkflowDefinitionStore`：`FindAsync(id)`、`FindManyAsync(ids[])`、`FindAsync(name, version, tenantId?)`、`FindLatestPublishedAsync(name, tenantId?)`、`MaxVersionAsync(name, tenantId?)`（按名字的查询以租户为名字空间：`TenantId` 与给定租户相等，空只匹配全局定义）、`ListAsync(name?, status?)`（名字升序、版本降序）、`SaveAsync(definitions[])`（新增或整体替换）、`DeleteAsync(ids[])`。
 - `IWorkflowInstanceStore`：`FindAsync(id)`、`FindManyAsync(ids[])`、`ListAsync(WorkflowInstanceQuery)`（`Status` / `Statuses`、`DefinitionName`、`CorrelationId`、`ParentInstanceId`、`StarterId`、`TenantId`、`CreatedFrom` / `CreatedTo`、`EndedBefore`、`Skip`、`Limit` ≤ 1000；创建时间降序）、`CountAsync(query)`、`SaveAsync(instances[])`、`DeleteAsync(ids[])`（级联节点实例）；节点实例 `FindNodeInstanceAsync(id)`、`NodeInstancesAsync(instanceId)`（开始时间升序、同刻按创建顺序）、`SaveNodeInstancesAsync(nodeInstances[])`。
 - `IWorkflowBookmarkStore`：`FindAsync(id)`、`FindManyAsync(ids[])`、`ByInstanceAsync(instanceId)`、`DueAsync(now, limit)`（`DueAt` ≤ now，`DueAt` 升序）、`ByKindAndKeyAsync(kind, key)`（创建时间升序）、`AvailableAsync(kind, key, tenantId?, now, limit)`（种类与键匹配、`TenantId` 与给定租户相等（空只匹配无租户）、`DueAt` 为空或 ≤ now，创建时间升序，最多 limit 条；外部任务领取用）、`BySignalAsync(name, correlationId?)`、`SaveAsync(bookmarks[])`、`DeleteAsync(ids[])`、`DeleteByInstanceAsync(instanceIds[])`。
 - 存储不可达 → `WORKFLOW_UNAVAILABLE_001`；容量已满（内存默认实现）→ `WORKFLOW_UNAVAILABLE_002`。
@@ -92,7 +98,7 @@ Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkfl
 
 ## 一致性
 
-Provider 继承 `WorkflowStoreConformance`（三个存储的查询、排序、分页与计数、批量与级联语义、可领取书签的过滤与上限、实例锁）与 `WorkflowEngineConformance`（顺序流、决策、并行与汇合、三种完成策略与阈值的用户任务、认领与退回、转办与加签、延时与超时、信号与事件网关、信号与定时启动、子流程与 ForEach、外部任务、HTTP 活动、补偿活动、重试与继续、取消 / 终止 / 挂起 / 恢复 / 跳转 / 迁移 / 改变量、实例级超时、清理、事件主题、并发的拒绝重复启动只建一个实例）并通过全部用例。
+Provider 继承 `WorkflowStoreConformance`（三个存储的查询、排序、分页与计数、批量与级联语义、可领取书签的过滤与上限、定义按租户的名字空间、实例锁）与 `WorkflowEngineConformance`（顺序流、决策、并行与汇合、三种完成策略与阈值的用户任务、认领与退回、转办与加签、延时与超时、信号与事件网关、信号与定时启动、子流程与 ForEach、外部任务、HTTP 活动、补偿活动、重试与继续、取消 / 终止 / 挂起 / 恢复 / 跳转 / 迁移 / 改变量、实例级超时、清理、事件主题、并发的拒绝重复启动只建一个实例、定义按租户隔离）并通过全部用例。
 
 ## 错误码
 
