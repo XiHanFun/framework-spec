@@ -75,7 +75,7 @@ Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 �
 1. 心跳（`IsShared` 时）；尝试获取或续约领导租约（`LeaseResource`，默认 `scheduling.jobs`）。
 2. 领导者每 `HousekeepingInterval`（默认 60 秒）做一次维护：心跳超过 `NodeTimeout`（默认 90 秒）的节点视为失联并恢复，`RequestsRecovery` 的失联运行以 `Recovery` 触发重新入队；删除早于 `HistoryRetention`（默认 7 天，0 = 不删）的历史。
 3. 取消：本节点被请求取消的运行取消其令牌。
-4. 抢占：可运行名额 = `MaxConcurrentRuns`（默认 32）− 本节点运行中数量；`AcquireDueAsync(now, 名额, nodeId)`。对每条：作业暂停或类型未登记 → 触发器改为 `Paused` / `Error`；misfire 按策略；`TryBeginRunAsync` 失败（不允许并发且上一次未结束）→ 触发器 `Blocked`，上一次结束时自动回到 `Waiting` 并按 misfire 策略处理；否则推算下一次（cron / 一次性从计划时刻推算并立刻回到 `Waiting`，间隔计划完成后再推算，次数用尽或超过 `EndAt` → `Complete`）并在后台运行。
+4. 抢占：可运行名额 = `MaxConcurrentRuns`（默认 32）− 本节点运行中数量；`AcquireDueAsync(now, 名额, nodeId)`。对每条：作业暂停或类型未登记 → 触发器改为 `Paused` / `Error`；misfire 按策略；`TryBeginRunAsync` 失败（不允许并发且上一次未结束）→ 触发器 `Blocked`，上一次结束时自动回到 `Waiting` 并按 misfire 策略处理；否则推算下一次（cron / 一次性从计划时刻推算并立刻回到 `Waiting`，间隔计划完成后再推算，次数用尽或超过 `EndAt` → `Complete`）并在后台运行。运行结束时先推算间隔触发器的下一次、再把运行标为完成，状态里不会出现「已不在运行、也没有下一次」的空档。同一节点上对触发器的读改写（抢占后运行、结束时推算、暂停与恢复、登记与删除）互斥，抢占到的触发器在互斥内按存储里的当前状态重读，暂停等写入不会被随后的写回覆盖。
 5. 本地触发器（`RunOnEveryInstance`）由每个实例按自己的时钟推算与运行，不经抢占；运行同样写入历史。
 
 事件：装配了 `messaging.queue` 时经 `IMessagePublisher` 发布 CloudEvents 信封（`Source` = `/scheduling`，`Data` = `SchedulingEventData` JSON）：`scheduling.job.scheduled|unscheduled|paused|resumed`、`scheduling.run.started|succeeded|failed|canceled|lost`；发布失败只记日志。
@@ -95,7 +95,7 @@ Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 �
 
 ## 一致性
 
-Provider 必须继承 `JobSchedulerConformance`（触发与状态、间隔与 cron 计划、并发、失败、重试与执行时限、动态登记与删除、暂停与恢复、misfire、多触发器与优先级、历史、取消、本地作业）、`JobStoreConformance`（存储的查询、抢占原子性、独占运行、恢复）与 `LeaderElectionConformance` 并通过全部用例。过期用例用真实时间等待。
+Provider 必须继承 `JobSchedulerConformance`（触发与状态、间隔与 cron 计划、并发、失败、重试与执行时限、动态登记与删除、暂停与恢复、misfire、多触发器与优先级、历史、取消、本地作业）、`JobStoreConformance`（存储的查询、抢占原子性、独占运行、恢复）与 `LeaderElectionConformance` 并通过全部用例。调度器用例用真实时间等待（条件成立即止）；选举的过期用例按套件传入的时钟推进，与机器快慢无关。
 
 ## 错误码
 
