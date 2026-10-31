@@ -17,14 +17,14 @@
 
 - 文档 `ConfigurationDocument(Version, Values)`：`Values` 的键已是 `IConfiguration` 的键形式（`A:B:C`），Provider 负责把自己的格式（JSON、YAML、properties）展平；`Version` 非空，每次变化都不同（ETag、修订号或内容哈希）。
 - `FetchAsync(namespace, knownVersion)`：`knownVersion` 为空时总是返回文档；非空且远端未变化时返回无值。实现可以长轮询：阻塞到变化或自己的窗口到期，收到取消时返回无值而不是抛出。命名空间不存在 → `CONFIGURATION_NOTFOUND_001`；不可达 → `CONFIGURATION_UNAVAILABLE_001`；远端文档不是声明的格式（JSON 不合法等）→ `CONFIGURATION_VALIDATION_001`。
-- 适配器 `AddXiHanRemoteConfiguration(client, options)`：构建配置时同步加载一次（`IConfigurationProvider.Load` 是同步契约，受 `LoadTimeout` 约束）；失败时 `Optional` 为假则抛出让启动失败，为真则为空并回调 `OnError`。之后按 `PollInterval`（默认 30 秒，`null` 关闭）带已知版本轮询，拿到新版本就替换整份数据，键值有变化才触发重载令牌；轮询失败保留最后一份成功的数据并回调 `OnError`。`Prefix` 把文档挂到某个节下。
+- 适配器 `AddXiHanRemoteConfiguration(client, options)`：构建配置时同步加载一次（`IConfigurationProvider.Load` 是同步契约，受 `LoadTimeout` 约束）；失败时 `Optional` 为假则抛出让启动失败，为真则为空并回调 `OnError`。之后按 `PollInterval`（默认 30 秒，`null` 关闭）带已知版本轮询（计时用 `Clock`，默认系统时钟，测试换成可推进的时钟由用例触发轮询），拿到新版本就替换整份数据，键值有变化才触发重载令牌；轮询失败保留最后一份成功的数据并回调 `OnError`。`Prefix` 把文档挂到某个节下。
 
 ## 密钥
 
 - 名字 `SecretName`：`^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$`，不含 `..`、`//`，不以 `/` 结尾。
 - `GetAsync(names[])` 批量逐项返回 `SecretLookup(Name, Result<SecretValue>)`，顺序与入参一致，重复项各自作答，空集合返回空；不存在 → `CONFIGURATION_NOTFOUND_002`，无权限 → `CONFIGURATION_DENIED_001`，不可达 → `CONFIGURATION_UNAVAILABLE_002`。
 - `SecretValue.ToString()` 固定返回遮蔽文本，防止进入日志。
-- 适配器 `AddXiHanSecrets(store, options)`：`Mappings` 把配置键映射到密钥名，构建时一次批量读取；缺失或失败时 `Optional` 为假则抛出，为真则跳过并回调 `OnError`；`RefreshInterval` 非空时周期性重读，失败的项保留旧值；重读到的值有变化才触发重载，同样的内容不触发（订阅者不会因轮询反复重绑）。
+- 适配器 `AddXiHanSecrets(store, options)`：`Mappings` 把配置键映射到密钥名，构建时一次批量读取；缺失或失败时 `Optional` 为假则抛出，为真则跳过并回调 `OnError`；`RefreshInterval` 非空时周期性重读（计时用 `Clock`，同上），失败的项保留旧值；重读到的值有变化才触发重载，同样的内容不触发（订阅者不会因轮询反复重绑）。
 
 ## Nacos Provider
 
