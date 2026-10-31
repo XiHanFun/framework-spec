@@ -78,7 +78,7 @@ Wasm 插件是 `xihan.plugin.v1` 的第二种载体：**同一套消息（`plugi
 
 ### 6. 中间件贡献
 
-清单 `contributes.pipeline[]`（`middleware`、`stage`、`before`、`after`，RFC-0002）声明的每一项在宿主管道的对应阶段插入一个中间件，归属为插件清单 ID，排序规则同 RFC-0004；`stage` 不得是 `handle`。每次调用，宿主在进入下游前后各调用一次 `xihan_middleware`：
+清单 `contributes.pipeline[]`（`middleware`、`stage`、`before`、`after`，RFC-0002）声明的每一项在宿主管道的对应阶段插入一个中间件，归属为插件清单 ID，排序规则同 RFC-0004（`before` / `after` 按中间件名解析，见 `wasm.md` §6）；`stage` 不得是 `handle`。每次调用，宿主在进入下游前后各调用一次 `xihan_middleware`：
 
 ```proto
 // plugin.proto 新增（仅 wasm 隔离使用）

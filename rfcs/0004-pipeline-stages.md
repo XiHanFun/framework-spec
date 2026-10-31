@@ -88,7 +88,7 @@ ingress → observe → resilience → authenticate → tenant → authorize →
 4. 同一归属按注册顺序。
 5. 第 2–4 条排出基准次序后，按 `before` / `after` 约束做稳定拓扑排序：约束只调整必要的相对位置，其余保持基准次序；约束成环报 `KERNEL_PIPELINE_001`，约束引用了未登记或不在同一阶段的中间件报 `KERNEL_PIPELINE_003`。
 6. 跨包依赖必须显式声明：一个包的中间件要用到另一个包中间件的产出（认证后的主体、解析后的租户、开启的工作单元）时，必须以 `before` / `after` 声明次序，不能依赖第 3 条的基准次序——归属字典序只保证结果可复现（`xihan.basicapp.identity` 会排在 `xihan.security.jwt` 之前），不表达依赖；内核不按清单的 `requires` 推导中间件次序。
-7. 同一中间件类型默认只登记一次（重复登记报 `KERNEL_PIPELINE_003`）；需要同类型多个实例时（如插件贡献的多个中间件）按名字登记，名字在类型内唯一，打印时以 `类型名[名字]` 标出；按类型声明的 `before` / `after` 在该类型有多个实例时不可用（`KERNEL_PIPELINE_003`）。
+7. 同一中间件类型默认只登记一次（重复登记报 `KERNEL_PIPELINE_003`）；需要同类型多个实例时（如插件贡献的多个中间件）按名字登记，名字在类型内唯一，打印时以 `类型名[名字]` 标出；按类型声明的 `before` / `after` 在该类型有多个实例时不可用（`KERNEL_PIPELINE_003`）。这时按名字声明：`Before(名字, 目标)` / `After(名字, 目标)` 的两端都是中间件名——按名字登记的实例名，或只登记一次、没有名字的中间件的类型全名。约束主体在声明时必须已登记；目标在排序时解析，未登记、同一个名字对应多个中间件或不在同一阶段报 `KERNEL_PIPELINE_003`，与按类型的约束一起参与第 5 条的稳定拓扑排序。
 
 ## 打印格式
 
@@ -130,6 +130,8 @@ public sealed class PipelineBuilder
     public PipelineBuilder UseNamedInstance(string name, IPipelineMiddleware instance, PipelineStage stage, Placement placement = Placement.End, string owner = AppOwner);
     public PipelineBuilder Before<TMiddleware, TOther>() where TMiddleware : IPipelineMiddleware where TOther : IPipelineMiddleware;
     public PipelineBuilder After<TMiddleware, TOther>() where TMiddleware : IPipelineMiddleware where TOther : IPipelineMiddleware;
+    public PipelineBuilder Before(string middleware, string other);   // 按名字：实例名或只登记一次的类型全名
+    public PipelineBuilder After(string middleware, string other);
     public PipelineStep Build(PipelineStep terminal);          // 中间件在每次调用时从 InvocationContext.Services 解析
     public IReadOnlyList<MiddlewareDescriptor> Describe();
     public string Dump();

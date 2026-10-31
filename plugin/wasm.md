@@ -70,7 +70,7 @@ Wasm 插件与进程外插件共用同一套消息；本文只定义载体：模
 
 ## 6. 中间件钩子
 
-清单 `contributes.pipeline[]`（`middleware`、`stage`、`before`、`after`）的每一项在宿主管道的对应阶段插入一个中间件，归属为插件清单 ID，排序同 RFC-0004；`stage` 不得是 `handle`。每次调用，宿主在进入下游前后各调用一次 `xihan_middleware`（消息见 `plugin.proto` 的 `MiddlewareRequest` / `MiddlewareResponse`）：
+清单 `contributes.pipeline[]`（`middleware`、`stage`、`before`、`after`）的每一项在宿主管道的对应阶段插入一个中间件，归属为插件清单 ID，排序同 RFC-0004；`stage` 不得是 `handle`。宿主以 `<清单 ID>:<middleware>` 为名登记它。`before` / `after` 的每一项先按本插件 `contributes.pipeline` 里的 `middleware` 解析为本插件的中间件；否则原样作为宿主管道里的中间件名（RFC-0004 第 7 条）：另一个插件的 `<清单 ID>:<middleware>`，或只登记一次的宿主中间件的类型全名。目标与按类型声明的约束一样在宿主排序管道时解析（构建或打印管道时）：未登记、有歧义或不在同一阶段为 `KERNEL_PIPELINE_003`，成环为 `KERNEL_PIPELINE_001`，都是配置错误。每次调用，宿主在进入下游前后各调用一次 `xihan_middleware`（消息见 `plugin.proto` 的 `MiddlewareRequest` / `MiddlewareResponse`）：
 
 - `before` + `CONTINUE`：合并 `baggage`（未登记的键丢弃，`xihan.principal` 不可改写）后进入下游。
 - `before` + `SHORT_CIRCUIT`：把 `outcome` 写为调用结果，不进入下游；`outcome` 缺失或不是失败时按 `KERNEL_VALIDATION_001` 处理。
