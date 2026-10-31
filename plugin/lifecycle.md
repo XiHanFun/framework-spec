@@ -45,7 +45,7 @@
 ## 5. 停止
 
 1. 宿主调用 `Stop`（`grace_seconds` 默认等于宿主的 `XiHan:Kernel:StopTimeoutSeconds`，`reason` 为 `shutdown` / `unload` / `restart`），插件进入 `Draining`：拒绝新调用（`PLUGINS_UNAVAILABLE_001`）、完成在途调用、释放资源、返回、退出进程。
-2. 宿主在宽限期内等待进程退出；超时先发 SIGTERM（Windows 上关闭进程），再 5 秒后强制终止，记为 `Failed`（`PLUGINS_TIMEOUT_001`）。
+2. 宿主在宽限期内等待进程退出；超时先发终止信号：关闭插件的 stdin（`handshake.md` §1 要求插件随之退出），Unix 上同时发 SIGTERM；Windows 没有 SIGTERM，关闭 stdin 就是等价的终止信号。发出信号后再等 5 秒，仍未退出则强制终止整个进程树。两种结局都记为 `Failed`（`PLUGINS_TIMEOUT_001`）：插件没有在宽限内完成 `Stop`。插件应把 SIGTERM 与 stdin 关闭都当作立即收尾退出的请求。
 3. 宿主停止时按与启动相反的顺序停止插件，并等待全部结束再停止特性。
 
 ## 6. 崩溃与重启
