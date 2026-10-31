@@ -176,9 +176,9 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `WORKFLOW_VALIDATION_001` | 工作流定义不合法（`details.errors` 列出全部问题） |
 | `WORKFLOW_VALIDATION_002` | 启动或恢复的输入不合法（缺必填变量、子流程深度超限、任务结果不在允许范围、跳转目标不存在、迁移目标不兼容、外部任务领取的锁时长或条数越界） |
 | `WORKFLOW_VALIDATION_003` | 表达式语法不合法或求值失败 |
-| `WORKFLOW_NOTFOUND_001` | 工作流定义不存在、没有已发布版本，或属于调用方看不到 / 改不动的租户 |
-| `WORKFLOW_NOTFOUND_002` | 工作流实例不存在 |
-| `WORKFLOW_NOTFOUND_003` | 书签（用户任务）不存在 |
+| `WORKFLOW_NOTFOUND_001` | 工作流定义不存在、没有已发布版本，属于调用方看不到 / 改不动的租户，或启动请求指向别的租户 |
+| `WORKFLOW_NOTFOUND_002` | 工作流实例不存在，或属于调用方看不到的租户 |
+| `WORKFLOW_NOTFOUND_003` | 书签（用户任务）不存在，或属于调用方看不到的租户 |
 | `WORKFLOW_NOTFOUND_004` | 活动类型或指派规则类型未登记 |
 | `WORKFLOW_CONFLICT_001` | 实例状态不允许该操作 |
 | `WORKFLOW_CONFLICT_002` | 定义状态不允许该操作 |
