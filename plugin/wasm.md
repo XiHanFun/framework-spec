@@ -50,7 +50,7 @@ Wasm 插件与进程外插件共用同一套消息；本文只定义载体：模
 
 - 导入函数的响应由宿主经 `xihan_alloc` 写入客体内存并返回 `(ptr << 32) | len`。
 - 权限判定同 `invocation.md` §5：须在清单声明且已被授予，授予而未声明的不放行；未声明或未授予不陷阱，返回 `Status.error = PLUGINS_DENIED_002`。
-- 回调在当前调用的截止时间内完成；嵌套深度上限 8，超过返回 `PLUGINS_UNAVAILABLE_002`。
+- 回调在当前调用的截止时间内完成，并随当前调用取消：`invoke` 发起的新调用，截止时间取请求 `metadata.deadline` 与当前调用截止时间中较早者（请求没给时就是当前调用的截止时间），取消令牌随当前调用；`publish` 同样以当前调用的截止时间与取消约束。当前调用是宿主进入模块的那次导出调用（操作与事件为调用上下文的截止时间，没有时取调用时限；中间件为中间件时限；生命周期调用为宿主的调用时限），再入不另设截止时间。到期时宿主不再等待，导入函数返回 `KERNEL_TIMEOUT_001`（被取消为 `KERNEL_CANCELLED_001`）：`invoke` 为 `Status.error`，`publish` 为尚未完成的各项。嵌套深度上限 8，超过返回 `PLUGINS_UNAVAILABLE_002`。
 - WASI：时钟与随机数可用；stdin 为空；stdout / stderr 写到插件工作目录下的 `stdout.log` / `stderr.log`（宿主不逐行转发，日志应走 `xihan.log`）；无参数；环境变量只有 `XIHAN_PLUGIN_PRIMITIVES`、`XIHAN_PLUGIN_PROTOCOL_VERSIONS`、`XIHAN_PLUGIN_INSTANCE`、`XIHAN_PLUGIN_LOCALE`。
 - 文件系统：`fs.read:<客体路径>` / `fs.write:<客体路径>` 各预开放一个目录（只读 / 可写）；宿主侧目录由宿主配置映射，未映射视为未授予（`PLUGINS_DENIED_001`）。
 - 网络：ABI v1 不提供套接字；`net.outbound:` 永不授予。
