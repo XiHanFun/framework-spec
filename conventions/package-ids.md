@@ -36,8 +36,8 @@ Profile    = "Minimal" | "Standard" | "Full"
 | 1 | `Kernel` |
 | 2 | `Domain`、`<领域>.Abstractions` |
 | 3 | `<领域>.<机制或技术>`、`Plugins.Protocol`（插件协议的 .NET 类型与映射，各隔离级别的宿主共用） |
-| 4 | `Hosting.*`、`Protocols.*` |
-| 5 | `Plugins.*` |
+| 4 | `Hosting.*` |
+| 5 | `Protocols.*`、`Plugins.*` |
 | 6 | `Profiles.*` |
 | 工具链 | `Kernel.Analyzers`、`Kernel.Generators`、`<领域>.Generators`、`<领域>.Conformance`、`Plugins.Conformance`（插件协议黑盒套件）、`Testing`、`Cli` |
 
