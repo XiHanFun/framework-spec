@@ -1,6 +1,6 @@
 # RFC-0010 本地化
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长） | 日期：2026-10-21 | 对应 ADR：0038 | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/localization/`（P3 补）
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域） | 日期：2026-10-21 | 对应 ADR：0038 | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/localization/`（P3 补）
 
 ## 摘要
 
@@ -42,8 +42,8 @@ Segment    = [a-z][a-z0-9_]*
 
 ## 解析
 
-- `IMessageResolver`（原语层）：`TryResolve(key, locale, arguments, out text)`，找不到键或占位符缺值即失败。
-- `MessageScope`（原语层）：环境作用域（解析器 + 区域），`AsyncLocal` 传播。内核在 `App.InvokeAsync` 入口按 Baggage `xihan.locale` 安装一个作用域；`Localization.InMemory` 启动时用默认区域设置进程默认。
+- `IMessageResolver`（原语层）：`TryResolve(key, locale, arguments, out text)`，找不到键或占位符缺值即失败；`Negotiate(locale)` 把调用方给出的区域协商成实现启用的区域（本地化 Provider 按下文「协商与宿主」的规则，缺省原样返回，`null` 仍是 `null`）。
+- `MessageScope`（原语层）：环境作用域（解析器 + 区域），`AsyncLocal` 传播。内核在 `App.InvokeAsync` 入口把 Baggage `xihan.locale` 经解析器的 `Negotiate` 协商后安装一个作用域，调用链里 `key.L()` 与 `context.Localize`、Problem Details、gRPC 与 MCP 的失败文案用的是同一个协商后的区域：Baggage 里的区域不在启用列表时，即使有它的语言文件也不用；`Localization.InMemory` 启动时用默认区域设置进程默认。
 - `key.L()`、`key.L(("id", id))`、`key.L(count, amount)`（原语层扩展方法）：按 `MessageScope.Current` 解析，调用链里是调用方语言，其他地方是默认语言；没有作用域或找不到键时返回 `MessageTemplate.Describe(key, arguments)`，即 `kernel.feature.start_failed (id=…, reason=…)`。
 - `IMessageLocalizer`（Ring 2）：显式区域的入口，`Resolve(key, locale, arguments)` 给出文案与实际命中的区域，`Localize(...)` 退回描述；`context.Localize(key, arguments)` 扩展方法按上下文区域解析。
 - 回退链：请求区域 → 启用列表里同语言的区域 → 默认区域 → `en-US`；同一键先注册的目录优先。
