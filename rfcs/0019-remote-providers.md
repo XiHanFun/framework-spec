@@ -39,7 +39,7 @@ ADR-0006 把进程外插件协议定为"跨语言插件与远程 Provider 的基
 
 ## 与 .NET 的映射（P4-07）
 
-- `XiHan.Framework.Caching.Remote`（Ring 3）：`RemoteCachingFeature` 声明 `caching.distributed@1`（角色 provider），`RemoteCacheStore : ICacheStore` 按操作集调用代理操作，其余注册（`ISharedCache`、`IDistributedLock`、幂等中间件）与 `Caching.Redis` 相同地搭在 `ICacheStore` 上；配置节 `XiHan:Caching:Remote`（`TimeoutMilliseconds`，默认 5000）。
+- `XiHan.Framework.Caching.Remote`（Ring 3）：`RemoteCachingFeature` 声明 `caching.distributed@1`（角色 provider），`RemoteCacheStore : ICacheStore` 按操作集调用代理操作，按接口登记为 `ICacheStore`，其余注册（`ISharedCache`、`IDistributedLock`、幂等中间件）与 `Caching.Redis` 相同地搭在它上面；配置节 `XiHan:Caching:Remote`（`TimeoutMilliseconds`，默认 5000）。
 - 插件由 `Plugins.OutOfProcess` 按目录发现并登记代理操作；适配器在首次使用时按 ID 取描述，取不到即 `CACHING_UNAVAILABLE_001`。
 - Go：`framework-sdk-go` 的 `caching` 包提供 `Store` 接口、`MemoryStore` 与 `RegisterOperations`，`examples/cache` 是示例插件。
 
