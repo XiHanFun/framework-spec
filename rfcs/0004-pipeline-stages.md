@@ -1,6 +1,6 @@
 # RFC-0004 管道阶段与排序
 
-> 状态：已采纳（2026-10-28 修订：跨包依赖必须声明约束；2026-11-01 修订：登记入口、归属与容器登记，排序规则与打印格式按参考实现重写） | 日期：2026-10-21 | 对应 ADR：0002 | 参考实现：`XiHan.Framework.Kernel.Pipeline.PipelineBuilder`
+> 状态：已采纳（2026-10-28 修订：跨包依赖必须声明约束；2026-11-01 修订：登记入口、归属与容器登记，排序规则与打印格式按参考实现重写；同日再修订：下游把取消写成结果时按触发的令牌归因） | 日期：2026-10-21 | 对应 ADR：0002、0085 | 参考实现：`XiHan.Framework.Kernel.Pipeline.PipelineBuilder`
 
 ## 摘要
 
@@ -32,7 +32,7 @@ ingress → observe → resilience → authenticate → tenant → authorize →
 
 内核内置两个中间件，都归属内核清单、放在阶段开头，`DeadlineMiddleware` 在前：
 
-- `DeadlineMiddleware`：按调用的截止时间取消下游，超时 `KERNEL_TIMEOUT_001`、外部取消 `KERNEL_CANCELLED_001`。
+- `DeadlineMiddleware`：按调用的截止时间取消下游，超时 `KERNEL_TIMEOUT_001`、外部取消 `KERNEL_CANCELLED_001`（RFC-0003 第 1 条）。下游接住取消、自己写下 `KERNEL_CANCELLED_001` 结果正常返回（插件运行时把 gRPC 的取消映射成结果）时，截止令牌已触发而外部令牌没有，同样改写为 `KERNEL_TIMEOUT_001`：只有它知道是哪个令牌触发的，下游按时钟判断会与定时器差几毫秒（定时器按系统节拍触发，可能早于时钟读数到达截止时间），把超时报成取消（ADR-0085）。
 - `ResilienceMiddleware`：只作用于带操作描述的调用（宿主自定义端点、消息派发不受限），按操作 ID 各持一份限制实例，判定顺序固定为熔断 → 限流 → 并发；任一拒绝都以 UNAVAILABLE 种类的内核错误码结束调用、不进后续阶段，`details` 带 `id`，限流与熔断另带 `retryAfter`（秒，向上取整、至少 1）。没有任何限制的操作直接透传。
 
 | 限制 | 语义 | 拒绝码 |
