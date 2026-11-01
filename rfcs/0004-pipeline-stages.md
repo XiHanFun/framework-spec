@@ -1,6 +1,6 @@
 # RFC-0004 管道阶段与排序
 
-> 状态：已采纳（2026-10-28 修订：跨包依赖必须声明约束；2026-11-01 修订：登记入口、归属与容器登记，排序规则与打印格式按参考实现重写；同日再修订：下游把取消写成结果时按触发的令牌归因） | 日期：2026-10-21 | 对应 ADR：0002、0085 | 参考实现：`XiHan.Framework.Kernel.Pipeline.PipelineBuilder`
+> 状态：已采纳（2026-10-28 修订：跨包依赖必须声明约束；2026-11-01 修订：登记入口、归属与容器登记，排序规则与打印格式按参考实现重写；同日再修订：下游把取消写成结果时按触发的令牌归因；同日第三次修订：归因写明为行为变化） | 日期：2026-10-21 | 对应 ADR：0002、0085、0088 | 参考实现：`XiHan.Framework.Kernel.Pipeline.PipelineBuilder`
 
 ## 摘要
 
@@ -32,7 +32,7 @@ ingress → observe → resilience → authenticate → tenant → authorize →
 
 内核内置两个中间件，都归属内核清单、放在阶段开头，`DeadlineMiddleware` 在前：
 
-- `DeadlineMiddleware`：按调用的截止时间取消下游，超时 `KERNEL_TIMEOUT_001`、外部取消 `KERNEL_CANCELLED_001`（RFC-0003 第 1 条）。下游接住取消、自己写下 `KERNEL_CANCELLED_001` 结果正常返回（插件运行时把 gRPC 的取消映射成结果）时，截止令牌已触发而外部令牌没有，同样改写为 `KERNEL_TIMEOUT_001`：只有它知道是哪个令牌触发的，下游按时钟判断会与定时器差几毫秒（定时器按系统节拍触发，可能早于时钟读数到达截止时间），把超时报成取消（ADR-0085）。
+- `DeadlineMiddleware`：按调用的截止时间取消下游，超时 `KERNEL_TIMEOUT_001`、外部取消 `KERNEL_CANCELLED_001`（RFC-0003 第 1 条）。下游抛出的取消：截止令牌已触发即超时（与外部取消同时触发时超时优先），否则外部令牌已触发即取消。下游接住取消、自己写下 `KERNEL_CANCELLED_001` 结果正常返回时，截止令牌已触发而外部令牌没有，同样改写为 `KERNEL_TIMEOUT_001`——这是 2026-11-01 起的行为变化，见本节末的「行为变化」小节。
 - `ResilienceMiddleware`：只作用于带操作描述的调用（宿主自定义端点、消息派发不受限），按操作 ID 各持一份限制实例，判定顺序固定为熔断 → 限流 → 并发；任一拒绝都以 UNAVAILABLE 种类的内核错误码结束调用、不进后续阶段，`details` 带 `id`，限流与熔断另带 `retryAfter`（秒，向上取整、至少 1）。没有任何限制的操作直接透传。
 
 | 限制 | 语义 | 拒绝码 |
@@ -65,6 +65,14 @@ ingress → observe → resilience → authenticate → tenant → authorize →
 ```
 
 `XiHan:Kernel:UseBuiltInMiddleware=false` 时两个中间件都不登记，配置节不读取。按调用方（主体、租户）分桶与自适应并发不在内核范围，应用在本阶段加自己的中间件。
+
+### 行为变化：截止时间到了而调用方没有取消，一律报超时（2026-11-01，ADR-0085、ADR-0088）
+
+- 背景：截止令牌由按宿主 `TimeProvider` 落成的定时取消触发。下游（进程外插件运行时接住 gRPC 的 `Cancelled`、Wasm 宿主与运行时、自己接住取消的操作或 Provider）把取消写成结果时，过去各自按 `context.IsExpired(clock.GetUtcNow())` 判断是超时还是取消。定时器按系统节拍触发，可能早于时钟读数到达截止时间，几毫秒的差让它们判断为「没过期」，写下 `KERNEL_CANCELLED_001`；`DeadlineMiddleware` 只翻译抛出的取消，写成结果的原样留下。同一个超时于是偶发地报成取消。
+- 旧行为：下游写下的 `KERNEL_CANCELLED_001` 结果原样返回，截止时间到了的调用偶发得到取消。
+- 新行为：下游正常返回、结果是 `KERNEL_CANCELLED_001`，而截止令牌已触发、外部令牌（调用方的取消）没有触发时，改写为 `KERNEL_TIMEOUT_001`。只有 `DeadlineMiddleware` 知道是哪个令牌触发的。外部令牌也已触发时保持下游写下的取消；下游写下的其他结果（含它自己判断出的 `KERNEL_TIMEOUT_001`）不改。
+- 对调用方的影响：在上述情形下，HTTP 由 408 变为 504，gRPC 由 `Cancelled` 变为 `DeadlineExceeded`，命令行宿主的退出码由 8（取消）变为 7（超时），Problem Details 的 `type` / 错误码由 `KERNEL_CANCELLED_001` 变为 `KERNEL_TIMEOUT_001`；Observe 阶段的审计、追踪与日志看到的也是超时。按错误码或状态码决定重试的调用方要按超时处理：截止时间已用尽，被调方可能已经完成了副作用，非幂等操作重试前带上幂等键（Baggage `xihan.idempotency-key`）；以前偶发报成取消（408）的这类调用本来就是超时，按 408 区分「调用方放弃」的重试策略要改看 504。外部取消（客户端断开、调用方取消令牌）仍是 `KERNEL_CANCELLED_001`。
+- 不变：熔断计数（`ResilienceMiddleware` 在 `DeadlineMiddleware` 之内，看到的是下游写下的原结果，规则同上表）；下游抛出的取消的归因。下游不要再用 `IsExpired` 区分超时与取消，写下取消结果、交给本中间件归因即可。
 
 ## 登记入口（2026-11-01 增补）
 

@@ -39,8 +39,8 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `KERNEL_UNAVAILABLE_003` | 操作已达并发上限且队列已满；Resilience 阶段拒绝 |
 | `KERNEL_UNAVAILABLE_004` | 操作的熔断器打开，暂不执行；Resilience 阶段拒绝，`retryAfter` 秒后重试 |
 | `KERNEL_UNAVAILABLE_005` | 健康探针失败或超时（`PeriodicHealthContributor`：条目 Degraded，`name`、`reason`） |
-| `KERNEL_TIMEOUT_001` | 调用超过截止时间 |
-| `KERNEL_CANCELLED_001` | 调用被取消 |
+| `KERNEL_TIMEOUT_001` | 调用超过截止时间；截止时间到了而调用方没有取消时，下游写下的取消结果也改报为它（RFC-0004，2026-11-01 起） |
+| `KERNEL_CANCELLED_001` | 调用被调用方取消（客户端断开、调用方的取消令牌） |
 | `KERNEL_UNEXPECTED_001` | 调用期间发生未处理异常 |
 | `KERNEL_SECURITY_001` | 权限码重复：特性重复登记，或插件清单声明的权限码与已登记的重复（宿主特性定义的或另一个插件声明的；插件整体登记失败，ADR-0080） |
 | `KERNEL_SECURITY_002` | 权限注册表已满 |
