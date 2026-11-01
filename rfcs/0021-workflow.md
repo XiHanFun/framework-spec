@@ -1,6 +1,6 @@
 # RFC-0021 工作流：持久化执行
 
-> 状态：已采纳 | 日期：2026-10-26，同日修订（ADR-0020：`Workflow.Database`、触发式启动、事件网关、外部任务、HTTP 活动、补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；2026-11-01 修订：外部任务领取的条数上限与下推、重用策略查重与创建原子、定义按租户隔离、实例按租户隔离；2026-11-01 修订：引擎写入随调用方事务、分区隔离与随租户分库（平台与租户互不可见，取消全局定义），待办查询的过滤、排序与分页下推到存储并带总数；2026-11-01 修订：只读调用里的写入是 500 类缺陷；2026-11-01 修订：实例查询与清理的分页越界返回校验错误；2026-11-01 修订：租约表可以指定命名连接，SQLite 上放到另一个库文件；2026-11-01 修订：应用不在服务状态时不持有轮询领导权；2026-11-01 修订：EF Core 上的租约表连接） | 对应 ADR：ADR-0016、ADR-0020、ADR-0066、ADR-0077、ADR-0081、ADR-0082、ADR-0084、ADR-0087 | 参考实现：`XiHan.Framework.Workflow.Abstractions`、`XiHan.Framework.Workflow.InMemory`、`XiHan.Framework.Workflow.Database` | 一致性：`XiHan.Framework.Workflow.Conformance`
+> 状态：已采纳 | 日期：2026-10-26，同日修订（ADR-0020：`Workflow.Database`、触发式启动、事件网关、外部任务、HTTP 活动、补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；2026-11-01 修订：外部任务领取的条数上限与下推、重用策略查重与创建原子、定义按租户隔离、实例按租户隔离；2026-11-01 修订：引擎写入随调用方事务、分区隔离与随租户分库（平台与租户互不可见，取消全局定义），待办查询的过滤、排序与分页下推到存储并带总数；2026-11-01 修订：只读调用里的写入是 500 类缺陷；2026-11-01 修订：实例查询与清理的分页越界返回校验错误；2026-11-01 修订：租约表可以指定命名连接，SQLite 上放到另一个库文件；2026-11-01 修订：应用不在服务状态时不持有轮询领导权；2026-11-01 修订：EF Core 上的租约表连接；2026-11-01 修订：轮询周期中途进入排空即停下、不告警） | 对应 ADR：ADR-0016、ADR-0020、ADR-0066、ADR-0077、ADR-0081、ADR-0082、ADR-0084、ADR-0087 | 参考实现：`XiHan.Framework.Workflow.Abstractions`、`XiHan.Framework.Workflow.InMemory`、`XiHan.Framework.Workflow.Database` | 一致性：`XiHan.Framework.Workflow.Conformance`
 
 ## 摘要
 
@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | `workflow.execution@1` | 定义目录、实例执行、书签、用户任务、外部任务；`IWorkflowEngine`、`IWorkflowDefinitionCatalog`、`IWorkflowTaskService`、`IWorkflowExternalTaskService` | `Workflow.InMemory`（有界内存存储、进程内实例锁、单进程轮询） |
 
-Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkflowBookmarkStore`（作用域服务，按分区读写）、`IWorkflowTransaction`（作用域服务，与调用方事务的关系）与 `IWorkflowInstanceLock`，并在应用进入服务状态后驱动 `DueBookmarkPoller`——循环可以在特性启动时就起，但每个周期（`RunCycleAsync`）先看应用是否在服务状态，启动中与排空中的周期不轮询、不清理、不记告警（管道这时不接受调用，逐个分区按不可达告警只是噪声；2026-11-01 修订，ADR-0084）。`Workflow.Database`（依赖 `persistence.relational@1`，可选依赖 `multitenancy.context@1`）在调用方的工作单元里读写、租户的记录随租户分库，用平台库里的租约行做分布式实例锁，多实例同时只有一个执行者；到期书签由持有轮询租约的节点逐个分区轮询（其他节点同时轮询也只是无效的重复尝试）；领导权只在应用处于服务状态时拿与续，启动中与排空中的周期不拿也不续，持有就立即释放（2026-11-01 修订，ADR-0087）。
+Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkflowBookmarkStore`（作用域服务，按分区读写）、`IWorkflowTransaction`（作用域服务，与调用方事务的关系）与 `IWorkflowInstanceLock`，并在应用进入服务状态后驱动 `DueBookmarkPoller`——循环可以在特性启动时就起，但每个周期（`RunCycleAsync`）先看应用是否在服务状态，启动中与排空中的周期不轮询、不清理、不记告警（管道这时不接受调用，逐个分区按不可达告警只是噪声；2026-11-01 修订，ADR-0084）；周期开始之后才进入排空的，下一个失败的分区调用（扫描、恢复或清理）发现应用已不在服务状态就停下这个周期，剩下的分区不再调用、这些失败不记告警（2026-11-01 修订，ADR-0087）。手动调用的 `PollOnceAsync`、`HousekeepAsync` 不在周期里，失败照实告警。`Workflow.Database`（依赖 `persistence.relational@1`，可选依赖 `multitenancy.context@1`）在调用方的工作单元里读写、租户的记录随租户分库，用平台库里的租约行做分布式实例锁，多实例同时只有一个执行者；到期书签由持有轮询租约的节点逐个分区轮询（其他节点同时轮询也只是无效的重复尝试）；领导权只在应用处于服务状态时拿与续，启动中与排空中的周期不拿也不续，持有就立即释放（2026-11-01 修订，ADR-0087）。
 
 ## 名字与值
 
