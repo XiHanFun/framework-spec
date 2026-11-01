@@ -137,6 +137,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `OBJECTSTORAGE_VALIDATION_001` | 读取范围的起点不在对象内 |
 | `OBJECTSTORAGE_VALIDATION_002` | 完成分片上传时的分片清单不合法 |
 | `OBJECTSTORAGE_VALIDATION_003` | 命名存储实例的定义不合法（Provider 未登记或设置不合法） |
+| `OBJECTSTORAGE_VALIDATION_004` | 缺省存储的能力选择不一致：存储包被选为 `objectstorage.multipart` 或 `objectstorage.presign`，却没有被选为 `objectstorage.blob`（装配错误，以异常抛出，启动失败） |
 | `OBJECTSTORAGE_DENIED_001` | 预签名地址无效或已过期 |
 | `OBJECTSTORAGE_CONFLICT_001` | 对象已存在且不允许覆盖 |
 | `OBJECTSTORAGE_UNAVAILABLE_001` | 对象存储不可达或 IO 失败 |

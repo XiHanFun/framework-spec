@@ -1,6 +1,6 @@
 # RFC-0002 清单
 
-> 状态：已采纳（2026-10-27 修订：健康项的实现义务） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项） | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
+> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点） | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
 
 ## 摘要
 
@@ -31,7 +31,7 @@
 1. 收集：引用的程序集内嵌清单 + 插件目录中的清单文件。
 2. 校验：Schema、`primitives` 与当前原语层大版本相同、`id` 唯一。
 3. 求解：按能力 ID 与版本范围求解；同一能力多个候选时，`XiHan:Providers:<能力ID>` 指定 → 唯一的 `role: provider` 候选 → 唯一的 `role: default` 候选 → 否则失败并列出候选（`KERNEL_CAPABILITY_004`）。没有被任何人依赖的能力按同一规则选出提供者。
-4. 选中结果回填到节点：每个节点知道自己被选中提供哪些能力（`SelectedCapabilities`），只为被选中的能力注册服务与中间件；声明了能力却一个都没被选中的节点（被顶替的 default）不装配、不启动，图里标为 `shadowed`。
+4. 选中结果回填到节点：每个节点知道自己被选中提供哪些能力（`SelectedCapabilities`），只为被选中的能力注册服务与中间件；声明了能力却一个都没被选中的节点（被顶替的 default）不装配、不启动，图里标为 `shadowed`。特性另有与能力选择无关的服务（如对象存储的命名实例 Provider，RFC-0012）时实现 `IShadowAwareFeature`：被顶替时内核在同一位置改调它的 `ConfigureShadowed`，只登记那些服务——不注册能力契约，不贡献中间件、操作与权限码，不校验必需绑定，也不启动。
 4. 排序：拓扑排序；循环报 `KERNEL_CAPABILITY_002`，缺失报 `KERNEL_CAPABILITY_001`，版本冲突报 `KERNEL_CAPABILITY_003`，报错必须列出冲突双方。
 5. 可选依赖缺失不阻止启动，对应特性进入 `Degraded`。
 6. 输出已解析图；`xihan graph` 与启动日志打印同一份。

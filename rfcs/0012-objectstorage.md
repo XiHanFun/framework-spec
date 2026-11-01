@@ -1,6 +1,6 @@
 # RFC-0012 对象存储
 
-> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`
+> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`
 
 ## 摘要
 
@@ -74,17 +74,19 @@
 
 - 定义 `BlobStoreDefinition`：实例名（`^[a-z0-9][a-z0-9-]{0,63}$`）、Provider 名（`filesystem`、`s3`，不区分大小写）与设置。设置的键同该 Provider 的配置节，不区分大小写；未知的键是错误，拼错的键不会被静默忽略。
 - Provider `IBlobStoreProvider`：每个存储包一个，按定义建实例、探测实例。文件系统的命名实例必须给 `RootPath`（不给就会与缺省实例落在同一目录）；S3 的命名实例各建各的客户端，不读连接绑定，探测间隔不在设置里。
+- 登记规则（2026-11-01 修订，ADR-0075）：存储包只要装配（`UseFeature`）就登记自己的命名实例 Provider，与它是否被选为缺省实例无关。能力全部被别的存储顶替的存储包实现 `IShadowAwareFeature`（RFC-0002 解析规则 4），被顶替时只登记命名实例 Provider：不读自己的配置节与连接绑定、不建缺省实例、不启动。
 - 注册表 `BlobStores`（单例；装配任一个存储包即有）：
   - `Get(name)`：已建的直接返回；配置节 `XiHan:ObjectStorage:Stores:<name>`（`Provider` 加设置）里有定义的首次取用时建出；都没有 → `OBJECTSTORAGE_NOTFOUND_003`。
   - `GetOrAdd(definition)`：同名同定义（Provider 名与设置完全相同）返回同一实例；定义变了建新实例替换并释放旧的，替换时仍在旧实例上的调用可能失败。Provider 未登记或设置不合法 → `OBJECTSTORAGE_VALIDATION_003`，后端此刻建不出来（目录无权限、磁盘错误）→ `OBJECTSTORAGE_UNAVAILABLE_001`；这两种情况已有的同名实例都不受影响。
   - `Remove(name)` 移除并释放；应用停止时释放全部。
   - 缺省的 `IBlobStore` 注入方式不变，命名实例与缺省实例互不相干。
+- 缺省实例的三个契约落在同一存储上（2026-11-01 修订，ADR-0075）：存储包被选为 `objectstorage.multipart` 或 `objectstorage.presign` 时必须同时被选为 `objectstorage.blob`，否则装配时抛出携带 `OBJECTSTORAGE_VALIDATION_004` 的 `FrameworkException`，应用启动失败，消息列出要改的 `XiHan:Providers` 键；框架不替应用改选。宿主代收发（`xihan.hosting.blob-urls`）经缺省 `IBlobStore` 收发，不是存储包，不受此约束。混装文件系统与 S3、以文件系统为缺省实例时，三项都要指定：`objectstorage.blob` 与 `objectstorage.multipart` 给 `xihan.objectstorage.filesystem`，`objectstorage.presign` 给 `xihan.hosting.blob-urls`（装配 `HostedBlobUrlFeature`）；不指定时 S3 是显式 Provider，三项都归 S3。
 - 命名实例的能力随实例本身：S3 实例同时是 `IBlobMultipartStore` 与 `IBlobUrlSigner`（直连存储）；文件系统实例实现分片，预签名由宿主代收发——宿主签名器的 `ForStore(name)` 签出的地址带 `x-store=<name>`，实例名在签名里（改成别的实例或去掉即签名不符），端点经注册表取实例；签名有效但实例不存在 → `OBJECTSTORAGE_NOTFOUND_003`（HTTP 404）。
 - 健康：每个实例一条 `objectstorage.store.<name>`，按 `XiHan:ObjectStorage:StoreHealthProbeIntervalSeconds`（缺省 15 秒）在后台逐个探测，新实例建出后立即探一次；尚未探过为 Started，探测失败为 Degraded（实例仍可取用）。文件系统看总配额是否还有余量，S3 对实例的 `HealthBucket` 做 `Head`（没配时列桶）。条目名随实例而定，存储包的清单不列出它们。
 
 ## 一致性
 
-Provider 必须继承 `BlobStoreConformance` 并通过全部用例（S3 Provider 对 MinIO 通过）；实现了 `IBlobMultipartStore` 的 Provider 同样要通过分片用例（不实现时这些用例跳过）。命名实例的 Provider 必须继承 `BlobStoreProviderConformance` 并通过全部用例：按定义建出可读写且探测通过的实例、未知的设置键被拒绝、经注册表同定义复用 / 定义变了替换 / 移除后不存在、定义错误翻译为 `OBJECTSTORAGE_VALIDATION_003` 且不影响已有实例。
+Provider 必须继承 `BlobStoreConformance` 并通过全部用例（S3 Provider 对 MinIO 通过）；实现了 `IBlobMultipartStore` 的 Provider 同样要通过分片用例（不实现时这些用例跳过）。命名实例的 Provider 必须继承 `BlobStoreProviderConformance` 并通过全部用例（参考实现另有混装用例：两种装配顺序下两个存储包的命名实例 Provider 都登记，缺省的三个契约同一存储，选得不一致时装配失败）：按定义建出可读写且探测通过的实例、未知的设置键被拒绝、经注册表同定义复用 / 定义变了替换 / 移除后不存在、定义错误翻译为 `OBJECTSTORAGE_VALIDATION_003` 且不影响已有实例。
 
 ## 错误码
 
