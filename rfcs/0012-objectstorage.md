@@ -1,6 +1,6 @@
 # RFC-0012 对象存储
 
-> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误；2026-11-01 修订：一致性验证改对 RustFS；2026-11-01 修订：不覆盖写入并发原子、S3 探测条件写入；2026-11-01 修订：条件写入探测改为启动照常、后台与首次使用时重试） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约）、ADR-0086（验证用的 S3 兼容服务）、ADR-0089（条件写入探测）、ADR-0090（探测重试） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`
+> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误；2026-11-01 修订：一致性验证改对 RustFS；2026-11-01 修订：不覆盖写入并发原子、S3 探测条件写入；2026-11-01 修订：条件写入探测改为启动照常、后台与首次使用时重试，云厂商的兼容服务只走标准条件头） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约）、ADR-0086（验证用的 S3 兼容服务）、ADR-0089（条件写入探测）、ADR-0090（探测重试） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`
 
 ## 摘要
 
@@ -49,6 +49,7 @@
 
 `ObjectStorage.S3`：容器即桶，键即对象键，经 AWS SDK 访问 Amazon S3 与兼容服务（MinIO、阿里云 OSS、腾讯云 COS、Cloudflare R2 等），不再为每家云单独做包。
 
+- 云厂商的兼容服务（2026-11-01 增补，ADR-0090）：阿里云 OSS、腾讯云 COS、Cloudflare R2 等同样只用这一个包，不为各家的私有请求头（如 OSS 的 `x-oss-forbid-overwrite`、COS 的 `x-cos-forbid-overwrite`）做适配，不覆盖写入只认标准的 `If-None-Match: *`。这几家是否认它框架没有实测，接入前要实测：缺省的条件写入探测就是实测（下文「S3 的条件写入探测」），不认时启动失败（`OBJECTSTORAGE_UNAVAILABLE_003`）或之后在健康项上报告；也可以按探测的做法用 curl 发两次带 `If-None-Match: *` 的 `PutObject`，第二次必须 412。不认就设 `ConditionalWrites = false`，后果是 `Overwrite = false` 的写入与分片上传的发起、完成一律 `OBJECTSTORAGE_UNAVAILABLE_003`，"只在不存在时写入"不再可用——需要它的业务改用不会冲突的键（如带随机后缀）或改为覆盖写入，框架不退回先查再写。
 - `Overwrite = false` 先 `Head`（已存在就不必上传内容）再带 `If-None-Match: *` 写入，由服务端保证原子；已存在 → `OBJECTSTORAGE_CONFLICT_001`。服务是否认条件写入要先探明（见下文「S3 的条件写入探测」）：探明之前不覆盖写入返回不可用，探明不认的服务（如 Garage、Zenko CloudServer）上不覆盖写入一律报错，启动时就探明的启动失败，任何时候都不带着可能静默覆盖的不覆盖写入运行。不可定位的内容流先落临时文件取得长度，不整体装进内存。
 - 批量删除：S3 不报告对象是否存在过，先逐键 `Head` 定存在性（同一批里重复的键只有第一次算存在），再把存在的键按每批 1000 个 `DeleteObjects`；删除失败只影响本次负责删除的项。
 - 列举经 `ListObjectsV2`（S3 保证键的序数顺序），续页标记是其 continuation token；条目只有键、长度、`ETag` 与修改时间，内容类型为默认值、自定义元数据为空，需要时再 `Head`——列举条目的元数据因此是"可能不完整"的，一致性套件只校验键顺序、长度与 `ETag`。不符合键文法的对象（以 `/` 结尾的"目录"占位）跳过。
@@ -67,7 +68,7 @@
 - 尚未确认时的不覆盖写入（`Overwrite = false` 的写入、分片上传的发起与完成）：有探测正在进行就等它的结论（受调用方取消约束）；没有而距上一次探测结束已满 1 秒，就地探测一次（同一时刻每个实例只有一个探测，后台重试与写入共用它）；不满 1 秒不再探测。之后已确认就照常写入；不认 → `OBJECTSTORAGE_UNAVAILABLE_003`；仍未确认 → `OBJECTSTORAGE_UNAVAILABLE_004`（HTTP 503，参数 `container`、`key`、`reason` 为最近一次探测失败的错误码），不访问写入目标，不退回先查再写。覆盖写入、读取、删除、列举、预签名不受影响。
 - 启动之后（后台重试或写入时的探测）才探明不认：应用不停止（已经在服务），此后不覆盖写入一律 `OBJECTSTORAGE_UNAVAILABLE_003`，记一条 Error 日志；换成认条件写入的服务，或关闭条件写入后重启才恢复。
 - 健康：缺省实例的健康项 `objectstorage.s3.connection` 合并连通性（对 `HealthBucket` 的 `Head`）与条件写入的状态，数据 `conditionalWrites` 为 `confirmed` / `unconfirmed` / `unsupported` / `disabled`：尚未确认时 Degraded，错误是最近一次探测失败（`OBJECTSTORAGE_UNAVAILABLE_001` / `DENIED_002` / `NOTFOUND_001`），即便 `Head` 成功；探明不认时 Failed，错误为 `OBJECTSTORAGE_UNAVAILABLE_003`；状态随探测结论即时变化，不等下一轮健康探测。命名实例的健康项 `objectstorage.store.<name>` 在连通之后同样看条件写入：尚未确认或不认时 Degraded（注册表把探测失败一律记为 Degraded），错误同上。
-- 关闭（`ConditionalWrites = false`）表示应用明确不需要不覆盖写入（只覆盖写入，或凭据只读）：不探测，`HealthBucket` 可以不配（健康项列桶），`Overwrite = false` 的写入、分片上传的发起与完成一律 → `OBJECTSTORAGE_UNAVAILABLE_003`，不访问存储——不做没有保证的先查再写；覆盖写入、读取、删除、列举、预签名不受影响。
+- 关闭（`ConditionalWrites = false`）表示应用明确不需要不覆盖写入（只覆盖写入，或凭据只读，或服务实测不认条件写入）：不探测，`HealthBucket` 可以不配（健康项列桶），`Overwrite = false` 的写入、分片上传的发起与完成一律 → `OBJECTSTORAGE_UNAVAILABLE_003`，不访问存储——不做没有保证的先查再写；覆盖写入、读取、删除、列举、预签名不受影响。
 
 ## 范围读取、分片上传与预签名（2026-10-29 增补，ADR-0049）
 
