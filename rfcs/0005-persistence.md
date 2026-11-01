@@ -1,6 +1,6 @@
 # RFC-0005 领域协议与持久化
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译；2026-11-01 修订：只读操作开只读工作单元、嵌套调用、查询取出条数超限是校验错误；2026-11-01 修订：索引声明与唯一键重复；2026-11-01 修订：运行时数据源；2026-11-01 修订：库结构读取与实体目录；2026-11-01 修订：只读工作单元里的写入是 500 类缺陷（`PERSISTENCE_UNEXPECTED_001`）、软删除实体的唯一索引是只约束未删除行的部分唯一索引；2026-11-01 修订：实体登记到命名连接、绑定一个连接的工作单元） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063、0072、0073、0078、0081、0084 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译；2026-11-01 修订：只读操作开只读工作单元、嵌套调用、查询取出条数超限是校验错误；2026-11-01 修订：索引声明与唯一键重复；2026-11-01 修订：运行时数据源；2026-11-01 修订：库结构读取与实体目录；2026-11-01 修订：只读工作单元里的写入是 500 类缺陷（`PERSISTENCE_UNEXPECTED_001`）、软删除实体的唯一索引是只约束未删除行的部分唯一索引；2026-11-01 修订：实体登记到命名连接、绑定一个连接的工作单元；2026-11-01 修订：库结构表列表的分页越界由读取器返回校验错误） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063、0072、0073、0078、0081、0084 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
 
 ## 摘要
 
@@ -163,7 +163,7 @@
 
 | 操作 | 语义 |
 | --- | --- |
-| `ListTablesAsync(dataSource, query)` | 表（不含列）：名字、注释、物理表、是否分表；按名字排序（不区分大小写）；`Keyword` 在名字与注释里不区分大小写地包含匹配；`Skip` / `Take` 分页，`Take` 取 1 到 `EntityQuery.DefaultMaxTake`（1000），超过在构造查询时以 `PERSISTENCE_VALIDATION_005` 拒绝（调用里转为校验结果）；返回过滤后的总数。库里的表一次读出、在内存里过滤与分页 |
+| `ListTablesAsync(dataSource, query)` | 表（不含列）：名字、注释、物理表、是否分表；按名字排序（不区分大小写）；`Keyword` 在名字与注释里不区分大小写地包含匹配；`Skip` / `Take` 分页，`Skip` ≥ 0、`Take` 取 1 到 `EntityQuery.DefaultMaxTake`（1000，缺省取上限）；返回过滤后的总数。库里的表一次读出、在内存里过滤与分页。分页越界不在构造 `TableListQuery` 时抛出（2026-11-01 修订，ADR-0084）：读结构的 Provider 先经 `TableListQuery.Validate()` 核对，`Skip` 为负或 `Take` 小于 1 返回 `PERSISTENCE_VALIDATION_007`（HTTP 400，消息键 `persistence.schema.list_page_invalid`，参数 `skip`、`take`），`Take` 超过上限返回 `PERSISTENCE_VALIDATION_005`（参数 `take`、`max`），在调用里外都是结果，不连库、不登记数据源；不读结构的 Provider 仍返回 `PERSISTENCE_UNAVAILABLE_008` |
 | `GetTablesAsync(dataSource, tables)` | 按表名批量读结构（含列）。外层结果是整批的：一次最多 `SchemaLimits.MaxTablesPerRead`（100）张，超过 → `PERSISTENCE_VALIDATION_005`（参数 `count`、`max`）；连接或读取失败整批 `PERSISTENCE_UNAVAILABLE_006`。成功时逐项结果与入参一一对应：名字先精确匹配、再按不区分大小写的唯一匹配（分表用逻辑名），找不到该项 `PERSISTENCE_NOTFOUND_003`（参数 `dataSource`、`table`）；重复的名字各自返回同一结构；空集合不连库、返回空列表；每张表读列之前检查取消。`GetTableAsync` 是单项特例 |
 | `IEntityCatalog.ListAsync()` | 每个以 `AddRepository` 登记的实体一条 `EntityMapping`（按登记顺序，同一实体登记多次只一条）：实体类型、标识类型、表名、是否分表、实现的协议 `EntityProtocols`（聚合根、创建时间、修改时间、并发戳、软删除、多租户）、列映射（属性、列名、CLR 类型、是否主键、是否可空，不映射的属性不列）、`[EntityIndex]` 声明的索引（`EntityIndexes.Resolve`，与建出的同名；Provider 自己的索引特性不在内） |
 
@@ -198,7 +198,7 @@ Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间�
 
 运行时数据源：支持它的 Provider 给出一个连得上的定义与一个连不上的定义（子类覆写），用例验证测试连接成功与失败（失败是 `PERSISTENCE_UNAVAILABLE_006`，错误消息与参数里没有连接串与口令）、同定义复用、定义变了替换、批量移除后 `GetAsync` 返回 `PERSISTENCE_NOTFOUND_002`；不给定义的 Provider（EF Core、内存实现）断言取用与测试连接都返回 `PERSISTENCE_UNAVAILABLE_008`，不返回空结果冒充。
 
-库结构与实体目录（`SchemaConformance`）：实体目录列出套件的三种实体各一条（重复登记只一条），标识类型、协议与主键列对；读结构的 Provider 列出这三张表、关键字与分页照常、读到主键列（不可空）与普通列、不存在的表该项 `PERSISTENCE_NOTFOUND_003`、超过 100 张整批 `PERSISTENCE_VALIDATION_005`、空集合返回空列表、经运行时数据源读同一个库结果一致；不读结构的 Provider 断言列表与读取都返回 `PERSISTENCE_UNAVAILABLE_008`。
+库结构与实体目录（`SchemaConformance`）：实体目录列出套件的三种实体各一条（重复登记只一条），标识类型、协议与主键列对；读结构的 Provider 列出这三张表、关键字与分页照常、表列表的分页越界（`Skip` = -1、`Take` = 0 → `PERSISTENCE_VALIDATION_007`，`Take` = 1001 → `PERSISTENCE_VALIDATION_005`）以结果返回而边界值（`Skip` = 0、`Take` = 1 与 1000）照常、读到主键列（不可空）与普通列、不存在的表该项 `PERSISTENCE_NOTFOUND_003`、超过 100 张整批 `PERSISTENCE_VALIDATION_005`、空集合返回空列表、经运行时数据源读同一个库结果一致；不读结构的 Provider 断言列表与读取都返回 `PERSISTENCE_UNAVAILABLE_008`。
 
 标识生成器必须通过 `IdGeneratorConformance<TKey>`：顺序生成与多线程并发生成不重复、时钟前进后生成的标识更大；`GuidV7IdGenerator` 与 `SnowflakeIdGenerator` 都通过。
 

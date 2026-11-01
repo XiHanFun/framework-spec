@@ -1,6 +1,6 @@
 # RFC-0006 缓存、分布式锁与幂等
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配、两级缓存；2026-11-01 修订：幂等回放操作的响应） | 日期：2026-10-21 | 对应 ADR：ADR-0064（幂等响应回放） | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配、两级缓存；2026-11-01 修订：幂等回放操作的响应；2026-11-01 修订：键列表的每页上限越界返回校验错误） | 日期：2026-10-21 | 对应 ADR：ADR-0064（幂等响应回放）、ADR-0084（键列表分页越界） | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
 
 ## 摘要
 
@@ -41,7 +41,7 @@
 
 | 操作 | 语义 |
 | --- | --- |
-| `ListKeys(query)` | 按前缀（`CacheKeyQuery.Prefix`，空为全部）分页列出键，`Limit` 1–1000（默认 100），`Continuation` 续页（没有更多为空） |
+| `ListKeys(query)` | 按前缀（`CacheKeyQuery.Prefix`，空为全部）分页列出键，`Limit` 1–1000（默认 100），`Continuation` 续页（没有更多为空）；返回 `Result<CacheKeyPage>`。`Limit` 越界不在构造时抛出：存储先经 `CacheKeyQuery.Validate()` 核对，越界返回 `CACHING_VALIDATION_003`（HTTP 400，消息键 `caching.inspector.limit_invalid`，参数 `limit`、`max`），不访问后端——查询常由管理界面的请求绑定，越界是调用方可以改正的输入（2026-11-01 修订，ADR-0084）；基础设施失败仍抛 `CACHING_UNAVAILABLE_001` |
 | `Inspect(key)` | 条目的载荷字节数、剩余存活时间（不过期为空）与滑动窗口；不存在或已过期为无值 |
 | `RemoveByPrefix(prefix)` | 删除前缀下的全部键，返回删除数；前缀不能为空 |
 
@@ -53,7 +53,7 @@
 
 | 操作 | 语义 |
 | --- | --- |
-| `ListKeys(query)` | 同字节存储：按前缀分页列出对象条目的键 |
+| `ListKeys(query)` | 同字节存储：按前缀分页列出对象条目的键，`Limit` 越界同样返回 `CACHING_VALIDATION_003` |
 | `Inspect(key)` | 条目里对象的类型全名、剩余存活时间（不过期为空）与滑动窗口；不存在或已过期为无值；不读出值、不延长滑动过期 |
 | `RemoveByPrefix(prefix)` | 删除前缀下的对象条目，返回删除数；前缀不能为空 |
 
@@ -115,7 +115,7 @@ Idempotency 阶段的中间件按 Baggage `xihan.idempotency-key` 去重，作�
 
 ## 一致性
 
-Provider 必须继承 `CacheStoreConformance` 并通过全部用例（含基于存储的锁与批量：`GetMany` 的顺序与未命中、`SetMany` 的覆盖与各自过期、`RemoveMany` 的逐键结果、空集合）。过期用例用真实时间等待。
+Provider 必须继承 `CacheStoreConformance` 并通过全部用例（含基于存储的锁与批量：`GetMany` 的顺序与未命中、`SetMany` 的覆盖与各自过期、`RemoveMany` 的逐键结果、空集合）。过期用例用真实时间等待。实现了 `ICacheStoreInspector` 的存储另验证键列表的每页上限：0 与 1001 返回 `CACHING_VALIDATION_003`，1 与 1000 照常分页。
 
 ## 错误码
 

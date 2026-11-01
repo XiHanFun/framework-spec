@@ -71,8 +71,9 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_VALIDATION_002` | 工作单元状态不允许该操作：重复开始、未开始就提交（以异常抛出）；同一服务作用域里再经管道发起的嵌套调用（Transaction 阶段以结果结束内层调用，不执行处理器） |
 | `PERSISTENCE_VALIDATION_003` | 工作单元里的聚合有未派发的领域事件，但没有注册领域事件派发器 |
 | `PERSISTENCE_VALIDATION_004` | 实体落点不成立（装配错误，以异常抛出）：SqlSugar 实体的 `[Tenant(configId)]` 或登记时指定的命名连接不在客户端里、两者指向不同的连接（缺省落点规则下启动时校验）；工作单元绑定的连接不在客户端里（`BeginAsync`），或绑定连接的工作单元里操作的实体不落在那个连接上 |
-| `PERSISTENCE_VALIDATION_005` | 查询的取出条数超过 `EntityQuery.DefaultMaxTake`（1000）：构造查询时以异常抛出，调用里由 Transaction 阶段转为结果（HTTP 400，参数 `take`、`max`）；库结构的表列表（`TableListQuery.Take`）同样；一次读结构的表数超过 `SchemaLimits.MaxTablesPerRead`（100）以结果返回（参数 `count`、`max`）；`Skip` 为负、`Take` 小于 1 是编程错误，抛 `ArgumentOutOfRangeException`，不产生错误码 |
+| `PERSISTENCE_VALIDATION_005` | 查询的取出条数超过 `EntityQuery.DefaultMaxTake`（1000）：构造查询时以异常抛出，调用里由 Transaction 阶段转为结果（HTTP 400，参数 `take`、`max`）；库结构的表列表（`TableListQuery.Take`）超过上限由读结构的 Provider 以结果返回（不在构造时抛出）；一次读结构的表数超过 `SchemaLimits.MaxTablesPerRead`（100）以结果返回（参数 `count`、`max`）；仓储查询的 `Skip` 为负、`Take` 小于 1 是编程错误，抛 `ArgumentOutOfRangeException`，不产生错误码（表列表的见 `PERSISTENCE_VALIDATION_007`） |
 | `PERSISTENCE_VALIDATION_006` | 运行时数据源的定义不合法：数据库类型 Provider 不认识、连接串格式错（`DataSourceRegistry` 的取用与测试连接；同名的已登记实例不受影响） |
+| `PERSISTENCE_VALIDATION_007` | 库结构表列表的分页越界：`TableListQuery.Skip` 为负或 `Take` 小于 1（参数 `skip`、`take`；不在构造时抛出，读结构的 Provider 以结果返回，HTTP 400） |
 | `PERSISTENCE_NOTFOUND_001` | 更新或删除的实体不存在（含已软删除、不属于当前租户） |
 | `PERSISTENCE_NOTFOUND_002` | 运行时数据源没有在本进程登记（`DataSourceRegistry.GetAsync`） |
 | `PERSISTENCE_NOTFOUND_003` | 库里没有要读结构的表（`ISchemaReader.GetTablesAsync` 的逐项结果，参数 `dataSource`、`table`） |
@@ -90,6 +91,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_UNEXPECTED_001` | 只读工作单元拒绝写入，是操作实现的缺陷：只读操作（动词 `get` / `list` 或声明了 `ReadOnly`）或以 `IsReadOnly` 开启的工作单元里新增、更新、删除（含批量），以及工作流在只读调用里的写入操作（`IWorkflowTransaction.EnsureWritable`，取锁、执行活动之前）。仓储写入返回结果并把工作单元记为失败（提交返回同一错误）；直接写入入口 `EnsureTransactionAsync` 抛出、由 Transaction 阶段转为同码结果；HTTP 500、gRPC `Internal`、命令行按 UNEXPECTED 的退出码，按操作计入熔断。同一服务作用域里再经管道的嵌套调用仍是 `PERSISTENCE_VALIDATION_002` |
 | `CACHING_VALIDATION_001` | 缓存键或幂等键不合法 |
 | `CACHING_VALIDATION_002` | 条目选项不合法（绝对与滑动过期同时设置等）：远程缓存插件按操作集校验 `ttlMs` / `slidingMs` 时返回（`provider/caching-distributed.md`），适配器原样成为异常的错误码；.NET 侧构造或使用不合法的 `CacheEntryOptions` 时直接抛 `ArgumentException`（编程错误），不产生错误码 |
+| `CACHING_VALIDATION_003` | 键列表的每页上限越界：`CacheKeyQuery.Limit` 不在 1 到 1000 之间（参数 `limit`、`max`；不在构造时抛出，`ICacheStoreInspector` / `ICacheInspector` 的 `ListKeysAsync` 以结果返回，HTTP 400） |
 | `CACHING_UNAVAILABLE_001` | 缓存存储不可达或操作失败 |
 | `CACHING_UNAVAILABLE_002` | 缓存存储已达容量上限（健康项 Degraded 的信号；LRU 不拒绝写入） |
 | `CACHING_CONFLICT_001` | 分布式锁被其他持有者占用：结果式获取 `AcquireAsync` 返回（RFC-0006）；`TryAcquireAsync` 被占用时只是无值 |
