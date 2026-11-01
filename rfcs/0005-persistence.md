@@ -1,6 +1,6 @@
 # RFC-0005 领域协议与持久化
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译；2026-11-01 修订：只读操作开只读工作单元、嵌套调用、查询取出条数超限是校验错误；2026-11-01 修订：索引声明与唯一键重复） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063、0072、0073 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译；2026-11-01 修订：只读操作开只读工作单元、嵌套调用、查询取出条数超限是校验错误；2026-11-01 修订：索引声明与唯一键重复；2026-11-01 修订：运行时数据源） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063、0072、0073、0078 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
 
 ## 摘要
 
@@ -127,12 +127,30 @@
 - `SnowflakeId.Parse(value, epoch)`（或生成器的 `Parse(value)`）还原时间戳、机器位与序列。
 - 线格式保持 JSON number（框架标准类型），不转字符串；超过 2^53 的值在 JavaScript 的 `number` 里会丢精度，前端类型化客户端应按字符串处理。
 
+## 运行时数据源
+
+应用在运行时按自己的记录（名字、数据库类型、连接串，通常存在应用自己的库里）连外部库，如代码生成的外部数据源与零代码运行时。`Persistence.Abstractions` 的 `DataSourceRegistry`（单例）按定义建连接、按名缓存，Provider 经 `IDataSourceProvider` 接入（`AddDataSourceProvider<T>`）。运行时数据源与应用自己的连接互不相干：不加进作用域客户端、不参与实体落点、不进工作单元，约定连接 `default` / `shard` 与租户分片照旧。
+
+| 项 | 规则 |
+| --- | --- |
+| 定义 | `DataSourceDefinition(name, databaseType, connectionString)`。名字 `^[a-z0-9][a-z0-9-]{0,63}$`，`default` 保留给应用的缺省连接；数据库类型不区分大小写，`DatabaseTypes` 列出常用名（`postgresql`、`mysql`、`sqlserver`、`sqlite`、`oracle`），Provider 认得哪些由 Provider 决定；`Describes(other)`：名字、数据库类型（不区分大小写）与连接串（区分大小写）都相同才是同一个连接 |
+| 取用 | `GetOrAddAsync(definition)`：同名同定义返回已有实例；没有就建；定义变了建新实例替换旧的并释放旧的（替换时仍在旧实例上进行的调用可能失败）。建实例不连库，连不上的库照样登记，使用时报告。`GetAsync(name)` 只取本进程已登记的，没有 → `PERSISTENCE_NOTFOUND_002` |
+| 失效 | 显式失效加定义比对，不用配置变化令牌（定义来自应用的库，不来自 `IConfiguration`）：记录改了、停用或删了，调 `RemoveAsync(names)`（批量，逐项返回是否存在过，同一批里重复的名字第二次为否，空集合返回空列表）；每次使用都以记录里当前的定义调 `GetOrAddAsync`，定义变了即替换。注册表是进程内的：多实例时改记录的实例调 `RemoveAsync`，其他实例在下一次以新定义 `GetOrAddAsync` 时替换；所以读库结构等入口收定义而不收名字，只按名字 `GetAsync` 的代码看不到别的实例上的修改 |
+| 容量 | 登记数上限 `XiHan:Persistence:DataSources:MaxCount`（缺省 64，1–1024）。满了再登记新名字 → `PERSISTENCE_UNAVAILABLE_007`，不淘汰已有的；替换同名的不占名额 |
+| 测试连接 | `TestAsync(definition)`：按定义建临时实例，打开一次连接再关闭，然后释放；不登记、不占名额、不影响同名的已登记实例。成功返回成功，连不上 → `PERSISTENCE_UNAVAILABLE_006`（参数 `name`、`reason`）；等多久由调用方的取消令牌与连接串里驱动自己的连接超时决定 |
+| 健康 | 每个已登记的数据源一条 `persistence.datasource.<name>`（数据 `databaseType`、`provider`），按 `XiHan:Persistence:DataSources:HealthProbeIntervalSeconds`（缺省 15，也是单次探测的超时）在后台逐个打开连接再关闭，一轮没探完跳过下一轮；新登记的立即探一次。尚未探过 Started，成功 Ready，失败或超时 Degraded（`PERSISTENCE_UNAVAILABLE_006`），Degraded 不影响 readiness；探测期间被替换或移除的结果丢弃 |
+| 机密 | 连接串不进日志、错误与健康详情。`DataSourceDefinition.ToString()` 不含连接串；错误与健康项的 `reason` 取驱动异常消息（含内层异常），先经 `ConnectionStrings.Redact(text, connectionString)` 把整串连接串与口令类键（键名含 `password`、`pwd`、`secret`、`token`、`key`，不区分大小写）的值换成 `***`；驱动消息可能带主机名、端口、库名与用户名，不带口令。日志只记名字与数据库类型 |
+| 失败 | 数据库类型 Provider 不认识、连接串格式错 → `PERSISTENCE_VALIDATION_006`，同名的已登记实例不受影响；没有支持运行时数据源的 Provider → `PERSISTENCE_UNAVAILABLE_008` |
+
+- SqlSugar：数据库类型是 `DbType` 枚举的名字（不区分大小写，`Custom` 与数字除外）。`SqlSugarDataSource.Client` 是每个数据源一个的 `SqlSugarScope`（线程安全，`IsAutoCloseConnection`），不施加实体约定、不挂过滤器与 AOP、不进工作单元，PostgreSQL 上不自动转小写（标识符按库里的原样引用）。登记时由驱动解析连接串，格式错即拒绝；探测与测试连接打开原生 `DbConnection` 再关闭。
+- EF Core 与内存实现：不支持，注册表照样注册，取用、测试连接返回 `PERSISTENCE_UNAVAILABLE_008`。EF Core 的数据库 Provider（`UseNpgsql` 等）由应用选、框架包不引用，按数据库类型建连接需要对应的 Provider 包；内存实现没有数据库。
+
 ## 能力与配置
 
 | 项 | 值 |
 | --- | --- |
 | 能力 | `persistence.relational@1`；`persistence.document@1` 预留 |
-| 配置节 | `XiHan:Persistence`；内存实现 `XiHan:Persistence:InMemory:MaxEntitiesPerType`（默认 100000）；雪花标识 `XiHan:Persistence:Snowflake`：`Epoch`（ISO 8601，默认 `2026-01-01T00:00:00Z`）、`WorkerId`（0–1023，缺省租约分配）、`ClockDriftToleranceMilliseconds`（默认 100）、`LeaseTimeToLiveSeconds`（默认 30） |
+| 配置节 | `XiHan:Persistence`；内存实现 `XiHan:Persistence:InMemory:MaxEntitiesPerType`（默认 100000）；雪花标识 `XiHan:Persistence:Snowflake`：`Epoch`（ISO 8601，默认 `2026-01-01T00:00:00Z`）、`WorkerId`（0–1023，缺省租约分配）、`ClockDriftToleranceMilliseconds`（默认 100）、`LeaseTimeToLiveSeconds`（默认 30）；运行时数据源 `XiHan:Persistence:DataSources`：`MaxCount`（1–1024，默认 64）、`HealthProbeIntervalSeconds`（默认 15） |
 | 默认实现 | `XiHan.Framework.Persistence.InMemory`，`role: default`，`stability: preview`，只用于开发与测试 |
 
 ## Provider
@@ -146,6 +164,8 @@
 ## 一致性
 
 Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合；可空值类型与 null 的相等 / 不等按存在性过滤（字面量 null、闭包里的 null 变量、左右互换、与 `HasValue` 一致，组合到别的条件里也成立）；一次查询最多取 `EntityQuery.DefaultMaxTake` 条、超过的取出条数在构造查询时以 `PERSISTENCE_VALIDATION_005` 拒绝，调用里先写入再构造超限查询的调用以该码结束、写入回滚；判空与取反嵌套在与 / 或条件里照常过滤（或条件在与条件右侧、判空或取反是或条件的左操作数、取反整个与 / 或条件、双重否定）；更新沿用存储的创建时间、租户与删除标记、删除不改创建时间（游离实例与读出后改过的实例两种）；两个工作单元先后新增同一标识只有一个成功、另一个返回 `PERSISTENCE_CONFLICT_002`、留下的是成功者的行；回滚的调用在存储里不留修改、并发戳与删除标记，提交前另一个工作单元读到的是旧值；只读操作里单条与批量的新增、更新、删除都返回 `PERSISTENCE_DENIED_001`、存储不变，处理器忽略拒绝而返回成功时调用仍以它结束，查询照常；只读操作在新的服务作用域里调用写操作，写入照常提交，外层仍拒绝自己的写入；同一作用域里再经管道的调用以 `PERSISTENCE_VALIDATION_002` 结束、处理器不执行。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
+
+运行时数据源：支持它的 Provider 给出一个连得上的定义与一个连不上的定义（子类覆写），用例验证测试连接成功与失败（失败是 `PERSISTENCE_UNAVAILABLE_006`，错误消息与参数里没有连接串与口令）、同定义复用、定义变了替换、批量移除后 `GetAsync` 返回 `PERSISTENCE_NOTFOUND_002`；不给定义的 Provider（EF Core、内存实现）断言取用与测试连接都返回 `PERSISTENCE_UNAVAILABLE_008`，不返回空结果冒充。
 
 标识生成器必须通过 `IdGeneratorConformance<TKey>`：顺序生成与多线程并发生成不重复、时钟前进后生成的标识更大；`GuidV7IdGenerator` 与 `SnowflakeIdGenerator` 都通过。
 

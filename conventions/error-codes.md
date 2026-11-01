@@ -72,7 +72,9 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_VALIDATION_003` | 工作单元里的聚合有未派发的领域事件，但没有注册领域事件派发器 |
 | `PERSISTENCE_VALIDATION_004` | 实体落点指向的连接不存在：SqlSugar 实体的 `[Tenant(configId)]` 指向客户端里没有的连接（装配错误，以异常抛出，缺省落点规则下启动时校验） |
 | `PERSISTENCE_VALIDATION_005` | 查询的取出条数超过 `EntityQuery.DefaultMaxTake`（1000）：构造查询时以异常抛出，调用里由 Transaction 阶段转为结果（HTTP 400，参数 `take`、`max`）；`Skip` 为负、`Take` 小于 1 是编程错误，抛 `ArgumentOutOfRangeException`，不产生错误码 |
+| `PERSISTENCE_VALIDATION_006` | 运行时数据源的定义不合法：数据库类型 Provider 不认识、连接串格式错（`DataSourceRegistry` 的取用与测试连接；同名的已登记实例不受影响） |
 | `PERSISTENCE_NOTFOUND_001` | 更新或删除的实体不存在（含已软删除、不属于当前租户） |
+| `PERSISTENCE_NOTFOUND_002` | 运行时数据源没有在本进程登记（`DataSourceRegistry.GetAsync`） |
 | `PERSISTENCE_CONFLICT_001` | 乐观并发冲突：并发戳不匹配；内存实现提交时发现更新或删除的行已被别的工作单元删除或改过 |
 | `PERSISTENCE_CONFLICT_002` | 新增的标识已存在；含并发新增：检查之后另一个工作单元提交了同一标识（关系型在写入时、内存实现在提交时返回） |
 | `PERSISTENCE_CONFLICT_003` | 唯一键重复：写入撞上实体声明的唯一索引（`[EntityIndex(IsUnique = true)]` 等）——同一次写入里两项同键，或库里另一行（标识不同）同键；含更新把键改成已有的值、软删除撞上同一键已删除的行。关系型 Provider 在写入失败后核对，这次写入的项统一报告，工作单元随后只能回滚；内存实现不建索引、不返回它 |
@@ -82,6 +84,9 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_UNAVAILABLE_003` | 存储不可达 |
 | `PERSISTENCE_UNAVAILABLE_004` | 雪花标识生成器的时钟回拨超过容忍阈值（以异常抛出；调用里由 `SnowflakeIdFeature` 的中间件转为结果，HTTP 503） |
 | `PERSISTENCE_UNAVAILABLE_005` | 雪花标识生成器没有可用的机器位：未配置且容器里没有分布式锁、1024 个机器位都被占用、租约尚未取得或已丢失（启动期与生成时以异常抛出，调用里由 `SnowflakeIdFeature` 的中间件转为结果、HTTP 503，健康项以结果上报） |
+| `PERSISTENCE_UNAVAILABLE_006` | 运行时数据源连不上：测试连接、健康探测（条目 Degraded）；参数 `name`、`reason`（驱动消息，连接串与口令类键的值已换成 `***`） |
+| `PERSISTENCE_UNAVAILABLE_007` | 运行时数据源登记已满（`XiHan:Persistence:DataSources:MaxCount`）；不淘汰已有的，替换同名的不占名额 |
+| `PERSISTENCE_UNAVAILABLE_008` | 当前的持久化 Provider 不支持该能力：运行时数据源（EF Core 与内存实现） |
 | `CACHING_VALIDATION_001` | 缓存键或幂等键不合法 |
 | `CACHING_VALIDATION_002` | 条目选项不合法（绝对与滑动过期同时设置等）：远程缓存插件按操作集校验 `ttlMs` / `slidingMs` 时返回（`provider/caching-distributed.md`），适配器原样成为异常的错误码；.NET 侧构造或使用不合法的 `CacheEntryOptions` 时直接抛 `ArgumentException`（编程错误），不产生错误码 |
 | `CACHING_UNAVAILABLE_001` | 缓存存储不可达或操作失败 |

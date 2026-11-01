@@ -7,7 +7,7 @@
 | `Primitives` | — | — | `PRIMITIVES` | 零行为原语与契约 |
 | `Kernel` | `kernel` | `XiHan:Kernel` | `KERNEL` | 宿主、能力图谱、管道、诊断、安全原语、插件宿主；子命名空间 `Hosting`、`Capabilities`、`Pipeline`、`Diagnostics`、`Security`、`Plugins` |
 | `Domain` | `domain` | — | `DOMAIN` | 实体协议、值对象、领域事件、规约；纯契约，无实现包 |
-| `Persistence` | `persistence` | `XiHan:Persistence` | `PERSISTENCE` | 仓储、工作单元、迁移、ID 生成 |
+| `Persistence` | `persistence` | `XiHan:Persistence` | `PERSISTENCE` | 仓储、工作单元、迁移、ID 生成、运行时数据源 |
 | `Caching` | `caching` | `XiHan:Caching` | `CACHING` | 本地与分布式缓存、分布式锁 |
 | `Messaging` | `messaging` | `XiHan:Messaging` | `MESSAGING` | 队列、流、发布订阅、Outbox；集成事件用 CloudEvents 信封 |
 | `Security` | `security` | `XiHan:Security` | `SECURITY` | 认证、授权、策略；与 `Kernel.Security` 原语同域 |
