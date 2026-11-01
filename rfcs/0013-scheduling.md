@@ -1,6 +1,6 @@
 # RFC-0013 调度与领导选举
 
-> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发） | 对应 ADR：ADR-0020 | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance`
+> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发），2026-11-01 修订（ADR-0074：调度器启动之前的手动触发同样不可用） | 对应 ADR：ADR-0020、ADR-0074 | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance`
 
 ## 摘要
 
@@ -42,7 +42,7 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 - `UnscheduleAsync(names[])`：删除作业与触发器（进行中的运行照常结束，历史保留）；未登记 → `SCHEDULING_NOTFOUND_001`。删除代码登记的作业只到下次启动：启动时按代码重新写入。
 - `RestoreAsync(names[])`（ADR-0053）：把运行时改过的代码作业恢复为代码定义（来源回到 `Code`，保留暂停状态与同名触发器的进度）；作业没有代码定义 → `SCHEDULING_NOTFOUND_005`。
 - `PauseAsync(names[])` / `ResumeAsync(names[])`：暂停或恢复作业的全部触发器（暂停期间手动触发仍可用）；恢复时按 misfire 策略处理暂停期间错过的运行。`PauseTriggersAsync(keys[])` / `ResumeTriggersAsync(keys[])` 作用于单个触发器；触发器不存在 → `SCHEDULING_NOTFOUND_003`。
-- `TriggerAsync(requests[])`（`JobTriggerRequest(Name, Data?)`）：在本实例立即运行并等待结果，逐项 `JobTriggerResult`；不受暂停与领导限制；未登记 → `SCHEDULING_NOTFOUND_001`，正在运行且不允许并发 → `SCHEDULING_CONFLICT_001`，本实例的调度器已开始停止 → `SCHEDULING_UNAVAILABLE_001`（见下）。
+- `TriggerAsync(requests[])`（`JobTriggerRequest(Name, Data?)`）：在本实例立即运行并等待结果，逐项 `JobTriggerResult`；不受暂停与领导限制；未登记 → `SCHEDULING_NOTFOUND_001`，正在运行且不允许并发 → `SCHEDULING_CONFLICT_001`，本实例的调度器尚未启动或已开始停止 → `SCHEDULING_UNAVAILABLE_001`（见下）。
 - `EnqueueAsync(requests[])`：插入一个立即到期的一次性触发器（名 `manual-<id>`），由集群中任一节点运行，不等待；返回触发器名。
 - `CancelRunsAsync(runIds[])`：请求取消运行——本实例的运行立即取消其令牌，其他节点的运行在下一个轮询周期取消；不在运行中 → `SCHEDULING_NOTFOUND_004`。取消的运行记为 `Canceled`，等待它的手动触发得到 `SCHEDULING_CONFLICT_003`。
 - `StatusAsync(name)` / `StatusesAsync()`：`JobStatus`（作业记录、是否暂停、每个触发器的状态与下一次 / 上一次运行时刻与次数、运行中数量、最近一次完成的运行与结果）。
@@ -56,7 +56,7 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 - 其余情况（新作业、来源是 `Code`、代码定义变了）按代码写入，来源 `Code`；覆盖掉运行时修改时记一条警告。
 - 暂停状态一律保留。
 
-停止时等待进行中的运行结束（按宿主停止令牌取消）。停止只等待已经开始的运行，所以停止开始之后到达本实例的 `TriggerAsync` 不再起新的运行，返回 `SCHEDULING_UNAVAILABLE_001`（否则那次运行无人等待，记录停在运行中直到被判失联）；再次启动后照常。启动之前的手动触发照常执行；`EnqueueAsync` 只写存储、由集群中任一节点运行，不受本实例停止的影响。
+停止时等待进行中的运行结束（按宿主停止令牌取消）。本实例的调度器启动之前与开始停止之后，到达的 `TriggerAsync` 都不起新的运行，返回 `SCHEDULING_UNAVAILABLE_001`（HTTP 503，按错误 KIND 映射）：启动之前没有轮询照看运行（取消请求、维护都不进行），停止只等待已经开始的运行，这两段时间里起的运行无人等待，记录会停在运行中直到被判失联。调度器随 Provider 特性启动（宿主进入服务状态之前），之后照常，停止后再次启动亦然（ADR-0074）。`EnqueueAsync` 只写存储、由集群中任一节点运行，不受本实例启动与停止的影响。
 
 ## 存储 `IJobStore`
 
