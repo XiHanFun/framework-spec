@@ -1,6 +1,6 @@
 # RFC-0014 远程配置与密钥
 
-> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义；2026-11-01 修订：宿主的配置源顺序） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义）、ADR-0075（配置源顺序） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance`
+> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义；2026-11-01 修订：宿主的配置源顺序；2026-11-01 修订：Nacos 凭据随绑定属性覆盖） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义）、ADR-0075（配置源顺序）、ADR-0082（凭据属性） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance`
 
 ## 摘要
 
@@ -50,7 +50,7 @@
 - 版本是内容的 MD5（小写十六进制），与 Nacos 监听接口的约定一致：监听时服务端拿报来的值与它存的内容 MD5（按 UTF-8 编码计算）逐字比较。取配置响应的 `Content-MD5` 头（HTTP 上它是内容头）原文；没有这个头时按同样的算法自己算，不得换成别的摘要，否则监听永远报告变化、退化成普通轮询。`knownVersion` 非空时先以该 MD5 长轮询监听（`LongPollTimeout`，默认 30 秒），服务端报告变化才取整份文档，窗口到期或取消返回无值。
 - 文档格式 `Format`：`Json`（默认，对象按 `A:B` 展平、数组按下标、`null` 保留为空值）或 `Properties`（`a.b=c` → `a:b`，`#` / `!` 行是注释）。
 - 配置构建期的入口 `AddXiHanNacos(options, remote)` 经工厂重载自建客户端（自带 `HttpClient`），随配置根释放；运行期由特性登记进容器的客户端归容器。
-- 配置了 `Username` / `Password` 时先登录取 `accessToken`，到期前自动续；`ServerAddresses` 可以是多个地址，按序尝试。可选绑定 `nacos`（`configuration:remote`）的主值覆盖 `ServerAddresses`，其余键照读配置节（RFC-0016「资源绑定与配置节」）。
+- 配置了 `Username` / `Password` 时先登录取 `accessToken`，到期前自动续；`ServerAddresses` 可以是多个地址，按序尝试。可选绑定 `nacos`（`configuration:remote`）的主值覆盖 `ServerAddresses`，属性 `username` / `password` 覆盖 `Username` / `Password`（各自逐项，空白不算给出），其余键照读配置节（RFC-0016「资源绑定与配置节」）。
 - 地址的路径是 Nacos 的上下文路径（`server.servlet.contextPath`，经网关转发时连同网关的前缀），接口路径（`/v1/cs/configs`、`/v1/cs/configs/listener`、`/v1/auth/login`）接在它后面；地址没有路径（或只有 `/`）时用 Nacos 的缺省上下文路径 `/nacos`。`http://host:8848` 与 `http://host:8848/nacos` 等价。
 
 ## 一致性

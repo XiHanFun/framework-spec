@@ -1,6 +1,6 @@
 # RFC-0016 应用清单与打包
 
-> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`；2026-11-01 修订：Kustomize 不起 Kafka 与 Nacos 定为规则） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup）、ADR-0083（Kustomize 不起依赖服务） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
+> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`；2026-11-01 修订：绑定的凭据属性覆盖配置节；2026-11-01 修订：Kustomize 不起 Kafka 与 Nacos 定为规则） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup）、ADR-0082（凭据属性）、ADR-0083（Kustomize 不起依赖服务） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
 
 ## 摘要
 
@@ -19,21 +19,23 @@
 
 ## 资源绑定与配置节
 
-绑定（`SERVICE_BINDING_ROOT` 目录或 `XiHan:Bindings:<名字>`，内核 `BindingResolver` 解析）来自部署环境，Provider 的配置节来自应用。两者给出同一项连接信息时：
+绑定（`SERVICE_BINDING_ROOT` 目录或 `XiHan:Bindings:<名字>`，内核 `BindingResolver` 解析）来自部署环境，Provider 的配置节来自应用。两者给出同一项连接信息或凭据时：
 
-1. 绑定给出的连接信息覆盖配置节里的同类键；绑定没给出的键（前缀、超时、分组、凭据等其余设置）照读配置节。
-2. 绑定的主值为空或只有空白时不算给出了连接，照读配置节；绑定与配置节都没有连接时装配失败（`ArgumentException`），不静默退回缺省地址。
-3. 绑定整体来自一个来源（目录或配置节），同名时配置节整体覆盖目录来源，不逐属性合并（RFC-0002 的绑定解析）。
+1. 绑定给出的连接信息（主值）与凭据（下表列出的属性）覆盖配置节里的同类键，逐项判定：绑定里有这一项就用绑定的，没有就读配置节的；绑定没给出的键与不是连接、凭据的键（前缀、超时、分组等应用行为）照读配置节。凭据属性与主值互不依赖：绑定只给凭据、连接来自配置节也照样覆盖凭据。
+2. 绑定的主值或属性为空或只有空白时不算给出，照读配置节；绑定与配置节都没有连接时装配失败（`ArgumentException`），不静默退回缺省地址。
+3. 凭据不进日志、错误与异常消息：Provider 报告连接或凭据不合法时只说明哪一项不合法，不带凭据的值（含连接字符串与 URI 里的密码）。
+4. 属性名区分大小写，按下表书写（目录来源是文件名，配置来源是 `XiHan:Bindings:<名字>:<属性>` 的子键，环境变量写作 `XiHan__Bindings__<名字>__<属性>`）。
+5. 绑定整体来自一个来源（目录或配置节），同名时配置节整体覆盖目录来源，不逐属性合并（RFC-0002 的绑定解析）。
 
 框架 Provider 的对照：
 
 | Provider | 绑定（类型） | 主值覆盖 | 属性覆盖 |
 | --- | --- | --- | --- |
-| `Caching.Redis` | `cache`（`cache:distributed`） | `XiHan:Caching:Redis:Configuration` | — |
-| `Messaging.RabbitMQ` | `queue`（`queue`） | `XiHan:Messaging:RabbitMQ:Configuration` | — |
-| `Messaging.Kafka` | `stream`（`stream`） | `XiHan:Messaging:Kafka:BootstrapServers` | — |
-| `Configuration.Nacos` | `nacos`（`configuration:remote`） | `XiHan:Configuration:Nacos:ServerAddresses` | — |
-| `ObjectStorage.S3` | `objectstorage`（`blob`） | `XiHan:ObjectStorage:S3:ServiceUrl` | `region`、`accessKey`、`secretKey`、`forcePathStyle` 覆盖同名键 |
+| `Caching.Redis` | `cache`（`cache:distributed`） | `XiHan:Caching:Redis:Configuration` | `username`、`password` 覆盖连接字符串里的 `user`、`password`（连接时以 StackExchange.Redis 的选项设置，不改写字符串） |
+| `Messaging.RabbitMQ` | `queue`（`queue`） | `XiHan:Messaging:RabbitMQ:Configuration` | `username`、`password` 覆盖 AMQP URI 里的用户信息（连接时以 RabbitMQ.Client 的 `UserName`、`Password` 设置，不改写 URI） |
+| `Messaging.Kafka` | `stream`（`stream`） | `XiHan:Messaging:Kafka:BootstrapServers` | `security.protocol`、`sasl.mechanism`、`sasl.username`、`sasl.password` 覆盖 `XiHan:Messaging:Kafka:Properties` 里的同名键（只认这四项，其余绑定属性不透传给 librdkafka） |
+| `Configuration.Nacos` | `nacos`（`configuration:remote`） | `XiHan:Configuration:Nacos:ServerAddresses` | `username`、`password` 覆盖 `Username`、`Password` |
+| `ObjectStorage.S3` | `objectstorage`（`blob`） | `XiHan:ObjectStorage:S3:ServiceUrl` | `region`、`accessKey`、`secretKey`、`forcePathStyle` 覆盖同名键（空白的属性同样不算给出） |
 
 持久化 Provider（EF Core、SqlSugar）不从配置节读连接，绑定原样交给应用传入特性的配置委托。命名存储实例不读绑定（RFC-0012）。
 

@@ -38,7 +38,7 @@
 | `ports` | `ENV Kestrel__Endpoints__Http__Url`（gRPC 另加 `Protocols=Http2`）、`EXPOSE` | 容器端口 `http` / `grpc`，Service 同名端口 | `ports` | `WithHttpEndpoint` |
 | `shutdown.graceSeconds` | `ENV XiHan__Kernel__StopTimeoutSeconds` | 同左 + `terminationGracePeriodSeconds = graceSeconds + 5` | `stop_grace_period` | — |
 | `probes` | 构建阶段编译就绪探针（见下文） | startup（`failureThreshold = ⌈startup / period⌉`）、readiness、liveness | `healthcheck`：就绪探针请求 `/health/ready`，`interval` = `periodSeconds`、`timeout` = `timeoutSeconds`、`start_period` = `startupSeconds` | — |
-| `bindings` | — | Secret 挂载 `/bindings/<name>`（`type`、`uri` 两个键），`SERVICE_BINDING_ROOT=/bindings` | 依赖服务 + `XiHan__Bindings__<name>__type/value` | 资源 + `WithEnvironment("XiHan__Bindings__<name>__value", 资源)` |
+| `bindings` | — | Secret 挂载 `/bindings/<name>`（`type`、`uri` 两个键；示例另以注释列出该类型的凭据属性），`SERVICE_BINDING_ROOT=/bindings` | 依赖服务 + `XiHan__Bindings__<name>__type/value`（`blob` 另加凭据属性，见下文） | 资源 + `WithEnvironment("XiHan__Bindings__<name>__value", 资源)`（`blob` 另加凭据属性，见下文） |
 | `config` | — | ConfigMap 挂载 `mountPath`，`XIHAN_CONFIG_PATH`，`DOTNET_USE_POLLING_FILE_WATCHER=1`（ConfigMap 以符号链接切换更新，须轮询监视）；宿主把目录里的文件插在 `appsettings.{环境}.json` 之后、环境变量之前（RFC-0016「挂载的配置目录」） | — | — |
 | `resources` | — | `resources` | — | — |
 | `replicas` / `scaling` | — | `replicas`（有 `scaling` 时取 `min`）、HPA、PDB（副本 > 1） | — | `WithReplicas` |
@@ -55,6 +55,8 @@
 | `blob` | `minio/minio` | `http://<name>:9000` | `AddContainer(<name>, "minio/minio")` |
 | `stream` | `apache/kafka:4.1.0`（单节点 KRaft，`KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://<name>:9092`） | `<name>:9092` | `AddKafka(<name>)` |
 | `configuration:remote` | `nacos/nacos-server:v2.5.1`（`MODE=standalone`，数据卷 `<name>-data:/home/nacos/data`） | `http://<name>:8848` | `AddContainer(<name>, "nacos/nacos-server", "v2.5.1")`，注入 `GetEndpoint("http")` |
+
+Compose 与 Aspire 注入的凭据属性（RFC-0016「资源绑定与配置节」，属性覆盖 Provider 配置节里的同类键）：`blob` 的 MinIO 以 `MINIO_ROOT_USER=xihan`、`MINIO_ROOT_PASSWORD=xihanxihan` 启动，应用得到 `XiHan__Bindings__<name>__accessKey=xihan` 与 `XiHan__Bindings__<name>__secretKey=xihanxihan`；其余类型的凭据已在主值里（PostgreSQL 连接串、AMQP URI 的 `guest:guest`，Aspire 的集成资源连接串自带凭据）或依赖服务未开认证（Redis、Kafka、Nacos），不另注入。这些是本地联调的固定值，部署环境的凭据放在 Kustomize 绑定 Secret 里：`bindings.example.yaml` 为每个绑定写出 `type`、`uri`，并以注释列出该类型可选的凭据键——`cache:distributed`、`queue`、`configuration:remote` 为 `username`、`password`，`blob` 为 `accessKey`、`secretKey`，`stream` 为 `security.protocol`、`sasl.mechanism`、`sasl.username`、`sasl.password`；`connection:relational` 的凭据在连接串里，没有单独的键。
 
 ## 就绪探针
 
