@@ -1,6 +1,6 @@
 # RFC-0016 应用清单与打包
 
-> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
+> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
 
 ## 摘要
 
@@ -70,6 +70,15 @@
 `xihan pack [--manifest <path>] [--output <dir>] [--only dockerfile,kustomize,compose,aspire]`。默认清单 `./xihan.app.json`，默认输出清单所在目录下的 `deploy/`。成功时逐行输出写出的文件（相对输出目录），退出码 0；清单不存在 → `CLI_NOTFOUND_001`（3），不合法 → `CLI_VALIDATION_001`（2，`detail` 列出全部问题）。
 
 `xihan graph` / `pipeline` / `operations` / `invoke` 转发给应用自己的命令行宿主（`dotnet run --project <project> -- <command> …`），项目取 `--project`，否则取当前目录 `xihan.app.json` 的 `project`，否则交给 `dotnet run` 自己找。
+
+## 工具链：编码助手的知识库服务
+
+`xihan mcp [--path <项目目录>] [--locale <区域>]` 以 stdio 提供框架离线知识库的 MCP 服务（服务名 `xihan-framework`，协议与传输同 `spec/protocol/mcp.md` 的 stdio 传输），供编码助手按工具版本查证框架。
+
+- 数据随工具构建、与工具版本一致：包（包 ID、环层、说明、框架包 / 第三方包 / 共享框架依赖）与全部公开特性的清单（RFC-0002 的字段）、各包 Options 读取的配置键（完整路径、类型、缺省值、必填、上下限或枚举取值），以及文档站、RFC 与约定、各包 README 的全文。参考实现以测试核对清单与配置键与代码一致。
+- 三个只读 tool，名字沿用 4.x：`xihan_framework_info`（输入 `name`：包 ID、短名、清单 ID、特性类型名或能力 ID；不给时列出全部包；能力 ID 给出提供者与依赖方）、`xihan_framework_config`（输入 `query`：配置节含子节、完整键路径、包、Options 类名或文字；不给时列出全部配置节；输出含按缺省值写出的 appsettings 片段）、`xihan_framework_search`（输入 `query` 与 `limit` 1–50，或 `page` 取一页全文）。输出是结构化 JSON。
+- 查不到为 tool 结果 `isError`，文本 `CLI_NOTFOUND_003: <文案>`，文案带最接近的候选；检索参数不合法为 `CLI_VALIDATION_004`。tool 的标题与描述按 `--locale` 本地化。
+- `--path`（缺省当前目录）所在项目引用的 `XiHan.Framework.*` 版本与工具不同时，在 stderr 与服务端 `instructions` 里提示改用 `dnx XiHan.Framework.Cli@<项目版本> --yes -- mcp`；stdout 只有协议消息。
 
 ## 错误码
 

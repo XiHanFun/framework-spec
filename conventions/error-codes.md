@@ -212,3 +212,5 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `CLI_NOTFOUND_002` | `migrate` 的 `--path` 不存在 |
 | `CLI_VALIDATION_002` | `migrate` 的来源版本没有对应的规则集 |
 | `CLI_VALIDATION_003` | `migrate --fixers` 里有不认识的规则编号 |
+| `CLI_NOTFOUND_003` | `mcp` 的知识库里查不到包、能力、配置节或文档页（tool 结果 `isError`，文案带候选） |
+| `CLI_VALIDATION_004` | `mcp` 的文档检索既没给检索词也没给页面，或条数超出 1–50 |
