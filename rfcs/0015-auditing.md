@@ -1,6 +1,6 @@
 # RFC-0015 审计
 
-> 状态：已采纳（2026-10-27 修订：数据库 Provider；2026-10-28 修订：主体与租户取自安全上下文、记录列长；2026-11-01 修订：受保护的操作含只用策略保护的） | 日期：2026-10-23 | 对应 ADR：ADR-0028（数据库 Provider）、ADR-0036、ADR-0071（受保护的操作） | 参考实现：`XiHan.Framework.Auditing.Abstractions`、`XiHan.Framework.Auditing.InMemory`、`XiHan.Framework.Auditing.Database` | 一致性：`XiHan.Framework.Auditing.Conformance`
+> 状态：已采纳（2026-10-27 修订：数据库 Provider；2026-10-28 修订：主体与租户取自安全上下文、记录列长；2026-11-01 修订：受保护的操作含只用策略保护的；2026-11-01 修订：按操作排除） | 日期：2026-10-23 | 对应 ADR：ADR-0028（数据库 Provider）、ADR-0036、ADR-0071（受保护的操作）、ADR-0080（按操作排除） | 参考实现：`XiHan.Framework.Auditing.Abstractions`、`XiHan.Framework.Auditing.InMemory`、`XiHan.Framework.Auditing.Database` | 一致性：`XiHan.Framework.Auditing.Conformance`
 
 ## 摘要
 
@@ -9,6 +9,7 @@
 ## 事件的产生
 
 - `AuditMiddleware` 挂在 Observe 阶段末尾（`ObserveMiddleware` 之内），调用结束后决定是否记录：动作来自 `context.SetAuditAction(...)` 的显式声明，否则来自当前操作（`AuditSelection.Protected`：只记需要授权的操作，默认——契约声明了权限码或策略名，只用策略保护的操作同样记录，ADR-0071；`All`：所有操作；`None`：只记显式声明的）。没有动作就不记。事件的主体与租户优先取安全上下文（认证后的 `Principal.Id`、解析后的 `TenantContext.Id`），没有时回退到 Baggage 的 `xihan.principal` / `xihan.tenant`（插件协议、消息派发、命令行写入的）；Observe 在 Authenticate 之外、事件在调用结束时构造，安全上下文此时已就绪。
+- 按操作排除（ADR-0080）：`XiHan:Auditing:Exclude` 是一个列表，每项是操作 ID（精确匹配，如 `permissions.current`）或以 `*` 结尾的前缀（`profile.*` 是资源 `profile` 的全部操作，`my-*` 是资源名以 `my-` 开头的全部操作；按序数比较）。按选择规则（`Protected` / `All`）挑出的操作，ID 命中任一项就不记；显式声明动作（`SetAuditAction`）的调用不受排除影响，照样记录。没有配置或列表为空时与不排除完全一样。每项必须是合法的操作 ID（`conventions/operation-ids.md`），或 `*` 之前是非空的操作 ID 前缀（`^[a-z][a-z0-9-]*(.[a-z0-9-]*)?$`：小写字母开头，只含小写字母、数字与 `-`，至多一个 `.`）；空白项、单独的 `*`、`*` 不在末尾、大写或其他字符，以及写成单个值而不是列表（环境变量要写 `XiHan__Auditing__Exclude__0`），都是配置错误，读取选项时抛出参数异常（消息指出配置键与那一项），装配即失败、应用不启动。
 - 结果优先取管道里已写入的 outcome；没有写入而抛出了异常，按异常记失败（`KERNEL_UNEXPECTED_001`，取消为 `KERNEL_CANCELLED_001`）；正常返回却没写结果视为成功。`IncludeSuccesses` 为假时只记失败。
 - trace-id 来自上下文（主体与租户见本节第一条：安全上下文优先、Baggage 回退）；资源与细节来自 `SetAuditResource` / `AddAuditDetail`。
 - 接收器写入失败只记日志，不影响业务调用的结果；写入不带调用的取消令牌，被取消的调用同样记录。
@@ -20,7 +21,7 @@
 
 ## 默认实现
 
-`Auditing.InMemory`：容量 `XiHan:Auditing:InMemory:Capacity`（默认 10000）的环形缓冲，满了丢最旧的；`LogEvents`（默认开）时每条事件以 Information 级写日志（内核日志薄桥）。配置节 `XiHan:Auditing`：`Selection`、`IncludeSuccesses`。
+`Auditing.InMemory`：容量 `XiHan:Auditing:InMemory:Capacity`（默认 10000）的环形缓冲，满了丢最旧的；`LogEvents`（默认开）时每条事件以 Information 级写日志（内核日志薄桥）。配置节 `XiHan:Auditing`：`Selection`、`IncludeSuccesses`、`Exclude`。
 
 ## 数据库 Provider
 
