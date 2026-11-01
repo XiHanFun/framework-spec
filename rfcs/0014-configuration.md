@@ -1,10 +1,24 @@
 # RFC-0014 远程配置与密钥
 
-> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance`
+> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义；2026-11-01 修订：宿主的配置源顺序） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义）、ADR-0075（配置源顺序） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance`
 
 ## 摘要
 
 配置子系统不另造配置模型：应用仍然读 `Microsoft.Extensions.Configuration` 的 `IConfiguration`。本 RFC 只定义两个 Provider 契约与把它们接进 `IConfigurationBuilder` 的适配器：远程配置客户端（Nacos、Apollo、Consul 等）与密钥库（Vault、Key Vault、KMS 等）。默认实现是 .NET 原生的文件与环境变量，不设默认包。
+
+## 配置源顺序
+
+宿主（`Hosting.AspNetCore`、`Hosting.CommandLine`）用 .NET 的默认构建器，`AddXiHan` 只多插一层挂载的配置目录（RFC-0016「挂载的配置目录」）。从低到高，后者覆盖前者：
+
+1. `appsettings.json`
+2. `appsettings.{环境}.json`
+3. `XIHAN_CONFIG_PATH` 目录里的 JSON 文件（目录里 `appsettings.json` 最先，其余按文件名序数）
+4. 用户机密（仅开发环境）
+5. 环境变量
+6. 命令行参数
+7. 应用自己添加的配置源，按添加顺序（本 RFC 的远程配置与密钥适配器在此）
+
+框架的选项与资源绑定在 `AddXiHan` 时读取，远程配置与密钥的配置源必须在它之前加入。
 
 ## 能力
 

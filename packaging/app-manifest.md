@@ -39,7 +39,7 @@
 | `shutdown.graceSeconds` | `ENV XiHan__Kernel__StopTimeoutSeconds` | 同左 + `terminationGracePeriodSeconds = graceSeconds + 5` | `stop_grace_period` | — |
 | `probes` | 构建阶段编译就绪探针（见下文） | startup（`failureThreshold = ⌈startup / period⌉`）、readiness、liveness | `healthcheck`：就绪探针请求 `/health/ready`，`interval` = `periodSeconds`、`timeout` = `timeoutSeconds`、`start_period` = `startupSeconds` | — |
 | `bindings` | — | Secret 挂载 `/bindings/<name>`（`type`、`uri` 两个键），`SERVICE_BINDING_ROOT=/bindings` | 依赖服务 + `XiHan__Bindings__<name>__type/value` | 资源 + `WithEnvironment("XiHan__Bindings__<name>__value", 资源)` |
-| `config` | — | ConfigMap 挂载 `mountPath`，`XIHAN_CONFIG_PATH`，`DOTNET_USE_POLLING_FILE_WATCHER=1`（ConfigMap 以符号链接切换更新，须轮询监视） | — | — |
+| `config` | — | ConfigMap 挂载 `mountPath`，`XIHAN_CONFIG_PATH`，`DOTNET_USE_POLLING_FILE_WATCHER=1`（ConfigMap 以符号链接切换更新，须轮询监视）；宿主把目录里的文件插在 `appsettings.{环境}.json` 之后、环境变量之前（RFC-0016「挂载的配置目录」） | — | — |
 | `resources` | — | `resources` | — | — |
 | `replicas` / `scaling` | — | `replicas`（有 `scaling` 时取 `min`）、HPA、PDB（副本 > 1） | — | `WithReplicas` |
 | `leader.lease` | — | ServiceAccount、Role（leases）、RoleBinding，`XiHan__Scheduling__Kubernetes__Lease`，`XIHAN_POD_NAME`、`POD_NAMESPACE`（Pod 字段） | — | — |

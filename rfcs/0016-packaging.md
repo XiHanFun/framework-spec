@@ -1,6 +1,6 @@
 # RFC-0016 应用清单与打包
 
-> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照） | 日期：2026-10-23 | 对应 ADR：— | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
+> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
 
 ## 摘要
 
@@ -14,8 +14,17 @@
 - `bindings` 的类型限定为 `connection:relational`、`cache:distributed`、`queue`、`blob`，与清单 `bindings` 的资源类型一致（RFC-0002）。每个绑定对应一个 k8s Secret（按 Service Binding 规范挂到 `SERVICE_BINDING_ROOT`）、一个 Compose 依赖服务与一个 Aspire 资源。框架 Provider 声明的绑定类型：持久化（EF Core、SqlSugar）`connection:relational`，`Caching.Redis` `cache:distributed`，`Messaging.RabbitMQ` `queue`，`ObjectStorage.S3` `blob`。`Messaging.Kafka` 声明的 `stream` 与 `Configuration.Nacos` 声明的 `configuration:remote` 不在这个词表里，`xihan pack` 目前不支持这两种绑定，用到它们的应用自己提供 `XiHan:Bindings:<名字>`（两者都是可选绑定，也可以只用各自的配置节）。
 - `shutdown.graceSeconds` 同时写进 `XiHan:Kernel:StopTimeoutSeconds` 与 `terminationGracePeriodSeconds`（后者多 5 秒，让内核先完成 Draining 再被 kubelet 终止）。
 - `probes` 映射为 startup / readiness / liveness 探针，路径固定为宿主的 `/health/startup`、`/health/ready`、`/health/live`。
-- `config` 把列出的文件做成 ConfigMap 挂到 `mountPath`，并设环境变量 `XIHAN_CONFIG_PATH`；宿主按该目录装载并监听文件（P3-12 实现）。
+- `config` 把列出的文件做成 ConfigMap 挂到 `mountPath`，并设环境变量 `XIHAN_CONFIG_PATH`；宿主按该目录装载并监听文件（P3-12 实现）。目录里的文件是部署侧的文件配置，紧接 `appsettings.{环境}.json` 插入，位置见下文「挂载的配置目录」。
 - `leader.lease` 为调度器的 Lease 名：生成 ServiceAccount 与只含 `coordination.k8s.io/leases` 的 Role，并设 `XiHan:Scheduling:Kubernetes:Lease`（`Scheduling.Kubernetes` 随 P3-12 提供）。
+
+## 挂载的配置目录
+
+宿主（`Hosting.AspNetCore`、`Hosting.CommandLine`）的 `AddXiHan` 在装配内核之前处理 `XIHAN_CONFIG_PATH` 指向的目录：
+
+1. 只取顶层 `*.json`，跳过以 `.` 开头的条目（ConfigMap 的 `..data` 等）；`appsettings.json` 最先，其余按文件名序数随后，后者覆盖前者。目录不存在或环境变量为空时什么都不加。
+2. 这些文件以 `reloadOnChange` 装载，紧接构建器里最后一个 appsettings 文件源（`appsettings.json` 或 `appsettings.{环境}.json`，按文件名认，不区分大小写）插入。默认构建器的配置源因此从低到高是：`appsettings.json` → `appsettings.{环境}.json` → 挂载目录里的文件 → 用户机密（仅开发环境）→ 环境变量 → 命令行参数 → 应用自己添加的配置源（远程配置、密钥等）；后者覆盖前者。挂载文件覆盖 appsettings，环境变量与命令行覆盖挂载文件——Dockerfile 与 Deployment 以环境变量写的 `XiHan__Kernel__StopTimeoutSeconds` 不会被 ConfigMap 里的同名键改掉。
+3. 构建器里没有 appsettings 文件源（应用关掉了默认配置）时追加在末尾，顺序由应用自己组织。
+4. 文件列表在启动时确定，运行中新增的文件要重启才装载；已装载文件的内容变化触发重载令牌。
 
 ## 产物
 
