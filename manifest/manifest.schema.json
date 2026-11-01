@@ -96,7 +96,7 @@
             "schema": { "type": "string" }
           }
         },
-        "permissions": { "type": "array", "items": { "type": "string" }, "description": "此包定义的权限码" },
+        "permissions": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$" }, "uniqueItems": true, "description": "此包定义的权限码（RFC-0008 权限码文法）；插件的由宿主在登记它的代理操作时一并登记（plugin/invocation.md §1）" },
         "health": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9.-]*$" } }
       }
     }

@@ -113,7 +113,7 @@ enum MiddlewareAction {
 ### 7. 发现与宿主配置
 
 - 插件目录含 `xihan.manifest.json` 与 `.wasm`；宿主按 `XiHan:Plugins:Wasm:Directories` 发现，`Grants:<清单 ID>` 授予权限，`Mounts:<清单 ID>:<客体路径>` 映射文件系统；握手核对规则与 `handshake.md` §3 相同（清单一致、操作在 `contributes.operations`、健康项在 `contributes.health`、中间件在 `contributes.pipeline`）。
-- 发现在配置阶段同步完成（与进程外插件一致），代理操作、消息目录、订阅与中间件据此登记；中间件必须在管道构建前登记，所以 Wasm 插件不支持运行期加载贡献中间件的插件（`LoadAsync` 对含 `contributes.pipeline` 的清单返回 `PLUGINS_VALIDATION_005`）。
+- 发现在配置阶段同步完成（与进程外插件一致），代理操作连同清单声明的权限码（`plugin/invocation.md` §1）、消息目录、订阅与中间件据此登记；中间件必须在管道构建前登记，所以 Wasm 插件不支持运行期加载贡献中间件的插件（`LoadAsync` 对含 `contributes.pipeline` 的清单返回 `PLUGINS_VALIDATION_005`）。
 
 ## 错误码
 

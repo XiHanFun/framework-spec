@@ -42,7 +42,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `KERNEL_TIMEOUT_001` | 调用超过截止时间 |
 | `KERNEL_CANCELLED_001` | 调用被取消 |
 | `KERNEL_UNEXPECTED_001` | 调用期间发生未处理异常 |
-| `KERNEL_SECURITY_001` | 权限码重复 |
+| `KERNEL_SECURITY_001` | 权限码重复：特性重复登记，或插件清单声明的权限码与已登记的重复（宿主特性定义的或另一个插件声明的；插件整体登记失败，ADR-0080） |
 | `KERNEL_SECURITY_002` | 权限注册表已满 |
 | `KERNEL_NOTFOUND_001` | 操作未登记 |
 | `KERNEL_VALIDATION_001` | 操作载荷不合法（非 JSON、null 或类型不匹配） |
