@@ -18,7 +18,7 @@
 6. 命令行参数
 7. 应用自己添加的配置源，按添加顺序（本 RFC 的远程配置与密钥适配器在此）
 
-框架的选项与资源绑定在 `AddXiHan` 时读取，远程配置与密钥的配置源必须在它之前加入。
+框架的选项与资源绑定在 `AddXiHan` 时读取，远程配置与密钥的配置源必须在它之前加入。资源绑定给出的连接信息覆盖 Provider 配置节里的同类键（RFC-0016「资源绑定与配置节」）。
 
 ## 能力
 
@@ -50,7 +50,7 @@
 - 版本是内容的 MD5（小写十六进制），与 Nacos 监听接口的约定一致：监听时服务端拿报来的值与它存的内容 MD5（按 UTF-8 编码计算）逐字比较。取配置响应的 `Content-MD5` 头（HTTP 上它是内容头）原文；没有这个头时按同样的算法自己算，不得换成别的摘要，否则监听永远报告变化、退化成普通轮询。`knownVersion` 非空时先以该 MD5 长轮询监听（`LongPollTimeout`，默认 30 秒），服务端报告变化才取整份文档，窗口到期或取消返回无值。
 - 文档格式 `Format`：`Json`（默认，对象按 `A:B` 展平、数组按下标、`null` 保留为空值）或 `Properties`（`a.b=c` → `a:b`，`#` / `!` 行是注释）。
 - 配置构建期的入口 `AddXiHanNacos(options, remote)` 经工厂重载自建客户端（自带 `HttpClient`），随配置根释放；运行期由特性登记进容器的客户端归容器。
-- 配置了 `Username` / `Password` 时先登录取 `accessToken`，到期前自动续；`ServerAddresses` 可以是多个地址，按序尝试。
+- 配置了 `Username` / `Password` 时先登录取 `accessToken`，到期前自动续；`ServerAddresses` 可以是多个地址，按序尝试。可选绑定 `nacos`（`configuration:remote`）的主值覆盖 `ServerAddresses`，其余键照读配置节（RFC-0016「资源绑定与配置节」）。
 - 地址的路径是 Nacos 的上下文路径（`server.servlet.contextPath`，经网关转发时连同网关的前缀），接口路径（`/v1/cs/configs`、`/v1/cs/configs/listener`、`/v1/auth/login`）接在它后面；地址没有路径（或只有 `/`）时用 Nacos 的缺省上下文路径 `/nacos`。`http://host:8848` 与 `http://host:8848/nacos` 等价。
 
 ## 一致性

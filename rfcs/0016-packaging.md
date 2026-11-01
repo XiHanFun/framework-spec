@@ -1,6 +1,6 @@
 # RFC-0016 应用清单与打包
 
-> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
+> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
 
 ## 摘要
 
@@ -16,6 +16,26 @@
 - `probes` 映射为 startup / readiness / liveness 探针，路径固定为宿主的 `/health/startup`、`/health/ready`、`/health/live`。
 - `config` 把列出的文件做成 ConfigMap 挂到 `mountPath`，并设环境变量 `XIHAN_CONFIG_PATH`；宿主按该目录装载并监听文件（P3-12 实现）。目录里的文件是部署侧的文件配置，紧接 `appsettings.{环境}.json` 插入，位置见下文「挂载的配置目录」。
 - `leader.lease` 为调度器的 Lease 名：生成 ServiceAccount 与只含 `coordination.k8s.io/leases` 的 Role，并设 `XiHan:Scheduling:Kubernetes:Lease`（`Scheduling.Kubernetes` 随 P3-12 提供）。
+
+## 资源绑定与配置节
+
+绑定（`SERVICE_BINDING_ROOT` 目录或 `XiHan:Bindings:<名字>`，内核 `BindingResolver` 解析）来自部署环境，Provider 的配置节来自应用。两者给出同一项连接信息时：
+
+1. 绑定给出的连接信息覆盖配置节里的同类键；绑定没给出的键（前缀、超时、分组、凭据等其余设置）照读配置节。
+2. 绑定的主值为空或只有空白时不算给出了连接，照读配置节；绑定与配置节都没有连接时装配失败（`ArgumentException`），不静默退回缺省地址。
+3. 绑定整体来自一个来源（目录或配置节），同名时配置节整体覆盖目录来源，不逐属性合并（RFC-0002 的绑定解析）。
+
+框架 Provider 的对照：
+
+| Provider | 绑定（类型） | 主值覆盖 | 属性覆盖 |
+| --- | --- | --- | --- |
+| `Caching.Redis` | `cache`（`cache:distributed`） | `XiHan:Caching:Redis:Configuration` | — |
+| `Messaging.RabbitMQ` | `queue`（`queue`） | `XiHan:Messaging:RabbitMQ:Configuration` | — |
+| `Messaging.Kafka` | `stream`（`stream`） | `XiHan:Messaging:Kafka:BootstrapServers` | — |
+| `Configuration.Nacos` | `nacos`（`configuration:remote`） | `XiHan:Configuration:Nacos:ServerAddresses` | — |
+| `ObjectStorage.S3` | `objectstorage`（`blob`） | `XiHan:ObjectStorage:S3:ServiceUrl` | `region`、`accessKey`、`secretKey`、`forcePathStyle` 覆盖同名键 |
+
+持久化 Provider（EF Core、SqlSugar）不从配置节读连接，绑定原样交给应用传入特性的配置委托。命名存储实例不读绑定（RFC-0012）。
 
 ## 挂载的配置目录
 
