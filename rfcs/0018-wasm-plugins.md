@@ -19,7 +19,7 @@ Wasm 插件是 `xihan.plugin.v1` 的第二种载体：**同一套消息（`plugi
 - 目标 `wasm32`，WASI preview 1（`wasi_snapshot_preview1`）reactor：可选导出 `_initialize`（有则实例化后调用一次）；导出 `_start` 的命令式模块不被接受。
 - 导出 `memory`（线性内存），宿主经它读写消息。
 - 不启用 threads、SIMD 以外的实验性提案；bulk memory、multi-value、reference types 按 wasmtime 默认开启。
-- 一个插件一个模块；宿主在加载时编译（可缓存编译结果），每个插件一个长期存活的实例（见 §5）。
+- 一个插件一个模块；宿主每次加载时编译（不缓存编译结果，见「非目标与未决」），每个插件一个长期存活的实例（见 §5）。
 
 ### 2. 编码与内存约定
 
@@ -114,7 +114,6 @@ enum MiddlewareAction {
 
 - 插件目录含 `xihan.manifest.json` 与 `.wasm`；宿主按 `XiHan:Plugins:Wasm:Directories` 发现，`Grants:<清单 ID>` 授予权限，`Mounts:<清单 ID>:<客体路径>` 映射文件系统；握手核对规则与 `handshake.md` §3 相同（清单一致、操作在 `contributes.operations`、健康项在 `contributes.health`、中间件在 `contributes.pipeline`）。
 - 发现在配置阶段同步完成（与进程外插件一致），代理操作、消息目录、订阅与中间件据此登记；中间件必须在管道构建前登记，所以 Wasm 插件不支持运行期加载贡献中间件的插件（`LoadAsync` 对含 `contributes.pipeline` 的清单返回 `PLUGINS_VALIDATION_005`）。
-- 编译缓存：`CacheDirectory` 非空时把编译产物按模块哈希缓存，二次加载免编译。
 
 ## 错误码
 
@@ -140,5 +139,5 @@ enum MiddlewareAction {
 
 ## 非目标与未决
 
-- **非目标（v1）**：组件模型 / WIT（待 wasmtime-dotnet 提供宿主侧组件绑定后以 ABI v2 引入，届时 `xihan_abi_version` 返回 2 并以 WIT 世界 `xihan:plugin` 替代导出表）；流式操作；多实例并发；`net.outbound`（WASI 套接字属 preview 2）；中间件访问或改写载荷；热重载；燃料计量（epoch 足够）。
-- **未决**：中间件是否允许按贡献项配置失败即放行；编译缓存的失效策略；是否允许插件声明所需的最小内存上限（清单字段）；`.wat` 是否进入规范（倾向不进入）。
+- **非目标（v1）**：组件模型 / WIT（待 wasmtime-dotnet 提供宿主侧组件绑定后以 ABI v2 引入，届时 `xihan_abi_version` 返回 2 并以 WIT 世界 `xihan:plugin` 替代导出表）；流式操作；多实例并发；`net.outbound`（WASI 套接字属 preview 2）；中间件访问或改写载荷；热重载；燃料计量（epoch 足够）；编译缓存（宿主每次加载都重新编译模块，不提供 `CacheDirectory` 之类的落盘缓存；原稿 §7 的 `CacheDirectory` 从未实现，已删去，需要时另起 RFC，连同失效策略一并规定）。
+- **未决**：中间件是否允许按贡献项配置失败即放行；是否允许插件声明所需的最小内存上限（清单字段）；`.wat` 是否进入规范（倾向不进入）。
