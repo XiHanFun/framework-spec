@@ -1,6 +1,6 @@
 # RFC-0013 调度与领导选举
 
-> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发），2026-11-01 修订（ADR-0074：调度器启动之前的手动触发同样不可用、一致性套件由用例推进时钟并主动轮询） | 对应 ADR：ADR-0020、ADR-0074 | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance`
+> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发），2026-11-01 修订（ADR-0074：调度器启动之前的手动触发同样不可用、一致性套件由用例推进时钟并主动轮询；ADR-0082：运行查询的分页越界返回校验错误） | 对应 ADR：ADR-0020、ADR-0074、ADR-0082 | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance`
 
 ## 摘要
 
@@ -46,7 +46,7 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 - `EnqueueAsync(requests[])`：插入一个立即到期的一次性触发器（名 `manual-<id>`），由集群中任一节点运行，不等待；返回触发器名。
 - `CancelRunsAsync(runIds[])`：请求取消运行——本实例的运行立即取消其令牌，其他节点的运行在下一个轮询周期取消；不在运行中 → `SCHEDULING_NOTFOUND_004`。取消的运行记为 `Canceled`，等待它的手动触发得到 `SCHEDULING_CONFLICT_003`。
 - `StatusAsync(name)` / `StatusesAsync()`：`JobStatus`（作业记录、是否暂停、每个触发器的状态与下一次 / 上一次运行时刻与次数、运行中数量、最近一次完成的运行与结果）。
-- `RunsAsync(query)`：运行历史（按作业、状态、时间范围、触发器名、执行节点、有无错误，分页，计划时刻降序）；`CountRunsAsync(query)` 给出同一组过滤项下的总数（不看分页），管理界面分页用（ADR-0053）。
+- `RunsAsync(query)`：运行历史（按作业、状态、时间范围、触发器名、执行节点、有无错误，分页，计划时刻降序）；`CountRunsAsync(query)` 给出同一组过滤项下的总数（不看分页），管理界面分页用（ADR-0053）。`JobRunQuery` 的分页（`Skip` ≥ 0、`Limit` 1～`MaxLimit`（1000），默认 0 与 100）不在构造时抛出：越界时 `RunsAsync` 返回 `SCHEDULING_VALIDATION_002`（HTTP 400，消息键 `scheduling.run.query_page_invalid`，参数 `skip`、`limit`、`max`），不进存储——查询常由请求绑定，越界是调用方可以改正的输入（2026-11-01 修订，ADR-0082）；`CountRunsAsync` 不看分页，不校验。存储收到的查询由调度器校验过。
 
 调度器在应用进入服务状态之前不按计划运行；启动后首个周期把代码登记的作业写入存储：
 

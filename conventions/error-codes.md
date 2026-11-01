@@ -147,6 +147,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `OBJECTSTORAGE_VALIDATION_002` | 完成分片上传时的分片清单不合法 |
 | `OBJECTSTORAGE_VALIDATION_003` | 命名存储实例的定义不合法（Provider 未登记或设置不合法） |
 | `OBJECTSTORAGE_VALIDATION_004` | 缺省存储的能力选择不一致：存储包被要求提供 `objectstorage.multipart` 或 `objectstorage.presign`（有清单依赖该能力，或 `XiHan:Providers` / `UseProvider` 指定了它），却没有被选为 `objectstorage.blob`（装配错误，以异常抛出，启动失败）；只是兜底选出的不报错，存储包按被顶替处理 |
+| `OBJECTSTORAGE_VALIDATION_005` | 列举的页大小（`BlobQuery.PageSize`）不在 1 到 1000 之间（参数 `pageSize`、`max`；不在构造时抛出，各 Provider 列举时以结果返回，HTTP 400） |
 | `OBJECTSTORAGE_DENIED_001` | 预签名地址无效或已过期 |
 | `OBJECTSTORAGE_CONFLICT_001` | 对象已存在且不允许覆盖 |
 | `OBJECTSTORAGE_UNAVAILABLE_001` | 对象存储不可达或 IO 失败 |
@@ -157,6 +158,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `SCHEDULING_NOTFOUND_004` | 运行不存在或已结束 |
 | `SCHEDULING_NOTFOUND_005` | 作业没有代码定义（不能恢复为代码定义） |
 | `SCHEDULING_VALIDATION_001` | 作业定义不合法（触发器名重复、日历未登记、计划不合法） |
+| `SCHEDULING_VALIDATION_002` | 运行历史查询的分页越界：`Skip` 为负或 `Limit` 不在 1 到 1000 之间（参数 `skip`、`limit`、`max`；不在构造时抛出，`RunsAsync` 以结果返回，HTTP 400） |
 | `SCHEDULING_CONFLICT_001` | 作业正在运行且不允许并发 |
 | `SCHEDULING_CONFLICT_002` | 领导租约被其他持有者占用 |
 | `SCHEDULING_CONFLICT_003` | 运行被取消（`CancelRunsAsync` 或宿主停止） |
@@ -185,7 +187,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `MULTITENANCY_UNAVAILABLE_001` | 租户存储容量已满 |
 | `MULTITENANCY_UNAVAILABLE_002` | 租户分片无法解析（租户存储不可达） |
 | `WORKFLOW_VALIDATION_001` | 工作流定义不合法（`details.errors` 列出全部问题） |
-| `WORKFLOW_VALIDATION_002` | 启动或恢复的输入不合法（缺必填变量、子流程深度超限、任务结果不在允许范围、跳转目标不存在、迁移目标不兼容、外部任务领取的锁时长或条数越界、待办查询缺条件或分页越界） |
+| `WORKFLOW_VALIDATION_002` | 启动或恢复的输入不合法（缺必填变量、子流程深度超限、任务结果不在允许范围、跳转目标不存在、迁移目标不兼容、外部任务领取的锁时长或条数越界、待办查询缺条件或分页越界、实例查询的分页或清理的条数越界） |
 | `WORKFLOW_VALIDATION_003` | 表达式语法不合法或求值失败 |
 | `WORKFLOW_NOTFOUND_001` | 工作流定义不存在、没有已发布版本，或在调用方之外的分区（平台与各租户互不可见），或建定义时写了别的租户 |
 | `WORKFLOW_NOTFOUND_002` | 工作流实例不存在，或在调用方之外的分区 |
