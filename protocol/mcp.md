@@ -50,4 +50,4 @@ stdio 传输（命令行宿主的 `mcp` 命令：客户端启动服务端进程�
 - 通知（没有 `id` 的消息，如 `notifications/initialized`）与客户端发来的响应（有 `result` / `error` 而无 `method`）不答复：HTTP 202，无正文。
 - `POST <pattern>`（默认 `/mcp`）一条消息一个答复，`Content-Type: application/json; charset=utf-8`；不开 SSE 流，不建会话（不发 `Mcp-Session-Id`）；`GET` / `DELETE` 为 405。
 - Streamable HTTP 的请求凭据由宿主在外层认证：凭据无效时整个请求以 Problem Details 拒绝（401 `SECURITY_DENIED_003`，带 `WWW-Authenticate` 质询，见 `protocol/http.md`），不进入 JSON-RPC；应用未就绪时 503。按契约的授权在每个 `tools/call` 的管道里判定，未授权是 `isError` 结果。
-- stdio：stdin 每行一条消息（空行跳过），答复是一行紧凑 JSON 写到 stdout，通知与客户端发来的响应不答复；stdin 关闭即结束会话，命令以 0 退出。日志只写 stderr。消息顺序处理，一条处理完再读下一条。
+- stdio：stdin 每行一条消息（空行跳过），答复是一行紧凑 JSON 写到 stdout，通知与客户端发来的响应不答复；stdin 关闭即结束会话，命令以 0 退出。日志只写 stderr。消息顺序处理，一条处理完再读下一条。`mcp` 命令把 stdin 的字节按 UTF-8 解码（开头的 UTF-8 BOM 不算内容），与控制台代码页无关——Windows 上重定向的标准输入若按控制台输入代码页（如 936、437）解码，非 ASCII 的参数会成乱码；答复只含 ASCII 字符（JSON 里的非 ASCII 字符一律转义为 `\uXXXX`），按任何兼容 ASCII 的控制台输出代码页写出都是同样的字节，即合法的 UTF-8（ADR-0083）。
