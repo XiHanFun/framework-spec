@@ -64,6 +64,7 @@ Wasm 插件与进程外插件共用同一套消息；本文只定义载体：模
 - 状态机同 `lifecycle.md`：实例化（含 `_initialize`）+ `xihan_handshake` → `Resolved`；`xihan_configure` → `Configured`；`xihan_start` → `Started` → `Ready`；健康轮询 `xihan_health`；`xihan_stop` 后丢弃实例 → `Stopped`。
 - 崩溃：任何陷阱或 `xihan_*` 返回 `0`：插件 `Failed`（`PLUGINS_UNEXPECTED_002`，细节含陷阱种类），宿主 `Degraded`，按 `lifecycle.md` §6 退避重建实例并重走握手、配置、启动；重建后的握手声明必须与首次一致。
 - 发现时被拒（清单、权限、模块文件不存在）同 `lifecycle.md` §1：以 `Failed` 登记、是健康条目、记日志、不重试。
+- 代理操作的登记同 `invocation.md` §1：一个插件的操作全进或全不进，与已有操作重名或引用了宿主未登记的权限码，配置阶段发现的启动失败，运行期 `LoadAsync` 返回失败、不留下任何代理操作。
 - 激活：`onStartup` 加载时实例化并启动；`onOperation:` / `onEvent:` 在加载时实例化、握手后丢弃实例，首次调用或投递时再实例化。
 - 宿主进程：wasmtime 的陷阱处理与 Windows 用户态影子栈（CET）冲突，影子栈强制时陷阱会让进程 fail-fast；.NET 宿主的可执行项目必须设置 `<CETCompat>false</CETCompat>`，宿主在创建引擎前检测并以 `PLUGINS_UNAVAILABLE_003` 拒绝。
 - 每个插件是宿主的健康条目 `plugins.<清单 ID>`。

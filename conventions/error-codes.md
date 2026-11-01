@@ -49,6 +49,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `KERNEL_VALIDATION_002` | 类型化调用的请求或响应类型与登记不符 |
 | `KERNEL_VALIDATION_003` | 请求不满足操作契约的 JSON Schema（类型、必填、枚举、范围、长度、模式、元素数）；Validate 阶段拒绝，不进 Handle |
 | `KERNEL_VALIDATION_004` | 请求对象的自校验（`IValidatableObject`）失败；Validate 阶段拒绝，不进 Handle |
+| `KERNEL_VALIDATION_005` | 操作契约引用了未登记的权限码：装配完成时以 `FrameworkException` 抛出、启动失败（一次列出全部）；装配之后登记的操作（插件握手之后）在登记时返回，插件整体登记失败（RFC-0008，ADR-0071） |
 | `KERNEL_OPERATION_001` | 操作 ID 重复登记 |
 | `KERNEL_OPERATION_002` | 操作登记表已满 |
 | `PLUGINS_VALIDATION_001` | 插件清单、种类或隔离级别不合法 |
@@ -103,7 +104,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `SECURITY_VALIDATION_001` | 不支持的认证方案或凭据格式不合法 |
 | `SECURITY_VALIDATION_002` | 条件无效：子句编译出错（属性未登记、运算符与值种类不搭配、条件值解析不了） |
 | `SECURITY_VALIDATION_003` | 条件属性的值不是登记的值种类 |
-| `SECURITY_NOTFOUND_001` | 策略不存在或权限码未登记 |
+| `SECURITY_NOTFOUND_001` | 策略不存在：按名给出的策略（契约的 `policy`、端点元数据、显式要求）未登记，或其中 `permission:<code>` 的权限码未登记；操作契约的权限码在装配时核对（`KERNEL_VALIDATION_005`） |
 | `SECURITY_NOTFOUND_002` | 要撤销的授予不存在 |
 | `SECURITY_NOTFOUND_003` | 取不到条件属性的值 |
 | `PROTOCOLS_VALIDATION_001` | MCP：消息不是合法的 JSON 或不是合法的 JSON-RPC 2.0 请求 |
