@@ -1,6 +1,6 @@
 # RFC-0013 调度与领导选举
 
-> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发），2026-11-01 修订（ADR-0074：调度器启动之前的手动触发同样不可用、一致性套件由用例推进时钟并主动轮询；ADR-0082：运行查询的分页越界返回校验错误） | 对应 ADR：ADR-0020、ADR-0074、ADR-0082 | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance`
+> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发），2026-11-01 修订（ADR-0074：调度器启动之前的手动触发同样不可用、一致性套件由用例推进时钟并主动轮询；ADR-0082：运行查询的分页越界返回校验错误；ADR-0091：应用不在服务状态时不持有领导租约、数据库实现的租约释放不经管道） | 对应 ADR：ADR-0020、ADR-0074、ADR-0082、ADR-0091 | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance`
 
 ## 摘要
 
@@ -48,7 +48,7 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 - `StatusAsync(name)` / `StatusesAsync()`：`JobStatus`（作业记录、是否暂停、每个触发器的状态与下一次 / 上一次运行时刻与次数、运行中数量、最近一次完成的运行与结果）。
 - `RunsAsync(query)`：运行历史（按作业、状态、时间范围、触发器名、执行节点、有无错误，分页，计划时刻降序）；`CountRunsAsync(query)` 给出同一组过滤项下的总数（不看分页），管理界面分页用（ADR-0053）。`JobRunQuery` 的分页（`Skip` ≥ 0、`Limit` 1～`MaxLimit`（1000），默认 0 与 100）不在构造时抛出：越界时 `RunsAsync` 返回 `SCHEDULING_VALIDATION_002`（HTTP 400，消息键 `scheduling.run.query_page_invalid`，参数 `skip`、`limit`、`max`），不进存储——查询常由请求绑定，越界是调用方可以改正的输入（2026-11-01 修订，ADR-0082）；`CountRunsAsync` 不看分页，不校验。存储收到的查询由调度器校验过。
 
-调度器在应用进入服务状态之前不按计划运行；启动后首个周期把代码登记的作业写入存储：
+调度器在应用不在服务状态时（进入服务状态之前、开始排空之后）不按计划运行，领导租约也不拿不续，持有就立即释放（见「引擎」第 1 步）；进入服务状态后首个周期把代码登记的作业写入存储：
 
 - `ScheduleAsync`、`RestoreAsync`、`UnscheduleAsync` 与 `TriggerAsync`、暂停 / 恢复一样，先把代码作业写进存储：宿主刚启动、首个轮询周期之前的修改也按下面的规则判定来源（ADR-0060）。
 - 每个代码作业记下代码定义的指纹 `CodeFingerprint`（类型键、数据、标志、重试策略与执行时限（设置了才计入）与各触发器的 SHA-256）。
@@ -72,7 +72,7 @@ Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 �
 
 `JobSchedulerEngine`（抽象包，Provider 装配并启停）每个 `PollInterval`（默认 1 秒）执行一个周期：
 
-1. 心跳（`IsShared` 时）；尝试获取或续约领导租约（`LeaseResource`，默认 `scheduling.jobs`）。
+1. 应用不在服务状态（启动中、排空中）的周期什么也不做，只释放持有的领导租约：排空要等依赖调度的特性逐个停完，这期间续着租约，在服务的另一个实例就拿不到，失联恢复与历史清理停在原地；释放后它下一个周期接手，不等租约到期（2026-11-01 修订，ADR-0091）。在服务状态时：心跳（`IsShared` 时）；尝试获取或续约领导租约（`LeaseResource`，默认 `scheduling.jobs`）。调度器停止时也释放持有的租约。
 2. 领导者每 `HousekeepingInterval`（默认 60 秒）做一次维护：心跳超过 `NodeTimeout`（默认 90 秒）的节点视为失联并恢复，`RequestsRecovery` 的失联运行以 `Recovery` 触发重新入队；删除早于 `HistoryRetention`（默认 7 天，0 = 不删）的历史。
 3. 取消：本节点被请求取消的运行取消其令牌。
 4. 抢占：本周期的名额 = `min(AcquireBatchSize, MaxConcurrentRuns − 本节点运行中数量)`（默认 16 与 32），不大于 0 时本周期不抢占；`AcquireDueAsync(now, 名额, nodeId)`。对每条：作业暂停或类型未登记 → 触发器改为 `Paused` / `Error`；misfire 按策略；`TryBeginRunAsync` 失败（不允许并发且上一次未结束）→ `BlockTriggerAsync` 把触发器存为 `Blocked`，上一次结束时自动回到 `Waiting` 并按 misfire 策略处理（上一次恰在两步之间结束则直接回到 `Waiting`，下个周期再抢占）；否则推算下一次（cron / 一次性从计划时刻推算并立刻回到 `Waiting`，间隔计划完成后再推算，次数用尽或超过 `EndAt` → `Complete`）并在后台运行。间隔触发器在运行结束时先写下一次时刻（仍由本节点持有），运行标为完成、占用释放之后才回到 `Waiting`：状态里不会出现「已不在运行、也没有下一次」的空档，别的节点也不会在本次运行结束前抢到它、再因占用未释放把它阻塞（ADR-0062）。同一节点上对触发器的读改写（抢占后运行、结束时推算、暂停与恢复、登记与删除）互斥，抢占到的触发器在互斥内按存储里的当前状态重读，暂停等写入不会被随后的写回覆盖。
@@ -83,13 +83,13 @@ Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 �
 ## 领导选举
 
 - `ILeaderElection.TryAcquire(resource, ttl)`：空闲（或租约已过期）时授予 `LeaderLease`；被持有返回 `SCHEDULING_CONFLICT_002`。
-- `LeaderLease.Renew()` 延长 `ttl`；`Release()` 立即放弃；过期后他人可获取，原持有者续约失败。不可重入。持有者标识是实例身份（进程内实现每次获取生成新值，Kubernetes 实现是 Pod 名，数据库实现是节点 ID）。
+- `LeaderLease.Renew()` 延长 `ttl`；`Release()` 立即放弃，应用不在服务状态时也必须生效（引擎在排空中的周期与停止时释放，ADR-0091）；过期后他人可获取，原持有者续约失败。不可重入。持有者标识是实例身份（进程内实现每次获取生成新值，Kubernetes 实现是 Pod 名，数据库实现是节点 ID）。
 - Provider：`Scheduling.InMemory`（进程内）、`Scheduling.Kubernetes`（`coordination.k8s.io` Lease，直接调用 API Server；存活时间按秒向上取整写入，API Server 不可达 → `SCHEDULING_UNAVAILABLE_002`）、`Scheduling.Database`（租约行，并发戳 CAS 接管）。
 
 ## Provider
 
 - `Scheduling.InMemory`（`role: default`）：`InMemoryJobStore`（进程内，历史上限 `XiHan:Scheduling:InMemory:MaxRuns` 默认 1000，超出丢弃最旧）、进程内领导选举、装配引擎。单进程；多实例部署请换数据库实现，或保留内存存储并换 `Scheduling.Kubernetes` 的领导选举（此时集群唯一的作业只在领导者上运行）。
-- `Scheduling.Database`（`role: provider`，依赖 `persistence.relational@1`）：作业、触发器、运行、节点、租约五张表经仓储读写，每个存储操作在自己的管道调用（Transaction 阶段）里提交，抢占与租约接管依赖并发戳 CAS；节点 ID `XiHan:Scheduling:NodeId`（默认机器名 + 进程 ID + 随机）。多实例部署下作业在节点间分发：每条到期触发器由先抢到的节点运行，不允许并发的作业全集群串行。
+- `Scheduling.Database`（`role: provider`，依赖 `persistence.relational@1`）：作业、触发器、运行、节点、租约五张表经仓储读写，每个存储操作在自己的管道调用（Transaction 阶段）里提交，抢占与租约接管依赖并发戳 CAS；唯一的例外是租约的释放：它发生在应用不在服务状态的时候（排空中的周期、调度器停止），管道已拒绝调用，所以不经管道，在根提供者的新作用域里开可写工作单元删行后提交（ADR-0091）；节点 ID `XiHan:Scheduling:NodeId`（默认机器名 + 进程 ID + 随机）。多实例部署下作业在节点间分发：每条到期触发器由先抢到的节点运行，不允许并发的作业全集群串行。
 
 引擎选项（`XiHan:Scheduling`）：`PollIntervalSeconds`（1）、`NodeId`、`MaxConcurrentRuns`（32）、`AcquireBatchSize`（16，一个周期最多抢占的触发器数）、`MisfireThresholdSeconds`（60）、`LeaseResource`（`scheduling.jobs`）、`LeaseTimeToLiveSeconds`（30）、`NodeTimeoutSeconds`（90）、`HousekeepingIntervalSeconds`（60）、`HistoryRetentionDays`（7）。
 
