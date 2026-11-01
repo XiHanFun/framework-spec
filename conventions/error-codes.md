@@ -85,7 +85,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_UNAVAILABLE_003` | 存储不可达 |
 | `PERSISTENCE_UNAVAILABLE_004` | 雪花标识生成器的时钟回拨超过容忍阈值（以异常抛出；调用里由 `SnowflakeIdFeature` 的中间件转为结果，HTTP 503） |
 | `PERSISTENCE_UNAVAILABLE_005` | 雪花标识生成器没有可用的机器位：未配置且容器里没有分布式锁、1024 个机器位都被占用、租约尚未取得或已丢失（启动期与生成时以异常抛出，调用里由 `SnowflakeIdFeature` 的中间件转为结果、HTTP 503，健康项以结果上报） |
-| `PERSISTENCE_UNAVAILABLE_006` | 数据源连不上或读取失败：运行时数据源的测试连接、健康探测（条目 Degraded），缺省连接与运行时数据源的库结构读取；参数 `name`、`reason`（驱动消息，连接串与口令类键的值已换成 `***`） |
+| `PERSISTENCE_UNAVAILABLE_006` | 数据源连不上或读取失败：运行时数据源的测试连接、健康探测（条目 Degraded），缺省连接与运行时数据源的库结构读取（含 Oracle 11g 及更早版本上的读列：数据字典没有 `IDENTITY_COLUMN`，不支持）；参数 `name`、`reason`（驱动消息，连接串与口令类键的值已换成 `***`） |
 | `PERSISTENCE_UNAVAILABLE_007` | 运行时数据源登记已满（`XiHan:Persistence:DataSources:MaxCount`）；不淘汰已有的，替换同名的不占名额 |
 | `PERSISTENCE_UNAVAILABLE_008` | 当前的持久化 Provider 不支持该能力：运行时数据源与库结构读取（EF Core 与内存实现）；命名连接（内存实现：实体登记到命名连接在装配时、绑定连接的工作单元在 `BeginAsync` 以异常抛出；EF Core：普通工作单元里取用登记到命名连接的实体，以异常抛出——一个 DbContext 一个连接，那样的实体只能在绑定那个连接的工作单元里读写）；软删除实体声明了唯一索引（要建成部分唯一索引）而所连数据库不支持部分索引——SqlSugar 的 PostgreSQL、SQLite、SQL Server 之外，EF Core 的 Npgsql、SQLite、SQL Server 之外的关系型 Provider——启动时以异常抛出，不退化成普通唯一索引 |
 | `PERSISTENCE_UNEXPECTED_001` | 只读工作单元拒绝写入，是操作实现的缺陷：只读操作（动词 `get` / `list` 或声明了 `ReadOnly`）或以 `IsReadOnly` 开启的工作单元里新增、更新、删除（含批量），以及工作流在只读调用里的写入操作（`IWorkflowTransaction.EnsureWritable`，取锁、执行活动之前）。仓储写入返回结果并把工作单元记为失败（提交返回同一错误）；直接写入入口 `EnsureTransactionAsync` 抛出、由 Transaction 阶段转为同码结果；HTTP 500、gRPC `Internal`、命令行按 UNEXPECTED 的退出码，按操作计入熔断。同一服务作用域里再经管道的嵌套调用仍是 `PERSISTENCE_VALIDATION_002` |
