@@ -26,3 +26,4 @@
 - `PublishManyAsync(topic, envelopes)`（批量优先）：一条沿用上面的模式；多条用 batch 内容模式（`application/cloudevents-batch+json`，结构化事件的数组、顺序同入参）一次 POST，接收方须支持该模式，一个响应对整批生效（逐项结果相同）。
 - 没有配置 → `PROTOCOLS_NOTFOUND_004`；响应非 2xx → `PROTOCOLS_UNAVAILABLE_001`（`status` 在详情里）；连接失败 → `PROTOCOLS_UNAVAILABLE_002`。重试由调用方决定（经发件箱投递即获得至少一次语义）。
 - 使用命名 HttpClient `xihan.protocols.cloudevents`。
+- 不外推内部标识（已定，ADR-0074）：信封按调用方给出的原样发出，Webhook 发布者不像内部发布者（RFC-0009「发布侧补齐」）那样从当前调用补扩展，`xihantenant`、`xihanprincipal`、`xihancorrelation`、`xihanlocale` 与 `traceparent` 都不由框架加上。理由：Webhook 的接收方是第三方，租户 ID、主体 ID、关联 ID 是本系统的内部标识，推出去会暴露内部结构与身份信息，并让第三方依赖本该随时可变的内部 ID；追踪链要不要跨出组织边界也由调用方决定。要给接收方的扩展（包括 `traceparent`）由调用方显式写进信封。

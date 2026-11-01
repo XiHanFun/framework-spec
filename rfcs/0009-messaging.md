@@ -34,6 +34,7 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 - 信封上已有的扩展保持不变：调用方显式设置的值优先。
 - 不在调用内（后台循环、调用之外的作用域）不补。
 - 代理（`IMessageBroker`）与发件箱投递循环不补：发件箱里的信封在写入时已经补齐，投递时原样发出。
+- 推给外部系统的 CloudEvents Webhook 发布者不补，也不外推任何内部标识（`protocol/cloudevents.md`「出站」，ADR-0074）：租户、主体、关联等是本系统的内部标识，不推给第三方。
 
 派发侧按同一张对应表把扩展放进新调用的 Baggage，`traceparent` 合法时成为新调用的追踪 ID、父跨度与采样标志（与 HTTP 入站一致，上游「不采样」原样保留），不合法视为缺失。
 
