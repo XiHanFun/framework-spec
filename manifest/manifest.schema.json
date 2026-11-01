@@ -74,6 +74,7 @@
       "properties": {
         "pipeline": {
           "type": "array",
+          "description": "管道中间件（RFC-0004）；插件里只有 isolation 为 wasm 的能贡献，进程外与进程内插件写了非空的 pipeline 由宿主在发现或加载时拒绝（PLUGINS_VALIDATION_001，plugin/lifecycle.md §1）",
           "items": {
             "type": "object",
             "required": ["middleware", "stage"],

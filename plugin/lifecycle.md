@@ -18,7 +18,7 @@
 
 合法迁移同 `conformance/vectors/primitives/lifecycle-transitions.json`；插件自报的状态只能是 `Started`、`Ready`、`Degraded`、`Draining`、`Failed`，其余由宿主裁决。
 
-**发现时被拒**：宿主在启动任何插件代码之前拒绝的插件——清单读不出、不是插件或隔离级别不符、缺 `entry`（`PLUGINS_VALIDATION_001`），权限未授予（`PLUGINS_DENIED_001`），入口文件不存在（`PLUGINS_NOTFOUND_001`）——不会静默消失：宿主照样以 `Failed` 登记它（带错误、可描述），它是宿主的健康条目 `plugins.<清单 ID>`（清单读不出时没有清单 ID，条目名取 `plugins.<目录名>`），宿主记错误日志，宿主因此进入 `Degraded`（§4）。这些是配置错误，不按 §6 重试：改正后重新加载或重启宿主。按目录发现时如此；宿主在运行期显式加载（`LoadAsync`）时这些失败直接返回给调用方、不登记。
+**发现时被拒**：宿主在启动任何插件代码之前拒绝的插件——清单读不出、不是插件或隔离级别不符、缺 `entry`、清单写了 `contributes.pipeline`（只有 Wasm 插件能贡献中间件，RFC-0017「范围」、RFC-0018；宿主不静默忽略这个字段）（`PLUGINS_VALIDATION_001`），权限未授予（`PLUGINS_DENIED_001`），入口文件不存在（`PLUGINS_NOTFOUND_001`）——不会静默消失：宿主照样以 `Failed` 登记它（带错误、可描述），它是宿主的健康条目 `plugins.<清单 ID>`（清单读不出时没有清单 ID，条目名取 `plugins.<目录名>`），宿主记错误日志，宿主因此进入 `Degraded`（§4）。这些是配置错误，不按 §6 重试：改正后重新加载或重启宿主。按目录发现时如此；宿主在运行期显式加载（`LoadAsync`）时这些失败直接返回给调用方、不登记。
 
 ## 2. 配置与启动
 

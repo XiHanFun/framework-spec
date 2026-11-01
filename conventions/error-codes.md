@@ -52,7 +52,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `KERNEL_VALIDATION_005` | 操作契约引用了未登记的权限码：装配完成时以 `FrameworkException` 抛出、启动失败（一次列出全部）；装配之后登记的操作（插件握手之后）在登记时返回，插件整体登记失败（RFC-0008，ADR-0071） |
 | `KERNEL_OPERATION_001` | 操作 ID 重复登记 |
 | `KERNEL_OPERATION_002` | 操作登记表已满 |
-| `PLUGINS_VALIDATION_001` | 插件清单、种类或隔离级别不合法 |
+| `PLUGINS_VALIDATION_001` | 插件清单、种类或隔离级别不合法，或清单声明了该隔离级别不支持的贡献（进程外与进程内插件写了 `contributes.pipeline`：只有 Wasm 插件能贡献中间件） |
 | `PLUGINS_VALIDATION_002` | 插件入口类型未实现 IPlugin，或实例清单与文件清单不一致 |
 | `PLUGINS_NOTFOUND_001` | 插件清单文件、程序集或入口类型不存在 |
 | `PLUGINS_DENIED_001` | 插件声明的权限未被宿主授予 |

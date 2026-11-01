@@ -13,7 +13,7 @@
 - 卸载撤回登记（ADR-0085）：`UnloadAsync` 按归属（清单 ID）一次撤回插件登记的全部代理操作与权限码（`OperationRegistry.RemoveOwnedBy`：先撤回操作再撤回权限码，与登记一样在登记表的锁里一次完成，与并发的登记互斥；读取不取锁，并发的调用按操作 ID 逐个查找，每个操作要么还登记着、要么已撤回），再停止插件。撤回之后可以直接 `LoadAsync` 同一个插件（同一版本或新版本）重新登记，不用重启宿主；新版本的声明照登记时的规则核对，冲突、重名、引用不存在的权限码或策略照样整组被拒。
   - 卸载后的调用：按操作 ID 查登记表的入口（内核调用器、协议适配器在启动时发布的路由、MCP 工具调用）返回 `KERNEL_NOTFOUND_001`（操作未登记，不进管道）；撤回之前已经查到操作、正在执行的调用照常完成，或在插件停止后以 `PLUGINS_UNAVAILABLE_001` 结束。
   - 引用了被撤回的权限码的其他操作（宿主或别的插件以 `permission` 引用了本插件声明的码）不随之撤回：重新登记这个码之前，它们的授权判定按策略不存在拒绝（`SECURITY_NOTFOUND_001`），不会放行。
-  - Wasm 插件贡献的中间件同样按归属撤回（ADR-0088，`wasm.md` §6）：卸载先把它们撤出管道，之后开始的调用不再经过它们、不因插件已卸载而失败；别的中间件以次序约束引用了它们时卸载被拒（`KERNEL_PIPELINE_003`），什么都不撤。进程外插件不能贡献中间件（RFC-0017），没有要撤回的中间件。
+  - Wasm 插件贡献的中间件同样按归属撤回（ADR-0088，`wasm.md` §6）：卸载先把它们撤出管道，之后开始的调用不再经过它们、不因插件已卸载而失败；别的中间件以次序约束引用了它们时卸载被拒（`KERNEL_PIPELINE_003`），什么都不撤。进程外插件不能贡献中间件（RFC-0017），清单写了 `contributes.pipeline` 的在发现时就被拒（`PLUGINS_VALIDATION_001`，`lifecycle.md` §1），没有要撤回的中间件。
   - 不随卸载撤回的：配置阶段接进容器的订阅与消息目录（卸载后发给该插件的事件不投给任何插件，再加载后恢复；再加载时订阅或消息目录变了，宿主重启后才生效），协议适配器在启动时发布的路由、OpenAPI 文档与 gRPC 方法（路由按操作 ID 转交调用器，再加载后同一 ID 照常可用；路由、Schema 等描述变了，宿主重启后才重新发布）。
   - 首次握手失败、正在按重启策略重试的插件被卸载时，重试停止；卸载之后才完成的握手不再登记（只登记宿主里仍是当前运行时的插件）。
 
@@ -72,4 +72,4 @@
 
 ## 7. 一致性
 
-gRPC 黑盒套件 `XiHan.Framework.Plugins.Conformance`（`PluginProtocolConformance`，任何语言的插件以其构建产物目录继承运行）以本文件、`handshake.md` 与 `lifecycle.md` 为用例来源：握手行与版本协商、无共同版本时拒绝、清单一致性、Configure / Start / Health / WatchHealth / Stop 与宽限内退出、未知操作 `Unimplemented`、声明的操作都返回 `status`、订阅投递确认、stdin 关闭即退出。回调的令牌与权限、崩溃重启由宿主实现的测试覆盖；流式帧序随流式操作契约补充。数据向量见 `conformance/vectors/plugin/`。
+gRPC 黑盒套件 `XiHan.Framework.Plugins.Conformance`（`PluginProtocolConformance`，任何语言的插件以其构建产物目录继承运行）以本文件、`handshake.md` 与 `lifecycle.md` 为用例来源：握手行与版本协商、无共同版本时拒绝、清单一致性（含清单不写 `contributes.pipeline`）、Configure / Start / Health / WatchHealth / Stop 与宽限内退出、未知操作 `Unimplemented`、声明的操作都返回 `status`、订阅投递确认、stdin 关闭即退出。回调的令牌与权限、崩溃重启由宿主实现的测试覆盖；流式帧序随流式操作契约补充。数据向量见 `conformance/vectors/plugin/`。

@@ -1,6 +1,6 @@
 # RFC-0002 清单
 
-> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务；2026-11-01 修订：配置节可带子节；2026-11-01 修订：手写清单，`[Capability]` 生成器顺延；2026-11-01 修订：插件声明的权限码由宿主登记；2026-11-01 修订：选中区分被要求与兜底选出） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点、配置节的子节、生成器顺延）、0080（插件声明的权限码）、0082（被要求的选中） | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
+> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务；2026-11-01 修订：配置节可带子节；2026-11-01 修订：手写清单，`[Capability]` 生成器顺延；2026-11-01 修订：插件声明的权限码由宿主登记；2026-11-01 修订：选中区分被要求与兜底选出；2026-11-01 修订：插件里只有 Wasm 插件能贡献中间件，其他隔离级别写了 `contributes.pipeline` 在发现时被拒） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点、配置节的子节、生成器顺延）、0080（插件声明的权限码）、0082（被要求的选中）、0092（插件的中间件贡献） | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
 
 ## 摘要
 
@@ -21,7 +21,7 @@
 | `provides` | 否 | 提供的能力及接口版本 |
 | `requires` | 否 | 依赖的能力、版本范围、是否可选 |
 | `bindings` | 否 | 需要宿主注入的资源 |
-| `contributes` | 否 | 管道中间件、操作、配置节与 Schema、权限码（`contributes.permissions`，权限码文法同 RFC-0008，不重复；插件的由宿主替它登记，见 `plugin/invocation.md` §1）、健康项；配置节 `contributes.config.section` 是领域节 `XiHan:<领域>`，可再带一层或多层子节（如 `XiHan:Caching:Redis`），文法与写法见下文「配置节」 |
+| `contributes` | 否 | 管道中间件（`contributes.pipeline`；插件里只有 `isolation: wasm` 的能贡献，进程外与进程内插件写了非空的 `contributes.pipeline` 由宿主在发现或加载时拒绝，`PLUGINS_VALIDATION_001`，不静默忽略，见 `plugin/lifecycle.md` §1、RFC-0017、RFC-0018）、操作、配置节与 Schema、权限码（`contributes.permissions`，权限码文法同 RFC-0008，不重复；插件的由宿主替它登记，见 `plugin/invocation.md` §1）、健康项；配置节 `contributes.config.section` 是领域节 `XiHan:<领域>`，可再带一层或多层子节（如 `XiHan:Caching:Redis`），文法与写法见下文「配置节」 |
 | `activation` | 否 | 激活事件，默认 `onStartup` |
 | `permissions` | 插件 | 所需权限，宿主配置授予 |
 | `entry` | 否 | 入口类型 |

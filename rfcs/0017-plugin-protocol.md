@@ -1,6 +1,6 @@
 # RFC-0017 进程外插件协议
 
-> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载） | 日期：2026-10-23 | 对应 ADR：0006、0085 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`（P4-02）；一致性：`XiHan.Framework.Plugins.Conformance`（P4-04） | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md`
+> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：清单写了 `contributes.pipeline` 的插件在发现时被拒，不再静默忽略） | 日期：2026-10-23 | 对应 ADR：0006、0085、0092 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`（P4-02）；一致性：`XiHan.Framework.Plugins.Conformance`（P4-04） | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md`
 
 ## 摘要
 
@@ -9,7 +9,7 @@
 ## 范围
 
 - 隔离级别 `out-of-process`（RFC-0002 清单的 `isolation`）；`in-process` 已由 `Plugins.InProcess` 提供，`wasm` 为 Experimental，不在本文。
-- 插件可贡献操作与事件处理器；不可贡献中间件（中间件在宿主进程内，跨进程调用的延迟与失败语义不适合管道阶段）。
+- 插件可贡献操作与事件处理器；不可贡献中间件（中间件在宿主进程内，跨进程调用的延迟与失败语义不适合管道阶段）。只有 Wasm 插件能贡献中间件（RFC-0018）：清单写了 `contributes.pipeline`（非空）的进程外插件在发现时被拒，`PLUGINS_VALIDATION_001`，按 `lifecycle.md` §1 的发现时被拒处理（不启动进程、以 `Failed` 登记、是健康条目、记错误日志），宿主照常启动；运行期 `LoadAsync` 把同一错误返回给调用方、不登记。宿主不静默忽略这个字段。
 - 任意语言：只需 protobuf、gRPC 与 JSON。
 
 ## 设计
@@ -38,6 +38,7 @@
 
 | 错误码 | 含义 |
 | --- | --- |
+| `PLUGINS_VALIDATION_001` | 发现时被拒：清单读不出、不是进程外插件、缺 `entry`，或清单写了 `contributes.pipeline`（进程外插件不能贡献中间件） |
 | `PLUGINS_VALIDATION_003` | 握手行不合法，或协议版本没有交集 |
 | `PLUGINS_VALIDATION_004` | 握手响应与清单不一致：原语层版本不符、清单字段不同、操作或健康项未在清单声明、声明重复 |
 | `PLUGINS_DENIED_002` | 插件回调的会话令牌无效，或所需权限未在清单声明、未被授予 |
