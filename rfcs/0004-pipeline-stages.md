@@ -1,6 +1,6 @@
 # RFC-0004 管道阶段与排序
 
-> 状态：已采纳（2026-10-28 修订：跨包依赖必须声明约束；2026-11-01 修订：登记入口、归属与容器登记，排序规则与打印格式按参考实现重写；同日再修订：下游把取消写成结果时按触发的令牌归因；同日第三次修订：归因写明为行为变化） | 日期：2026-10-21 | 对应 ADR：0002、0085、0088 | 参考实现：`XiHan.Framework.Kernel.Pipeline.PipelineBuilder`
+> 状态：已采纳（2026-10-28 修订：跨包依赖必须声明约束；2026-11-01 修订：登记入口、归属与容器登记，排序规则与打印格式按参考实现重写；同日再修订：下游把取消写成结果时按触发的令牌归因；同日第三次修订：归因写明为行为变化，新增运行期改动——成组登记、按归属撤回与按版本构建的管道） | 日期：2026-10-21 | 对应 ADR：0002、0085、0088 | 参考实现：`XiHan.Framework.Kernel.Pipeline.PipelineBuilder`
 
 ## 摘要
 
@@ -86,7 +86,22 @@ ingress → observe → resilience → authenticate → tenant → authorize →
 - 按类型登记（`Use<T>`、`UseAt<T>`、`AddMiddleware<T>`）的中间件每次调用从调用作用域解析。构建应用（`AppBuilder.Build`）时内核以单例把它们补登记进容器，应用自己的登记（含 Scoped）不覆盖；不会等到第一次调用才因为没有注册而失败。
 - 按实例登记（`UseInstance`、`UseNamedInstance`）的不进容器，每次调用用同一个实例。
 - 不经 `AppBuilder` 直接构建的 `PipelineBuilder`（工具、测试）由调用方自己注册按类型登记的中间件。
-- 归属只参与阶段内的基准次序（排序规则第 3 条），不表达依赖。
+- 归属参与阶段内的基准次序（排序规则第 3 条），不表达依赖；它也是运行期按归属撤回的键（见「运行期改动」）。
+
+## 运行期改动（2026-11-01 增补，ADR-0088）
+
+应用构建之后，管道可以按归属成组地加进或撤出中间件（Wasm 插件的运行期加载与卸载就这样把它贡献的中间件接进、撤出管道）。规则：
+
+1. 两个入口：`PipelineBuilder.UseOwned(owner, configure)` 在构建器的锁里执行回调、一次登记同一归属的一组中间件与它们的次序约束；`PipelineBuilder.RemoveOwnedBy(owner)` 一次撤回该归属登记的全部中间件（连同挂在它们上面的约束），返回撤回的个数，没有该归属的登记时什么都不做、返回 0。
+2. 全进或全不进、立即核对：`UseOwned` 的回调返回后、`RemoveOwnedBy` 撤回后，立即按排序规则排一次整条管道；约束目标未登记、有歧义、不在同一阶段（`KERNEL_PIPELINE_003`）或成环（`KERNEL_PIPELINE_001`）时整体还原、抛出，管道不变。配置阶段的单项登记仍在构建或打印管道时才解析目标（排序规则第 7 条）；运行期没有「之后再报」的机会，所以立即核对。
+3. 一组一个归属：组内登记的归属都必须是 `owner`，次序约束只能声明在组内的中间件上（目标可以在组外），否则 `KERNEL_PIPELINE_003`。这样 `RemoveOwnedBy` 撤回的恰好是 `UseOwned` 登记的那一组。组不能嵌套，组内不能撤回。
+4. 撤回不留悬空约束：别的归属的中间件以次序约束引用了要撤回的中间件时，`RemoveOwnedBy` 什么都不撤、抛出 `KERNEL_PIPELINE_003`；先撤回引用方。
+5. 应用构建之后（`AppBuilder.Build` 把按类型登记的中间件补登记进容器之后）只能经这两个入口改动管道：单项登记与约束（`Use*`、`Before` / `After`）不立即核对，构建之后这样改会让下一次调用在构建管道时才失败，一律 `KERNEL_PIPELINE_003`；组内也只能按实例登记（`UseInstance` / `UseNamedInstance`），按类型登记的进不了已建好的容器，同样 `KERNEL_PIPELINE_003`。
+6. 管道按版本构建：每次改动使管道版本前进；`App` 在版本没变时复用已构建的委托，改动后的第一次调用在锁里重建（并发的调用只重建一次）。每次调用在进入管道时取一次委托：
+   - 已经取到委托、正在执行的调用按取到时的管道走完——撤回之前已进入管道的调用仍经过被撤回的中间件（被撤回的中间件要自己处理它的后端已停止的情形，Wasm 插件的中间件这时失败即关闭，`PLUGINS_UNAVAILABLE_001`）；成组登记之前已进入管道的调用不经过新登记的中间件。
+   - 改动返回之后开始的调用一定经过改动后的管道：撤回之后不再经过被撤回的中间件，登记之后经过新登记的中间件。
+7. 再登记的位置：同一归属撤回后再成组登记同样的中间件，按排序规则（位置、归属、归属内的登记顺序、约束）回到原来的位置。注册序号单调递增、不随撤回回退。
+8. `PipelineBuilder` 的全部成员线程安全；打印（`Dump` / `Describe` / `App.DescribePipeline()`）反映当前版本。
 
 ## 排序规则
 
@@ -140,6 +155,8 @@ public sealed class PipelineBuilder
     public PipelineBuilder After<TMiddleware, TOther>() where TMiddleware : IPipelineMiddleware where TOther : IPipelineMiddleware;
     public PipelineBuilder Before(string middleware, string other);   // 按名字：实例名或只登记一次的类型全名
     public PipelineBuilder After(string middleware, string other);
+    public PipelineBuilder UseOwned(string owner, Action<PipelineBuilder> configure);   // 成组登记，全进或全不进、立即核对（运行期改动）
+    public int RemoveOwnedBy(string owner);                    // 按归属撤回，不留悬空约束（运行期改动）
     public PipelineStep Build(PipelineStep terminal);          // 中间件在每次调用时从 InvocationContext.Services 解析
     public IReadOnlyList<MiddlewareDescriptor> Describe();
     public string Dump();

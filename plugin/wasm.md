@@ -64,22 +64,25 @@ Wasm 插件与进程外插件共用同一套消息；本文只定义载体：模
 - 状态机同 `lifecycle.md`：实例化（含 `_initialize`）+ `xihan_handshake` → `Resolved`；`xihan_configure` → `Configured`；`xihan_start` → `Started` → `Ready`；健康轮询 `xihan_health`；`xihan_stop` 后丢弃实例 → `Stopped`。
 - 崩溃：任何陷阱或 `xihan_*` 返回 `0`：插件 `Failed`（`PLUGINS_UNEXPECTED_002`，细节含陷阱种类），宿主 `Degraded`，按 `lifecycle.md` §6 退避重建实例并重走握手、配置、启动；重建后的握手声明必须与首次一致。
 - 发现时被拒（清单、权限、模块文件不存在）同 `lifecycle.md` §1：以 `Failed` 登记、是健康条目、记日志、不重试。
-- 代理操作与清单声明的权限码的登记同 `invocation.md` §1：一个插件的权限码与操作全进或全不进，声明的权限码与已登记的重复、与已有操作重名、引用了未登记的权限码或不存在的策略，配置阶段发现的启动失败，运行期 `LoadAsync` 返回失败、不留下任何权限码与代理操作。卸载（`UnloadAsync`）按归属撤回插件登记的代理操作与权限码，之后可以直接再加载（`invocation.md` §1）；贡献了中间件的插件例外，见 §6。
+- 代理操作与清单声明的权限码的登记同 `invocation.md` §1：一个插件的权限码与操作全进或全不进，声明的权限码与已登记的重复、与已有操作重名、引用了未登记的权限码或不存在的策略，配置阶段发现的启动失败，运行期 `LoadAsync` 返回失败、不留下任何权限码与代理操作。卸载（`UnloadAsync`）按归属撤回插件登记的代理操作、权限码与贡献的中间件，之后可以直接再加载（`invocation.md` §1、本文 §6）。
 - 激活：`onStartup` 加载时实例化并启动；`onOperation:` / `onEvent:` 在加载时实例化、握手后丢弃实例，首次调用或投递时再实例化。
 - 宿主进程：wasmtime 的陷阱处理与 Windows 用户态影子栈（CET）冲突，影子栈强制时陷阱会让进程 fail-fast；.NET 宿主的可执行项目必须设置 `<CETCompat>false</CETCompat>`，宿主在创建引擎前检测并以 `PLUGINS_UNAVAILABLE_003` 拒绝。
 - 每个插件是宿主的健康条目 `plugins.<清单 ID>`。
 
 ## 6. 中间件钩子
 
-清单 `contributes.pipeline[]`（`middleware`、`stage`、`before`、`after`）的每一项在宿主管道的对应阶段插入一个中间件，归属为插件清单 ID，排序同 RFC-0004；`stage` 不得是 `handle`。宿主以 `<清单 ID>:<middleware>` 为名登记它。`before` / `after` 的每一项先按本插件 `contributes.pipeline` 里的 `middleware` 解析为本插件的中间件；否则原样作为宿主管道里的中间件名（RFC-0004 第 7 条）：另一个插件的 `<清单 ID>:<middleware>`，或只登记一次的宿主中间件的类型全名。目标与按类型声明的约束一样在宿主排序管道时解析（构建或打印管道时）：未登记、有歧义或不在同一阶段为 `KERNEL_PIPELINE_003`，成环为 `KERNEL_PIPELINE_001`，都是配置错误。每次调用，宿主在进入下游前后各调用一次 `xihan_middleware`（消息见 `plugin.proto` 的 `MiddlewareRequest` / `MiddlewareResponse`）：
+清单 `contributes.pipeline[]`（`middleware`、`stage`、`before`、`after`）的每一项在宿主管道的对应阶段插入一个中间件，归属为插件清单 ID，排序同 RFC-0004；`stage` 不得是 `handle`。宿主以 `<清单 ID>:<middleware>` 为名登记它。`before` / `after` 的每一项先按本插件 `contributes.pipeline` 里的 `middleware` 解析为本插件的中间件；否则原样作为宿主管道里的中间件名（RFC-0004 第 7 条）：另一个插件的 `<清单 ID>:<middleware>`，或只登记一次的宿主中间件的类型全名。配置阶段发现的插件，目标与按类型声明的约束一样在宿主排序管道时解析（构建或打印管道时）；运行期 `LoadAsync` 的插件在登记时立即解析（RFC-0004「运行期改动」）。未登记、有歧义或不在同一阶段为 `KERNEL_PIPELINE_003`，成环为 `KERNEL_PIPELINE_001`，都是配置错误。每次调用，宿主在进入下游前后各调用一次 `xihan_middleware`（消息见 `plugin.proto` 的 `MiddlewareRequest` / `MiddlewareResponse`）：
 
 - `before` + `CONTINUE`：合并 `baggage`（未登记的键丢弃，`xihan.principal` 不可改写）后进入下游。
 - `before` + `SHORT_CIRCUIT`：把 `outcome` 写为调用结果，不进入下游；`outcome` 缺失或不是失败时按 `KERNEL_VALIDATION_001` 处理。
 - `after`：只观察；`action` 与 `baggage` 忽略。
 - 中间件看不到请求与响应载荷，不能改写载荷。
 - 失败即关闭：中间件陷阱、超时或返回 `0` 时调用以 `PLUGINS_UNAVAILABLE_001` 失败，插件按崩溃处理并重建。
-- 中间件在管道构建前登记，不随卸载撤回：贡献了中间件的插件卸载之后，它的中间件取不到实例，经过它所在阶段的调用都以 `PLUGINS_UNAVAILABLE_001` 失败（失败即关闭）；运行期又不能加载贡献中间件的插件（`PLUGINS_VALIDATION_005`），所以换版本要重启宿主。
-- 运行期加载含 `contributes.pipeline` 的插件被拒绝（`PLUGINS_VALIDATION_005`）：中间件必须在管道构建前登记。
+- 按归属登记与撤回（ADR-0088）：插件的中间件归属是它的清单 ID，次序约束只声明在它自己的中间件上。
+  - 运行期 `LoadAsync` 贡献中间件的插件：代理操作、声明的权限码与中间件一次登记、全进或全不进——中间件经 `PipelineBuilder.UseOwned` 成组登记并立即排序核对，约束目标未登记、有歧义、跨阶段（`KERNEL_PIPELINE_003`）或成环（`KERNEL_PIPELINE_001`）时 `LoadAsync` 返回该错误，已登记的操作与权限码撤回，管道不变。登记成功之后开始的调用经过它的中间件；插件随后启动失败、保持 `Failed` 时，与配置阶段发现的插件一样，它的中间件失败即关闭，`UnloadAsync` 把它们撤出。
+  - 卸载（`UnloadAsync`）先经 `PipelineBuilder.RemoveOwnedBy` 撤回插件的全部中间件，再撤回代理操作与权限码，最后停止插件。撤回之后开始的调用不再经过它的中间件，经过它原来所在阶段的调用照常进入下游、不因插件已卸载而失败；撤回之前已经进入管道的调用按进入时的管道走完，仍经过它的中间件：插件停止之前照常执行钩子，停止之后钩子以 `PLUGINS_UNAVAILABLE_001` 失败即关闭（before 不进入下游；after 在下游成功时把结果改为失败）。宿主等这些调用离开运行时之后再释放实例。
+  - 别的中间件（另一个插件或宿主）以次序约束引用了它的中间件时卸载被拒（`KERNEL_PIPELINE_003`），什么都不撤，插件照常服务；先卸载或撤回引用方。
+  - 卸载之后同一插件（同一版本或新版本）可以直接再加载，中间件按排序规则回到对应的位置；换版本不用重启宿主。
 
 ## 7. 一致性
 

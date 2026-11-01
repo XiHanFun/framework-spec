@@ -29,7 +29,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `KERNEL_CAPABILITY_005` | 清单 ID 重复 |
 | `KERNEL_PIPELINE_001` | 中间件顺序约束成环 |
 | `KERNEL_PIPELINE_002` | 阶段名未知 |
-| `KERNEL_PIPELINE_003` | 中间件重复注册，或顺序约束引用了未注册或跨阶段的中间件 |
+| `KERNEL_PIPELINE_003` | 中间件重复注册，或顺序约束引用了未注册或跨阶段的中间件；运行期改动（RFC-0004）：成组登记混了别的归属或把约束挂到组外、按归属撤回会留下指向被撤回中间件的约束、应用构建之后单项改动或按类型登记 |
 | `KERNEL_HOSTING_001` | 必需绑定缺失或类型不匹配 |
 | `KERNEL_HOSTING_002` | 特性启动或停止失败 |
 | `KERNEL_HOSTING_003` | 特性停止超时 |
@@ -64,7 +64,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PLUGINS_UNAVAILABLE_001` | 进程外：插件进程未就绪、正在停止、已退出或不可达 |
 | `PLUGINS_TIMEOUT_001` | 进程外：握手、配置、启动或停止超时 |
 | `PLUGINS_UNEXPECTED_002` | 进程外：插件进程异常退出；Wasm：陷阱或导出函数返回 0 |
-| `PLUGINS_VALIDATION_005` | Wasm：模块不合法（不是 reactor、ABI 版本不支持、缺少必需导出或签名不符、导入了宿主不提供的函数），或运行期加载含中间件贡献的插件 |
+| `PLUGINS_VALIDATION_005` | Wasm：模块不合法（不是 reactor、ABI 版本不支持、缺少必需导出或签名不符、导入了宿主不提供的函数） |
 | `PLUGINS_UNAVAILABLE_002` | Wasm：沙箱资源不足（回调嵌套超限、客体内存分配失败） |
 | `PLUGINS_UNAVAILABLE_003` | Wasm：宿主进程不满足载体要求（Windows 强制用户态影子栈 / CET 时陷阱会终止进程，宿主可执行项目须设 `CETCompat=false`） |
 | `PERSISTENCE_VALIDATION_001` | 多租户实体在没有当前租户的调用中新增 |
