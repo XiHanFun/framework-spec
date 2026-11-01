@@ -64,7 +64,7 @@
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-        "type": { "type": "string", "pattern": "^[a-z]+(:[a-z]+)?$", "description": "connection:relational、cache:distributed、queue、blob" },
+        "type": { "type": "string", "pattern": "^[a-z]+(:[a-z]+)?$", "description": "connection:relational、cache:distributed、queue、blob、stream、configuration:remote（与 spec/packaging/app-manifest.md 的绑定类型一致）" },
         "required": { "type": "boolean", "default": true }
       }
     },

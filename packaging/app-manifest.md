@@ -15,7 +15,7 @@
 | `image.aot` | 否 | `false` | 为真时 Native AOT 发布，运行镜像为 `runtime-deps` |
 | `ports.http` | 否 | `8080` | 1–65535 |
 | `ports.grpc` | 否 | — | 1–65535，且不等于 `http`；有值时暴露 h2c 端点 |
-| `bindings.<name>.type` | 是（有绑定时） | — | `connection:relational` / `cache:distributed` / `queue` / `blob` |
+| `bindings.<name>.type` | 是（有绑定时） | — | `connection:relational` / `cache:distributed` / `queue` / `blob` / `stream` / `configuration:remote` |
 | `bindings.<name>.secret` | 否 | `<app>-<name>` | k8s Secret 名 |
 | `config.mountPath` | 否 | `/etc/xihan` | 绝对路径 |
 | `config.files` | 否 | `[]` | 文件名（无目录分隔符），存在时内容进 ConfigMap，否则为 `{}` |
@@ -45,7 +45,7 @@
 | `leader.lease` | — | ServiceAccount、Role（leases）、RoleBinding，`XiHan__Scheduling__Kubernetes__Lease`，`XIHAN_POD_NAME`、`POD_NAMESPACE`（Pod 字段） | — | — |
 | `environment` | — | `env` | `environment` | `WithEnvironment` |
 
-绑定类型在 Compose 与 Aspire 里的对应：
+绑定类型在 Compose 与 Aspire 里的对应（依赖服务的健康检查：PostgreSQL `pg_isready`、Redis `redis-cli ping`、RabbitMQ `rabbitmq-diagnostics -q ping`、MinIO `mc ready local`、Kafka `kafka-broker-api-versions.sh --bootstrap-server localhost:9092`、Nacos `curl -fs http://localhost:8848/nacos/v1/console/health/readiness`；Kafka 与 Nacos 另设 `start_period` 30 秒与 60 秒）：
 
 | 类型 | Compose 镜像 | `value` | Aspire |
 | --- | --- | --- | --- |
@@ -53,6 +53,8 @@
 | `cache:distributed` | `redis:7-alpine` | `<name>:6379` | `AddRedis(<name>)` |
 | `queue` | `rabbitmq:4-alpine` | `amqp://guest:guest@<name>:5672` | `AddRabbitMQ(<name>)` |
 | `blob` | `minio/minio` | `http://<name>:9000` | `AddContainer(<name>, "minio/minio")` |
+| `stream` | `apache/kafka:4.1.0`（单节点 KRaft，`KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://<name>:9092`） | `<name>:9092` | `AddKafka(<name>)` |
+| `configuration:remote` | `nacos/nacos-server:v2.5.1`（`MODE=standalone`，数据卷 `<name>-data:/home/nacos/data`） | `http://<name>:8848` | `AddContainer(<name>, "nacos/nacos-server", "v2.5.1")`，注入 `GetEndpoint("http")` |
 
 ## 就绪探针
 
