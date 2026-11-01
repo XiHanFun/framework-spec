@@ -142,7 +142,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `HOSTING_VALIDATION_001` | 命令行：用法不合法（选项值、载荷或数据文件有误） |
 | `HOSTING_NOTFOUND_001` | 命令行：操作未登记或未暴露给命令行 |
 | `HOSTING_NOTFOUND_002` | 命令行：命令不存在 |
-| `OBJECTSTORAGE_NOTFOUND_001` | 对象不存在 |
+| `OBJECTSTORAGE_NOTFOUND_001` | 对象不存在（S3：桶不存在同此，含条件写入探测的桶——探测失败时启动失败或不建实例） |
 | `OBJECTSTORAGE_NOTFOUND_002` | 分片上传不存在或已结束 |
 | `OBJECTSTORAGE_NOTFOUND_003` | 命名存储实例不存在 |
 | `OBJECTSTORAGE_VALIDATION_001` | 读取范围的起点不在对象内 |
@@ -151,9 +151,11 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `OBJECTSTORAGE_VALIDATION_004` | 缺省存储的能力选择不一致：存储包被要求提供 `objectstorage.multipart` 或 `objectstorage.presign`（有清单依赖该能力，或 `XiHan:Providers` / `UseProvider` 指定了它），却没有被选为 `objectstorage.blob`（装配错误，以异常抛出，启动失败）；只是兜底选出的不报错，存储包按被顶替处理 |
 | `OBJECTSTORAGE_VALIDATION_005` | 列举的页大小（`BlobQuery.PageSize`）不在 1 到 1000 之间（参数 `pageSize`、`max`；不在构造时抛出，各 Provider 列举时以结果返回，HTTP 400） |
 | `OBJECTSTORAGE_DENIED_001` | 预签名地址无效或已过期 |
+| `OBJECTSTORAGE_DENIED_002` | 条件写入探测被存储拒绝：凭据无效或无权写探测键、建桶或放弃探测用的分片上传（HTTP 403；缺省实例启动失败，命名实例不建，RFC-0012「S3 的条件写入探测」） |
 | `OBJECTSTORAGE_CONFLICT_001` | 对象已存在且不允许覆盖 |
 | `OBJECTSTORAGE_UNAVAILABLE_001` | 对象存储不可达或 IO 失败 |
 | `OBJECTSTORAGE_UNAVAILABLE_002` | 配额或单对象大小超限 |
+| `OBJECTSTORAGE_UNAVAILABLE_003` | 不覆盖写入在本存储上无法保证：S3 兼容服务不认条件写入（`If-None-Match: *`；启动或建实例时的探测发现，缺省实例启动失败、命名实例不建），或存储以 `ConditionalWrites = false` 关闭了条件写入（`Overwrite = false` 的写入与分片上传的发起、完成一律以它失败，不访问存储） |
 | `SCHEDULING_NOTFOUND_001` | 作业未登记 |
 | `SCHEDULING_NOTFOUND_002` | 作业类型未登记 |
 | `SCHEDULING_NOTFOUND_003` | 触发器不存在 |
