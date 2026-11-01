@@ -594,7 +594,7 @@ type OperationDeclaration struct {
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// 稳定性：`stable` / `preview` / `experimental` / `internal` / `deprecated`。
 	Stability string `protobuf:"bytes,2,opt,name=stability,proto3" json:"stability,omitempty"`
-	// 暴露给哪些协议：`http`、`grpc`、`mcp`、`commandline` 的任意组合；空表示不对外发布。
+	// 暴露给哪些协议：`http`、`grpc`、`mcp`、`commandline`、`ai` 的任意组合；空表示不对外发布。
 	Expose []string `protobuf:"bytes,3,rep,name=expose,proto3" json:"expose,omitempty"`
 	// 授权要求：权限码；与 `policy` 二选一，都空表示无要求。
 	Permission string `protobuf:"bytes,4,opt,name=permission,proto3" json:"permission,omitempty"`
@@ -702,7 +702,10 @@ type Subscription struct {
 	// 主题（RFC-0009 文法）。
 	Topic string `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
 	// 只投递该 CloudEvents `type` 的消息；空表示主题下全部。
-	MessageType   string `protobuf:"bytes,2,opt,name=message_type,json=messageType,proto3" json:"message_type,omitempty"`
+	MessageType string `protobuf:"bytes,2,opt,name=message_type,json=messageType,proto3" json:"message_type,omitempty"`
+	// 订阅方式（RFC-0009「订阅方式」）：`competing`（订阅了主题的宿主实例里只有一个收到）或
+	// `broadcast`（每个在线的宿主实例各收到一份，尽力而为、不进死信）；空同 `competing`。
+	Mode          string `protobuf:"bytes,3,opt,name=mode,proto3" json:"mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -747,6 +750,13 @@ func (x *Subscription) GetTopic() string {
 func (x *Subscription) GetMessageType() string {
 	if x != nil {
 		return x.MessageType
+	}
+	return ""
+}
+
+func (x *Subscription) GetMode() string {
+	if x != nil {
+		return x.Mode
 	}
 	return ""
 }
@@ -2367,10 +2377,11 @@ const file_plugin_proto_rawDesc = "" +
 	"\x06policy\x18\x05 \x01(\tR\x06policy\x12%\n" +
 	"\x0erequest_schema\x18\x06 \x01(\tR\rrequestSchema\x12'\n" +
 	"\x0fresponse_schema\x18\a \x01(\tR\x0eresponseSchema\x12\x1c\n" +
-	"\tstreaming\x18\b \x01(\bR\tstreaming\"G\n" +
+	"\tstreaming\x18\b \x01(\bR\tstreaming\"[\n" +
 	"\fSubscription\x12\x14\n" +
 	"\x05topic\x18\x01 \x01(\tR\x05topic\x12!\n" +
-	"\fmessage_type\x18\x02 \x01(\tR\vmessageType\"`\n" +
+	"\fmessage_type\x18\x02 \x01(\tR\vmessageType\x12\x12\n" +
+	"\x04mode\x18\x03 \x01(\tR\x04mode\"`\n" +
 	"\x0eMessageCatalog\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12:\n" +
 	"\alocales\x18\x02 \x03(\v2 .xihan.plugin.v1.LocaleTemplatesR\alocales\"\xb6\x01\n" +

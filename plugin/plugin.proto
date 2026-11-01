@@ -145,6 +145,9 @@ message Subscription {
   string topic = 1;
   // 只投递该 CloudEvents `type` 的消息；空表示主题下全部。
   string message_type = 2;
+  // 订阅方式（RFC-0009「订阅方式」）：`competing`（订阅了主题的宿主实例里只有一个收到）或
+  // `broadcast`（每个在线的宿主实例各收到一份，尽力而为、不进死信）；空同 `competing`。
+  string mode = 3;
 }
 
 // 一个消息目录：目录名 + 每种区域的键 → 模板。

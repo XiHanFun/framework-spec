@@ -42,7 +42,7 @@ xihan-plugin/1 <network> <address>
 2. 原语层：`primitives` 必须与宿主相同，否则 `PLUGINS_VALIDATION_004`。
 3. 清单：`manifest` 必须与目录里的文件逐字段一致（`id`、`version`、`primitives`、`kind`、`isolation`、`provides`、`requires`、`contributes`、`activation`、`permissions`），否则 `PLUGINS_VALIDATION_004`。
 4. 操作：`operations[].id` 必须都出现在清单 `contributes.operations`；ID 文法与 Schema 规则同 RFC-0011；重复即 `PLUGINS_VALIDATION_004`。宿主把它们登记为代理操作（见 `invocation.md`）。
-5. 订阅：`subscriptions[].topic` 必须符合主题文法；重复的（主题，类型）对即 `PLUGINS_VALIDATION_004`。
+5. 订阅：`subscriptions[].topic` 必须符合主题文法；`mode` 为空、`competing` 或 `broadcast`（RFC-0009「订阅方式」），其他值即 `PLUGINS_VALIDATION_004`；重复的（主题，类型）对即 `PLUGINS_VALIDATION_004`，同一对不能以两种方式各声明一次。
 6. 目录：`catalogs` 合并进宿主的本地化器（目录名重复时宿主已有的优先并记警告）；至少应含 `en-US`。
 
 握手成功后插件状态为 `Resolved`；宿主接着 `Configure` 与 `Start`（`lifecycle.md`）。整个握手阶段的 gRPC 调用都带 `HandshakeTimeout` 的截止时间。

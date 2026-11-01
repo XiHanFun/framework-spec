@@ -43,7 +43,7 @@
 
 ## 4. 事件投递（RFC-0009）
 
-- 宿主为握手声明的每个 `Subscription` 向消息代理订阅主题；消息到达时派发器按 RFC-0009 开新作用域、构造上下文、经完整管道，在 Handle 阶段调用 `Plugin.HandleEvent`。`message_type` 非空时只投递 `type` 相同的消息，其余在宿主侧按成功处理（不进插件）。
+- 宿主为握手声明的每个 `Subscription` 按它的 `mode` 向消息代理订阅主题：`competing`（缺省）时订阅了主题的宿主实例里只有一个把消息交给插件，`broadcast` 时每个在线的宿主实例都把消息交给自己的插件实例（尽力而为、不进死信，RFC-0009「订阅方式」）。消息到达时派发器按 RFC-0009 开新作用域、构造上下文、经完整管道，在 Handle 阶段调用 `Plugin.HandleEvent`，只投给以投递的方式订阅了该主题的插件。`message_type` 非空时只投递 `type` 相同的消息，其余在宿主侧按成功处理（不进插件）。
 - `Envelope` 是 CloudEvents 1.0 属性的平铺；`attempt` 从 1 起。插件返回 `ok` 表示已处理；返回 `error` 由代理按重试与死信策略处理；插件不可用期间的投递同样按该策略处理。
 - 至少一次投递：插件处理器必须幂等（可用 `baggage` 里的 `xihan.idempotency-key` 或信封 `id`）。
 

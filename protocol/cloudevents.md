@@ -16,7 +16,7 @@
 
 - 都不满足 → 400 `PROTOCOLS_VALIDATION_008`；信封不合法（规范版本、必填属性、时间、扩展名）→ 400 `MESSAGING_VALIDATION_002`。
 - 主题 = `XiHan:Protocols:CloudEvents:Topics:<type>`，否则 `type` 本身（须满足主题文法），否则 400 `PROTOCOLS_VALIDATION_009`。
-- `Inbound = Dispatch`（默认）：`MessageDispatcher` 在请求内以新作用域、新上下文经完整内核管道执行主题的处理器（`MessageDelivery.Attempt = 1`）；成功 202 无正文；处理器失败按错误 KIND 映射 HTTP 状态（RFC 9457 Problem Details），发送方据此重试；主题没有处理器 → 404 `PROTOCOLS_NOTFOUND_003`。
+- `Inbound = Dispatch`（默认）：`MessageDispatcher` 在请求内以新作用域、新上下文经完整内核管道执行本实例里该主题的处理器（`MessageDelivery.Attempt = 1`）：竞争订阅与广播订阅（RFC-0009「订阅方式」）各一次投递，先竞争后广播；派发只发生在接收请求的实例，要让广播订阅到达每个实例用 `Inbound = Publish`；成功 202 无正文；处理器失败按错误 KIND 映射 HTTP 状态（RFC 9457 Problem Details），发送方据此重试；主题在本实例没有任何处理器（两种订阅方式都没有）→ 404 `PROTOCOLS_NOTFOUND_003`。
 - `Inbound = Publish`：经 `IMessagePublisher` 发布，成功即 202；至少一次投递、重试与死信由代理负责（含发件箱）。
 - batch：先把每个事件的类型解析成主题，任一事件没有映射整批 400、不处理任何事件；派发模式逐个处理、第一个失败即停止并作为响应，发布模式按主题分组（保持首次出现的主题顺序与组内顺序）各一次批量发布 `PublishManyAsync(topic, envelopes)`、第一个失败的结果作为响应；已处理的不回滚（至少一次语义，处理器按 `id` + `source` 去重）。
 
