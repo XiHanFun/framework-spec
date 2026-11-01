@@ -1,6 +1,6 @@
 # RFC-0017 进程外插件协议
 
-> 状态：已采纳 | 日期：2026-10-23 | 对应 ADR：0006 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`（P4-02）；一致性：`XiHan.Framework.Plugins.Conformance`（P4-04） | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md`
+> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载） | 日期：2026-10-23 | 对应 ADR：0006、0085 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`（P4-02）；一致性：`XiHan.Framework.Plugins.Conformance`（P4-04） | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md`
 
 ## 摘要
 
@@ -52,7 +52,7 @@
 
 ## 与 .NET 的映射（P4-02）
 
-- `Plugins.OutOfProcess`（Ring 5）：`OutOfProcessPluginsFeature`（能力 `plugins.out-of-process@1`，配置 `XiHan:Plugins:OutOfProcess`）在配置阶段发现并握手、登记代理操作（`OperationDescriptor` 直通 JSON，`ExecuteAsync` 发 `Invoke`）连同清单声明的权限码（`plugin/invocation.md` §1，ADR-0080）、消息目录与事件订阅（`AddMessageHandler`）；`OutOfProcessPluginHost : IPluginHost, IHealthContributor` 负责进程管理、握手核对、健康、重启退避、回调服务器与运行期加载卸载。宿主回调端点在 Windows 上是命名管道、其他系统是 Unix 域套接字。
+- `Plugins.OutOfProcess`（Ring 5）：`OutOfProcessPluginsFeature`（能力 `plugins.out-of-process@1`，配置 `XiHan:Plugins:OutOfProcess`）在配置阶段发现并握手、登记代理操作（`OperationDescriptor` 直通 JSON，`ExecuteAsync` 发 `Invoke`）连同清单声明的权限码（`plugin/invocation.md` §1，ADR-0080）、消息目录与事件订阅（`AddMessageHandler`）；`OutOfProcessPluginHost : IPluginHost, IHealthContributor` 负责进程管理、握手核对、健康、重启退避、回调服务器与运行期加载卸载；卸载按归属（清单 ID）撤回插件登记的代理操作与权限码，之后可直接再加载（`plugin/invocation.md` §1，ADR-0085）。宿主回调端点在 Windows 上是命名管道、其他系统是 Unix 域套接字。
 - 内核新增 `IHealthContributor` / `ContributorStatus`，`HealthSnapshot.Contributions` 与 `App.State` 采集它们：条目 Degraded / Failed 只把 Ready 压成 Degraded（`lifecycle.md` §4 的"宿主进入 Degraded 但不退出"由此实现）。
 - 协议消息的 .NET 类型由 `Grpc.Tools` 从同一份 `.proto` 生成（运行时 `Google.Protobuf`，Ring 5 允许第三方依赖）；`Protocols.Grpc` 的动态编解码只服务于没有编译期 Schema 的操作消息，不用于本协议。其他语言用各自的 protobuf 工具链从同一份 `.proto` 生成。
 - 错误码常量 `PluginErrors` 与消息键 `PluginMessages` 随包实现，文案 10 种区域各一个文件（RFC-0010）。

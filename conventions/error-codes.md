@@ -44,7 +44,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `KERNEL_UNEXPECTED_001` | 调用期间发生未处理异常 |
 | `KERNEL_SECURITY_001` | 权限码重复：特性重复登记，或插件清单声明的权限码与已登记的重复（宿主特性定义的或另一个插件声明的；插件整体登记失败，ADR-0080） |
 | `KERNEL_SECURITY_002` | 权限注册表已满 |
-| `KERNEL_NOTFOUND_001` | 操作未登记 |
+| `KERNEL_NOTFOUND_001` | 操作未登记（含插件卸载时按归属撤回了的代理操作，ADR-0085） |
 | `KERNEL_VALIDATION_001` | 操作载荷不合法（非 JSON、null 或类型不匹配） |
 | `KERNEL_VALIDATION_002` | 类型化调用的请求或响应类型与登记不符 |
 | `KERNEL_VALIDATION_003` | 请求不满足操作契约的 JSON Schema（类型、必填、枚举、范围、长度、模式、元素数）；Validate 阶段拒绝，不进 Handle |
@@ -112,8 +112,8 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `SECURITY_VALIDATION_001` | 不支持的认证方案或凭据格式不合法 |
 | `SECURITY_VALIDATION_002` | 条件无效：子句编译出错（属性未登记、运算符与值种类不搭配、条件值解析不了） |
 | `SECURITY_VALIDATION_003` | 条件属性的值不是登记的值种类 |
-| `SECURITY_VALIDATION_004` | 按名引用的策略不存在：操作契约的 `policy`（授权能力启动时核对；之后登记的操作在登记时返回，插件整体登记失败）、端点元数据的 `RequireXiHanPolicy` / `RequireXiHanPermission` / `RequireXiHanAuthentication`（`UseXiHan()` 建请求管道时核对）引用了未注册的策略，或 `permission:<code>` 的权限码未登记；启动时以 `FrameworkException` 抛出、一次列出全部（RFC-0008，ADR-0080） |
-| `SECURITY_NOTFOUND_001` | 策略不存在：调用时才看到的要求（应用代码以 `RequireAuthorization` 显式写入的、启动之后才加进来的端点）引用的策略未登记，或其中 `permission:<code>` 的权限码未登记；操作契约的权限码在装配时核对（`KERNEL_VALIDATION_005`），契约的策略与端点元数据在启动时核对（`SECURITY_VALIDATION_004`） |
+| `SECURITY_VALIDATION_004` | 按名引用的策略不存在：操作契约的 `policy`（授权能力登记的启动核对里核对：容器建好、任何特性启动之前，不论失败策略都终止启动，ADR-0085；之后登记的操作在登记时返回，插件整体登记失败）、端点元数据的 `RequireXiHanPolicy` / `RequireXiHanPermission` / `RequireXiHanAuthentication`（`UseXiHan()` 建请求管道时核对）引用了未注册的策略，或 `permission:<code>` 的权限码未登记；启动时以 `FrameworkException` 抛出、一次列出全部（RFC-0008，ADR-0080、ADR-0085） |
+| `SECURITY_NOTFOUND_001` | 策略不存在：调用时才看到的要求（应用代码以 `RequireAuthorization` 显式写入的、启动之后才加进来的端点）引用的策略未登记，或其中 `permission:<code>` 的权限码未登记（含插件卸载时撤回、尚未重新登记的权限码）；操作契约的权限码在装配时核对（`KERNEL_VALIDATION_005`），契约的策略与端点元数据在启动时核对（`SECURITY_VALIDATION_004`） |
 | `SECURITY_NOTFOUND_002` | 要撤销的授予不存在 |
 | `SECURITY_NOTFOUND_003` | 取不到条件属性的值 |
 | `PROTOCOLS_VALIDATION_001` | MCP：消息不是合法的 JSON 或不是合法的 JSON-RPC 2.0 请求 |

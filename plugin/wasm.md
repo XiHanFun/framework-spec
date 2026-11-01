@@ -64,7 +64,7 @@ Wasm 插件与进程外插件共用同一套消息；本文只定义载体：模
 - 状态机同 `lifecycle.md`：实例化（含 `_initialize`）+ `xihan_handshake` → `Resolved`；`xihan_configure` → `Configured`；`xihan_start` → `Started` → `Ready`；健康轮询 `xihan_health`；`xihan_stop` 后丢弃实例 → `Stopped`。
 - 崩溃：任何陷阱或 `xihan_*` 返回 `0`：插件 `Failed`（`PLUGINS_UNEXPECTED_002`，细节含陷阱种类），宿主 `Degraded`，按 `lifecycle.md` §6 退避重建实例并重走握手、配置、启动；重建后的握手声明必须与首次一致。
 - 发现时被拒（清单、权限、模块文件不存在）同 `lifecycle.md` §1：以 `Failed` 登记、是健康条目、记日志、不重试。
-- 代理操作与清单声明的权限码的登记同 `invocation.md` §1：一个插件的权限码与操作全进或全不进，声明的权限码与已登记的重复、与已有操作重名、引用了未登记的权限码或不存在的策略，配置阶段发现的启动失败，运行期 `LoadAsync` 返回失败、不留下任何权限码与代理操作。
+- 代理操作与清单声明的权限码的登记同 `invocation.md` §1：一个插件的权限码与操作全进或全不进，声明的权限码与已登记的重复、与已有操作重名、引用了未登记的权限码或不存在的策略，配置阶段发现的启动失败，运行期 `LoadAsync` 返回失败、不留下任何权限码与代理操作。卸载（`UnloadAsync`）按归属撤回插件登记的代理操作与权限码，之后可以直接再加载（`invocation.md` §1）；贡献了中间件的插件例外，见 §6。
 - 激活：`onStartup` 加载时实例化并启动；`onOperation:` / `onEvent:` 在加载时实例化、握手后丢弃实例，首次调用或投递时再实例化。
 - 宿主进程：wasmtime 的陷阱处理与 Windows 用户态影子栈（CET）冲突，影子栈强制时陷阱会让进程 fail-fast；.NET 宿主的可执行项目必须设置 `<CETCompat>false</CETCompat>`，宿主在创建引擎前检测并以 `PLUGINS_UNAVAILABLE_003` 拒绝。
 - 每个插件是宿主的健康条目 `plugins.<清单 ID>`。
@@ -78,6 +78,7 @@ Wasm 插件与进程外插件共用同一套消息；本文只定义载体：模
 - `after`：只观察；`action` 与 `baggage` 忽略。
 - 中间件看不到请求与响应载荷，不能改写载荷。
 - 失败即关闭：中间件陷阱、超时或返回 `0` 时调用以 `PLUGINS_UNAVAILABLE_001` 失败，插件按崩溃处理并重建。
+- 中间件在管道构建前登记，不随卸载撤回：贡献了中间件的插件卸载之后，它的中间件取不到实例，经过它所在阶段的调用都以 `PLUGINS_UNAVAILABLE_001` 失败（失败即关闭）；运行期又不能加载贡献中间件的插件（`PLUGINS_VALIDATION_005`），所以换版本要重启宿主。
 - 运行期加载含 `contributes.pipeline` 的插件被拒绝（`PLUGINS_VALIDATION_005`）：中间件必须在管道构建前登记。
 
 ## 7. 一致性

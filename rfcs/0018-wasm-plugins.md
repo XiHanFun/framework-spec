@@ -1,6 +1,6 @@
 # RFC-0018 Wasm 插件 ABI（Experimental）
 
-> 状态：已采纳 | 日期：2026-10-23 | 对应 ADR：0006（范围）、0009（ABI 形态） | 参考实现：`XiHan.Framework.Plugins.Wasm`（P4-03） | 规范性文本：`spec/plugin/wasm.md`、`spec/plugin/plugin.proto`（中间件消息）、`spec/conformance/vectors/plugin/wasm-exports.json`
+> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载） | 日期：2026-10-23 | 对应 ADR：0006（范围）、0009（ABI 形态）、0085（卸载撤回登记） | 参考实现：`XiHan.Framework.Plugins.Wasm`（P4-03） | 规范性文本：`spec/plugin/wasm.md`、`spec/plugin/plugin.proto`（中间件消息）、`spec/conformance/vectors/plugin/wasm-exports.json`
 
 ## 摘要
 
@@ -114,6 +114,7 @@ enum MiddlewareAction {
 
 - 插件目录含 `xihan.manifest.json` 与 `.wasm`；宿主按 `XiHan:Plugins:Wasm:Directories` 发现，`Grants:<清单 ID>` 授予权限，`Mounts:<清单 ID>:<客体路径>` 映射文件系统；握手核对规则与 `handshake.md` §3 相同（清单一致、操作在 `contributes.operations`、健康项在 `contributes.health`、中间件在 `contributes.pipeline`）。
 - 发现在配置阶段同步完成（与进程外插件一致），代理操作连同清单声明的权限码（`plugin/invocation.md` §1）、消息目录、订阅与中间件据此登记；中间件必须在管道构建前登记，所以 Wasm 插件不支持运行期加载贡献中间件的插件（`LoadAsync` 对含 `contributes.pipeline` 的清单返回 `PLUGINS_VALIDATION_005`）。
+- 卸载（`UnloadAsync`）按归属撤回插件登记的代理操作与权限码，之后可直接再加载（`plugin/invocation.md` §1，ADR-0085）；中间件不随卸载撤回，贡献了中间件的插件卸载后经过它所在阶段的调用失败即关闭，换版本要重启宿主（`plugin/wasm.md` §6）。
 
 ## 错误码
 
