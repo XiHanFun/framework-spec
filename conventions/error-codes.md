@@ -187,9 +187,9 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `WORKFLOW_VALIDATION_001` | 工作流定义不合法（`details.errors` 列出全部问题） |
 | `WORKFLOW_VALIDATION_002` | 启动或恢复的输入不合法（缺必填变量、子流程深度超限、任务结果不在允许范围、跳转目标不存在、迁移目标不兼容、外部任务领取的锁时长或条数越界） |
 | `WORKFLOW_VALIDATION_003` | 表达式语法不合法或求值失败 |
-| `WORKFLOW_NOTFOUND_001` | 工作流定义不存在、没有已发布版本，属于调用方看不到 / 改不动的租户，或启动请求指向别的租户 |
-| `WORKFLOW_NOTFOUND_002` | 工作流实例不存在，或属于调用方看不到的租户 |
-| `WORKFLOW_NOTFOUND_003` | 书签（用户任务）不存在，或属于调用方看不到的租户 |
+| `WORKFLOW_NOTFOUND_001` | 工作流定义不存在、没有已发布版本，或在调用方之外的分区（平台与各租户互不可见），或建定义时写了别的租户 |
+| `WORKFLOW_NOTFOUND_002` | 工作流实例不存在，或在调用方之外的分区 |
+| `WORKFLOW_NOTFOUND_003` | 书签（用户任务、外部任务）不存在，或在调用方之外的分区 |
 | `WORKFLOW_NOTFOUND_004` | 活动类型或指派规则类型未登记 |
 | `WORKFLOW_CONFLICT_001` | 实例状态不允许该操作 |
 | `WORKFLOW_CONFLICT_002` | 定义状态不允许该操作 |
@@ -199,7 +199,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `WORKFLOW_DENIED_001` | 操作者不是任务的指派人 |
 | `WORKFLOW_DENIED_002` | 工作者没有持有外部任务的锁或锁已过期 |
 | `WORKFLOW_TIMEOUT_001` | 实例锁等待超时 |
-| `WORKFLOW_UNAVAILABLE_001` | 工作流存储不可达 |
+| `WORKFLOW_UNAVAILABLE_001` | 工作流存储不可达；或引擎要自己开调用时应用不在服务状态、自己开的调用里没有可加入的事务 |
 | `WORKFLOW_UNAVAILABLE_002` | 工作流存储容量已满 |
 | `WORKFLOW_UNEXPECTED_001` | 活动抛出未处理异常或引擎内部失败 |
 | `AI_VALIDATION_001` | AI 请求不合法（Provider 缺必填项、提示词参数缺失、工具名不合法或重复、工具参数无法序列化；知识库提示词引用了 `{context}`、`{question}` 以外的占位符时为启动失败） |
