@@ -1,6 +1,6 @@
 # RFC-0016 应用清单与打包
 
-> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
+> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`；2026-11-01 修订：Kustomize 不起 Kafka 与 Nacos 定为规则） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup）、ADR-0083（Kustomize 不起依赖服务） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
 
 ## 摘要
 
@@ -62,7 +62,7 @@
 1. 注入的主值与对应 Provider 读取绑定主值的形式一致：关系库是连接串，Redis 与 Kafka 是 `host:port`（Kafka 即引导地址），RabbitMQ 是 `amqp://` URI，MinIO 与 Nacos 是 `http://` URL（Nacos 地址没有路径时用缺省上下文路径 `/nacos`）。
 2. 新增的依赖服务镜像固定版本（不写 `latest`），每个依赖服务都有 `healthcheck`，应用以 `depends_on: condition: service_healthy` 等它们健康。JVM 服务（Kafka、Nacos）另设 `start_period`，启动期内的探测失败不计入重试。
 3. Kafka 为单节点 KRaft：同一进程兼任 broker 与 controller，对外监听地址写依赖服务名（`PLAINTEXT://<绑定名>:9092`），Compose 网络里的应用拿到的元数据才指向可达的主机；内部主题的副本数为 1。Nacos 为 standalone（内嵌存储），数据目录挂命名卷。
-4. Kustomize 不生成依赖服务：集群里的数据库、缓存、代理与配置中心由部署方提供，每个绑定只生成 Secret 示例（`type` 与 `uri`）与挂载。
+4. Kustomize 不生成依赖服务：集群里的数据库、缓存、代理与配置中心由部署方提供，每个绑定只生成 Secret 示例（`type` 与 `uri`）与挂载。六种绑定类型一律如此，Kafka（`stream`）与 Nacos（`configuration:remote`）与 PostgreSQL、Redis 一样不在集群里起单节点服务（已定，ADR-0083）：集群里的有状态依赖要按环境定副本、存储类、备份与升级策略，生成器给不出通用的正确答案；单节点的本地联调形态由 Compose 与 Aspire 提供。
 5. Aspire 有官方集成的类型用集成（PostgreSQL、Redis、RabbitMQ、Kafka），注入资源的连接串并 `WithReference`；没有集成的（MinIO、Nacos）以固定镜像的容器资源运行，注入它的 HTTP 端点。
 
 ## 命令
