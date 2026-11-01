@@ -68,9 +68,9 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PLUGINS_UNAVAILABLE_002` | Wasm：沙箱资源不足（回调嵌套超限、客体内存分配失败） |
 | `PLUGINS_UNAVAILABLE_003` | Wasm：宿主进程不满足载体要求（Windows 强制用户态影子栈 / CET 时陷阱会终止进程，宿主可执行项目须设 `CETCompat=false`） |
 | `PERSISTENCE_VALIDATION_001` | 多租户实体在没有当前租户的调用中新增 |
-| `PERSISTENCE_VALIDATION_002` | 工作单元状态不允许该操作：重复开始、未开始就提交（以异常抛出）；同一服务作用域里再经管道发起的嵌套调用（Transaction 阶段以结果结束内层调用，不执行处理器） |
+| `PERSISTENCE_VALIDATION_002` | 工作单元状态不允许该操作：重复开始、未开始就提交（以异常抛出）；EF Core 作用域里的 DbContext 已按别的连接建出后再绑定命名连接（`BeginAsync` 以异常抛出）；同一服务作用域里再经管道发起的嵌套调用（Transaction 阶段以结果结束内层调用，不执行处理器） |
 | `PERSISTENCE_VALIDATION_003` | 工作单元里的聚合有未派发的领域事件，但没有注册领域事件派发器 |
-| `PERSISTENCE_VALIDATION_004` | 实体落点不成立（装配错误，以异常抛出）：SqlSugar 实体的 `[Tenant(configId)]` 或登记时指定的命名连接不在客户端里、两者指向不同的连接（缺省落点规则下启动时校验）；工作单元绑定的连接不在客户端里（`BeginAsync`），或绑定连接的工作单元里操作的实体不落在那个连接上 |
+| `PERSISTENCE_VALIDATION_004` | 实体落点不成立（装配错误，以异常抛出）：SqlSugar 实体的 `[Tenant(configId)]` 或登记时指定的命名连接不在客户端里、两者指向不同的连接（缺省落点规则下启动时校验）；工作单元绑定的连接不在客户端里（`BeginAsync`），或绑定连接的工作单元里操作的实体不落在那个连接上；EF Core 实体登记到、或工作单元绑定没有在 `XiHan:Persistence:EntityFrameworkCore:Connections` 声明的连接（装配时、`BeginAsync`），绑定连接的工作单元里取用落在别处的实体 |
 | `PERSISTENCE_VALIDATION_005` | 查询的取出条数超过 `EntityQuery.DefaultMaxTake`（1000）：构造查询时以异常抛出，调用里由 Transaction 阶段转为结果（HTTP 400，参数 `take`、`max`）；库结构的表列表（`TableListQuery.Take`）超过上限由读结构的 Provider 以结果返回（不在构造时抛出）；一次读结构的表数超过 `SchemaLimits.MaxTablesPerRead`（100）以结果返回（参数 `count`、`max`）；仓储查询的 `Skip` 为负、`Take` 小于 1 是编程错误，抛 `ArgumentOutOfRangeException`，不产生错误码（表列表的见 `PERSISTENCE_VALIDATION_007`） |
 | `PERSISTENCE_VALIDATION_006` | 运行时数据源的定义不合法：数据库类型 Provider 不认识、连接串格式错（`DataSourceRegistry` 的取用与测试连接；同名的已登记实例不受影响） |
 | `PERSISTENCE_VALIDATION_007` | 库结构表列表的分页越界：`TableListQuery.Skip` 为负或 `Take` 小于 1（参数 `skip`、`take`；不在构造时抛出，读结构的 Provider 以结果返回，HTTP 400） |
@@ -87,7 +87,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_UNAVAILABLE_005` | 雪花标识生成器没有可用的机器位：未配置且容器里没有分布式锁、1024 个机器位都被占用、租约尚未取得或已丢失（启动期与生成时以异常抛出，调用里由 `SnowflakeIdFeature` 的中间件转为结果、HTTP 503，健康项以结果上报） |
 | `PERSISTENCE_UNAVAILABLE_006` | 数据源连不上或读取失败：运行时数据源的测试连接、健康探测（条目 Degraded），缺省连接与运行时数据源的库结构读取；参数 `name`、`reason`（驱动消息，连接串与口令类键的值已换成 `***`） |
 | `PERSISTENCE_UNAVAILABLE_007` | 运行时数据源登记已满（`XiHan:Persistence:DataSources:MaxCount`）；不淘汰已有的，替换同名的不占名额 |
-| `PERSISTENCE_UNAVAILABLE_008` | 当前的持久化 Provider 不支持该能力：运行时数据源与库结构读取（EF Core 与内存实现）；命名连接（EF Core 与内存实现：实体登记到命名连接在装配时、绑定连接的工作单元在 `BeginAsync` 以异常抛出）；软删除实体声明了唯一索引（要建成部分唯一索引）而所连数据库不支持部分索引——SqlSugar 的 PostgreSQL、SQLite、SQL Server 之外，EF Core 的 Npgsql、SQLite、SQL Server 之外的关系型 Provider——启动时以异常抛出，不退化成普通唯一索引 |
+| `PERSISTENCE_UNAVAILABLE_008` | 当前的持久化 Provider 不支持该能力：运行时数据源与库结构读取（EF Core 与内存实现）；命名连接（内存实现：实体登记到命名连接在装配时、绑定连接的工作单元在 `BeginAsync` 以异常抛出；EF Core：普通工作单元里取用登记到命名连接的实体，以异常抛出——一个 DbContext 一个连接，那样的实体只能在绑定那个连接的工作单元里读写）；软删除实体声明了唯一索引（要建成部分唯一索引）而所连数据库不支持部分索引——SqlSugar 的 PostgreSQL、SQLite、SQL Server 之外，EF Core 的 Npgsql、SQLite、SQL Server 之外的关系型 Provider——启动时以异常抛出，不退化成普通唯一索引 |
 | `PERSISTENCE_UNEXPECTED_001` | 只读工作单元拒绝写入，是操作实现的缺陷：只读操作（动词 `get` / `list` 或声明了 `ReadOnly`）或以 `IsReadOnly` 开启的工作单元里新增、更新、删除（含批量），以及工作流在只读调用里的写入操作（`IWorkflowTransaction.EnsureWritable`，取锁、执行活动之前）。仓储写入返回结果并把工作单元记为失败（提交返回同一错误）；直接写入入口 `EnsureTransactionAsync` 抛出、由 Transaction 阶段转为同码结果；HTTP 500、gRPC `Internal`、命令行按 UNEXPECTED 的退出码，按操作计入熔断。同一服务作用域里再经管道的嵌套调用仍是 `PERSISTENCE_VALIDATION_002` |
 | `CACHING_VALIDATION_001` | 缓存键或幂等键不合法 |
 | `CACHING_VALIDATION_002` | 条目选项不合法（绝对与滑动过期同时设置等）：远程缓存插件按操作集校验 `ttlMs` / `slidingMs` 时返回（`provider/caching-distributed.md`），适配器原样成为异常的错误码；.NET 侧构造或使用不合法的 `CacheEntryOptions` 时直接抛 `ArgumentException`（编程错误），不产生错误码 |
