@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | `workflow.execution@1` | 定义目录、实例执行、书签、用户任务、外部任务；`IWorkflowEngine`、`IWorkflowDefinitionCatalog`、`IWorkflowTaskService`、`IWorkflowExternalTaskService` | `Workflow.InMemory`（有界内存存储、进程内实例锁、单进程轮询） |
 
-Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkflowBookmarkStore`（作用域服务，按分区读写）、`IWorkflowTransaction`（作用域服务，与调用方事务的关系）与 `IWorkflowInstanceLock`，并在应用进入服务状态后驱动 `DueBookmarkPoller`。`Workflow.Database`（依赖 `persistence.relational@1`，可选依赖 `multitenancy.context@1`）在调用方的工作单元里读写、租户的记录随租户分库，用平台库里的租约行做分布式实例锁，多实例同时只有一个执行者；到期书签由持有轮询租约的节点逐个分区轮询（其他节点同时轮询也只是无效的重复尝试）。
+Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkflowBookmarkStore`（作用域服务，按分区读写）、`IWorkflowTransaction`（作用域服务，与调用方事务的关系）与 `IWorkflowInstanceLock`，并在应用进入服务状态后驱动 `DueBookmarkPoller`——循环可以在特性启动时就起，但每个周期（`RunCycleAsync`）先看应用是否在服务状态，启动中与排空中的周期不轮询、不清理、不记告警（管道这时不接受调用，逐个分区按不可达告警只是噪声；2026-11-01 修订，ADR-0084）。`Workflow.Database`（依赖 `persistence.relational@1`，可选依赖 `multitenancy.context@1`）在调用方的工作单元里读写、租户的记录随租户分库，用平台库里的租约行做分布式实例锁，多实例同时只有一个执行者；到期书签由持有轮询租约的节点逐个分区轮询（其他节点同时轮询也只是无效的重复尝试）。
 
 ## 名字与值
 
