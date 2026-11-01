@@ -75,6 +75,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_NOTFOUND_001` | 更新或删除的实体不存在（含已软删除、不属于当前租户） |
 | `PERSISTENCE_CONFLICT_001` | 乐观并发冲突：并发戳不匹配；内存实现提交时发现更新或删除的行已被别的工作单元删除或改过 |
 | `PERSISTENCE_CONFLICT_002` | 新增的标识已存在；含并发新增：检查之后另一个工作单元提交了同一标识（关系型在写入时、内存实现在提交时返回） |
+| `PERSISTENCE_CONFLICT_003` | 唯一键重复：写入撞上实体声明的唯一索引（`[EntityIndex(IsUnique = true)]` 等）——同一次写入里两项同键，或库里另一行（标识不同）同键；含更新把键改成已有的值、软删除撞上同一键已删除的行。关系型 Provider 在写入失败后核对，这次写入的项统一报告，工作单元随后只能回滚；内存实现不建索引、不返回它 |
 | `PERSISTENCE_DENIED_001` | 只读工作单元拒绝写入：只读操作（动词 `get` / `list` 或声明了 `ReadOnly`）或以 `IsReadOnly` 开启的工作单元里新增、更新、删除（含批量）。仓储写入返回结果并把工作单元记为失败（提交返回同一错误）；直接写入入口 `EnsureTransactionAsync` 抛出、由 Transaction 阶段转为结果；HTTP 403 |
 | `PERSISTENCE_UNAVAILABLE_001` | 没有活动的工作单元（仓储在 Transaction 阶段之外使用；以异常抛出） |
 | `PERSISTENCE_UNAVAILABLE_002` | 存储容量已满（内存实现的每类实体上限） |

@@ -1,6 +1,6 @@
 # RFC-0005 领域协议与持久化
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译；2026-11-01 修订：只读操作开只读工作单元、嵌套调用、查询取出条数超限是校验错误） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063、0073 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译；2026-11-01 修订：只读操作开只读工作单元、嵌套调用、查询取出条数超限是校验错误；2026-11-01 修订：索引声明与唯一键重复） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063、0072、0073 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
 
 ## 摘要
 
@@ -56,9 +56,9 @@
 | `FindAsync(id)` | 已软删除或不属于当前租户视为不存在 | — |
 | `ListAsync(query)` | 过滤、排序、分页；`Take` 取 1 到 `EntityQuery.DefaultMaxTake`（1000），缺省取上限；超过上限以 `PERSISTENCE_VALIDATION_005` 拒绝（见下文「查询的取出条数」），不静默截断，要更多行就分页；Provider 不得返回超过 `Take` 的结果；`TimeRange`（`Within(from, to)`）是时间范围提示——按时间分表 / 分区的 Provider 据此只扫描范围内的表，不是过滤条件，不分表的实体与不支持范围的 Provider 忽略它 | — |
 | `CountAsync(query)` | 忽略排序与分页 | — |
-| `AddAsync` | 写入创建时间、租户、并发戳 | `PERSISTENCE_CONFLICT_002` 标识重复、`PERSISTENCE_VALIDATION_001` 缺租户 |
-| `UpdateAsync` | 写入修改时间、刷新并发戳 | `PERSISTENCE_NOTFOUND_001`、`PERSISTENCE_CONFLICT_001` |
-| `RemoveAsync` | 软删除协议打标，否则物理删除 | `PERSISTENCE_NOTFOUND_001` |
+| `AddAsync` | 写入创建时间、租户、并发戳 | `PERSISTENCE_CONFLICT_002` 标识重复、`PERSISTENCE_CONFLICT_003` 唯一键重复、`PERSISTENCE_VALIDATION_001` 缺租户 |
+| `UpdateAsync` | 写入修改时间、刷新并发戳 | `PERSISTENCE_NOTFOUND_001`、`PERSISTENCE_CONFLICT_001`、`PERSISTENCE_CONFLICT_003` |
+| `RemoveAsync` | 软删除协议打标，否则物理删除 | `PERSISTENCE_NOTFOUND_001`、`PERSISTENCE_CONFLICT_003`（软删除撞上同一业务键已删除的行，见「索引声明」） |
 | `FindManyAsync(ids)` | 按标识集合查找；只返回存在且可见的实体，顺序按入参，缺失省略，重复标识只返回一次 | — |
 | `AddRangeAsync(entities)` | 逐项同 `AddAsync`，一次写入 | 逐项结果 |
 | `UpdateRangeAsync(entities)` | 逐项同 `UpdateAsync`，一次写入 | 逐项结果 |
@@ -69,7 +69,7 @@
 - 单条是批量的特例；框架内部与示例处理多个实体时调用批量方法。
 - 逐项结果与入参顺序一一对应：标识重复、缺租户、不存在、并发冲突按项报告；通过校验的项一次写入（Provider 用原生多行写入），写入阶段的基础设施失败（`PERSISTENCE_UNAVAILABLE_003`、容量）对这些项统一报告，整个工作单元随调用结果回滚。
 - 批内按入参顺序逐项施加语义：同一批新增同一标识两次，第二次返回 `PERSISTENCE_CONFLICT_002`；删除同一实体两次，第二次返回 `PERSISTENCE_NOTFOUND_001`。
-- 写入阶段才发现的标识重复（检查之后另一个工作单元提交了同一标识，见「工作单元」）按写入阶段的失败处理：这次写入的项统一返回 `PERSISTENCE_CONFLICT_002`，`id` 是按入参顺序第一个撞上的标识，工作单元随后只能回滚。
+- 写入阶段才发现的标识重复（检查之后另一个工作单元提交了同一标识，见「工作单元」）按写入阶段的失败处理：这次写入的项统一返回 `PERSISTENCE_CONFLICT_002`，`id` 是按入参顺序第一个撞上的标识，工作单元随后只能回滚。撞上唯一索引同样：这次写入的项统一返回 `PERSISTENCE_CONFLICT_003`，`index` 是第一个撞上的索引名（见「索引声明」）。
 - 空集合不触后端、返回空列表，但仍要求活动的工作单元。
 - 读己之写对批量同样成立：批量新增后同一工作单元内可查到全部实体。
 
@@ -85,6 +85,25 @@
 ## 实体登记
 
 应用用 `AddRepository<TEntity, TKey>()` 登记实体；Provider 的特性在配置阶段通过 `IRepositoryRegistrar` 为每个登记注册闭合泛型的 `IRepository<TEntity, TKey>`。不用开放泛型注册，不用反射扫描；AOT 友好。
+
+## 索引声明
+
+实体在类上以 `Persistence.Abstractions` 的 `[EntityIndex(params string[] properties)]` 声明索引，Provider 据此建索引；实体只引用契约包，不标某个 Provider 的特性（SqlSugar 的 `[SugarIndex]`、EF Core 的 `[Index]`）。`EntityIndexes.Resolve(entityType, table)` 是共用实现，Provider 不自行推名字，两个关系型 Provider 建出同名、同列的索引。
+
+| 项 | 规则 |
+| --- | --- |
+| 列 | 属性名（`nameof`），按声明顺序，全部升序；同一实体可声明多个，`IsUnique = true` 为唯一索引 |
+| 名字 | `IX_`（唯一为 `UX_`）+ 表名 + 每列一段缩写，以 `_` 连接。缩写是属性名每个词的前两个字符：词从首字符、小写或数字之后的大写字母、连续大写里后跟小写的那个大写字母开始，`_` 只分词不计入（`TenantId → TeId`、`NextFireAt → NeFiAt`、`HTTPServerName → HTSeNa`）。表名是 Provider 映射出的表名，字母、数字、`_` 以外的字符换成 `_` |
+| 长度 | 不超过 63 个字符（`EntityIndexes.MaxNameLength`，PostgreSQL 标识符上限；MySQL 64、SQL Server 128）；超过是声明错误，不截断——PostgreSQL 会静默截断，下一次建表按全名查不到已有索引，再建即撞名 |
+| 软删除 | 实体实现 `ISoftDeletable` 时，唯一索引末尾加 `IsDeleted`（声明里已有则不重复），名字仍按声明的列：未删除的行之间唯一，删掉的行不占业务键；同一业务键最多一行已删除，删除、重建、再删除同一个键时第二次删除返回 `PERSISTENCE_CONFLICT_003` |
+| 空值 | 唯一索引含可空列时，NULL 的语义随数据库：PostgreSQL、SQLite、MySQL 不约束含 NULL 的行，SQL Server 把 NULL 当作相等，EF Core 在 SQL Server 上给这类唯一索引自动加 `IS NOT NULL` 过滤。需要空值参与唯一性的列存非空哨兵值 |
+| 声明错误 | 没有列、列名空白或重复、列不是公开实例属性、名字超长、同一实体两个索引同名（不区分大小写）或同列：Provider 建模或建表时抛 `InvalidOperationException` |
+
+- SqlSugar：约定在表服务回调（`EntityNameService`，已有回调先执行、表名以它们为准）里把解析结果交给 SqlSugar（`SugarIndexAttribute`），`InitTables` 建表后按名字查不到才建（PostgreSQL 折成小写的名字按不区分大小写查到），已有的不改、不删，再次建表不重复建；表里已有重复数据时唯一索引建不出来，`InitTables` 失败。分表实体声明索引抛 `NotSupportedException`（分表用 SqlSugar 自己的 `[SugarIndex]` 与 `{split_table}`）。
+- EF Core：`ApplyPersistenceConventions()` 映射为 `HasIndex(列).IsUnique(…).HasDatabaseName(名字)`，表名取调用时的映射（`ToTable` 在它之前配置）；从属类型与共享类型实体跳过。
+- 内存实现不建索引、不校验唯一性（只用于开发与测试）。
+- 唯一键重复：关系型 Provider 的新增、更新与删除写入失败、又不是标识重复时，核对实体的唯一索引——这次写入里两项同键，或库里另一行（标识不同）同键——撞上即返回 `PERSISTENCE_CONFLICT_003`（参数 `entity`、`index`），这次写入的项统一报告，工作单元随后只能回滚，处理器忽略这次失败而返回成功时提交回滚并返回同一错误（与写入阶段的标识重复相同）。SqlSugar 另开不在事务里的连接查已提交的行（PostgreSQL 系语句失败后原事务已中止），EF Core 在 SaveChanges 回到的保存点之后于同一事务里查。核对不到的冲突（大小写不敏感排序规则下只差大小写、键含空值、SqlSugar 上与本工作单元先前未提交的行冲突）异常原样抛出，调用以 `KERNEL_UNEXPECTED_001` 结束。
+- 框架自己的数据库记录（发件箱、审计、授予、翻译、调度、工作流）按实际的轮询与查询条件声明索引，清单见 ADR-0072。
 
 ## 标识生成
 
@@ -120,9 +139,9 @@
 
 | Provider | 角色 | 要点 |
 | --- | --- | --- |
-| `Persistence.InMemory` | default | 每类实体一张有界表；覆盖层实现读己之写；读写都复制（字段逐一的浅复制）：查找与查询交出副本，写入存调用方实例的副本，读出的实例改了不经仓储写回就碰不到存储，集合等引用类型字段（含领域事件缓冲）仍与副本共享、不在隔离范围内；覆盖层记下每个写过的标识首次读到的已提交状态，提交时按涉及的表依次加锁、逐一校验（新增的标识已被提交 → `PERSISTENCE_CONFLICT_002`；更新或删除的行已不在、带并发戳的行戳已变 → `PERSISTENCE_CONFLICT_001`；容量 → `PERSISTENCE_UNAVAILABLE_002`），全部通过才应用，跨表原子 |
-| `Persistence.EntityFrameworkCore` | provider | 应用持有 `DbContext`；工作单元在首次写入时开启数据库事务，每次写入立即 `SaveChanges`，批量写入是一次 `AddRange` / 多实体跟踪加一次 `SaveChanges`；软删除与租户过滤用 `EF.Property` 显式施加，不用全局过滤器；`ApplyPersistenceConventions()` 把并发戳设为并发令牌；游离实体更新先比对并发戳；更新与删除时创建时间、租户与删除标记回到跟踪实例的原值（OriginalValues），写入路径按原值判定可见性，提交时保存的残余变更同样不改创建时间与租户；新增撞上主键约束时，SaveChanges 已回到自动建的保存点，在同一事务里核对标识，确已存在即按标识重复报告并把这次新增的实体移出跟踪 |
-| `Persistence.SqlSugar` | provider | 作用域内的 `ISqlSugarClient` 由特性按回调创建或由应用注册，可以带多个连接（`ConfigId`）：特性创建时默认连接的 `ConfigId` 是 `default`，带租户分片的调用再加一个 `shard` 连接；每个实体落在哪个连接由 `IEntityConnectionSelector` 决定（默认规则：SqlSugar `[Tenant(configId)]` 特性指定的连接 → 实现 `IMultiTenant` 且客户端有 `shard` 连接时 `shard` → 否则默认连接），平台目录表始终走默认连接、租户表走分片连接；`[Tenant]` 指向客户端里没有的连接是装配错误，抛出携带 `PERSISTENCE_VALIDATION_004` 的 `FrameworkException`，不回退到默认连接，缺省落点规则下带 `[Tenant]` 的已登记实体在启动时就校验（`shard` 只在带分片的调用里存在，不在启动时校验）；工作单元经 `AsTenant()` 开启、提交、回滚事务，同一调用触及的全部连接一起提交或回滚（顺序提交，不是两阶段提交）；每次写入立即执行；批量用按对象入口 `InsertableByObject(list)` / `UpdateableByObject(list)` / `DeleteableByObject(list)`（删除按主键，开启差异日志的实体走泛型构建器），各一次调用；软删除与租户过滤以表达式显式施加；规约先改写再交给 SqlSugar——可空值类型与 null 的 `==` 改写成 `SqlFunc.EqualsNull(x, null)`、`!=` 改写成 `HasValue`，逻辑非下推到叶子（双重否定消去、德摩根展开、比较换反运算、`!x.HasValue` 换判空），因为 SqlSugar 把提升比较译成 `= NULL`，又会在与 / 或条件右侧的「取反作左操作数」处漏写运算符；`SqlSugarConventions.Apply()` 按协议配置主键、并发戳长度、`DateTimeOffset` 的 UTC 往返（写入取 UTC 时刻；读取按驱动交出的 `DateTime.Kind` 还原——Npgsql legacy 时间戳模式把 `timestamptz` 换算成本地时间、Kind=Local 交出，须换回 UTC，否则多出本地时区偏移且经实体回写逐次累加；Utc / Unspecified 按 UTC；一致性套件除 SQLite 外还要在真实 PostgreSQL 上跑，环境变量 `XIHAN_TEST_POSTGRES`）、可空列与忽略列，实体不继承 SqlSugar 基类；更新与删除先在事务内加行锁取回当前行比对并发戳，更新时创建时间、租户与删除标记换成当前行的值，软删除在当前行上打标；新增撞上主键约束时另开一个不在事务里的连接（`CopyNew`，同一份连接配置）核对标识是否已被提交（PostgreSQL 系语句失败后事务已中止，不能在原事务里再查），确已存在即按标识重复报告；带 SqlSugar `[SplitTable]` 的实体自动走分表入口——查询在过滤条件之后 `SplitTable(from, to)`（按 `TimeRange` 的 UTC 时刻，没有提示扫全部分表），写入经 `InsertableByObject(x).SplitTable()` 等按 `[SplitField]` 落表，分表实体不加行锁靠并发戳，启动建表走 `CodeFirst.SplitTables()`字符串列的长度：`[StringLength(n)]`（或 `[MaxLength(n)]`）→ 长度 n，`Persistence.Abstractions` 的 `[LongText]`（或无参 `[MaxLength]`）→ 数据库的长文本类型，DataAnnotations 的 `[MaxLength]` 构造函数带 `RequiresUnreferencedCode`、框架记录不用；没有注解的沿用 SqlSugar 默认（PostgreSQL 为 `varchar(255)`），框架自己的数据库记录全部显式标注（架构测试门禁）；`InitTables`（ADR-0040）建缺表、加缺列，删列、改名、改类型不在契约内，是开发与测试的便利，生产库结构演进走迁移脚本——给已有行的表加非可空列时，PostgreSQL 上非可空的数值 / 枚举 / 布尔 / Guid 列由约定配 CLR 缺省值（`0` / `false` / 全零 Guid）回填旧行，SQLite 由 SqlSugar 加成可空列（旧行读回 CLR 缺省值），非可空字符串与日期时间列及其他数据库不受支持（声明成可空，或重建 / 迁移）；约定只作用于实体，声明在 BCL 类型上的属性原样交还 |
+| `Persistence.InMemory` | default | 每类实体一张有界表；不建索引、不校验唯一索引；覆盖层实现读己之写；读写都复制（字段逐一的浅复制）：查找与查询交出副本，写入存调用方实例的副本，读出的实例改了不经仓储写回就碰不到存储，集合等引用类型字段（含领域事件缓冲）仍与副本共享、不在隔离范围内；覆盖层记下每个写过的标识首次读到的已提交状态，提交时按涉及的表依次加锁、逐一校验（新增的标识已被提交 → `PERSISTENCE_CONFLICT_002`；更新或删除的行已不在、带并发戳的行戳已变 → `PERSISTENCE_CONFLICT_001`；容量 → `PERSISTENCE_UNAVAILABLE_002`），全部通过才应用，跨表原子 |
+| `Persistence.EntityFrameworkCore` | provider | 应用持有 `DbContext`；工作单元在首次写入时开启数据库事务，每次写入立即 `SaveChanges`，批量写入是一次 `AddRange` / 多实体跟踪加一次 `SaveChanges`；软删除与租户过滤用 `EF.Property` 显式施加，不用全局过滤器；`ApplyPersistenceConventions()` 把并发戳设为并发令牌、实体上的 `[EntityIndex]` 映射为 `HasIndex`（见「索引声明」）；游离实体更新先比对并发戳；更新与删除时创建时间、租户与删除标记回到跟踪实例的原值（OriginalValues），写入路径按原值判定可见性，提交时保存的残余变更同样不改创建时间与租户；新增撞上主键约束时，SaveChanges 已回到自动建的保存点，在同一事务里核对标识，确已存在即按标识重复报告并把这次新增的实体移出跟踪；写入撞上唯一索引时在同一事务里核对，按唯一键重复报告 |
+| `Persistence.SqlSugar` | provider | 作用域内的 `ISqlSugarClient` 由特性按回调创建或由应用注册，可以带多个连接（`ConfigId`）：特性创建时默认连接的 `ConfigId` 是 `default`，带租户分片的调用再加一个 `shard` 连接；每个实体落在哪个连接由 `IEntityConnectionSelector` 决定（默认规则：SqlSugar `[Tenant(configId)]` 特性指定的连接 → 实现 `IMultiTenant` 且客户端有 `shard` 连接时 `shard` → 否则默认连接），平台目录表始终走默认连接、租户表走分片连接；`[Tenant]` 指向客户端里没有的连接是装配错误，抛出携带 `PERSISTENCE_VALIDATION_004` 的 `FrameworkException`，不回退到默认连接，缺省落点规则下带 `[Tenant]` 的已登记实体在启动时就校验（`shard` 只在带分片的调用里存在，不在启动时校验）；工作单元经 `AsTenant()` 开启、提交、回滚事务，同一调用触及的全部连接一起提交或回滚（顺序提交，不是两阶段提交）；每次写入立即执行；批量用按对象入口 `InsertableByObject(list)` / `UpdateableByObject(list)` / `DeleteableByObject(list)`（删除按主键，开启差异日志的实体走泛型构建器），各一次调用；软删除与租户过滤以表达式显式施加；规约先改写再交给 SqlSugar——可空值类型与 null 的 `==` 改写成 `SqlFunc.EqualsNull(x, null)`、`!=` 改写成 `HasValue`，逻辑非下推到叶子（双重否定消去、德摩根展开、比较换反运算、`!x.HasValue` 换判空），因为 SqlSugar 把提升比较译成 `= NULL`，又会在与 / 或条件右侧的「取反作左操作数」处漏写运算符；`SqlSugarConventions.Apply()` 按协议配置主键、并发戳长度、`[EntityIndex]` 的索引（`InitTables` 建出，见「索引声明」）、`DateTimeOffset` 的 UTC 往返（写入取 UTC 时刻；读取按驱动交出的 `DateTime.Kind` 还原——Npgsql legacy 时间戳模式把 `timestamptz` 换算成本地时间、Kind=Local 交出，须换回 UTC，否则多出本地时区偏移且经实体回写逐次累加；Utc / Unspecified 按 UTC；一致性套件除 SQLite 外还要在真实 PostgreSQL 上跑，环境变量 `XIHAN_TEST_POSTGRES`）、可空列与忽略列，实体不继承 SqlSugar 基类；更新与删除先在事务内加行锁取回当前行比对并发戳，更新时创建时间、租户与删除标记换成当前行的值，软删除在当前行上打标；新增撞上主键约束时另开一个不在事务里的连接（`CopyNew`，同一份连接配置）核对标识是否已被提交（PostgreSQL 系语句失败后事务已中止，不能在原事务里再查），确已存在即按标识重复报告，写入撞上唯一索引时同样另开连接核对、按唯一键重复报告；带 SqlSugar `[SplitTable]` 的实体自动走分表入口——查询在过滤条件之后 `SplitTable(from, to)`（按 `TimeRange` 的 UTC 时刻，没有提示扫全部分表），写入经 `InsertableByObject(x).SplitTable()` 等按 `[SplitField]` 落表，分表实体不加行锁靠并发戳，启动建表走 `CodeFirst.SplitTables()`字符串列的长度：`[StringLength(n)]`（或 `[MaxLength(n)]`）→ 长度 n，`Persistence.Abstractions` 的 `[LongText]`（或无参 `[MaxLength]`）→ 数据库的长文本类型，DataAnnotations 的 `[MaxLength]` 构造函数带 `RequiresUnreferencedCode`、框架记录不用；没有注解的沿用 SqlSugar 默认（PostgreSQL 为 `varchar(255)`），框架自己的数据库记录全部显式标注（架构测试门禁）；`InitTables`（ADR-0040）建缺表、加缺列，删列、改名、改类型不在契约内，是开发与测试的便利，生产库结构演进走迁移脚本——给已有行的表加非可空列时，PostgreSQL 上非可空的数值 / 枚举 / 布尔 / Guid 列由约定配 CLR 缺省值（`0` / `false` / 全零 Guid）回填旧行，SQLite 由 SqlSugar 加成可空列（旧行读回 CLR 缺省值），非可空字符串与日期时间列及其他数据库不受支持（声明成可空，或重建 / 迁移）；约定只作用于实体，声明在 BCL 类型上的属性原样交还 |
 
 ## 一致性
 
