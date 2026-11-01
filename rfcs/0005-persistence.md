@@ -1,6 +1,6 @@
 # RFC-0005 领域协议与持久化
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译；2026-11-01 修订：只读操作开只读工作单元、嵌套调用、查询取出条数超限是校验错误；2026-11-01 修订：索引声明与唯一键重复；2026-11-01 修订：运行时数据源） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063、0072、0073、0078 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译；2026-11-01 修订：只读操作开只读工作单元、嵌套调用、查询取出条数超限是校验错误；2026-11-01 修订：索引声明与唯一键重复；2026-11-01 修订：运行时数据源；2026-11-01 修订：库结构读取与实体目录） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063、0072、0073、0078 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
 
 ## 摘要
 
@@ -145,6 +145,25 @@
 - SqlSugar：数据库类型是 `DbType` 枚举的名字（不区分大小写，`Custom` 与数字除外）。`SqlSugarDataSource.Client` 是每个数据源一个的 `SqlSugarScope`（线程安全，`IsAutoCloseConnection`），不施加实体约定、不挂过滤器与 AOP、不进工作单元，PostgreSQL 上不自动转小写（标识符按库里的原样引用）。登记时由驱动解析连接串，格式错即拒绝；探测与测试连接打开原生 `DbConnection` 再关闭。
 - EF Core 与内存实现：不支持，注册表照样注册，取用、测试连接返回 `PERSISTENCE_UNAVAILABLE_008`。EF Core 的数据库 Provider（`UseNpgsql` 等）由应用选、框架包不引用，按数据库类型建连接需要对应的 Provider 包；内存实现没有数据库。
 
+## 库结构读取与实体目录
+
+`ISchemaReader` 读关系库的表与列，`IEntityCatalog` 枚举已登记的实体与映射；代码生成据此导入表、按最新库结构同步、沿用已有实体。
+
+| 操作 | 语义 |
+| --- | --- |
+| `ListTablesAsync(dataSource, query)` | 表（不含列）：名字、注释、物理表、是否分表；按名字排序（不区分大小写）；`Keyword` 在名字与注释里不区分大小写地包含匹配；`Skip` / `Take` 分页，`Take` 取 1 到 `EntityQuery.DefaultMaxTake`（1000），超过在构造查询时以 `PERSISTENCE_VALIDATION_005` 拒绝（调用里转为校验结果）；返回过滤后的总数。库里的表一次读出、在内存里过滤与分页 |
+| `GetTablesAsync(dataSource, tables)` | 按表名批量读结构（含列）。外层结果是整批的：一次最多 `SchemaLimits.MaxTablesPerRead`（100）张，超过 → `PERSISTENCE_VALIDATION_005`（参数 `count`、`max`）；连接或读取失败整批 `PERSISTENCE_UNAVAILABLE_006`。成功时逐项结果与入参一一对应：名字先精确匹配、再按不区分大小写的唯一匹配（分表用逻辑名），找不到该项 `PERSISTENCE_NOTFOUND_003`（参数 `dataSource`、`table`）；重复的名字各自返回同一结构；空集合不连库、返回空列表；每张表读列之前检查取消。`GetTableAsync` 是单项特例 |
+| `IEntityCatalog.ListAsync()` | 每个以 `AddRepository` 登记的实体一条 `EntityMapping`（按登记顺序，同一实体登记多次只一条）：实体类型、标识类型、表名、是否分表、实现的协议 `EntityProtocols`（聚合根、创建时间、修改时间、并发戳、软删除、多租户）、列映射（属性、列名、CLR 类型、是否主键、是否可空，不映射的属性不列）、`[EntityIndex]` 声明的索引（`EntityIndexes.Resolve`，与建出的同名；Provider 自己的索引特性不在内） |
+
+- 数据源：`null` 是应用的缺省连接（错误里称作 `default`），读取另开一个不在事务里的连接（PostgreSQL 系语句失败会中止原事务）；否则是运行时数据源的定义，读取前经 `GetOrAddAsync` 登记，读到的总是记录里当前的连接，定义不合法、登记已满按「运行时数据源」的错误。
+- 列：名字、数据库报告的类型名（不含长度与精度，如 `varchar`、`int8`、`numeric`、`TEXT`）、序号、主键、自增（identity、serial、`AUTOINCREMENT`）、可空、长度（定点数族以外的类型；字符与二进制类型是声明的长度，SQLite、PostgreSQL 上整数与日期等为 null，其他数据库可能报告字节数或显示宽度）、精度与小数位（只给 `decimal` / `numeric` / `number` / `money` 族）、注释、缺省值（数据库报告的原文，如 `x`、`nextval(…::regclass)`）；数据库没有的项为 null。主键列一律报告为不可空。
+- 分表折叠：已登记实体带 SqlSugar `[SplitTable]` 时，按它的表名模板（`{year}` 四位数字，`{month}`、`{day}` 两位）不区分大小写地匹配物理表，折叠成一张逻辑表：名字是模板去掉占位符、去掉首尾的 `_`（`Order_{year}{month}{day}` → `Order`），`PhysicalTables` 新到旧，注释与列取最新的物理表。缺省连接与运行时数据源都按已登记实体的模板折叠；没有登记实体的分表不折叠，物理表各自出现；物理表名不能按名字读（只认逻辑名）。
+- 实体目录的表名与列名是映射声明的写法（分表是逻辑名）；PostgreSQL 等把未加引号的标识符折成小写的库里物理名可能只差大小写，对照时不区分大小写。
+- 数据库限制：SQLite 没有表与列注释（`Comment` 为 null），`INTEGER PRIMARY KEY` 报告为可空（读取时按主键改为不可空），长度、精度与小数位取自声明的类型（SQLite 不强制），自增只认 `AUTOINCREMENT`。PostgreSQL 的注释、identity 与 serial 都能读到。SQL Server、MySQL、Oracle 的数值精度取 SqlSugar 报告的长度，本仓库未实测。
+- SqlSugar：读表 `DbMaintenance.GetTableInfoList`、读列 `GetColumnInfosByTableName`（同步 API，在调用线程上执行）；实体目录取 `EntityMaintenance.GetEntityInfo`（施加了协议约定的映射）。
+- EF Core：实体目录取 DbContext 模型（`GetTableName()`、`GetColumnName(表)`，影子属性不列）；库结构读取不支持（`PERSISTENCE_UNAVAILABLE_008`）：跨数据库的结构读取在 EF Core 里是设计期脚手架服务（`Microsoft.EntityFrameworkCore.Design` 的 `IDatabaseModelFactory`，按数据库 Provider 程序集反射发现），ADO.NET 的 `GetSchema` 各驱动返回的列不同、`Microsoft.Data.Sqlite` 不实现。
+- 内存实现：实体目录的表名取实体类型名、列取有公开 setter 的非集合属性（列名即属性名，这是它的存储形态）；库结构读取不支持（`PERSISTENCE_UNAVAILABLE_008`）。
+
 ## 能力与配置
 
 | 项 | 值 |
@@ -166,6 +185,8 @@
 Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合；可空值类型与 null 的相等 / 不等按存在性过滤（字面量 null、闭包里的 null 变量、左右互换、与 `HasValue` 一致，组合到别的条件里也成立）；一次查询最多取 `EntityQuery.DefaultMaxTake` 条、超过的取出条数在构造查询时以 `PERSISTENCE_VALIDATION_005` 拒绝，调用里先写入再构造超限查询的调用以该码结束、写入回滚；判空与取反嵌套在与 / 或条件里照常过滤（或条件在与条件右侧、判空或取反是或条件的左操作数、取反整个与 / 或条件、双重否定）；更新沿用存储的创建时间、租户与删除标记、删除不改创建时间（游离实例与读出后改过的实例两种）；两个工作单元先后新增同一标识只有一个成功、另一个返回 `PERSISTENCE_CONFLICT_002`、留下的是成功者的行；回滚的调用在存储里不留修改、并发戳与删除标记，提交前另一个工作单元读到的是旧值；只读操作里单条与批量的新增、更新、删除都返回 `PERSISTENCE_DENIED_001`、存储不变，处理器忽略拒绝而返回成功时调用仍以它结束，查询照常；只读操作在新的服务作用域里调用写操作，写入照常提交，外层仍拒绝自己的写入；同一作用域里再经管道的调用以 `PERSISTENCE_VALIDATION_002` 结束、处理器不执行。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
 
 运行时数据源：支持它的 Provider 给出一个连得上的定义与一个连不上的定义（子类覆写），用例验证测试连接成功与失败（失败是 `PERSISTENCE_UNAVAILABLE_006`，错误消息与参数里没有连接串与口令）、同定义复用、定义变了替换、批量移除后 `GetAsync` 返回 `PERSISTENCE_NOTFOUND_002`；不给定义的 Provider（EF Core、内存实现）断言取用与测试连接都返回 `PERSISTENCE_UNAVAILABLE_008`，不返回空结果冒充。
+
+库结构与实体目录（`SchemaConformance`）：实体目录列出套件的三种实体各一条（重复登记只一条），标识类型、协议与主键列对；读结构的 Provider 列出这三张表、关键字与分页照常、读到主键列（不可空）与普通列、不存在的表该项 `PERSISTENCE_NOTFOUND_003`、超过 100 张整批 `PERSISTENCE_VALIDATION_005`、空集合返回空列表、经运行时数据源读同一个库结果一致；不读结构的 Provider 断言列表与读取都返回 `PERSISTENCE_UNAVAILABLE_008`。
 
 标识生成器必须通过 `IdGeneratorConformance<TKey>`：顺序生成与多线程并发生成不重复、时钟前进后生成的标识更大；`GuidV7IdGenerator` 与 `SnowflakeIdGenerator` 都通过。
 
