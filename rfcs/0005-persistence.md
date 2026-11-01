@@ -107,7 +107,7 @@
 | 名字 | `IX_`（唯一为 `UX_`）+ 表名 + 每列一段缩写，以 `_` 连接。缩写是属性名每个词的前两个字符：词从首字符、小写或数字之后的大写字母、连续大写里后跟小写的那个大写字母开始，`_` 只分词不计入（`TenantId → TeId`、`NextFireAt → NeFiAt`、`HTTPServerName → HTSeNa`）。表名是 Provider 映射出的表名，字母、数字、`_` 以外的字符换成 `_` |
 | 长度 | 不超过 63 个字符（`EntityIndexes.MaxNameLength`，PostgreSQL 标识符上限；MySQL 64、SQL Server 128）；超过是声明错误，不截断——PostgreSQL 会静默截断，下一次建表按全名查不到已有索引，再建即撞名 |
 | 软删除 | 实体实现 `ISoftDeletable` 时，唯一索引是只约束未删除行的部分唯一索引（`EntityIndex.ExcludesDeleted`）：列就是声明的列，条件 `IsDeleted = false`（PostgreSQL、SQLite 的 `WHERE`，SQL Server 的筛选索引），名字仍按声明的列；未删除的行之间唯一，已删除的行不受约束——同一业务键删除、重建、再删除任意多次都不冲突。声明的列里显式写了 `IsDeleted` 时不加条件，按普通唯一索引约束这些列（同一业务键最多一行已删除），是不支持部分索引的数据库上的显式选择 |
-| 部分索引的数据库 | 支持：PostgreSQL、SQLite、SQL Server。其余不支持或未验证的数据库（MySQL 系、Oracle 系、达梦、ClickHouse 等，以及源自 PostgreSQL 但未验证的人大金仓、openGauss、GaussDB、瀚高、Vastbase、PolarDB 等）上，有软删除实体声明了唯一索引（未显式含 `IsDeleted`）即启动失败（`FrameworkException`，`PERSISTENCE_UNAVAILABLE_008`，列出实体、索引与数据库类型），不静默退化成普通唯一索引或不建索引 |
+| 部分索引的数据库 | 支持：PostgreSQL、SQLite、SQL Server。其余不支持或未验证的数据库（MySQL 系、Oracle 系、达梦、ClickHouse 等，以及源自 PostgreSQL 但未验证的人大金仓、openGauss、GaussDB、瀚高、Vastbase、PolarDB 等）上，有软删除实体声明了唯一索引（未显式含 `IsDeleted`）即启动失败（`FrameworkException`，`PERSISTENCE_UNAVAILABLE_008`，列出实体、索引与数据库类型），不静默退化成普通唯一索引或不建索引。PostgreSQL 衍生库维持不支持（已定，ADR-0084）：在真实库上验证过部分唯一索引的建出、约束与再次建表不重复建之后，才加进支持之列 |
 | 空值 | 唯一索引含可空列时，NULL 的语义随数据库：PostgreSQL、SQLite、MySQL 不约束含 NULL 的行，SQL Server 把 NULL 当作相等，EF Core 在 SQL Server 上给这类唯一索引自动加 `IS NOT NULL` 过滤。需要空值参与唯一性的列存非空哨兵值 |
 | 声明错误 | 没有列、列名空白或重复、列不是公开实例属性、名字超长、同一实体两个索引同名（不区分大小写）或同列：Provider 建模或建表时抛 `InvalidOperationException` |
 
@@ -151,11 +151,11 @@
 | 容量 | 登记数上限 `XiHan:Persistence:DataSources:MaxCount`（缺省 64，1–1024）。满了再登记新名字 → `PERSISTENCE_UNAVAILABLE_007`，不淘汰已有的；替换同名的不占名额 |
 | 测试连接 | `TestAsync(definition)`：按定义建临时实例，打开一次连接再关闭，然后释放；不登记、不占名额、不影响同名的已登记实例。成功返回成功，连不上 → `PERSISTENCE_UNAVAILABLE_006`（参数 `name`、`reason`）；等多久由调用方的取消令牌与连接串里驱动自己的连接超时决定 |
 | 健康 | 每个已登记的数据源一条 `persistence.datasource.<name>`（数据 `databaseType`、`provider`），按 `XiHan:Persistence:DataSources:HealthProbeIntervalSeconds`（缺省 15，也是单次探测的超时）在后台逐个打开连接再关闭，一轮没探完跳过下一轮；新登记的立即探一次。尚未探过 Started，成功 Ready，失败或超时 Degraded（`PERSISTENCE_UNAVAILABLE_006`），Degraded 不影响 readiness；探测期间被替换或移除的结果丢弃 |
-| 机密 | 连接串不进日志、错误与健康详情。`DataSourceDefinition.ToString()` 不含连接串；错误与健康项的 `reason` 取驱动异常消息（含内层异常），先经 `ConnectionStrings.Redact(text, connectionString)` 把整串连接串与口令类键（键名含 `password`、`pwd`、`secret`、`token`、`key`，不区分大小写）的值换成 `***`；驱动消息可能带主机名、端口、库名与用户名，不带口令。日志只记名字与数据库类型 |
+| 机密 | 连接串不进日志、错误与健康详情。`DataSourceDefinition.ToString()` 不含连接串；错误与健康项的 `reason` 取驱动异常消息（含内层异常），先经 `ConnectionStrings.Redact(text, connectionString)` 把整串连接串与口令类键（键名含 `password`、`pwd`、`secret`、`token`、`key`，不区分大小写）的值换成 `***`；驱动消息可能带主机名、端口、库名与用户名，不带口令——这是定下的脱敏范围（ADR-0084）：主机、端口、库名、用户名是排查连接问题要用的，不算机密。日志只记名字与数据库类型 |
 | 失败 | 数据库类型 Provider 不认识、连接串格式错 → `PERSISTENCE_VALIDATION_006`，同名的已登记实例不受影响；没有支持运行时数据源的 Provider → `PERSISTENCE_UNAVAILABLE_008` |
 
 - SqlSugar：数据库类型是 `DbType` 枚举的名字（不区分大小写，`Custom` 与数字除外）。`SqlSugarDataSource.Client` 是每个数据源一个的 `SqlSugarScope`（线程安全，`IsAutoCloseConnection`），不施加实体约定、不挂过滤器与 AOP、不进工作单元，PostgreSQL 上不自动转小写、Oracle 上不自动转大写（标识符按库里的原样引用）。登记时由驱动解析连接串，格式错即拒绝；探测与测试连接打开原生 `DbConnection` 再关闭。
-- EF Core 与内存实现：不支持，注册表照样注册，取用、测试连接返回 `PERSISTENCE_UNAVAILABLE_008`。EF Core 的数据库 Provider（`UseNpgsql` 等）由应用选、框架包不引用，按数据库类型建连接需要对应的 Provider 包；内存实现没有数据库。
+- EF Core 与内存实现：不支持（已定，ADR-0084：不计划支持），注册表照样注册，取用、测试连接返回 `PERSISTENCE_UNAVAILABLE_008`。EF Core 的数据库 Provider（`UseNpgsql` 等）由应用选、框架包不引用，按数据库类型建连接需要对应的 Provider 包；内存实现没有数据库。
 
 ## 库结构读取与实体目录
 
@@ -173,7 +173,7 @@
 - 实体目录的表名与列名是映射声明的写法（分表是逻辑名）；PostgreSQL 等把未加引号的标识符折成小写的库里物理名可能只差大小写，对照时不区分大小写。
 - 数据库限制：SQLite 没有表与列注释（`Comment` 为 null），`INTEGER PRIMARY KEY` 报告为可空（读取时按主键改为不可空），长度、精度与小数位取自声明的类型（SQLite 不强制），自增只认 `AUTOINCREMENT`。PostgreSQL 的注释、identity 与 serial 都能读到。MySQL、SQL Server、Oracle 在真实库上实测（2026-11-01，ADR-0084；环境变量 `XIHAN_TEST_MYSQL`、`XIHAN_TEST_SQLSERVER`、`XIHAN_TEST_ORACLE`）：注释、自增、主键、缺省值、大小写混合的表名、分表折叠与分页总数都对。Oracle 的读列不用 SqlSugar 的 `GetColumnInfosByTableName`（它取 `GetSchemaTable`：类型名是 CLR 类型、读不到 identity、缺省值错位、大小写混合的表名被转成大写而查不到），改查连接用户自己的数据字典 `USER_TAB_COLUMNS`、`USER_COL_COMMENTS`、`USER_CONSTRAINTS` / `USER_CONS_COLUMNS`，要 Oracle 12c 及以上（`IDENTITY_COLUMN`；更早的版本读列以 `PERSISTENCE_UNAVAILABLE_006` 失败）；读的是连接用户自己的表，不读别的 schema。运行时数据源在 Oracle 上不自动转大写（`IsAutoToUpper = false`），标识符按库里原样引用。达梦、OceanBase Oracle 模式等 Oracle 兼容库仍走 SqlSugar 的读列，没有验证。
 - SqlSugar：读表 `DbMaintenance.GetTableInfoList`、读列 `GetColumnInfosByTableName`（同步 API，在调用线程上执行）；实体目录取 `EntityMaintenance.GetEntityInfo`（施加了协议约定的映射）。
-- EF Core：实体目录取 DbContext 模型（`GetTableName()`、`GetColumnName(表)`，影子属性不列）；库结构读取不支持（`PERSISTENCE_UNAVAILABLE_008`）：跨数据库的结构读取在 EF Core 里是设计期脚手架服务（`Microsoft.EntityFrameworkCore.Design` 的 `IDatabaseModelFactory`，按数据库 Provider 程序集反射发现），ADO.NET 的 `GetSchema` 各驱动返回的列不同、`Microsoft.Data.Sqlite` 不实现。
+- EF Core：实体目录取 DbContext 模型（`GetTableName()`、`GetColumnName(表)`，影子属性不列）；库结构读取不支持（`PERSISTENCE_UNAVAILABLE_008`；已定，ADR-0084：不计划支持，需要读结构或运行时数据源的应用用 SqlSugar Provider）：跨数据库的结构读取在 EF Core 里是设计期脚手架服务（`Microsoft.EntityFrameworkCore.Design` 的 `IDatabaseModelFactory`，按数据库 Provider 程序集反射发现），ADO.NET 的 `GetSchema` 各驱动返回的列不同、`Microsoft.Data.Sqlite` 不实现。
 - 内存实现：实体目录的表名取实体类型名、列取有公开 setter 的非集合属性（列名即属性名，这是它的存储形态）；库结构读取不支持（`PERSISTENCE_UNAVAILABLE_008`）。
 
 ## 能力与配置
