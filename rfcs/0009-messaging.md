@@ -1,6 +1,6 @@
 # RFC-0009 消息、CloudEvents 信封与发件箱
 
-> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka` | 一致性：`XiHan.Framework.Messaging.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka` | 一致性：`XiHan.Framework.Messaging.Conformance`
 
 ## 摘要
 
@@ -13,7 +13,7 @@
 | `messaging.queue@1` | 工作队列：发布、按主题消费、至少一次、重试、死信 | `Messaging.InMemory`（单进程） |
 | `messaging.stream@1` | 有序分区流：在队列语义之上，按分区键有序、按消费组保存位点、可按时刻重放 | —（`Messaging.Kafka`） |
 
-`Messaging.InMemory` 每个主题一条有界通道（`MaxQueuedMessages`，默认 10000），满时发布返回 `MESSAGING_UNAVAILABLE_002`；主题在首次发布或订阅时创建、不回收，主题数上限 `MaxTopics`（默认 1000），已达上限时发布到新主题逐项返回 `MESSAGING_UNAVAILABLE_003`（不创建主题），订阅的主题超出上限时启动失败。
+`Messaging.InMemory` 每个被订阅的主题（本进程登记了处理器）一条有界通道（`MaxQueuedMessages`，默认 10000），满时发布返回 `MESSAGING_UNAVAILABLE_002`；通道在首次发布或消费时创建、不回收，被订阅的主题数上限 `MaxTopics`（默认 1000），超出时启动失败（`MESSAGING_UNAVAILABLE_003`）。发布到没人订阅的主题：消息丢弃，发布照常成功（批量逐项成功），不缓冲、不建通道、不占主题名额，代理记一条 Debug 级别的日志（ADR-0074）——内存代理没有跨进程的消费者，缓冲没人消费的消息只会占着内存直到通道排满；调度、工作流等框架事件照常发布到应用不一定订阅的主题，这是常态，所以不按 Warning 记。需要先发后订的留存语义用 RabbitMQ（持久队列）或 Kafka（按位点重放）。
 
 ## 信封
 
