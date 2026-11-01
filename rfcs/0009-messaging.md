@@ -1,6 +1,6 @@
 # RFC-0009 消息、CloudEvents 信封与发件箱
 
-> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka` | 一致性：`XiHan.Framework.Messaging.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka` | 一致性：`XiHan.Framework.Messaging.Conformance`
 
 ## 摘要
 
@@ -13,7 +13,7 @@
 | `messaging.queue@1` | 工作队列：发布、按主题消费、至少一次、重试、死信 | `Messaging.InMemory`（单进程） |
 | `messaging.stream@1` | 有序分区流：在队列语义之上，按分区键有序、按消费组保存位点、可按时刻重放 | —（`Messaging.Kafka`） |
 
-`Messaging.InMemory` 每个被订阅的主题（本进程登记了处理器）一条有界通道（`MaxQueuedMessages`，默认 10000），满时发布返回 `MESSAGING_UNAVAILABLE_002`；通道在首次发布或消费时创建、不回收，被订阅的主题数上限 `MaxTopics`（默认 1000），超出时启动失败（`MESSAGING_UNAVAILABLE_003`）。发布到没人订阅的主题：消息丢弃，发布照常成功（批量逐项成功），不缓冲、不建通道、不占主题名额，代理记一条 Debug 级别的日志（ADR-0074）——内存代理没有跨进程的消费者，缓冲没人消费的消息只会占着内存直到通道排满；调度、工作流等框架事件照常发布到应用不一定订阅的主题，这是常态，所以不按 Warning 记。需要先发后订的留存语义用 RabbitMQ（持久队列）或 Kafka（按位点重放）。
+`Messaging.InMemory` 每个被订阅的主题（本进程登记了处理器）一条有界通道（`MaxQueuedMessages`，默认 10000），满时发布返回 `MESSAGING_UNAVAILABLE_002`；通道在首次发布或消费时创建、不回收，被订阅的主题数上限 `MaxTopics`（默认 1000），超出时启动失败（`MESSAGING_UNAVAILABLE_003`）。发布到没人订阅的主题：消息丢弃，发布照常成功（批量逐项成功），不缓冲、不建通道、不占主题名额，代理记一条 Debug 级别的日志（ADR-0074）——内存代理没有跨进程的消费者，缓冲没人消费的消息只会占着内存直到通道排满；调度、工作流等框架事件照常发布到应用不一定订阅的主题，这是常态，所以不按 Warning 记。需要先发后订的留存语义用 RabbitMQ（订阅方第一次启动建好持久队列之后，它离线期间的消息留在队列里）或 Kafka（按位点重放）。
 
 ## 信封
 
@@ -52,7 +52,14 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 6. 发布是批量优先的（`conventions/batch-first.md`）：`IMessagePublisher` 与 `IMessageBroker` 提供 `PublishManyAsync(topic, envelopes)`，逐项结果与入参顺序一一对应，单条是它的特例。主题不合法时每一项都是 `MESSAGING_VALIDATION_001`；同一主题内保持入参顺序；重复 `id` 照发，去重是消费端的事。Provider 用代理的原生批量（RabbitMQ 在同一通道上连续发布并一次等待确认），内存实现一次入队。空集合不触代理。
 7. 发布成功表示代理已收下：远程代理的发布等到代理的确认（RabbitMQ 的发布确认、Kafka 的投递报告）才返回成功，没有得到确认的发布不报告成功。重试与死信的重新发布同样等确认，确认了才了结原消息（确认或提交位点），否则原消息留给代理再投递，不丢消息。
 
-`Messaging.RabbitMQ`：主题映射为持久队列 `<QueuePrefix><topic>`（默认 `xihan.`）；发布通道开启发布确认并由客户端跟踪，消息以 `mandatory` 发出，`basic.nack` 与 `basic.return` 都按未确认处理，逐项返回 `MESSAGING_UNAVAILABLE_001`（批量也逐项），连接或通道异常整批抛出；失败的投递重新发布到队尾（尝试次数在消息头 `x-xihan-attempt`）或死信队列 `<queue><DeadLetterSuffix>`，重新发布确认后才 `basic.ack` 原消息，未确认时 `basic.nack` 并重新入队。
+`Messaging.RabbitMQ`（ADR-0079）：
+
+- 发布方只声明交换机：消息发到持久的 direct 交换机 `Exchange`（默认 `xihan`），路由键 `<QueuePrefix><topic>`（前缀默认 `xihan.`，不同前缀的应用共用一个交换机也互不串扰）。发布方不声明队列。
+- 队列只由订阅方声明：订阅方启动时声明持久队列 `<QueuePrefix><topic>` 并以同名路由键绑定到交换机。订阅方第一次启动之前发布的消息没有队列可进；之后订阅方离线期间的消息留在队列里。
+- 发布通道开启发布确认并由客户端跟踪，消息以 `mandatory` 发出。`basic.nack` 按未确认处理，逐项返回 `MESSAGING_UNAVAILABLE_001`（批量也逐项）；连接或通道异常整批抛出。
+- `basic.return` 说明路由键上没有任何队列绑定，即没有订阅者：与内存代理一致，消息丢弃，发布照常成功（批量逐项成功），代理记一条 Debug 级别的日志。它不是发布失败，发件箱不为它重试、不把它记进死信——调度、工作流等框架事件照常发到应用不一定订阅的主题。
+- 失败的投递经默认交换机定向重新发布：未到上限回到所消费队列的队尾（尝试次数在消息头 `x-xihan-attempt`），到了上限进死信队列 `<queue><DeadLetterSuffix>`。死信队列由死信的一方（订阅方）声明为持久队列，并以同名路由键绑定到交换机，即主题加后缀的竞争队列。定向重新发布被退回说明目标队列已不存在，按未确认处理。重新发布确认后才 `basic.ack` 原消息，未确认时 `basic.nack` 并重新入队。
+- 先前版本由发布方声明、没有人订阅的队列（例如 `scheduling.job.*` 对应的队列）不再收到新消息；框架不删除任何队列，已经堆积的队列由运维删除。
 
 ## 流
 
@@ -62,7 +69,7 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 2. 消费位点：按消费组保存，投递完成（成功、重试耗尽进死信、无法解码进死信）后提交；重启续接，仍是至少一次。重试在原位进行（不重新入队），保持分区内顺序。死信发布没有得到确认（投递第 7 条）、或投递因代理不可达等异常没有完成时，投递未完成：不提交位点，消费者回退到这条消息，等 `RedeliveryDelay` 后重新投递（处理器重新执行），期间该分区不往后读；消费者本身出错（不是某条消息的错误）同样等一会儿再取。消费循环只在停止时退出，停止时未完成的消息不提交，重启后重新投递。重放中的死信发布没有得到确认时，重放返回 `MESSAGING_UNAVAILABLE_001`。
 3. 重放：`IMessageReplayer.ReplayAsync(topic, since)` 用独立的消费位点把该时刻起的消息重新投递给当前订阅的处理器，经完整管道、按同样的重试与死信规则；不影响正常消费的位点；主题不存在或该时刻之后没有消息时成功返回。重放是有意的重复投递，去重仍由处理器自理。
 
-`Messaging.Kafka`：主题映射为 `<TopicPrefix><topic>`（默认 `xihan.`），消费组 `GroupId`（默认 `xihan`），每个订阅主题一个消费者；生产者幂等且 `acks=all`，批量发布用客户端的原生批量后一次等待全部投递报告；无法解码或重试耗尽的消息发布到 `<topic><DeadLetterSuffix>`，没有落盘或发布失败时按「流」第 2 条回退，`RedeliveryDelaySeconds`（默认 5）秒后重新投递；`Properties:<key>` 透传 librdkafka 配置（`security.protocol`、`sasl.*`、`ssl.*`）。连接不上在启动时失败。
+`Messaging.Kafka`：主题映射为 `<TopicPrefix><topic>`（默认 `xihan.`），消费组 `GroupId`（默认 `xihan`），每个订阅主题一个消费者；生产者幂等且 `acks=all`，批量发布用客户端的原生批量后一次等待全部投递报告；无法解码或重试耗尽的消息发布到 `<topic><DeadLetterSuffix>`，没有落盘或发布失败时按「流」第 2 条回退，`RedeliveryDelaySeconds`（默认 5）秒后重新投递；`Properties:<key>` 透传 librdkafka 配置（`security.protocol`、`sasl.*`、`ssl.*`）。连接不上在启动时失败。发布到不存在的主题时，主题由 broker 按 `auto.create.topics.enable`（Kafka 缺省开启）自动建出；没人订阅的主题里的消息只占到保留期（`retention.ms`，缺省 7 天）为止，没有消费组也就没有积压，不会像队列那样无限堆积（ADR-0079）。broker 关闭了自动建主题时，发布到不存在的主题在客户端判定主题不存在后失败（`MESSAGING_UNAVAILABLE_001`，librdkafka 的 `topic.metadata.propagation.max.ms`，缺省 30 秒）：这类部署要预先建好应用与框架事件用到的主题。
 
 ## 领域事件
 
@@ -91,7 +98,7 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 
 ## 一致性
 
-Provider 必须继承 `MessageBrokerConformance` 并通过全部用例，含批量发布：一次发布多条保持顺序、逐项结果、空集合、主题不合法逐项失败。提供 `messaging.stream@1` 的 Provider 还要继承 `MessageStreamConformance`（同键有序、按时刻重放）。
+Provider 必须继承 `MessageBrokerConformance` 并通过全部用例，含批量发布：一次发布多条保持顺序、逐项结果、空集合、主题不合法逐项失败；发布到没人订阅的主题（单条与批量）成功。提供 `messaging.stream@1` 的 Provider 还要继承 `MessageStreamConformance`（同键有序、按时刻重放）。
 
 ## 错误码
 
