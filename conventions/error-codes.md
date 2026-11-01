@@ -214,3 +214,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `CLI_VALIDATION_003` | `migrate --fixers` 里有不认识的规则编号 |
 | `CLI_NOTFOUND_003` | `mcp` 的知识库里查不到包、能力、配置节或文档页（tool 结果 `isError`，文案带候选） |
 | `CLI_VALIDATION_004` | `mcp` 的文档检索既没给检索词也没给页面，或条数超出 1–50 |
+| `CLI_NOTFOUND_004` | `setup` 在 `--path` 及其上级找不到项目根（git 根、解决方案或项目文件） |
+| `CLI_VALIDATION_005` | `setup` 的 `--client` 或 `--mode` 不认识 |
+| `CLI_VALIDATION_006` | `setup` 要合并的编码助手配置不是合法的 JSON 对象；不改动任何文件 |
+| `CLI_CONFLICT_001` | `setup --check`：配置或技能未就绪 |

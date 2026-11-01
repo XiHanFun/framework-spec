@@ -1,6 +1,6 @@
 # RFC-0016 应用清单与打包
 
-> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
+> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
 
 ## 摘要
 
@@ -79,6 +79,19 @@
 - 三个只读 tool，名字沿用 4.x：`xihan_framework_info`（输入 `name`：包 ID、短名、清单 ID、特性类型名或能力 ID；不给时列出全部包；能力 ID 给出提供者与依赖方）、`xihan_framework_config`（输入 `query`：配置节含子节、完整键路径、包、Options 类名或文字；不给时列出全部配置节；输出含按缺省值写出的 appsettings 片段）、`xihan_framework_search`（输入 `query` 与 `limit` 1–50，或 `page` 取一页全文）。输出是结构化 JSON。
 - 查不到为 tool 结果 `isError`，文本 `CLI_NOTFOUND_003: <文案>`，文案带最接近的候选；检索参数不合法为 `CLI_VALIDATION_004`。tool 的标题与描述按 `--locale` 本地化。
 - `--path`（缺省当前目录）所在项目引用的 `XiHan.Framework.*` 版本与工具不同时，在 stderr 与服务端 `instructions` 里提示改用 `dnx XiHan.Framework.Cli@<项目版本> --yes -- mcp`；stdout 只有协议消息。
+
+`xihan setup --client <claude|cursor|vscode|codex> [--mode mcp|skill|both] [--pin <版本>] [--path <目录>] [--dry-run] [--check]` 把上述服务写进编码助手的项目配置：服务名 `xihan-framework`，命令 `dnx XiHan.Framework.Cli@<版本> --yes -- mcp`（Windows 上的 Claude Code 写成 `cmd /c dnx …`）。
+
+| `--client` | 写入 | 技能（`--mode` 为 `skill` / `both`） |
+| --- | --- | --- |
+| `claude` | `.mcp.json` 的 `mcpServers` | `.claude/skills/xihan-framework/SKILL.md` |
+| `cursor` | `.cursor/mcp.json` 的 `mcpServers` | `.agents/skills/xihan-framework/SKILL.md` |
+| `vscode` | `.vscode/mcp.json` 的 `servers`，项带 `"type": "stdio"` | 同上 |
+| `codex` | 不写文件，输出 `~/.codex/config.toml` 的 `[mcp_servers.xihan-framework]` 片段 | 同上 |
+
+- 版本取 `--pin`，否则取项目引用的 `XiHan.Framework.*` 版本（项目文件与 `.props` 里的 `PackageReference` / `PackageVersion`，取引用最多的），再否则取工具版本；项目根是 `--path`（缺省当前目录）向上的 git 根，否则第一个含解决方案或项目文件的目录，找不到为 `CLI_NOTFOUND_004`。
+- 幂等：JSON 配置只替换本服务一项，其余服务与顶层键原样保留；要合并的任何一份配置不是合法 JSON 对象（含注释的 JSONC 也算）时一个文件都不写，`CLI_VALIDATION_006`。`--client` / `--mode` 不认识为 `CLI_VALIDATION_005`（用法错误）。
+- `--dry-run` 只输出要写的内容；`--check` 核对配置与技能是否与本次规划一致，不一致为 `CLI_CONFLICT_001`，`detail` 列出各项。
 
 ## 错误码
 
