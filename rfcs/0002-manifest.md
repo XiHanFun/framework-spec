@@ -1,6 +1,6 @@
 # RFC-0002 清单
 
-> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点） | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
+> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务；2026-11-01 修订：配置节可带子节） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点、配置节的子节） | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
 
 ## 摘要
 
@@ -21,7 +21,7 @@
 | `provides` | 否 | 提供的能力及接口版本 |
 | `requires` | 否 | 依赖的能力、版本范围、是否可选 |
 | `bindings` | 否 | 需要宿主注入的资源 |
-| `contributes` | 否 | 管道中间件、操作、配置节与 Schema、权限码、健康项；配置节 `contributes.config.section` 是领域节 `XiHan:<领域>`（`^XiHan:[A-Z][A-Za-z0-9]*$`），同一领域的各 Provider 都声明领域节，自己的子节（如 `XiHan:Caching:Redis`、`XiHan:Scheduling:Kubernetes`）包含在内、不单独声明 |
+| `contributes` | 否 | 管道中间件、操作、配置节与 Schema、权限码、健康项；配置节 `contributes.config.section` 是领域节 `XiHan:<领域>`，可再带一层或多层子节（如 `XiHan:Caching:Redis`），文法与写法见下文「配置节」 |
 | `activation` | 否 | 激活事件，默认 `onStartup` |
 | `permissions` | 插件 | 所需权限，宿主配置授予 |
 | `entry` | 否 | 入口类型 |
@@ -35,6 +35,23 @@
 4. 排序：拓扑排序；循环报 `KERNEL_CAPABILITY_002`，缺失报 `KERNEL_CAPABILITY_001`，版本冲突报 `KERNEL_CAPABILITY_003`，报错必须列出冲突双方。
 5. 可选依赖缺失不阻止启动，对应特性进入 `Degraded`。
 6. 输出已解析图；`xihan graph` 与启动日志打印同一份。
+
+## 配置节
+
+`contributes.config.section` 的文法（2026-11-01 修订，ADR-0075；此前只许领域节）：
+
+```text
+Section    = "XiHan" ":" Domain *( ":" Segment )
+Domain     = PascalWord        ; 术语表的领域词（Schema 只校验形式）
+Segment    = PascalWord        ; 子节，层数不限
+PascalWord = %x41-5A *( ALPHA / DIGIT )
+```
+
+正则 `^XiHan:[A-Z][A-Za-z0-9]*(:[A-Z][A-Za-z0-9]*)*$`。`IConfiguration` 的键不区分大小写，清单里按 PascalCase 写。
+
+1. 一份清单只有一个配置节，声明特性在本领域里读取的配置的最近公共节：只读自己子节的写子节（`Caching.Hybrid` 写 `XiHan:Caching:Hybrid`，`Scheduling.Kubernetes` 写 `XiHan:Scheduling:Kubernetes`）；同时读领域节下的公共选项或本领域的几个子节的写领域节（`Caching.Redis` 读 `XiHan:Caching:Redis` 与 `XiHan:Caching:Idempotency`，写 `XiHan:Caching`；`Security.Jwt` 读 `XiHan:Security` 的公共选项与 `XiHan:Security:Jwt`，写 `XiHan:Security`）。
+2. 读到别的领域的共享键不进清单，以那个领域的契约为准，由包 README 写明：插件宿主读 `XiHan:Kernel` 的停止超时与 `XiHan:Localization` 的缺省区域，`Security.InMemory` 读 `XiHan:MultiTenancy:TenantClaim`。资源绑定（`XiHan:Bindings`）在 `bindings` 里声明，也不进配置节。
+3. 插件宿主在 `Configure` 时把插件清单声明的整节下发给插件（`spec/plugin/lifecycle.md`）：声明子节的插件只收到子节。
 
 ## 健康项
 

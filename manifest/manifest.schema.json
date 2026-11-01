@@ -92,7 +92,7 @@
           "required": ["section"],
           "additionalProperties": false,
           "properties": {
-            "section": { "type": "string", "pattern": "^XiHan:[A-Z][A-Za-z0-9]*$" },
+            "section": { "type": "string", "pattern": "^XiHan:[A-Z][A-Za-z0-9]*(:[A-Z][A-Za-z0-9]*)*$", "description": "领域节 XiHan:<领域>，可再带一层或多层 PascalCase 子节（RFC-0002「配置节」）" },
             "schema": { "type": "string" }
           }
         },
