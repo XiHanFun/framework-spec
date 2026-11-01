@@ -1,6 +1,6 @@
 # RFC-0008 认证与授权
 
-> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地、绕过管道的端点；2026-11-01 修订：资源名文法、自己产生的租户声明跟随 TenantClaim、权限码文法；授予读不到不当作没有授予、操作引用的权限码装配时核对；插件声明的权限码由宿主登记） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地）、ADR-0051（绕过管道的端点）、ADR-0071（授予读不到以 503 结束、操作引用的权限码装配时核对）、ADR-0080（插件声明的权限码） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Hosting.AspNetCore`（绕过管道的端点）、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region` | 一致性：`XiHan.Framework.Security.Conformance`
+> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地、绕过管道的端点；2026-11-01 修订：资源名文法、自己产生的租户声明跟随 TenantClaim、权限码文法；授予读不到不当作没有授予、操作引用的权限码装配时核对；插件声明的权限码由宿主登记、按名引用的策略与端点要求启动时核对） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地）、ADR-0051（绕过管道的端点）、ADR-0071（授予读不到以 503 结束、操作引用的权限码装配时核对）、ADR-0080（插件声明的权限码、策略与端点要求启动时核对） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Hosting.AspNetCore`（绕过管道的端点）、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region` | 一致性：`XiHan.Framework.Security.Conformance`
 
 ## 摘要
 
@@ -53,9 +53,13 @@
    - 装配完成之后才登记的操作（进程外 / Wasm 插件握手之后：重试成功、运行期 `LoadAsync`）在登记时核对，引用了未登记的权限码即登记失败（`KERNEL_VALIDATION_005`），插件整体被拒、不留下任何代理操作（`plugin/invocation.md` §1）。
    - 插件定义的权限码（ADR-0080）：进程外与 Wasm 宿主登记插件的代理操作时，替它把清单 `contributes.permissions` 声明的码一并登记（显示名取权限码本身），同组的操作可以引用它们；清单没声明、宿主也没登记的码仍按上一条拒绝。声明的码与已登记的码重复（宿主特性定义的，或另一个插件声明的）是冲突（`KERNEL_SECURITY_001`），插件整体登记失败；宿主特性后登记与插件声明的码重复，同样以 `KERNEL_SECURITY_001` 启动失败。配置阶段发现的插件在配置阶段登记，装配完成时的核对看得到它们。
 3. 策略按名在 `PolicyCatalog` 查找：注册的 `IPolicy`；`permission:<code>` 在权限码已登记于内核 `PermissionRegistry` 时动态映射为权限策略，未登记的权限码按策略不存在处理。
-4. 策略不存在返回 `SECURITY_NOTFOUND_001`（宁可拒绝，不可放行）；拒绝返回策略给出的原因，未给出时为 `SECURITY_DENIED_002`。操作契约的权限码已在装配时核对（第 2 条），这条路径只剩按名给出的策略：契约的 `policy`、端点元数据（`RequireXiHanPolicy`、`RequireXiHanPermission`）与 `RequireAuthorization` 显式写入的要求，它们在调用时查找，未登记的策略名或 `permission:<code>` 的权限码按策略不存在拒绝。
-5. 内置策略：`authenticated`（已认证）；`permission:<code>`（匿名先按 `SECURITY_DENIED_001` 拒绝，缺权限返回 `SECURITY_DENIED_004`）。
-6. 策略判定（内核 `IPolicy.EvaluateAsync`）返回 `Result<AuthorizationResult>`（ADR-0071）：成功是允许或拒绝；失败是无法判定——判定依赖的授予存储、授予来源或收窄过滤器读不到数据（`SECURITY_UNAVAILABLE_001`）。Authorize 阶段以该失败结束调用（HTTP 503，gRPC `Unavailable`），既不放行，也不改写成拒绝（403）。权限策略把检查器的失败原样作为判定失败返回。
+4. 按名引用的策略在启动时核对（ADR-0080），同第 2 条：引用了不存在的策略是编程错误，不等到调用时。
+   - 操作契约的 `policy`：授权能力的 Provider 在启动时（`IHostedFeature.StartAsync`）调用 `PolicyCatalog.EnforceOn(OperationRegistry)`，一次核对已登记的全部操作，有不存在的策略（含 `permission:<code>` 的权限码未登记）即抛出 `SECURITY_VALIDATION_004`（`FrameworkException`，一次列出全部），该特性启动失败——默认失败策略 `TerminateStartup` 下应用启动失败。此后登记的操作（插件握手之后）在登记时逐个核对，不存在即登记失败（同一错误码），插件整体被拒。核对放在授权能力启动时：策略是容器里的 `IPolicy`，容器建好才知道全部策略名；配置阶段发现的插件的操作与声明的权限码此时都已登记。`security.authorization@1` 的 Provider 都必须这样做（`Security.InMemory`、`Security.Database` 已实现）。
+   - 端点元数据上的要求（`RequireXiHanPermission`、`RequireXiHanPolicy`、`RequireXiHanAuthentication`）：`UseXiHan()` 在宿主建请求管道时（路由已全部映射）核对全部端点的 `AuthorizationRequirement`，有不存在的策略或未登记的权限码即抛出 `SECURITY_VALIDATION_004`（一次列出全部），宿主启动失败。
+   - 没有装配授权能力（容器里没有 `PolicyCatalog`）时两者都不核对：此时 Authorize 阶段不判定任何要求。
+5. 策略不存在返回 `SECURITY_NOTFOUND_001`（宁可拒绝，不可放行）；拒绝返回策略给出的原因，未给出时为 `SECURITY_DENIED_002`。契约的权限码与策略、端点元数据都已在启动时核对（第 2、4 条），这条路径只剩启动时看不到的要求：应用代码以 `RequireAuthorization` 显式写入的要求、启动之后才加进来的端点。
+6. 内置策略：`authenticated`（已认证）；`permission:<code>`（匿名先按 `SECURITY_DENIED_001` 拒绝，缺权限返回 `SECURITY_DENIED_004`）。
+7. 策略判定（内核 `IPolicy.EvaluateAsync`）返回 `Result<AuthorizationResult>`（ADR-0071）：成功是允许或拒绝；失败是无法判定——判定依赖的授予存储、授予来源或收窄过滤器读不到数据（`SECURITY_UNAVAILABLE_001`）。Authorize 阶段以该失败结束调用（HTTP 503，gRPC `Unavailable`），既不放行，也不改写成拒绝（403）。权限策略把检查器的失败原样作为判定失败返回。
 
 ## 资源名（2026-11-01 增补）
 
