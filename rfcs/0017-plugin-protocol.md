@@ -1,6 +1,6 @@
 # RFC-0017 进程外插件协议
 
-> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：清单写了 `contributes.pipeline` 的插件在发现时被拒，不再静默忽略） | 日期：2026-10-23 | 对应 ADR：0006、0085、0092 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`（P4-02）；一致性：`XiHan.Framework.Plugins.Conformance`（P4-04） | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md`
+> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：清单写了 `contributes.pipeline` 的插件在发现时被拒，不再静默忽略；同日第三次修订：gRPC `Cancelled` 不再按时钟改报超时，交给截止时间中间件归因） | 日期：2026-10-23 | 对应 ADR：0006、0085、0092 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`（P4-02）；一致性：`XiHan.Framework.Plugins.Conformance`（P4-04） | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md`
 
 ## 摘要
 

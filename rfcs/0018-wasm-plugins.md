@@ -1,6 +1,6 @@
 # RFC-0018 Wasm 插件 ABI（Experimental）
 
-> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：贡献的中间件随运行期加载成组登记、随卸载按归属撤回，运行期可以加载贡献中间件的插件） | 日期：2026-10-23 | 对应 ADR：0006（范围）、0009（ABI 形态）、0085（卸载撤回登记）、0088（中间件撤回） | 参考实现：`XiHan.Framework.Plugins.Wasm`（P4-03） | 规范性文本：`spec/plugin/wasm.md`、`spec/plugin/plugin.proto`（中间件消息）、`spec/conformance/vectors/plugin/wasm-exports.json`
+> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：贡献的中间件随运行期加载成组登记、随卸载按归属撤回，运行期可以加载贡献中间件的插件；同日第三次修订：回调的超时归因在不再等待与回调已返回两条路径同一判断，运行时不再按时钟改写插件写下的取消） | 日期：2026-10-23 | 对应 ADR：0006（范围）、0009（ABI 形态）、0085（卸载撤回登记）、0088（中间件撤回）、0092（超时归因） | 参考实现：`XiHan.Framework.Plugins.Wasm`（P4-03） | 规范性文本：`spec/plugin/wasm.md`、`spec/plugin/plugin.proto`（中间件消息）、`spec/conformance/vectors/plugin/wasm-exports.json`
 
 ## 摘要
 
