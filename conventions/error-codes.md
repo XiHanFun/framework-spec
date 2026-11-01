@@ -163,7 +163,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `CONFIGURATION_VALIDATION_001` | 远程配置文档不是声明的格式 |
 | `AUDITING_VALIDATION_001` | 审计查询不合法（页大小越界、起止颠倒、续页令牌不可识别） |
 | `AUDITING_UNAVAILABLE_001` | 审计存储不可达 |
-| `SECURITY_UNAVAILABLE_001` | 身份或授予存储不可达 |
+| `SECURITY_UNAVAILABLE_001` | 身份或授予存储不可达：授予存储、授予来源或收窄过滤器读不到数据；Authorize 阶段以它结束调用（HTTP 503），不当作不持有（RFC-0008，ADR-0071） |
 | `SECURITY_UNAVAILABLE_002` | 身份或授予存储容量已满 |
 | `SECURITY_UNAVAILABLE_003` | 签发者的发现文档或 JWKS 不可达且没有缓存 |
 | `SECURITY_UNAVAILABLE_004` | 条件属性暂不可得，补齐后再求值 |

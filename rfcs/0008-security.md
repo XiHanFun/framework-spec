@@ -1,6 +1,6 @@
 # RFC-0008 认证与授权
 
-> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地、绕过管道的端点；2026-11-01 修订：资源名文法、自己产生的租户声明跟随 TenantClaim、权限码文法） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地）、ADR-0051（绕过管道的端点） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Hosting.AspNetCore`（绕过管道的端点）、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region` | 一致性：`XiHan.Framework.Security.Conformance`
+> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地、绕过管道的端点；2026-11-01 修订：资源名文法、自己产生的租户声明跟随 TenantClaim、权限码文法；授予读不到不当作没有授予） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地）、ADR-0051（绕过管道的端点）、ADR-0071（授予读不到以 503 结束） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Hosting.AspNetCore`（绕过管道的端点）、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region` | 一致性：`XiHan.Framework.Security.Conformance`
 
 ## 摘要
 
@@ -52,6 +52,7 @@
 3. 策略按名在 `PolicyCatalog` 查找：注册的 `IPolicy`；`permission:<code>` 在权限码已登记于内核 `PermissionRegistry` 时动态映射为权限策略，未登记的权限码按策略不存在处理。
 4. 策略不存在返回 `SECURITY_NOTFOUND_001`（宁可拒绝，不可放行；没登记的权限码不在装配时报错，调用时按此拒绝）；拒绝返回策略给出的原因，未给出时为 `SECURITY_DENIED_002`。
 5. 内置策略：`authenticated`（已认证）；`permission:<code>`（匿名先按 `SECURITY_DENIED_001` 拒绝，缺权限返回 `SECURITY_DENIED_004`）。
+6. 策略判定（内核 `IPolicy.EvaluateAsync`）返回 `Result<AuthorizationResult>`（ADR-0071）：成功是允许或拒绝；失败是无法判定——判定依赖的授予存储、授予来源或收窄过滤器读不到数据（`SECURITY_UNAVAILABLE_001`）。Authorize 阶段以该失败结束调用（HTTP 503，gRPC `Unavailable`），既不放行，也不改写成拒绝（403）。权限策略把检查器的失败原样作为判定失败返回。
 
 ## 资源名（2026-11-01 增补）
 
@@ -67,10 +68,11 @@
 
 - 主体是用户（`user:<id>`）或角色（`role:<name>`）；授予是（主体，权限码，租户?）。租户为空的授予对任何租户生效，租户专属授予只对该租户生效。
 - 检查器取用户本身的授予与其角色授予之并集；`*` 匹配任何权限。
-- 收窄（ADR-0039）：授予命中之后，检查器按登记顺序逐个调用全部 `IPermissionFilter`（单例），任一返回假即不持有、后面的不再调用；匿名主体与授予未命中时不调用。过滤器收到的是具体权限码（通配命中也一样），只能拿走权限、不能凭空给出；用于套餐白名单、显式拒绝、委托到期等授予之外的约束。被收窄的权限在权限策略上同样返回 `SECURITY_DENIED_004`。替换 `IPermissionChecker` 的实现必须同样在授予命中之后施加全部过滤器。
-- 授予来源（ADR-0045）：与收窄对称，`IPermissionGrantSource`（单例）给出主体在授予存储之外的额外授予（权限码或 `*`），用于角色继承、限时委托等不落在主体自己授予行上的授予。检查器在用户与角色的存储授予都没命中时按登记顺序逐个查询，任一命中即算授予命中，之后照常经全部过滤器收窄；匿名主体不查询。来源只能加、不能拿走；替换 `IPermissionChecker` 的实现必须同样并上全部来源。
+- 读不到不是没有（ADR-0071）：`IPermissionGrantStore.GetGrantsAsync` 返回 `Result<IReadOnlyCollection<string>>`，没有授予是成功的空集合，存储不可达（连接、超时、事务失败）是 `SECURITY_UNAVAILABLE_001` 失败，不得以空集合代替；`IPermissionChecker.HasPermissionAsync` 返回 `Result<bool>`，存储、来源或过滤器的失败原样返回，不当作不持有。检查器遇到第一个失败即返回，不再读后面的角色、来源或过滤器（用户与角色读同一个存储，逐个等待只会拖长失败的调用；授予只能加、过滤器只能拿走，部分读取得不出可靠结论）。匿名主体不访问存储，存储故障时仍是不持有。
+- 收窄（ADR-0039）：授予命中之后，检查器按登记顺序逐个调用全部 `IPermissionFilter`（单例），任一返回假即不持有、后面的不再调用；匿名主体与授予未命中时不调用。`IPermissionFilter.AllowsAsync` 返回 `Result<bool>`：过滤器依赖的数据（套餐、拒绝规则、委托）读不到时返回失败，检查器原样返回（跳过它等于放行，按拒绝处理又会把故障变成 403）。过滤器收到的是具体权限码（通配命中也一样），只能拿走权限、不能凭空给出；用于套餐白名单、显式拒绝、委托到期等授予之外的约束。被收窄的权限在权限策略上同样返回 `SECURITY_DENIED_004`。替换 `IPermissionChecker` 的实现必须同样在授予命中之后施加全部过滤器。
+- 授予来源（ADR-0045）：与收窄对称，`IPermissionGrantSource`（单例）给出主体在授予存储之外的额外授予（权限码或 `*`），用于角色继承、限时委托等不落在主体自己授予行上的授予。检查器在用户与角色的存储授予都没命中时按登记顺序逐个查询，任一命中即算授予命中，之后照常经全部过滤器收窄；匿名主体不查询。`IPermissionGrantSource.GetGrantsAsync` 返回 `Result<IReadOnlyCollection<string>>`：来源依赖的数据（角色继承、委托）读不到时返回失败，检查器原样返回，不当作没有授予。来源只能加、不能拿走；替换 `IPermissionChecker` 的实现必须同样并上全部来源。
 - `IPermissionGrantStore` 由 Provider 实现；内存实现从 `XiHan:Security:InMemory:Grants` 装载全局授予，有界。
-- `Security.Database`（ADR-0027）：授予是实体行（主体种类、主体 ID、权限码、租户列；全局授予以空串存储），`IPermissionGrantStore` 单例在新作用域直接开只读工作单元读仓储（不经管道），一次查出主体的全局授予与当前租户的授予，按（主体，租户）有界缓存并按 TTL 失效（`XiHan:Security:Database`：`CacheSize` 默认 10000、`CacheTimeToLiveSeconds` 默认 30，0 为不过期）；`PermissionGrantRecordStore` 在调用方的工作单元里批量授予 / 撤销并逐项返回结果，撤销不存在的授予返回 `SECURITY_NOTFOUND_002`，写入后失效该主体的缓存，跨实例的失效靠 TTL 收敛。清单依赖 `persistence.relational@1`。
+- `Security.Database`（ADR-0027）：授予是实体行（主体种类、主体 ID、权限码、租户列；全局授予以空串存储），`IPermissionGrantStore` 单例在新作用域直接开只读工作单元读仓储（不经管道），一次查出主体的全局授予与当前租户的授予；数据库故障（开启、读取、提交只读工作单元失败，含连接与命令超时）返回 `SECURITY_UNAVAILABLE_001`（消息键 `security.grant_store.unavailable`，不带参数：底层原因只记日志，不进响应），失败不进缓存；调用方取消照常抛出。按（主体，租户）有界缓存并按 TTL 失效（`XiHan:Security:Database`：`CacheSize` 默认 10000、`CacheTimeToLiveSeconds` 默认 30，0 为不过期）；`PermissionGrantRecordStore` 在调用方的工作单元里批量授予 / 撤销并逐项返回结果，撤销不存在的授予返回 `SECURITY_NOTFOUND_002`，写入后失效该主体的缓存，跨实例的失效靠 TTL 收敛。清单依赖 `persistence.relational@1`。
 
 ## 条件
 
@@ -96,7 +98,7 @@ IP 归属地（ADR-0047）是能力 `security.ip-region@1`：`IIpRegionResolver.
 
 ## 一致性
 
-授权 Provider 必须让其 `IPermissionGrantStore` 通过 `PermissionGrantStoreConformance`。
+授权 Provider 必须让其 `IPermissionGrantStore` 通过 `PermissionGrantStoreConformance`。套件的「存储不可达」用例要求 Provider 给出一个背后存储不可达的实例（覆写 `CreateUnavailableStoreAsync`），读取必须返回 `SECURITY_UNAVAILABLE_001` 而不是空集合；只有进程内、读取不会失败的存储（内存实现）可以不给，该用例跳过。
 
 ## 错误码
 
