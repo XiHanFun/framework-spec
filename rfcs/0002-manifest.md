@@ -1,10 +1,10 @@
 # RFC-0002 清单
 
-> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务；2026-11-01 修订：配置节可带子节） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点、配置节的子节） | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
+> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务；2026-11-01 修订：配置节可带子节；2026-11-01 修订：手写清单，`[Capability]` 生成器顺延） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点、配置节的子节、生成器顺延） | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
 
 ## 摘要
 
-每个能力包、Provider、插件、宿主、协议适配器带一份 `xihan.manifest.json`，声明身份、提供与依赖的能力、资源绑定、贡献点、激活事件与权限。清单是装配的事实源；.NET 实现由源生成器从 `[Capability]` 生成并嵌入程序集。Schema 见 `spec/manifest/manifest.schema.json`。
+每个能力包、Provider、插件、宿主、协议适配器带一份 `xihan.manifest.json`，声明身份、提供与依赖的能力、资源绑定、贡献点、激活事件与权限。清单是装配的事实源；.NET 实现在特性的 `Manifest` 属性里手写清单，`[Capability]` 清单生成器顺延（见下文「与 .NET 的映射」）。Schema 见 `spec/manifest/manifest.schema.json`。
 
 ## 字段
 
@@ -70,15 +70,27 @@ PascalWord = %x41-5A *( ALPHA / DIGIT )
 
 ## 与 .NET 的映射
 
+现状（5.0，2026-11-01 修订，ADR-0075）：每个特性在 `IFeature.Manifest` 属性里手写清单对象（原语层 `Manifest` 及其组成类型），内核在构建期以 `Manifest.Validate()` 校验格式；插件的清单是插件目录里的 `xihan.manifest.json` 文件，由内核 `ManifestReader` 读取。
+
 ```csharp
-[Capability("persistence.efcore",
-    Provides = ["persistence.relational@1"],
-    Requires = ["kernel.hosting@^1", "multitenancy.context@^1?"],
-    Role = CapabilityRole.Provider)]
-public sealed class EntityFrameworkCoreFeature : IFeature, IHostedFeature { … }
+public sealed class EntityFrameworkCoreFeature : IHostedFeature
+{
+    public Manifest Manifest { get; } = new()
+    {
+        Id = "xihan.persistence.efcore",
+        Version = FrameworkInfo.Version,
+        Primitives = 1,
+        Stability = Stability.Preview,
+        Kind = ManifestKind.Provider,
+        Provides = [new CapabilityDeclaration("persistence.relational", 1)],
+        Requires = [new CapabilityRequirement("kernel.hosting", 1)],
+        Contributes = new Contributions { Config = new ConfigContribution("XiHan:Persistence:EntityFrameworkCore") },
+    };
+    …
+}
 ```
 
-生成器从特性产出清单并作为嵌入资源 `xihan.manifest.json` 写入程序集；`bindings`、`contributes` 由同一特性的可选参数或伴随特性声明。
+`[Capability]` 清单生成器顺延：原计划由源生成器从入口类型上的 `[Capability(...)]` 产出 `Manifest` 属性并把 `xihan.manifest.json` 作为嵌入资源写入程序集，`bindings`、`contributes` 由同一特性的可选参数或伴随特性声明。内核保留 `CapabilityAttribute` 类型（运行期不读取），5.0 没有生成器；实现生成器时手写的清单是它的一致性基准，生成结果必须与手写清单逐字段相同。
 
 ## 一致性向量
 
