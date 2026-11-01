@@ -1,6 +1,6 @@
 # RFC-0001 原语层
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线） | 日期：2026-10-21 | 对应 ADR：0002、0038 | 参考实现：`next/src/XiHan.Framework.Primitives`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086 | 参考实现：`next/src/XiHan.Framework.Primitives`
 
 ## 摘要
 
@@ -230,6 +230,18 @@ public static class FrameworkInfo
     public static Uri Documentation { get; }
 }
 ```
+
+### 机密遮蔽
+
+```csharp
+public static class Redaction
+{
+    public const string Mask = "***";
+    public static string? Redact(string? value);   // null 原样返回，其余（含空串）一律 Mask
+}
+```
+
+选项与携带凭据的记录在 `ToString()`（记录的 `PrintMembers`）里以它打印口令、密钥、令牌与整串连接串（RFC-0014「选项里的凭据」）。`Mask` 与 `ConnectionStrings.Mask`、`SecretValue.Redacted` 是同一个文本。
 
 ### 清单模型（`Manifests`）
 
