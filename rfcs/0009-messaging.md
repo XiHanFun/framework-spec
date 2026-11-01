@@ -1,6 +1,6 @@
 # RFC-0009 消息、CloudEvents 信封与发件箱
 
-> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka` | 一致性：`XiHan.Framework.Messaging.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka` | 一致性：`XiHan.Framework.Messaging.Conformance`
 
 ## 摘要
 
@@ -13,7 +13,7 @@
 | `messaging.queue@1` | 工作队列：发布、按主题消费、至少一次、重试、死信 | `Messaging.InMemory`（单进程） |
 | `messaging.stream@1` | 有序分区流：在队列语义之上，按分区键有序、按消费组保存位点、可按时刻重放 | —（`Messaging.Kafka`） |
 
-`Messaging.InMemory` 每个被订阅的主题（本进程登记了处理器，任一订阅方式）一条有界通道（`MaxQueuedMessages`，默认 10000），满时发布返回 `MESSAGING_UNAVAILABLE_002`；通道在首次发布或消费时创建、不回收，被订阅的主题数上限 `MaxTopics`（默认 1000），超出时启动失败（`MESSAGING_UNAVAILABLE_003`）。发布到没人订阅的主题：消息丢弃，发布照常成功（批量逐项成功），不缓冲、不建通道、不占主题名额，代理记一条 Debug 级别的日志（ADR-0074）——内存代理没有跨进程的消费者，缓冲没人消费的消息只会占着内存直到通道排满；调度、工作流等框架事件照常发布到应用不一定订阅的主题，这是常态，所以不按 Warning 记。需要先发后订的留存语义用 RabbitMQ（订阅方第一次启动建好持久队列之后，它离线期间的消息留在队列里）或 Kafka（按位点重放）。
+`Messaging.InMemory` 每个被订阅的主题（本进程登记了处理器，任一订阅方式）一条有界通道（`MaxQueuedMessages`，默认 10000），满时发布返回 `MESSAGING_UNAVAILABLE_002`；通道在首次发布或消费时创建、不回收；通道数不超过订阅表里的主题数，订阅表在装配时定好（代码与插件登记的处理器）、之后只读，不随发布增长，所以不另设主题数上限（2026-11-01 修订，ADR-0082：原来的 `MaxTopics` 选项删除，只为它登记的 `MESSAGING_UNAVAILABLE_003` 撤销登记、序号不复用）。发布到没人订阅的主题：消息丢弃，发布照常成功（批量逐项成功），不缓冲、不建通道，代理记一条 Debug 级别的日志（ADR-0074）——内存代理没有跨进程的消费者，缓冲没人消费的消息只会占着内存直到通道排满；调度、工作流等框架事件照常发布到应用不一定订阅的主题，这是常态，所以不按 Warning 记。需要先发后订的留存语义用 RabbitMQ（订阅方第一次启动建好持久队列之后，它离线期间的消息留在队列里）或 Kafka（按位点重放）。
 
 ## 信封
 
