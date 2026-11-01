@@ -71,6 +71,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_VALIDATION_002` | 工作单元状态不允许该操作：重复开始、未开始就提交（以异常抛出）；同一服务作用域里再经管道发起的嵌套调用（Transaction 阶段以结果结束内层调用，不执行处理器） |
 | `PERSISTENCE_VALIDATION_003` | 工作单元里的聚合有未派发的领域事件，但没有注册领域事件派发器 |
 | `PERSISTENCE_VALIDATION_004` | 实体落点指向的连接不存在：SqlSugar 实体的 `[Tenant(configId)]` 指向客户端里没有的连接（装配错误，以异常抛出，缺省落点规则下启动时校验） |
+| `PERSISTENCE_VALIDATION_005` | 查询的取出条数超过 `EntityQuery.DefaultMaxTake`（1000）：构造查询时以异常抛出，调用里由 Transaction 阶段转为结果（HTTP 400，参数 `take`、`max`）；`Skip` 为负、`Take` 小于 1 是编程错误，抛 `ArgumentOutOfRangeException`，不产生错误码 |
 | `PERSISTENCE_NOTFOUND_001` | 更新或删除的实体不存在（含已软删除、不属于当前租户） |
 | `PERSISTENCE_CONFLICT_001` | 乐观并发冲突：并发戳不匹配；内存实现提交时发现更新或删除的行已被别的工作单元删除或改过 |
 | `PERSISTENCE_CONFLICT_002` | 新增的标识已存在；含并发新增：检查之后另一个工作单元提交了同一标识（关系型在写入时、内存实现在提交时返回） |

@@ -1,6 +1,6 @@
 # RFC-0005 领域协议与持久化
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译；2026-11-01 修订：只读操作开只读工作单元、嵌套调用） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063、0073 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译；2026-11-01 修订：只读操作开只读工作单元、嵌套调用、查询取出条数超限是校验错误） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063、0073 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
 
 ## 摘要
 
@@ -54,7 +54,7 @@
 | 操作 | 语义 | 可恢复失败 |
 | --- | --- | --- |
 | `FindAsync(id)` | 已软删除或不属于当前租户视为不存在 | — |
-| `ListAsync(query)` | 过滤、排序、分页；`Take` 取 1 到 `EntityQuery.DefaultMaxTake`（1000），缺省取上限，超出在构造查询时抛出 `ArgumentOutOfRangeException`（与 `Skip` 为负、`Take` 小于 1 相同），不静默截断，要更多行就分页；Provider 不得返回超过 `Take` 的结果；`TimeRange`（`Within(from, to)`）是时间范围提示——按时间分表 / 分区的 Provider 据此只扫描范围内的表，不是过滤条件，不分表的实体与不支持范围的 Provider 忽略它 | — |
+| `ListAsync(query)` | 过滤、排序、分页；`Take` 取 1 到 `EntityQuery.DefaultMaxTake`（1000），缺省取上限；超过上限以 `PERSISTENCE_VALIDATION_005` 拒绝（见下文「查询的取出条数」），不静默截断，要更多行就分页；Provider 不得返回超过 `Take` 的结果；`TimeRange`（`Within(from, to)`）是时间范围提示——按时间分表 / 分区的 Provider 据此只扫描范围内的表，不是过滤条件，不分表的实体与不支持范围的 Provider 忽略它 | — |
 | `CountAsync(query)` | 忽略排序与分页 | — |
 | `AddAsync` | 写入创建时间、租户、并发戳 | `PERSISTENCE_CONFLICT_002` 标识重复、`PERSISTENCE_VALIDATION_001` 缺租户 |
 | `UpdateAsync` | 写入修改时间、刷新并发戳 | `PERSISTENCE_NOTFOUND_001`、`PERSISTENCE_CONFLICT_001` |
@@ -72,6 +72,13 @@
 - 写入阶段才发现的标识重复（检查之后另一个工作单元提交了同一标识，见「工作单元」）按写入阶段的失败处理：这次写入的项统一返回 `PERSISTENCE_CONFLICT_002`，`id` 是按入参顺序第一个撞上的标识，工作单元随后只能回滚。
 - 空集合不触后端、返回空列表，但仍要求活动的工作单元。
 - 读己之写对批量同样成立：批量新增后同一工作单元内可查到全部实体。
+
+### 查询的取出条数
+
+- 一次查询最多取 `EntityQuery.DefaultMaxTake`（1000）行。上限是存储一侧的容量约束，调用方事先不知道，传了更大的页大小是能改正的输入：构造查询时（`Page(skip, take)`、`with { Take = … }`）抛出携带 `PERSISTENCE_VALIDATION_005` 的 `FrameworkException`；Transaction 阶段的 `UnitOfWorkMiddleware` 回滚并把它转为同码的 VALIDATION 结果（HTTP 400、gRPC `InvalidArgument`，消息键 `persistence.query.take_exceeded`，参数 `take` 为请求的条数、`max` 为上限），不经 Observe 阶段包成 `KERNEL_UNEXPECTED_001`。
+- 转换只在 Transaction 阶段里：查询在它之外构造（管道外的后台代码、Transaction 之前的阶段）时仍以异常抛出——那里的取出条数由代码给出，超限是编程错误。框架自己的分页都不超过上限：发件箱 `BatchSize` 在选项里限 1–1000，审计查询的页大小先经 `AUDITING_VALIDATION_001` 校验，目录加载、授予、调度与工作流存储的分页取常量上限、`Math.Min(上限, 剩余)` 或查询类型里已限 1–1000 的 `Limit`；`TenantRecordStore`、`MessageTranslationStore`、`PermissionGrantRecordStore` 的列表方法把调用方的 `skip` / `take` 原样传入，超限按上一条成为结果。
+- `Skip` 为负、`Take` 小于 1 构不成查询，是编程错误，构造时抛出 `ArgumentOutOfRangeException`，不转为结果。
+- 页大小来自调用方时，应用在请求契约上声明范围（`[Range(1, EntityQuery.DefaultMaxTake)]` 或更小、`skip` 的 `[Range(0, …)]`），Validate 阶段以 `KERNEL_VALIDATION_003` 拒绝并指出字段，进不到 Transaction 与 Handle；Transaction 阶段的转换保证没有声明时也以校验错误结束。
 
 在 Transaction 阶段之外使用仓储是装配错误，每个操作抛出携带 `PERSISTENCE_UNAVAILABLE_001` 的 `FrameworkException`，不返回 `Result`。
 
@@ -119,7 +126,7 @@
 
 ## 一致性
 
-Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合；可空值类型与 null 的相等 / 不等按存在性过滤（字面量 null、闭包里的 null 变量、左右互换、与 `HasValue` 一致，组合到别的条件里也成立）；一次查询最多取 `EntityQuery.DefaultMaxTake` 条、超过的取出条数在构造查询时被拒绝；判空与取反嵌套在与 / 或条件里照常过滤（或条件在与条件右侧、判空或取反是或条件的左操作数、取反整个与 / 或条件、双重否定）；更新沿用存储的创建时间、租户与删除标记、删除不改创建时间（游离实例与读出后改过的实例两种）；两个工作单元先后新增同一标识只有一个成功、另一个返回 `PERSISTENCE_CONFLICT_002`、留下的是成功者的行；回滚的调用在存储里不留修改、并发戳与删除标记，提交前另一个工作单元读到的是旧值；只读操作里单条与批量的新增、更新、删除都返回 `PERSISTENCE_DENIED_001`、存储不变，处理器忽略拒绝而返回成功时调用仍以它结束，查询照常；只读操作在新的服务作用域里调用写操作，写入照常提交，外层仍拒绝自己的写入；同一作用域里再经管道的调用以 `PERSISTENCE_VALIDATION_002` 结束、处理器不执行。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
+Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合；可空值类型与 null 的相等 / 不等按存在性过滤（字面量 null、闭包里的 null 变量、左右互换、与 `HasValue` 一致，组合到别的条件里也成立）；一次查询最多取 `EntityQuery.DefaultMaxTake` 条、超过的取出条数在构造查询时以 `PERSISTENCE_VALIDATION_005` 拒绝，调用里先写入再构造超限查询的调用以该码结束、写入回滚；判空与取反嵌套在与 / 或条件里照常过滤（或条件在与条件右侧、判空或取反是或条件的左操作数、取反整个与 / 或条件、双重否定）；更新沿用存储的创建时间、租户与删除标记、删除不改创建时间（游离实例与读出后改过的实例两种）；两个工作单元先后新增同一标识只有一个成功、另一个返回 `PERSISTENCE_CONFLICT_002`、留下的是成功者的行；回滚的调用在存储里不留修改、并发戳与删除标记，提交前另一个工作单元读到的是旧值；只读操作里单条与批量的新增、更新、删除都返回 `PERSISTENCE_DENIED_001`、存储不变，处理器忽略拒绝而返回成功时调用仍以它结束，查询照常；只读操作在新的服务作用域里调用写操作，写入照常提交，外层仍拒绝自己的写入；同一作用域里再经管道的调用以 `PERSISTENCE_VALIDATION_002` 结束、处理器不执行。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
 
 标识生成器必须通过 `IdGeneratorConformance<TKey>`：顺序生成与多线程并发生成不重复、时钟前进后生成的标识更大；`GuidV7IdGenerator` 与 `SnowflakeIdGenerator` 都通过。
 
