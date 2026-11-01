@@ -1,6 +1,6 @@
 # RFC-0012 对象存储
 
-> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`
+> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误；2026-11-01 修订：一致性验证改对 RustFS） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约）、ADR-0086（验证用的 S3 兼容服务） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`
 
 ## 摘要
 
@@ -49,7 +49,7 @@
 
 `ObjectStorage.S3`：容器即桶，键即对象键，经 AWS SDK 访问 Amazon S3 与兼容服务（MinIO、阿里云 OSS、腾讯云 COS、Cloudflare R2 等），不再为每家云单独做包。
 
-- `Overwrite = false` 先 `Head` 再带 `If-None-Match: *` 写入，服务端支持条件写入（Amazon S3、MinIO）时由它保证原子；已存在 → `OBJECTSTORAGE_CONFLICT_001`。不可定位的内容流先落临时文件取得长度，不整体装进内存。
+- `Overwrite = false` 先 `Head` 再带 `If-None-Match: *` 写入，服务端支持条件写入（Amazon S3、MinIO、RustFS）时由它保证原子，不认 `If-None-Match` 的兼容服务（如 Garage、Zenko CloudServer，ADR-0086 实测）只剩先 HEAD 的检查，并发写入可能覆盖；已存在 → `OBJECTSTORAGE_CONFLICT_001`。不可定位的内容流先落临时文件取得长度，不整体装进内存。
 - 批量删除：S3 不报告对象是否存在过，先逐键 `Head` 定存在性（同一批里重复的键只有第一次算存在），再把存在的键按每批 1000 个 `DeleteObjects`；删除失败只影响本次负责删除的项。
 - 列举经 `ListObjectsV2`（S3 保证键的序数顺序），续页标记是其 continuation token；条目只有键、长度、`ETag` 与修改时间，内容类型为默认值、自定义元数据为空，需要时再 `Head`——列举条目的元数据因此是"可能不完整"的，一致性套件只校验键顺序、长度与 `ETag`。不符合键文法的对象（以 `/` 结尾的"目录"占位）跳过。
 - 不存在的键与桶 → `OBJECTSTORAGE_NOTFOUND_001`；桶不存在的列举是空页；其余服务端错误、网络错误与 SDK 超时 → `OBJECTSTORAGE_UNAVAILABLE_001`。没有配额（由桶策略管理）。`EnsureBuckets` 开启时写入遇到桶不存在就建桶再重试一次，默认由基础设施预先建桶。
@@ -91,7 +91,7 @@
 
 ## 一致性
 
-Provider 必须继承 `BlobStoreConformance` 并通过全部用例（S3 Provider 对 MinIO 通过）；实现了 `IBlobMultipartStore` 的 Provider 同样要通过分片用例（不实现时这些用例跳过）。命名实例的 Provider 必须继承 `BlobStoreProviderConformance` 并通过全部用例（参考实现另有混装用例：两种装配顺序下两个存储包的命名实例 Provider 都登记，缺省的三个契约同一存储，被要求的契约选得不一致时装配失败、兜底选出的不失败而按被顶替处理）：按定义建出可读写且探测通过的实例、未知的设置键被拒绝、经注册表同定义复用 / 定义变了替换 / 移除后不存在、定义错误翻译为 `OBJECTSTORAGE_VALIDATION_003` 且不影响已有实例。
+Provider 必须继承 `BlobStoreConformance` 并通过全部用例（S3 Provider 对 RustFS 1.0.4 通过，此前对 MinIO 通过；ADR-0086 记录了其余兼容服务的差异）；实现了 `IBlobMultipartStore` 的 Provider 同样要通过分片用例（不实现时这些用例跳过）。命名实例的 Provider 必须继承 `BlobStoreProviderConformance` 并通过全部用例（参考实现另有混装用例：两种装配顺序下两个存储包的命名实例 Provider 都登记，缺省的三个契约同一存储，被要求的契约选得不一致时装配失败、兜底选出的不失败而按被顶替处理）：按定义建出可读写且探测通过的实例、未知的设置键被拒绝、经注册表同定义复用 / 定义变了替换 / 移除后不存在、定义错误翻译为 `OBJECTSTORAGE_VALIDATION_003` 且不影响已有实例。
 
 ## 错误码
 

@@ -45,18 +45,18 @@
 | `leader.lease` | — | ServiceAccount、Role（leases）、RoleBinding，`XiHan__Scheduling__Kubernetes__Lease`，`XIHAN_POD_NAME`、`POD_NAMESPACE`（Pod 字段） | — | — |
 | `environment` | — | `env` | `environment` | `WithEnvironment` |
 
-绑定类型在 Compose 与 Aspire 里的对应（依赖服务的健康检查：PostgreSQL `pg_isready`、Redis `redis-cli ping`、RabbitMQ `rabbitmq-diagnostics -q ping`、MinIO `mc ready local`、Kafka `kafka-broker-api-versions.sh --bootstrap-server localhost:9092`、Nacos `curl -fs http://localhost:8848/nacos/v1/console/health/readiness`；Kafka 与 Nacos 另设 `start_period` 30 秒与 60 秒）：
+绑定类型在 Compose 与 Aspire 里的对应（依赖服务的健康检查：PostgreSQL `pg_isready`、Redis `redis-cli ping`、RabbitMQ `rabbitmq-diagnostics -q ping`、RustFS `curl -fs http://localhost:9000/health`、Kafka `kafka-broker-api-versions.sh --bootstrap-server localhost:9092`、Nacos `curl -fs http://localhost:8848/nacos/v1/console/health/readiness`；Kafka 与 Nacos 另设 `start_period` 30 秒与 60 秒）：
 
 | 类型 | Compose 镜像 | `value` | Aspire |
 | --- | --- | --- | --- |
 | `connection:relational` | `postgres:17-alpine` | `Host=<name>;Port=5432;Database=<app>;Username=xihan;Password=xihan` | `AddPostgres(<name>).AddDatabase(<app>)` |
 | `cache:distributed` | `redis:7-alpine` | `<name>:6379` | `AddRedis(<name>)` |
 | `queue` | `rabbitmq:4-alpine` | `amqp://guest:guest@<name>:5672` | `AddRabbitMQ(<name>)` |
-| `blob` | `minio/minio` | `http://<name>:9000` | `AddContainer(<name>, "minio/minio")` |
+| `blob` | `rustfs/rustfs:1.0.4`（S3 兼容，数据卷 `<name>-data:/data`） | `http://<name>:9000` | `AddContainer(<name>, "rustfs/rustfs", "1.0.4")`，注入 `GetEndpoint("api")` |
 | `stream` | `apache/kafka:4.1.0`（单节点 KRaft，`KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://<name>:9092`） | `<name>:9092` | `AddKafka(<name>)` |
 | `configuration:remote` | `nacos/nacos-server:v2.5.1`（`MODE=standalone`，数据卷 `<name>-data:/home/nacos/data`） | `http://<name>:8848` | `AddContainer(<name>, "nacos/nacos-server", "v2.5.1")`，注入 `GetEndpoint("http")` |
 
-Compose 与 Aspire 注入的凭据属性（RFC-0016「资源绑定与配置节」，属性覆盖 Provider 配置节里的同类键）：`blob` 的 MinIO 以 `MINIO_ROOT_USER=xihan`、`MINIO_ROOT_PASSWORD=xihanxihan` 启动，应用得到 `XiHan__Bindings__<name>__accessKey=xihan` 与 `XiHan__Bindings__<name>__secretKey=xihanxihan`；其余类型的凭据已在主值里（PostgreSQL 连接串、AMQP URI 的 `guest:guest`，Aspire 的集成资源连接串自带凭据）或依赖服务未开认证（Redis、Kafka、Nacos），不另注入。这些是本地联调的固定值，部署环境的凭据放在 Kustomize 绑定 Secret 里：`bindings.example.yaml` 为每个绑定写出 `type`、`uri`，并以注释列出该类型可选的凭据键——`cache:distributed`、`queue`、`configuration:remote` 为 `username`、`password`，`blob` 为 `accessKey`、`secretKey`，`stream` 为 `security.protocol`、`sasl.mechanism`、`sasl.username`、`sasl.password`；`connection:relational` 的凭据在连接串里，没有单独的键。
+Compose 与 Aspire 注入的凭据属性（RFC-0016「资源绑定与配置节」，属性覆盖 Provider 配置节里的同类键）：`blob` 的 RustFS 以 `RUSTFS_ACCESS_KEY=xihan`、`RUSTFS_SECRET_KEY=xihanxihan` 启动，应用得到 `XiHan__Bindings__<name>__accessKey=xihan` 与 `XiHan__Bindings__<name>__secretKey=xihanxihan`；其余类型的凭据已在主值里（PostgreSQL 连接串、AMQP URI 的 `guest:guest`，Aspire 的集成资源连接串自带凭据）或依赖服务未开认证（Redis、Kafka、Nacos），不另注入。这些是本地联调的固定值，部署环境的凭据放在 Kustomize 绑定 Secret 里：`bindings.example.yaml` 为每个绑定写出 `type`、`uri`，并以注释列出该类型可选的凭据键——`cache:distributed`、`queue`、`configuration:remote` 为 `username`、`password`，`blob` 为 `accessKey`、`secretKey`，`stream` 为 `security.protocol`、`sasl.mechanism`、`sasl.username`、`sasl.password`；`connection:relational` 的凭据在连接串里，没有单独的键。
 
 ## 就绪探针
 

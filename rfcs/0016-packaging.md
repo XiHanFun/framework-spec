@@ -1,6 +1,6 @@
 # RFC-0016 应用清单与打包
 
-> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`；2026-11-01 修订：绑定的凭据属性覆盖配置节；2026-11-01 修订：Kustomize 不起 Kafka 与 Nacos 定为规则） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup）、ADR-0082（凭据属性）、ADR-0083（Kustomize 不起依赖服务） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
+> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`；2026-11-01 修订：绑定的凭据属性覆盖配置节；2026-11-01 修订：Kustomize 不起 Kafka 与 Nacos 定为规则；2026-11-01 修订：`blob` 的依赖服务由 MinIO 换成 RustFS） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup）、ADR-0082（凭据属性）、ADR-0083（Kustomize 不起依赖服务）、ADR-0086（`blob` 的依赖服务） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
 
 ## 摘要
 
@@ -54,18 +54,19 @@
 | --- | --- | --- |
 | Dockerfile | `Dockerfile`、`Dockerfile.dockerignore`（BuildKit 读与 Dockerfile 同目录的同名忽略文件） | 多阶段：`sdk:10.0` 发布 → `aspnet:10.0-noble-chiseled`（AOT 时 `runtime-deps:10.0-noble-chiseled` 并在构建阶段装 clang）；构建阶段另外编译就绪探针 `/xihan/healthprobe`，供 Compose 健康检查探测 `/health/ready`（chiseled 镜像里没有 shell 与 curl，见 `app-manifest.md`「就绪探针」）；非 root（`USER $APP_UID`）；Kestrel 端点与停机超时以环境变量写入 |
 | Kustomize | `kustomize/*.yaml` | Deployment（探针、宽限、安全上下文、只读根文件系统、绑定与配置挂载）、Service、ConfigMap、HPA（有 `scaling` 时）、PDB（副本大于 1 时）、ServiceAccount + Role + RoleBinding（有 `leader` 时）、`bindings.example.yaml`（Secret 示例，不在 kustomization 里） |
-| Compose | `compose.yaml` | 应用服务（`healthcheck` 以就绪探针请求 `/health/ready`）+ 每个绑定一个依赖服务（PostgreSQL、Redis、RabbitMQ、MinIO、单节点 KRaft 的 Kafka、standalone 的 Nacos），以 `XiHan__Bindings__<name>__type/value` 注入，依赖服务健康后应用才启动 |
+| Compose | `compose.yaml` | 应用服务（`healthcheck` 以就绪探针请求 `/health/ready`）+ 每个绑定一个依赖服务（PostgreSQL、Redis、RabbitMQ、S3 兼容的 RustFS、单节点 KRaft 的 Kafka、standalone 的 Nacos），以 `XiHan__Bindings__<name>__type/value` 注入，依赖服务健康后应用才启动 |
 | Aspire | `aspire/XiHanAppHost.g.cs` | `Add<Name>(this IDistributedApplicationBuilder)`：按绑定添加资源并把连接串注入 `XiHan__Bindings__<name>__value` |
 
 ## 绑定的依赖服务
 
 每种绑定类型在 Compose 与 Aspire 里生成什么、注入的主值是什么，见 `app-manifest.md`「映射」的类型表；规则：
 
-1. 注入的主值与对应 Provider 读取绑定主值的形式一致：关系库是连接串，Redis 与 Kafka 是 `host:port`（Kafka 即引导地址），RabbitMQ 是 `amqp://` URI，MinIO 与 Nacos 是 `http://` URL（Nacos 地址没有路径时用缺省上下文路径 `/nacos`）。
-2. 新增的依赖服务镜像固定版本（不写 `latest`），每个依赖服务都有 `healthcheck`，应用以 `depends_on: condition: service_healthy` 等它们健康。JVM 服务（Kafka、Nacos）另设 `start_period`，启动期内的探测失败不计入重试。
+1. 注入的主值与对应 Provider 读取绑定主值的形式一致：关系库是连接串，Redis 与 Kafka 是 `host:port`（Kafka 即引导地址），RabbitMQ 是 `amqp://` URI，RustFS 与 Nacos 是 `http://` URL（Nacos 地址没有路径时用缺省上下文路径 `/nacos`）。
+2. 依赖服务镜像一律固定版本（不写 `latest`，也不省略标签），每个依赖服务都有 `healthcheck`，应用以 `depends_on: condition: service_healthy` 等它们健康。JVM 服务（Kafka、Nacos）另设 `start_period`，启动期内的探测失败不计入重试。
 3. Kafka 为单节点 KRaft：同一进程兼任 broker 与 controller，对外监听地址写依赖服务名（`PLAINTEXT://<绑定名>:9092`），Compose 网络里的应用拿到的元数据才指向可达的主机；内部主题的副本数为 1。Nacos 为 standalone（内嵌存储），数据目录挂命名卷。
 4. Kustomize 不生成依赖服务：集群里的数据库、缓存、代理与配置中心由部署方提供，每个绑定只生成 Secret 示例（`type` 与 `uri`）与挂载。六种绑定类型一律如此，Kafka（`stream`）与 Nacos（`configuration:remote`）与 PostgreSQL、Redis 一样不在集群里起单节点服务（已定，ADR-0083）：集群里的有状态依赖要按环境定副本、存储类、备份与升级策略，生成器给不出通用的正确答案；单节点的本地联调形态由 Compose 与 Aspire 提供。
-5. Aspire 有官方集成的类型用集成（PostgreSQL、Redis、RabbitMQ、Kafka），注入资源的连接串并 `WithReference`；没有集成的（MinIO、Nacos）以固定镜像的容器资源运行，注入它的 HTTP 端点。
+5. Aspire 有官方集成的类型用集成（PostgreSQL、Redis、RabbitMQ、Kafka），注入资源的连接串并 `WithReference`；没有集成的（RustFS、Nacos）以固定镜像的容器资源运行，注入它的 HTTP 端点。
+6. `blob` 的依赖服务是 RustFS（`rustfs/rustfs`，Apache-2.0）：MinIO 社区版已停发镜像，Docker Hub 上的 `minio/minio` 拉取不到（ADR-0086）。替换它的服务必须从公开仓库拉得到固定版本的镜像、以环境变量给出访问密钥、单节点即可启动并有健康端点，并让 S3 Provider 的全部一致性用例通过——条件写入（`If-None-Match: *`，含分片完成）、范围读取、批量删除、列举、分片上传（同一编号重传覆盖、不合法的分片清单被拒绝）与预签名；只靠先 HEAD 再写的服务（不认条件写入）不合格，因为并发的不覆盖写入会静默覆盖。
 
 ## 命令
 
