@@ -1,6 +1,6 @@
 # RFC-0021 工作流：持久化执行
 
-> 状态：已采纳 | 日期：2026-10-26，同日修订（ADR-0020：`Workflow.Database`、触发式启动、事件网关、外部任务、HTTP 活动、补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；2026-11-01 修订：外部任务领取的条数上限与下推、重用策略查重与创建原子、定义按租户隔离、实例按租户隔离；2026-11-01 修订：引擎写入随调用方事务、分区隔离与随租户分库（平台与租户互不可见，取消全局定义），待办查询的过滤、排序与分页下推到存储并带总数） | 对应 ADR：ADR-0016、ADR-0020、ADR-0066、ADR-0077 | 参考实现：`XiHan.Framework.Workflow.Abstractions`、`XiHan.Framework.Workflow.InMemory`、`XiHan.Framework.Workflow.Database` | 一致性：`XiHan.Framework.Workflow.Conformance`
+> 状态：已采纳 | 日期：2026-10-26，同日修订（ADR-0020：`Workflow.Database`、触发式启动、事件网关、外部任务、HTTP 活动、补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；2026-11-01 修订：外部任务领取的条数上限与下推、重用策略查重与创建原子、定义按租户隔离、实例按租户隔离；2026-11-01 修订：引擎写入随调用方事务、分区隔离与随租户分库（平台与租户互不可见，取消全局定义），待办查询的过滤、排序与分页下推到存储并带总数；2026-11-01 修订：只读调用里的写入是 500 类缺陷） | 对应 ADR：ADR-0016、ADR-0020、ADR-0066、ADR-0077、ADR-0081 | 参考实现：`XiHan.Framework.Workflow.Abstractions`、`XiHan.Framework.Workflow.InMemory`、`XiHan.Framework.Workflow.Database` | 一致性：`XiHan.Framework.Workflow.Conformance`
 
 ## 摘要
 
@@ -74,7 +74,7 @@ ADR-0077：引擎、定义目录、任务服务与外部任务服务的每个操
 
 - **加入调用方的事务**：服务所在的作用域里 `IWorkflowTransaction.IsActive` 为真时——数据库实现：在调用里且 Transaction 阶段已开启工作单元——操作在调用方的事务里执行：存储读写、活动与结果处理器的写入、经发件箱发出的事件都随调用方提交或回滚。业务回滚后引擎不留任何状态（实例、节点实例、书签、发件箱里的事件）；业务提交时与引擎写入一起落库，例如"写申请并发起流程"、"授予并完成实例"都是原子的。
 - **自己开调用**：不在可加入的事务里时（到期书签轮询、定时器、后台恢复、调用之外的直接使用、Tenant / Authorize 阶段里的调用），引擎在新的服务作用域里经完整管道开一次调用（来源协议 `workflow`、目标是操作名），以调用方的租户（Baggage `xihan.tenant`，并预先写进安全上下文）进入，操作在那次调用的事务里执行：单个操作失败即回滚；批量操作整批一个事务，逐项失败不回滚其余项（失败的项没有写入），提交失败时每一项都报告提交的错误。应用不在服务状态时返回 `WORKFLOW_UNAVAILABLE_001`。自己开的调用里仍不能加入事务（持久化没有在 Transaction 阶段开启工作单元）是装配错误，返回 `WORKFLOW_UNAVAILABLE_001`，不再嵌套。
-- **只读的调用**：调用方的工作单元只读（RFC-0005「只读工作单元」）时，查询照常；写入操作在取锁、执行活动之前即返回 `PERSISTENCE_DENIED_001`（`IWorkflowTransaction.EnsureWritable`），只读调用里的活动副作用不会先发生。
+- **只读的调用**：调用方的工作单元只读（RFC-0005「只读工作单元」）时，查询照常；写入操作在取锁、执行活动之前即返回 `PERSISTENCE_UNEXPECTED_001`（`IWorkflowTransaction.EnsureWritable`；只读操作里发起或推进流程是操作实现的缺陷，HTTP 500），只读调用里的活动副作用不会先发生。
 - **锁与事务的先后**：实例锁在调用方事务里获取，锁行自己提交（见「锁」），持有到作用域结束才释放：事务提交之后别的执行者才拿得到锁、读到新状态；事务回滚后作用域结束即释放，不泄漏。作用域必须被释放（管道的请求作用域、`await using` 的作用域）：没有释放的作用域会一直持有并续约它的锁。
 - **不加入事务的 Provider**：内存实现没有事务，`IsActive` 只看是否在调用里；写入立即生效、调用方回滚不撤销，也不看调用是否只读。一致性套件以 `JoinsCallerTransaction` 区分两种 Provider。
 - **SQLite**：只有一个写者，调用方事务写过之后再在另一个连接上写租约行要等调用方事务结束，即等自己；在 SQLite 上要把租约表（`WorkflowLockRecord`）经 `IEntityConnectionSelector` 放到另一个库文件。行级锁的数据库（PostgreSQL、MySQL、SQL Server）不受影响。
