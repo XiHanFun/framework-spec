@@ -1,6 +1,6 @@
 # RFC-0012 对象存储
 
-> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误；2026-11-01 修订：一致性验证改对 RustFS；2026-11-01 修订：不覆盖写入并发原子、S3 探测条件写入；2026-11-01 修订：条件写入探测改为启动照常、后台与首次使用时重试，云厂商的兼容服务只走标准条件头） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约）、ADR-0086（验证用的 S3 兼容服务）、ADR-0089（条件写入探测）、ADR-0090（探测重试） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`
+> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误；2026-11-01 修订：一致性验证改对 RustFS；2026-11-01 修订：不覆盖写入并发原子、S3 探测条件写入；2026-11-01 修订：条件写入探测改为启动照常、后台与首次使用时重试，键的保留前缀 `.xihan`，云厂商的兼容服务只走标准条件头） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约）、ADR-0086（验证用的 S3 兼容服务）、ADR-0089（条件写入探测）、ADR-0090（探测重试、保留前缀） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`
 
 ## 摘要
 
@@ -18,6 +18,7 @@
 
 - 容器 `ContainerName`：`^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$`（与 S3 桶名兼容）。
 - 键 `BlobKey`：`/` 分段的路径，1 到 1024 个字符；每段非空、不是 `.` 或 `..`；不含空白、控制字符与 `\`；区分大小写。
+- 保留前缀（2026-11-01 增补，ADR-0090）：首段是 `.xihan` 的键（`.xihan` 本身与 `.xihan/…`，区分大小写，`BlobKey.ReservedSegment`）留给框架自己的对象（如 S3 的条件写入探测键），不在键文法之内：构造时抛出 `ArgumentException`，`BlobKey.IsValid` 为假，业务写不进、读不到、删不掉；各 Provider 列举时跳过存储里已有的这类对象（框架经底层客户端写入的，或从外部放入的），不出现在业务列举里。查询前缀 `BlobQuery.Prefix` 只是筛选，不受此限，以 `.xihan` 开头的前缀列举总是空的。
 - 自定义元数据名：`^[a-z0-9][a-z0-9-]{0,63}$`；值为任意字符串。
 - 标识不合法在构造时抛出 `ArgumentException`（编程错误），不进入 Provider。
 
@@ -30,7 +31,7 @@
 | `Get(container, key, range)` | 只读一段字节（见下文「范围读取、分片上传与预签名」） |
 | `Head(container, key)` | 只取元数据 |
 | `Delete(container, keys[])` | 按顺序逐项删除；返回逐项结果（是否存在，或错误）；重复键第二次报告不存在 |
-| `List(container, query)` | 按前缀列举，键的序数顺序，`PageSize`（1–1000，默认 1000）分页，`ContinuationToken` 不透明；`PageSize` 越界不在构造时抛出，返回 `OBJECTSTORAGE_VALIDATION_005`（HTTP 400，参数 `pageSize`、`max`），不访问存储 |
+| `List(container, query)` | 按前缀列举，键的序数顺序，`PageSize`（1–1000，默认 1000）分页，`ContinuationToken` 不透明；`PageSize` 越界不在构造时抛出，返回 `OBJECTSTORAGE_VALIDATION_005`（HTTP 400，参数 `pageSize`、`max`），不访问存储。不符合键文法的对象（保留前缀下的、S3 的目录占位）跳过，所以一页可能少于 `PageSize` 条、甚至为空而仍带续页标记，调用方取到续页标记为空为止 |
 
 - 元数据 `BlobMetadata`：键、长度、内容类型（默认 `application/octet-stream`）、`ETag`（内容变化即变化）、最后修改时间、自定义元数据。
 - `Overwrite = false` 且已存在 → `OBJECTSTORAGE_CONFLICT_001`，不写入。不覆盖写入必须原子：多个写入方同时以 `Overwrite = false` 写同一个新键，恰好一个成功，其余都是 `OBJECTSTORAGE_CONFLICT_001`，不能先查是否存在再写（并发时后写的会静默覆盖先写的）；做不到的存储不能声称支持不覆盖写入（S3 见下文「S3 的条件写入探测」）。
@@ -61,8 +62,8 @@
 不覆盖写入在 S3 上靠条件写入（`If-None-Match: *`）保证原子；不认它的兼容服务把条件头当作没有，先 `Head` 再写的两个写入方都会成功、后写的静默覆盖先写的（ADR-0089 实测：Garage、Zenko CloudServer 上 8 个并发的不覆盖写入全部"成功"）。S3 Provider 因此在不覆盖写入之前探明服务是否认条件写入：
 
 - 设置 `ConditionalWrites`（配置节与命名实例的设置里都有，缺省 `true`）。开启时探测，`HealthBucket` 必须配置（探测写在这个桶里），没配是配置错误：缺省实例装配失败（`ArgumentException`），命名实例 → `OBJECTSTORAGE_VALIDATION_003`。
-- 探测：对固定的探测键 `.xihan/probe/conditional-write`（框架专用前缀 `.xihan/`，空对象）带 `If-None-Match: *` 写入；成功则再写一次，第二次必须被拒（412），还成功就是不认。提供分片上传时（缺省实例被选为 `objectstorage.multipart`；命名实例总是提供）再以同一个键发起分片上传、上传一片、带 `If-None-Match: *` 完成，必须被拒（412），被拒的上传随即放弃；完成了就是不认（探测键被同样为空的内容覆盖，无害）。单次探测以 `HealthProbeIntervalSeconds`（缺省 15 秒，命名实例取缺省值）为超时，按注入的时钟计时。
-- 探测键写入后不删除：任何一次 412 都证明服务认得条件写入，键已存在时第一次写入就被拒，所以多个实例同时启动、反复启动、后台重试都得到同一结论，没有"删掉后别人又写入"的竞态；凭据只需要对这一个键的写入（`s3:PutObject`）与放弃分片上传（`s3:AbortMultipartUpload`）的权限，不需要删除、读取或列举；桶里只多一个空对象，它符合键文法，按空前缀列举该桶时会出现。`EnsureBuckets` 开启时探测桶不存在就建桶后重试一次（同写入）。
+- 探测：对固定的探测键 `.xihan/probe/conditional-write`（保留前缀 `.xihan` 下，见「标识」，业务列举不会出现；空对象）带 `If-None-Match: *` 写入；成功则再写一次，第二次必须被拒（412），还成功就是不认。提供分片上传时（缺省实例被选为 `objectstorage.multipart`；命名实例总是提供）再以同一个键发起分片上传、上传一片、带 `If-None-Match: *` 完成，必须被拒（412），被拒的上传随即放弃；完成了就是不认（探测键被同样为空的内容覆盖，无害）。单次探测以 `HealthProbeIntervalSeconds`（缺省 15 秒，命名实例取缺省值）为超时，按注入的时钟计时。
+- 探测键写入后不删除：任何一次 412 都证明服务认得条件写入，键已存在时第一次写入就被拒，所以多个实例同时启动、反复启动、后台重试都得到同一结论，没有"删掉后别人又写入"的竞态；凭据只需要对这一个键的写入（`s3:PutObject`）与放弃分片上传（`s3:AbortMultipartUpload`）的权限，不需要删除、读取或列举；桶里只多一个空对象，在保留前缀下，业务列举跳过它。`EnsureBuckets` 开启时探测桶不存在就建桶后重试一次（同写入）。
 - 一次探测的结论：通过（"已确认"）；探明不认（第二次写入或完成没被拒，或服务回 501）；其余都是"尚未确认"——连不上、超时或其余服务端错误（`OBJECTSTORAGE_UNAVAILABLE_001`，`reason` 带出是哪一步）、凭据无效或无权写探测键、建桶、放弃上传（403，`OBJECTSTORAGE_DENIED_002`，参数 `bucket`、`key`、`operation`、`reason` 为服务端错误码）、探测桶不存在（`OBJECTSTORAGE_NOTFOUND_001`，参数 `bucket`）。已确认与不认是终态，服务的能力不会在运行中改变；尚未确认会重试。
 - 时机：缺省实例在特性启动时、健康探针启动之前探一次；命名实例在建出时探一次（每个实例各探各的，实例指向的服务可能不同）。启动时就探明不认 → 缺省实例以 `KERNEL_HOSTING_002`（内层 `OBJECTSTORAGE_UNAVAILABLE_003`，参数 `bucket`、`operation`）启动失败，命名实例不建、不登记（注册表原样返回该码，下次取用重新探测）。尚未确认（含被拒绝与缺桶）→ 照常启动、照常建出并登记实例，在后台重试：第一次 1 秒后，之后每次间隔加倍，最长 `HealthProbeIntervalSeconds`（它小于 1 秒时每次都取它），计时用注入的时钟；有了终态即停止，应用停止或实例释放时也停止。经公开构造函数直接建的 `S3BlobStore` 不探测，由调用方负责。
 - 尚未确认时的不覆盖写入（`Overwrite = false` 的写入、分片上传的发起与完成）：有探测正在进行就等它的结论（受调用方取消约束）；没有而距上一次探测结束已满 1 秒，就地探测一次（同一时刻每个实例只有一个探测，后台重试与写入共用它）；不满 1 秒不再探测。之后已确认就照常写入；不认 → `OBJECTSTORAGE_UNAVAILABLE_003`；仍未确认 → `OBJECTSTORAGE_UNAVAILABLE_004`（HTTP 503，参数 `container`、`key`、`reason` 为最近一次探测失败的错误码），不访问写入目标，不退回先查再写。覆盖写入、读取、删除、列举、预签名不受影响。
@@ -106,7 +107,7 @@
 
 ## 一致性
 
-Provider 必须继承 `BlobStoreConformance` 并通过全部用例（S3 Provider 对 RustFS 1.0.4 通过，此前对 MinIO 通过；ADR-0086 记录了其余兼容服务的差异）。用例包括并发的不覆盖写入（8 个写入方同时写同一个新键，恰好一个成功，ADR-0089）：先查再写的实现过不了，不认条件写入的 S3 兼容服务上直接建的 `S3BlobStore` 也过不了（Garage、Zenko CloudServer 上 8 个全部成功），这正是 S3 Provider 探明之前不做不覆盖写入、探明不认就拒绝的原因；实现了 `IBlobMultipartStore` 的 Provider 同样要通过分片用例（不实现时这些用例跳过）。命名实例的 Provider 必须继承 `BlobStoreProviderConformance` 并通过全部用例（参考实现另有混装用例：两种装配顺序下两个存储包的命名实例 Provider 都登记，缺省的三个契约同一存储，被要求的契约选得不一致时装配失败、兜底选出的不失败而按被顶替处理）：按定义建出可读写且探测通过的实例、未知的设置键被拒绝、经注册表同定义复用 / 定义变了替换 / 移除后不存在、定义错误翻译为 `OBJECTSTORAGE_VALIDATION_003` 且不影响已有实例。
+Provider 必须继承 `BlobStoreConformance` 并通过全部用例（S3 Provider 对 RustFS 1.0.4 通过，此前对 MinIO 通过；ADR-0086 记录了其余兼容服务的差异）。用例包括并发的不覆盖写入（8 个写入方同时写同一个新键，恰好一个成功，ADR-0089）：先查再写的实现过不了，不认条件写入的 S3 兼容服务上直接建的 `S3BlobStore` 也过不了（Garage、Zenko CloudServer 上 8 个全部成功），这正是 S3 Provider 探明之前不做不覆盖写入、探明不认就拒绝的原因；以及保留前缀（ADR-0090）：首段是 `.xihan` 的键构造时被拒，套件经 Provider 实现的钩子 `PlantOutsideContractAsync` 绕过契约在存储里放入保留前缀下的对象，列举必须跳过它们；实现了 `IBlobMultipartStore` 的 Provider 同样要通过分片用例（不实现时这些用例跳过）。命名实例的 Provider 必须继承 `BlobStoreProviderConformance` 并通过全部用例（参考实现另有混装用例：两种装配顺序下两个存储包的命名实例 Provider 都登记，缺省的三个契约同一存储，被要求的契约选得不一致时装配失败、兜底选出的不失败而按被顶替处理）：按定义建出可读写且探测通过的实例、未知的设置键被拒绝、经注册表同定义复用 / 定义变了替换 / 移除后不存在、定义错误翻译为 `OBJECTSTORAGE_VALIDATION_003` 且不影响已有实例。
 
 ## 错误码
 
