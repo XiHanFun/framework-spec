@@ -1,6 +1,6 @@
 # RFC-0005 领域协议与持久化
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译；2026-11-01 修订：只读操作开只读工作单元、嵌套调用） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063、0073 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
 
 ## 摘要
 
@@ -28,13 +28,26 @@
 
 ## 工作单元
 
-- 作用域生命周期，一次调用一个；由 Transaction 阶段的 `UnitOfWorkMiddleware` 开启，用安全上下文中的租户作为当前租户。
+- 作用域生命周期，一次调用一个；由 Transaction 阶段的 `UnitOfWorkMiddleware` 开启，用安全上下文中的租户作为当前租户。调用带操作描述且契约只读（`OperationContract.IsReadOnly`：动词 `get` / `list`，或声明了 `ReadOnly = true`，RFC-0011）时开只读工作单元；其余调用——写操作，以及不带操作描述的调用（消息处理器、作业、直接交给 `App.InvokeAsync` 的处理器）——开可写工作单元。
 - 状态机：`NotStarted → Active → Committed | RolledBack`。违反顺序抛出携带 `PERSISTENCE_VALIDATION_002` 的 `FrameworkException`。
 - 调用结果为成功则提交；结果为失败或抛出异常则回滚。提交失败（并发冲突、标识重复、容量）作为调用结果返回。
 - 并发新增同一标识：两个工作单元先后新增同一标识，检查时对方尚未提交——先提交者的行保留，后到者以 `PERSISTENCE_CONFLICT_002` 失败，不静默覆盖。关系型 Provider 在写入时由主键约束发现（写入等对方事务结束才报错），数据库报错后 Provider 核对该标识的行确已存在才按标识重复报告，否则异常原样抛出；此后该工作单元只能回滚，处理器忽略这次失败而返回成功时，提交回滚并返回同一错误。内存实现在提交时发现，提交返回该错误。
-- 只读工作单元拒绝写入，返回 `PERSISTENCE_VALIDATION_002`；Provider 可在写入时或提交时拒绝。
 - 读己之写：同一工作单元内新增、更新、删除对随后的查找与查询可见；提交前对其他工作单元不可见；回滚后存储里不留任何痕迹，包括 Provider 写入的修改时间、并发戳与删除标记。
 - 领域事件在提交前派发（`UnitOfWorkMiddleware`：处理器成功 → 派发 → 提交）：装配了发件箱时事件随业务写入同一事务落进发件箱表，提交后由投递循环发出；没有发件箱时直接发布到代理，发布失败回滚业务写入（至多一次、先于提交）。派发只在 Transaction 阶段的中间件里发生，直接使用工作单元的调用方自己负责。
+
+### 只读工作单元
+
+- 只读工作单元不开数据库事务；查找、按标识集合查找、查询与计数照常。
+- 仓储的写入在写入时拒绝、不触后端：`AddAsync` / `UpdateAsync` / `RemoveAsync` 返回 `PERSISTENCE_DENIED_001`，`AddRangeAsync` / `UpdateRangeAsync` / `RemoveRangeAsync` 逐项都是它（空集合不算写入，仍返回空列表）。拒绝同时把工作单元记为失败：处理器忽略这次失败而返回成功时，提交回滚并返回同一错误，调用以它结束——误写不会被静默忽略，也不会变成未处理异常。
+- Provider 暴露给直接写入的入口——EF Core 与 SqlSugar 工作单元的 `EnsureTransactionAsync`（直接用 `DbContext` 或 SqlSugar 客户端写入之前开启事务）——在只读工作单元里抛出携带 `PERSISTENCE_DENIED_001` 的 `FrameworkException`，写入不会执行；Transaction 阶段的中间件把它转为同码的结果并回滚，不经 Observe 阶段包成 `KERNEL_UNEXPECTED_001`。EF Core 提交时另查变更跟踪器：绕过仓储改了跟踪实体而未保存的，同样以 `PERSISTENCE_DENIED_001` 回滚。不经这两处、直接对客户端执行的写入在 Provider 视野之外，不受守卫，也不在事务里。
+- `PERSISTENCE_DENIED_001` 是操作实现的缺陷（只读操作写了数据），不是调用方能修正的输入，也不是可重试的不可用：HTTP 403、gRPC `PermissionDenied`、命令行按 DENIED 的退出码；熔断不计数（RFC-0004 只计 UNAVAILABLE / TIMEOUT / UNEXPECTED）。
+- 管道外自己开工作单元的代码由 `UnitOfWorkOptions(TenantId, IsReadOnly)` 决定，`UnitOfWorkOptions.Default` 是无租户、可写；框架的单例存储（租户目录与授予的读取、审计查询、租约探测）读取时显式开只读工作单元，写入（发件箱、审计落库、调度与工作流存储）开可写工作单元，不受操作契约影响。
+
+### 嵌套调用
+
+- 一次调用一个工作单元，各调用按自己的契约开自己的。在调用里经管道发起另一次调用（`IOperationInvoker.InvokeAsync`、`App.InvokeAsync`）要新建服务作用域：`CreateAsyncScope()` 后用 `App.CreateContext(scope.ServiceProvider, …)` 建上下文（AI 工具、MCP 的每次 `tools/call` 都这样做），内层得到自己的工作单元。
+- 只读不向内、也不向外传播：只读操作里调用写操作，写操作在自己的可写工作单元里写入、成功即自行提交，外层随后失败也不回滚它（不在外层的事务里），外层自己的仓储仍然只读；写操作里调用只读操作，内层只读。要与外层同进退的写入不应拆成嵌套调用。
+- 同一服务作用域里再经管道（用外层的上下文、由它派生的上下文，或以 `context.Services` 新建的上下文）时，作用域里的工作单元已经开始过：中间件不再开始它、不执行内层的处理器，以 `PERSISTENCE_VALIDATION_002` 的结果结束内层调用，外层工作单元的状态不变。内层不加入外层的工作单元：加入会让内层写入的成败取决于外层是否只读，内层失败时已写入的部分又会随外层一起提交。
 
 ## 仓储
 
@@ -106,7 +119,7 @@
 
 ## 一致性
 
-Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合；可空值类型与 null 的相等 / 不等按存在性过滤（字面量 null、闭包里的 null 变量、左右互换、与 `HasValue` 一致，组合到别的条件里也成立）；一次查询最多取 `EntityQuery.DefaultMaxTake` 条、超过的取出条数在构造查询时被拒绝；判空与取反嵌套在与 / 或条件里照常过滤（或条件在与条件右侧、判空或取反是或条件的左操作数、取反整个与 / 或条件、双重否定）；更新沿用存储的创建时间、租户与删除标记、删除不改创建时间（游离实例与读出后改过的实例两种）；两个工作单元先后新增同一标识只有一个成功、另一个返回 `PERSISTENCE_CONFLICT_002`、留下的是成功者的行；回滚的调用在存储里不留修改、并发戳与删除标记，提交前另一个工作单元读到的是旧值。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
+Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合；可空值类型与 null 的相等 / 不等按存在性过滤（字面量 null、闭包里的 null 变量、左右互换、与 `HasValue` 一致，组合到别的条件里也成立）；一次查询最多取 `EntityQuery.DefaultMaxTake` 条、超过的取出条数在构造查询时被拒绝；判空与取反嵌套在与 / 或条件里照常过滤（或条件在与条件右侧、判空或取反是或条件的左操作数、取反整个与 / 或条件、双重否定）；更新沿用存储的创建时间、租户与删除标记、删除不改创建时间（游离实例与读出后改过的实例两种）；两个工作单元先后新增同一标识只有一个成功、另一个返回 `PERSISTENCE_CONFLICT_002`、留下的是成功者的行；回滚的调用在存储里不留修改、并发戳与删除标记，提交前另一个工作单元读到的是旧值；只读操作里单条与批量的新增、更新、删除都返回 `PERSISTENCE_DENIED_001`、存储不变，处理器忽略拒绝而返回成功时调用仍以它结束，查询照常；只读操作在新的服务作用域里调用写操作，写入照常提交，外层仍拒绝自己的写入；同一作用域里再经管道的调用以 `PERSISTENCE_VALIDATION_002` 结束、处理器不执行。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
 
 标识生成器必须通过 `IdGeneratorConformance<TKey>`：顺序生成与多线程并发生成不重复、时钟前进后生成的标识更大；`GuidV7IdGenerator` 与 `SnowflakeIdGenerator` 都通过。
 

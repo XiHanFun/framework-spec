@@ -68,12 +68,13 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PLUGINS_UNAVAILABLE_002` | Wasm：沙箱资源不足（回调嵌套超限、客体内存分配失败） |
 | `PLUGINS_UNAVAILABLE_003` | Wasm：宿主进程不满足载体要求（Windows 强制用户态影子栈 / CET 时陷阱会终止进程，宿主可执行项目须设 `CETCompat=false`） |
 | `PERSISTENCE_VALIDATION_001` | 多租户实体在没有当前租户的调用中新增 |
-| `PERSISTENCE_VALIDATION_002` | 工作单元状态不允许该操作（重复开始、未开始就提交、只读却写入） |
+| `PERSISTENCE_VALIDATION_002` | 工作单元状态不允许该操作：重复开始、未开始就提交（以异常抛出）；同一服务作用域里再经管道发起的嵌套调用（Transaction 阶段以结果结束内层调用，不执行处理器） |
 | `PERSISTENCE_VALIDATION_003` | 工作单元里的聚合有未派发的领域事件，但没有注册领域事件派发器 |
 | `PERSISTENCE_VALIDATION_004` | 实体落点指向的连接不存在：SqlSugar 实体的 `[Tenant(configId)]` 指向客户端里没有的连接（装配错误，以异常抛出，缺省落点规则下启动时校验） |
 | `PERSISTENCE_NOTFOUND_001` | 更新或删除的实体不存在（含已软删除、不属于当前租户） |
 | `PERSISTENCE_CONFLICT_001` | 乐观并发冲突：并发戳不匹配；内存实现提交时发现更新或删除的行已被别的工作单元删除或改过 |
 | `PERSISTENCE_CONFLICT_002` | 新增的标识已存在；含并发新增：检查之后另一个工作单元提交了同一标识（关系型在写入时、内存实现在提交时返回） |
+| `PERSISTENCE_DENIED_001` | 只读工作单元拒绝写入：只读操作（动词 `get` / `list` 或声明了 `ReadOnly`）或以 `IsReadOnly` 开启的工作单元里新增、更新、删除（含批量）。仓储写入返回结果并把工作单元记为失败（提交返回同一错误）；直接写入入口 `EnsureTransactionAsync` 抛出、由 Transaction 阶段转为结果；HTTP 403 |
 | `PERSISTENCE_UNAVAILABLE_001` | 没有活动的工作单元（仓储在 Transaction 阶段之外使用；以异常抛出） |
 | `PERSISTENCE_UNAVAILABLE_002` | 存储容量已满（内存实现的每类实体上限） |
 | `PERSISTENCE_UNAVAILABLE_003` | 存储不可达 |
