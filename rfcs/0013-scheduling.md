@@ -1,6 +1,6 @@
 # RFC-0013 调度与领导选举
 
-> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发），2026-11-01 修订（ADR-0074：调度器启动之前的手动触发同样不可用、一致性套件由用例推进时钟并主动轮询；ADR-0082：运行查询的分页越界返回校验错误；ADR-0091：应用不在服务状态时不持有领导租约、数据库实现的租约释放不经管道） | 对应 ADR：ADR-0020、ADR-0074、ADR-0082、ADR-0091 | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance`
+> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发），2026-11-01 修订（ADR-0074：调度器启动之前的手动触发同样不可用、一致性套件由用例推进时钟并主动轮询；ADR-0082：运行查询的分页越界返回校验错误；ADR-0091：应用不在服务状态时不持有领导租约、数据库实现的租约释放不经管道），2026-11-02 修订（ADR-0094：领导选举一致性套件加上应用生命周期用例） | 对应 ADR：ADR-0020、ADR-0074、ADR-0082、ADR-0091、ADR-0094 | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance`
 
 ## 摘要
 
@@ -95,7 +95,7 @@ Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 �
 
 ## 一致性
 
-Provider 必须继承 `JobSchedulerConformance`（触发与状态、间隔与 cron 计划、并发、失败、重试与执行时限、动态登记与删除、暂停与恢复、misfire、多触发器与优先级、历史、取消、本地作业）、`JobStoreConformance`（存储的查询、抢占原子性、独占运行、阻塞与释放、恢复）与 `LeaderElectionConformance` 并通过全部用例。调度器用例由用例驱动时间：套件给宿主登记一个只由用例推进的时钟，引擎的到期判定、领导租约、作业的停留与执行时限都按它计时；Provider 把轮询周期设得很长、后台循环不动作，用例推进时钟后经 `JobSchedulerEngine.PollOnceAsync`（执行一个周期，并等本周期在本节点起的运行连同收尾结束）轮询一次再断言，不按墙钟等待。选举的过期用例同样按套件传入的时钟推进。结果与机器快慢、负载无关（ADR-0074）。
+Provider 必须继承 `JobSchedulerConformance`（触发与状态、间隔与 cron 计划、并发、失败、重试与执行时限、动态登记与删除、暂停与恢复、misfire、多触发器与优先级、历史、取消、本地作业）、`JobStoreConformance`（存储的查询、抢占原子性、独占运行、阻塞与释放、恢复）与 `LeaderElectionConformance` 并通过全部用例。调度器用例由用例驱动时间：套件给宿主登记一个只由用例推进的时钟，引擎的到期判定、领导租约、作业的停留与执行时限都按它计时；Provider 把轮询周期设得很长、后台循环不动作，用例推进时钟后经 `JobSchedulerEngine.PollOnceAsync`（执行一个周期，并等本周期在本节点起的运行连同收尾结束）轮询一次再断言，不按墙钟等待。选举的过期用例同样按套件传入的时钟推进。`LeaderElectionConformance` 另有应用生命周期用例（2026-11-02 修订，ADR-0094）：Provider 实现 `StartNodeAsync(clock, probe)`，起一个调度引擎用被测选举的节点（套件的时钟、很长的轮询周期、装配套件给的探针特性——它依赖 `scheduling.jobs`，在调度之后启动、之前停止），并给出与节点争同一租约、全程在服务的竞争者（数据库实现是同一个库上的另一个节点，进程内实现是节点自己的选举）；用例在探针的启动钩子里（应用启动中）执行一个周期，断言节点不拿租约；进入服务后竞争者先拿到、节点这个周期拿不到，竞争者放手后节点下一个周期拿到、竞争者被拒；在探针的停止钩子里（应用排空中）时钟只走半个租约，节点这个周期释放，竞争者立即拿到——Provider 的 `Release` 在应用不在服务状态时必须真正生效。内存、数据库与 Kubernetes 实现都通过。结果与机器快慢、负载无关（ADR-0074）。
 
 ## 错误码
 
