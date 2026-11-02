@@ -1,6 +1,6 @@
 # RFC-0023 可观测性：导出与运行信息
 
-> 状态：已采纳 | 日期：2026-10-30 | 对应 ADR：ADR-0056 | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry` | 一致性：无套件（读的是所在机器，按平台写用例）
+> 状态：已采纳（2026-11-02 修订：运行进程的用户名照常打印） | 日期：2026-10-30 | 对应 ADR：ADR-0056、ADR-0093（用户名不遮蔽） | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry` | 一致性：无套件（读的是所在机器，按平台写用例）
 
 ## 摘要
 
@@ -44,6 +44,7 @@
 - 读取不抛出：单项失败（权限不足、文件缺失、平台不支持）只让该项为空，不影响其他项。
 - CPU 型号与核心、GPU、主板首次读取后缓存；其余每次读取当场取。
 - 不暴露命令行参数、环境变量与当前目录。
+- `RuntimeInfo.UserName` 是运行进程的系统账户，属于主机诊断数据，不是任何服务的登录凭据：`ToString()` 照常打印它，不随选项打印遮蔽登录用户名（RFC-0014「选项里的凭据」规则 2）而遮蔽（2026-11-02 已定，ADR-0093）。
 
 ### 采样
 
