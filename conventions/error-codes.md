@@ -215,7 +215,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `AI_NOTFOUND_002` | 提示词模板不存在（`IAIChat` 请求的提示词名；知识库 `PromptName` 引用的模板不存在时为启动失败） |
 | `AI_NOTFOUND_003` | AI 工具不存在 |
 | `AI_DENIED_001` | 请求被护栏拦截 |
-| `AI_TIMEOUT_001` | 模型调用超时 |
+| `AI_TIMEOUT_001` | 模型调用超时：Provider 的超时令牌（`TimeoutSeconds`）已触发即是，调用方同时取消、Provider 接住取消正常返回也一样；Provider 报告了自己的超时同样是它（RFC-0022「超时与取消」，2026-11-02 起） |
 | `AI_UNAVAILABLE_001` | 模型端点不可达或返回错误 |
 | `AI_UNAVAILABLE_002` | 知识库存储未装配或不可达（向量库连接器抛出的异常，含其自身的容量限制） |
 | `AI_UNEXPECTED_001` | 护栏、工具或 Provider 抛出未处理异常 |
