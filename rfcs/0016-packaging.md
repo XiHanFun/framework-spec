@@ -1,6 +1,6 @@
 # RFC-0016 应用清单与打包
 
-> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`；2026-11-01 修订：绑定的凭据属性覆盖配置节；2026-11-01 修订：Kustomize 不起 Kafka 与 Nacos 定为规则；2026-11-01 修订：`blob` 的依赖服务由 MinIO 换成 RustFS；2026-11-01 修订：连 `blob` 依赖服务要配条件写入的探测桶） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup）、ADR-0082（凭据属性）、ADR-0083（Kustomize 不起依赖服务）、ADR-0086（`blob` 的依赖服务）、ADR-0089（条件写入探测） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
+> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`；2026-11-01 修订：绑定的凭据属性覆盖配置节；2026-11-01 修订：Kustomize 不起 Kafka 与 Nacos 定为规则；2026-11-01 修订：`blob` 的依赖服务由 MinIO 换成 RustFS；2026-11-01 修订：连 `blob` 依赖服务要配条件写入的探测桶；2026-11-02 修订：探测桶不存在与凭据被拒启动失败） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup）、ADR-0082（凭据属性）、ADR-0083（Kustomize 不起依赖服务）、ADR-0086（`blob` 的依赖服务）、ADR-0089（条件写入探测）、ADR-0093（被拒绝与缺桶启动失败） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
 
 ## 摘要
 
@@ -66,7 +66,7 @@
 3. Kafka 为单节点 KRaft：同一进程兼任 broker 与 controller，对外监听地址写依赖服务名（`PLAINTEXT://<绑定名>:9092`），Compose 网络里的应用拿到的元数据才指向可达的主机；内部主题的副本数为 1。Nacos 为 standalone（内嵌存储），数据目录挂命名卷。
 4. Kustomize 不生成依赖服务：集群里的数据库、缓存、代理与配置中心由部署方提供，每个绑定只生成 Secret 示例（`type` 与 `uri`）与挂载。六种绑定类型一律如此，Kafka（`stream`）与 Nacos（`configuration:remote`）与 PostgreSQL、Redis 一样不在集群里起单节点服务（已定，ADR-0083）：集群里的有状态依赖要按环境定副本、存储类、备份与升级策略，生成器给不出通用的正确答案；单节点的本地联调形态由 Compose 与 Aspire 提供。
 5. Aspire 有官方集成的类型用集成（PostgreSQL、Redis、RabbitMQ、Kafka），注入资源的连接串并 `WithReference`；没有集成的（RustFS、Nacos）以固定镜像的容器资源运行，注入它的 HTTP 端点。
-6. `blob` 的依赖服务是 RustFS（`rustfs/rustfs`，Apache-2.0）：MinIO 社区版已停发镜像，Docker Hub 上的 `minio/minio` 拉取不到（ADR-0086）。替换它的服务必须从公开仓库拉得到固定版本的镜像、以环境变量给出访问密钥、单节点即可启动并有健康端点，并让 S3 Provider 的全部一致性用例通过——条件写入（`If-None-Match: *`，含分片完成）、范围读取、批量删除、列举、分片上传（同一编号重传覆盖、不合法的分片清单被拒绝）与预签名；只靠先 HEAD 再写的服务（不认条件写入）不合格，因为并发的不覆盖写入会静默覆盖，S3 Provider 的条件写入探测也会拒绝它：启动时探明即启动失败，之后才探明的不覆盖写入一律报错（RFC-0012「S3 的条件写入探测」，ADR-0089、ADR-0090）。应用连它时要配置探测桶 `XiHan:ObjectStorage:S3:HealthBucket`（RustFS 不自动建桶，同时开 `EnsureBuckets` 或先建桶）。
+6. `blob` 的依赖服务是 RustFS（`rustfs/rustfs`，Apache-2.0）：MinIO 社区版已停发镜像，Docker Hub 上的 `minio/minio` 拉取不到（ADR-0086）。替换它的服务必须从公开仓库拉得到固定版本的镜像、以环境变量给出访问密钥、单节点即可启动并有健康端点，并让 S3 Provider 的全部一致性用例通过——条件写入（`If-None-Match: *`，含分片完成）、范围读取、批量删除、列举、分片上传（同一编号重传覆盖、不合法的分片清单被拒绝）与预签名；只靠先 HEAD 再写的服务（不认条件写入）不合格，因为并发的不覆盖写入会静默覆盖，S3 Provider 的条件写入探测也会拒绝它：启动时探明即启动失败，之后才探明的不覆盖写入一律报错（RFC-0012「S3 的条件写入探测」，ADR-0089、ADR-0090）。应用连它时要配置探测桶 `XiHan:ObjectStorage:S3:HealthBucket`（RustFS 不自动建桶，同时开 `EnsureBuckets` 或先建桶：探测桶不存在、凭据被拒都让应用启动失败，只有 RustFS 还没就绪、连不上时应用照常启动并在后台重试，2026-11-02 修订，ADR-0093）。
 
 ## 命令
 
