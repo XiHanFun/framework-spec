@@ -75,6 +75,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_VALIDATION_006` | 运行时数据源的定义不合法：数据库类型 Provider 不认识、连接串格式错（`DataSourceRegistry` 的取用与测试连接；同名的已登记实例不受影响） |
 | `PERSISTENCE_VALIDATION_007` | 库结构表列表的分页越界：`TableListQuery.Skip` 为负或 `Take` 小于 1（参数 `skip`、`take`；不在构造时抛出，读结构的 Provider 以结果返回，HTTP 400） |
 | `PERSISTENCE_VALIDATION_008` | 库里已有数据的存储形式与模型不符：EF Core 在 SQLite 上由约定映射成 UTC ticks 整数的 `DateTimeOffset` 列，库里的列声明类型不是 INTEGER 亲和性（旧库的 `TEXT`，空表也算），或抽样最早写入的 1000 行查到非整数的值（重建表时没换算）——照读会静默读成错误的时刻。特性启动时逐连接核对，以异常抛出、启动失败，一个连接的不符列一次列出（参数 `connection`、`columns`；RFC-0005「EF Core 在 SQLite 上的时间列核对」，ADR-0094）；租户分片库在首次绑定时核对（工作单元开始时以异常抛出，经管道的调用是 `KERNEL_UNEXPECTED_001`、原因是本码，HTTP 500，已定、不转成 400 也不另立码，ADR-0099；消息键 `persistence.schema.shard_timestamp_format_mismatch`，参数 `tenant`、`columns`；通过的分片只查一次，不符的每次绑定重查；2026-11-02 修订，ADR-0097） |
+| `PERSISTENCE_VALIDATION_009` | 连接用了别的库的从库（装配错误，以异常抛出）：主库不同的连接共用同一个从库，读会读到别的库的数据；默认连接与命名连接启动时核对，分片连接在作用域取客户端时核对 |
 | `PERSISTENCE_NOTFOUND_001` | 更新或删除的实体不存在（含已软删除、不属于当前租户） |
 | `PERSISTENCE_NOTFOUND_002` | 运行时数据源没有在本进程登记（`DataSourceRegistry.GetAsync`） |
 | `PERSISTENCE_NOTFOUND_003` | 库里没有要读结构的表（`ISchemaReader.GetTablesAsync` 的逐项结果，参数 `dataSource`、`table`） |
@@ -89,6 +90,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_UNAVAILABLE_006` | 数据源连不上或读取失败：运行时数据源的测试连接、健康探测（条目 Degraded），缺省连接与运行时数据源的库结构读取（含 Oracle 11g 及更早版本上的读列：数据字典没有 `IDENTITY_COLUMN`，不支持）；参数 `name`、`reason`（驱动消息，连接串与口令类键的值已换成 `***`） |
 | `PERSISTENCE_UNAVAILABLE_007` | 运行时数据源登记已满（`XiHan:Persistence:DataSources:MaxCount`）；不淘汰已有的，替换同名的不占名额 |
 | `PERSISTENCE_UNAVAILABLE_008` | 当前的持久化 Provider 不支持该能力：运行时数据源与库结构读取（EF Core 与内存实现）；命名连接（内存实现：实体登记到命名连接在装配时、绑定连接的工作单元在 `BeginAsync` 以异常抛出；EF Core：普通工作单元里取用登记到命名连接的实体，以异常抛出——一个 DbContext 一个连接，那样的实体只能在绑定那个连接的工作单元里读写；已定，不计划支持，ADR-0091）；软删除实体声明了唯一索引（要建成部分唯一索引）而所连数据库不支持部分索引——SqlSugar 的 PostgreSQL、SQLite、SQL Server 之外，EF Core 的 Npgsql、SQLite、SQL Server 之外的关系型 Provider——启动时以异常抛出，不退化成普通唯一索引 |
+| `PERSISTENCE_UNAVAILABLE_009` | 从库不可读：只出现在健康项 `persistence.sqlsugar.replicas` 里（`connection`、`index`、`reason`，`reason` 只写异常类型），读落到别的从库或主库上，调用不受影响 |
 | `PERSISTENCE_UNEXPECTED_001` | 只读工作单元拒绝写入，是操作实现的缺陷：只读操作（动词 `get` / `list` 或声明了 `ReadOnly`）或以 `IsReadOnly` 开启的工作单元里新增、更新、删除（含批量），以及工作流在只读调用里的写入操作（`IWorkflowTransaction.EnsureWritable`，取锁、执行活动之前；数据库与内存实现都是，内存实现按调用的操作契约判断，2026-11-02 修订，ADR-0099）。仓储写入返回结果并把工作单元记为失败（提交返回同一错误）；直接写入入口 `EnsureTransactionAsync` 抛出、由 Transaction 阶段转为同码结果；HTTP 500、gRPC `Internal`、命令行按 UNEXPECTED 的退出码，按操作计入熔断。同一服务作用域里再经管道的嵌套调用仍是 `PERSISTENCE_VALIDATION_002` |
 | `CACHING_VALIDATION_001` | 缓存键或幂等键不合法 |
 | `CACHING_VALIDATION_002` | 条目选项不合法（绝对与滑动过期同时设置等）：远程缓存插件按操作集校验 `ttlMs` / `slidingMs` 时返回（`provider/caching-distributed.md`），适配器原样成为异常的错误码；.NET 侧构造或使用不合法的 `CacheEntryOptions` 时直接抛 `ArgumentException`（编程错误），不产生错误码 |

@@ -1,6 +1,6 @@
 # RFC-0005 领域协议与持久化
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译；2026-11-01 修订：只读操作开只读工作单元、嵌套调用、查询取出条数超限是校验错误；2026-11-01 修订：索引声明与唯一键重复；2026-11-01 修订：运行时数据源；2026-11-01 修订：库结构读取与实体目录；2026-11-01 修订：只读工作单元里的写入是 500 类缺陷（`PERSISTENCE_UNEXPECTED_001`）、软删除实体的唯一索引是只约束未删除行的部分唯一索引；2026-11-01 修订：实体登记到命名连接、绑定一个连接的工作单元；2026-11-01 修订：库结构表列表的分页越界由读取器返回校验错误；2026-11-01 修订：库结构读取在 MySQL、Oracle、SQL Server 上实测，长度只给字符与二进制类型，Oracle 读数据字典；2026-11-01 修订：EF Core 支持命名连接（绑定连接的工作单元）；2026-11-01 修订：Oracle 11g 与 Oracle 兼容库的读列维持不支持；2026-11-01 修订：EF Core 普通工作单元里取用命名连接上的实体定为不支持；2026-11-01 修订：EF Core 在 SQLite 上把 DateTimeOffset 存成 UTC ticks 整数；2026-11-02 修订：EF Core 在 SQLite 上启动时核对时间列的存储形式；2026-11-02 修订：时间列核对扩到租户分片库，首次绑定时核对，核对通过的记录有上限；2026-11-02 修订：规约里字符串的包含、前缀与后缀按字面匹配；2026-11-02 修订：分片核对不通过时经管道报 500 定为已定；2026-11-02 修订：SqlSugar 的 PostgreSQL 连接固定 standard_conforming_strings = on；2026-11-02 修订：SqlSugar 的兼容库与运行时数据源维持按通配匹配定为已定；2026-11-02 修订：字符串的包含、前缀与后缀在同一个库上大小写规则一致，EF Core 在 SQLite 上一律译成 `LIKE`；2026-11-02 修订：MySQL 上字符串值含反斜杠的内联路径是 SqlSugar 的上游缺陷，待上游修复；2026-11-04 修订：工作单元报告是否已开数据库事务） | 日期：2026-10-21 | 对应 ADR：0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063、0072、0073、0078、0081、0084、0087、0091、0094、0097、0098、0099、0100、0101、0109 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-27 修订：SqlSugar 多连接落点与分表、查询时间范围提示、领域事件派发；2026-10-27 修订：雪花标识生成器；2026-10-28 修订：可空值类型判空语义；2026-10-28 修订：字符串列长约定；2026-10-28 修订：DateTimeOffset 读取按 Kind 还原 UTC；2026-10-28 修订：InitTables 加列缺省值；2026-11-01 修订：协议字段只由 Provider 写入、并发新增同一标识、内存实现读写复制与提交时校验、雪花标识的启停顺序与调用里的不可用结果；2026-11-01 修订：判空与取反嵌套在与 / 或条件里的翻译；2026-11-01 修订：只读操作开只读工作单元、嵌套调用、查询取出条数超限是校验错误；2026-11-01 修订：索引声明与唯一键重复；2026-11-01 修订：运行时数据源；2026-11-01 修订：库结构读取与实体目录；2026-11-01 修订：只读工作单元里的写入是 500 类缺陷（`PERSISTENCE_UNEXPECTED_001`）、软删除实体的唯一索引是只约束未删除行的部分唯一索引；2026-11-01 修订：实体登记到命名连接、绑定一个连接的工作单元；2026-11-01 修订：库结构表列表的分页越界由读取器返回校验错误；2026-11-01 修订：库结构读取在 MySQL、Oracle、SQL Server 上实测，长度只给字符与二进制类型，Oracle 读数据字典；2026-11-01 修订：EF Core 支持命名连接（绑定连接的工作单元）；2026-11-01 修订：Oracle 11g 与 Oracle 兼容库的读列维持不支持；2026-11-01 修订：EF Core 普通工作单元里取用命名连接上的实体定为不支持；2026-11-01 修订：EF Core 在 SQLite 上把 DateTimeOffset 存成 UTC ticks 整数；2026-11-02 修订：EF Core 在 SQLite 上启动时核对时间列的存储形式；2026-11-02 修订：时间列核对扩到租户分片库，首次绑定时核对，核对通过的记录有上限；2026-11-02 修订：规约里字符串的包含、前缀与后缀按字面匹配；2026-11-02 修订：分片核对不通过时经管道报 500 定为已定；2026-11-02 修订：SqlSugar 的 PostgreSQL 连接固定 standard_conforming_strings = on；2026-11-02 修订：SqlSugar 的兼容库与运行时数据源维持按通配匹配定为已定；2026-11-02 修订：字符串的包含、前缀与后缀在同一个库上大小写规则一致，EF Core 在 SQLite 上一律译成 `LIKE`；2026-11-02 修订：MySQL 上字符串值含反斜杠的内联路径是 SqlSugar 的上游缺陷，待上游修复；2026-11-04 修订：工作单元报告是否已开数据库事务；同日再修订：SqlSugar 读写分离：每个作用域一份连接配置，会写的工作单元读写都走主库，从库权重归一化与周期探测） | 日期：2026-10-21 | 对应 ADR：0118、0005、0013、0022、0023、0025、0033、0035、0036、0037、0040、0063、0072、0073、0078、0081、0084、0087、0091、0094、0097、0098、0099、0100、0101、0109 | 参考实现：`XiHan.Framework.Domain`、`XiHan.Framework.Persistence.Abstractions`、`XiHan.Framework.Persistence.InMemory`、`XiHan.Framework.Persistence.EntityFrameworkCore`、`XiHan.Framework.Persistence.SqlSugar` | 一致性：`XiHan.Framework.Persistence.Conformance`
 
 ## 摘要
 
@@ -241,6 +241,34 @@ EF Core（10.0）：SQLite 上三个方法一律译成 `LIKE … ESCAPE '\'`（2
   - 不在范围：不经工作单元、在作用域里直接解析 DbContext 读写分片的；命名连接（命名连接的绑定优先于分片，DbContext 不建在分片上）。
   - SqlSugar 不核对，它没有这类静默误读：`DateTimeOffset` 列在 SQLite 上一直存 UTC 日期时间文本（`DateTimeOffsetConverter` 写入 `DateTime`，ADR-0013 起没有变过），读取按整段文本解析（`DateTime.Parse`），不是取开头的年份；库里是整数或浮点数（如 EF Core 建的库）时转换抛出 `InvalidCastException`，读取失败而不是读成错误的时刻。
 - 开销：每个连接一次读表结构（`sqlite_master` 联 `pragma_table_info`，只读库结构，与行数无关），每张有这类列的表一次抽样查询（至多读 1000 行）；与表数成正比、与表的大小无关，没有表数上限。租户分片是每个分片库首次绑定时一次（被淘汰后再绑定时再一次），计入那次调用。实测（Microsoft.Data.Sqlite 10.0.13，本地 SSD）：1 张 100 万行的表约 1 毫秒，200 张表各 1 万行约 100 毫秒，1000 张表各 100 行约 75 毫秒。
+
+### 读写分离（2026-11-04 修订，ADR-0118）
+
+只有 `Persistence.SqlSugar` 支持。从库由配置回调给在 `ConnectionConfig.SlaveConnectionConfigs` 上（`SqlSugarPersistenceFeature` 方式一）；回调对每个连接都调用，从库只给它所属的连接，看 `ConnectionConfig.ConfigId`。没配从库时下面都不发生：作用域直接用共享的配置，没有探测、没有健康条目。
+
+路由：
+
+1. 只读工作单元（`UnitOfWorkOptions.IsReadOnly`）读从库。
+2. 其余工作单元读写都走主库，第一次写入之前的读也一样，事务开着不开都一样：事务要到第一次写入才开，写入之前的读（判重、取并发戳）读到落后的从库就会做错决定。这个作用域之后的读也留在主库上，提交之后同一作用域读得到刚写的。跨调用读己之写不保证：另一次只读调用可能读到落后的从库。
+3. 工作单元之外直接用客户端时按 SqlSugar 的规则：事务内与写入走主库，事务外的读走从库。
+4. 仓储写入撞上约束后另开连接判断冲突，库结构读取，都读主库。
+
+每个作用域一份连接配置：SqlSugar 读从库时把配置的 `ConnectionString` 改成从库的、读完再改回来，配置在作用域之间共用时，这期间别的作用域建的连接就连到了从库，写入落在从库上。所以配了从库的连接，每个作用域取一份副本（`UtilMethods.CopyConfig`）。应用自己注册 `ISqlSugarClient` 时同样要这样做（`SqlSugarScope` 自己会复制）；框架不探测应用自己建的客户端。
+
+权重：`SlaveConnectionConfig.HitRate` 不大于 0 的归一化成 `XiHan:Persistence:SqlSugar:Replicas:DefaultHitRate`（缺省 10）。它是字段，配置绑定绑不上；权重全为 0 时 SqlSugar 的读路由对空集合取随机数直接抛异常。`SqlSugarConventions.Apply` 同样归一化，用缺省的 10。从库的连接串是空白即启动失败。
+
+健康探测（默认连接与命名连接）：
+
+- 配置节 `XiHan:Persistence:SqlSugar:Replicas`：`HealthCheck`（缺省 `true`）、`HealthCheckIntervalSeconds`（缺省 30）、`FailureCooldownSeconds`（缺省 120，可以为 0）。配了从库才有探测，所以缺省打开。关掉之后权重不再变化，宕机的从库照常接读流量。
+- 探针用从库自己的连接串另建连接，打开之后执行一条语句（`SELECT 1`，Oracle 与达梦 `SELECT 1 FROM DUAL`），单次超时取 5 秒与间隔一半的较小者。只打开连接不够：连接池把空闲连接直接交出来，从库宕了也打得开。只探连通，不看复制延迟。
+- 探测失败的从库摘除：新的作用域不再读它，已经开着的作用域保留自己的快照。全部不可读时副本上没有从库，读回到主库。探通之后要离最后一次失败超过冷却窗口才恢复。
+- 健康项 `persistence.sqlsugar.replicas`：全部可读 Ready；否则 Degraded，错误 `PERSISTENCE_UNAVAILABLE_009`（`connection`、`index`、`reason`，`reason` 只写异常类型），应用仍然就绪，调用不受影响。数据 `<连接>.replicas`、`<连接>.available`、`<连接>.<序号>`（`available` / `unavailable` / `cooling-down`）、`<连接>.<序号>.reason`。连接串是机密，不进错误、数据和日志消息。完整异常进日志：同一种失败第一次 Warning，之后 Debug（ADR-0115）。一个连接的从库全部不可读时记一条 Error，恢复时记 Information。启动时同步探一轮，宿主 Ready 时读已经绕开连不上的从库。
+
+不串库：
+
+- 主库不同的连接共用同一个从库是 `PERSISTENCE_VALIDATION_009`，以 `FrameworkException` 抛出，消息不带连接串：回调不看 `ConfigId` 时，别的连接的读会读到这个库的数据。默认连接与命名连接在启动时核对，分片连接在作用域取客户端时核对，那次调用失败。比较的是施加约定之后的连接串原文。
+- 分片连接（`shard`）没有从库时读写都走租户自己的主库。回调可以按分片绑定给出它自己的从库（比如租户属性 `Shard.<key>` 透传过来的），权重同样归一化、路由规则相同；分片连接的配置每个作用域现建，不探测，从库宕机时落到它的读失败。
+- 探针只读连接串、不写配置，碰不到主库和别的库。
 
 ## 一致性
 
