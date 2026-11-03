@@ -212,13 +212,13 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `WORKFLOW_UNEXPECTED_001` | 活动抛出未处理异常或引擎内部失败 |
 | `AI_VALIDATION_001` | AI 请求不合法（Provider 缺必填项、提示词参数缺失、工具名不合法或重复、工具参数无法序列化；知识库提示词引用了 `{context}`、`{question}` 以外的占位符时为启动失败） |
 | `AI_VALIDATION_002` | 嵌入维度与知识库配置的维度不一致 |
-| `AI_NOTFOUND_001` | AI Provider 未配置，或其种类没有登记工厂 |
+| `AI_NOTFOUND_001` | AI Provider 未配置，或其种类没有登记工厂；没给 Provider 名而目录没有默认 Provider（消息键 `ai.provider.default_missing` / `ai.provider.embedding_default_missing`，RFC-0022「Provider 目录」，2026-11-04 起） |
 | `AI_NOTFOUND_002` | 提示词模板不存在（`IAIChat` 请求的提示词名；知识库 `PromptName` 引用的模板不存在时为启动失败） |
 | `AI_NOTFOUND_003` | AI 工具不存在 |
 | `AI_DENIED_001` | 请求被护栏拦截 |
 | `AI_TIMEOUT_001` | 模型调用超时：Provider 的超时令牌（`TimeoutSeconds`）已触发即是，调用方同时取消、Provider 接住取消正常返回也一样；Provider 报告了自己的超时同样是它（RFC-0022「超时与取消」，2026-11-02 起） |
 | `AI_UNAVAILABLE_001` | 模型端点不可达或返回错误 |
-| `AI_UNAVAILABLE_002` | 知识库存储未装配或不可达（向量库连接器抛出的异常，含其自身的容量限制） |
+| `AI_UNAVAILABLE_002` | 知识库存储未装配或不可达（向量库连接器抛出的异常，含其自身的容量限制）；健康项 `ai.vectordata.store` 的探针遇到连接器抛出时条目 Degraded 也是它（2026-11-04 起） |
 | `AI_UNEXPECTED_001` | 护栏、工具或 Provider 抛出未处理异常 |
 | `CLI_NOTFOUND_001` | 应用清单文件不存在 |
 | `CLI_VALIDATION_001` | 应用清单不合法，或 `--only` 的产物种类不认识 |
