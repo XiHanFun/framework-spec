@@ -1,6 +1,6 @@
 # RFC-0008 认证与授权
 
-> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地、绕过管道的端点；2026-11-01 修订：资源名文法、自己产生的租户声明跟随 TenantClaim、权限码文法；授予读不到不当作没有授予、操作引用的权限码装配时核对；插件声明的权限码由宿主登记、按名引用的策略与端点要求启动时核对；同日再修订：契约的策略在宿主的启动核对里核对、不论失败策略都拒绝启动，插件卸载撤回它声明的权限码） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地）、ADR-0051（绕过管道的端点）、ADR-0071（授予读不到以 503 结束、操作引用的权限码装配时核对）、ADR-0080（插件声明的权限码、策略与端点要求启动时核对）、ADR-0085（启动核对不归失败策略管、卸载撤回登记） | 参考实现：`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Hosting.AspNetCore`（绕过管道的端点）、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region` | 一致性：`XiHan.Framework.Security.Conformance`
+> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地、绕过管道的端点；2026-11-01 修订：资源名文法、自己产生的租户声明跟随 TenantClaim、权限码文法；授予读不到不当作没有授予、操作引用的权限码装配时核对；插件声明的权限码由宿主登记、按名引用的策略与端点要求启动时核对；同日再修订：契约的策略在宿主的启动核对里核对、不论失败策略都拒绝启动，插件卸载撤回它声明的权限码；2026-11-04 修订：出站地址策略） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地）、ADR-0051（绕过管道的端点）、ADR-0071（授予读不到以 503 结束、操作引用的权限码装配时核对）、ADR-0080（插件声明的权限码、策略与端点要求启动时核对）、ADR-0085（启动核对不归失败策略管、卸载撤回登记）、ADR-0117（出站地址策略） | 参考实现：`XiHan.Framework.Kernel`（出站地址策略）、`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Hosting.AspNetCore`（绕过管道的端点）、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region` | 一致性：`XiHan.Framework.Security.Conformance`
 
 ## 摘要
 
@@ -107,6 +107,43 @@ IP 归属地（ADR-0047）是能力 `security.ip-region@1`：`IIpRegionResolver.
 - 实现不访问网络、线程安全；IPv4 映射的 IPv6 地址按 IPv4 查；回环、私有网段、保留地址、数据不可用、查不到都返回无值，不抛出。
 - 宿主可以不装：没有本能力时调用方把归属地当作取不到（条件子句为无法判定，为空 / 不为空照常判定）。
 - 参考实现 `Security.Ip2Region`：ip2region 离线库，IPv4 与 IPv6 各一个由宿主提供的 xdb 文件，配置节 `XiHan:Security:Ip2Region`；某个地址族的文件缺失或加载失败只记警告，该族一律无值。
+
+## 出站地址策略（2026-11-04 增补，ADR-0117）
+
+框架或应用向用户给的地址发请求时，要防止被指向内网与云元数据地址（服务端请求伪造）。机制在内核：`Kernel.Security.OutboundAddressPolicy`，宿主总是登记为单例；放行项 `OutboundAddressOptions` 读配置节 `XiHan:Security:Outbound`，装配时读一次，不热更新，值不合法即启动失败。
+
+一个 IP 能否连接，依次判定（`IsAllowed(address)`；IPv4 映射地址 `::ffff:0:0/96` 先还原成 IPv4）：
+
+1. 落在 `AllowedNetworks`（CIDR，主机位必须为零）里 → 放行。这是唯一能放行第 3、6、7 步拒绝的地址的配置。
+2. 回环 `127.0.0.0/8`、`::1` → 看 `AllowLoopback`，缺省拒绝。
+3. AWS 的 IPv6 元数据地址 `fd00:ec2::254` → 拒绝。它在私网段里，开私网不等于开元数据。
+4. 私网 `10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`、`fc00::/7` → 看 `AllowPrivateNetwork`，缺省拒绝。
+5. 内嵌 IPv4 的 IPv6 地址（NAT64 `64:ff9b::/96`、6to4 `2002::/16`、IPv4 兼容 `::/96`）→ 取出内嵌的 IPv4，从第 1 步重新判定。
+6. 其余 IPv4：`0.0.0.0/8`、`100.64.0.0/10`、`169.254.0.0/16`、`192.0.0.0/24`、`192.0.2.0/24`、`192.88.99.0/24`、`198.18.0.0/15`、`198.51.100.0/24`、`203.0.113.0/24`、`224.0.0.0/4`、`240.0.0.0/4` → 拒绝，此外放行。
+7. 其余 IPv6：只放行全球单播 `2000::/3`，其中 `2001::/23`、`2001:db8::/32`、`3fff::/20` 拒绝。
+
+检查放在建立连接时，按解析出的实际 IP 判。只查 URL 或事先解析一次都会被 DNS 重绑定绕过：
+
+- `Apply(SocketsHttpHandler)` 设置 `ConnectCallback`。每条新连接都走它，重定向的目标也一样。回调解析主机名后只连策略允许的地址，连接用的就是检查过的地址，不再解析第二次。处理器已有别的连接回调时抛 `InvalidOperationException`，同一策略重复 `Apply` 没有副作用。
+- 主机名在 `AllowedHosts` 里（不区分大小写，整名相等，不支持通配符）时不看解析结果。值不是主机名（带协议或端口）即启动失败。
+- 解析结果里一部分被拒绝时只连其余的，记一条 Debug；全部被拒绝时记一条 Warning（主机、端口与解析出的地址），抛 `OutboundAddressDeniedException`，不发起连接。异常只带请求里的主机名与端口，不带解析出的地址：解析结果是内网信息，只进日志。经 `HttpClient` 发请求时它是 `HttpRequestException` 的 `InnerException`。
+- `Apply` 同时关掉 `UseProxy`：经代理时回调看到的是代理的地址，查不到真正的目标。应用之后再打开代理就绕过了策略，要用代理就在代理上做这层限制。
+- 只管 `SocketsHttpHandler` 经连接回调建立的 TCP 连接。HTTP/3 走 QUIC，不经过连接回调；请求缺省是 HTTP/1.1，把 `Version` 设成 3.0 的请求不受保护。不是 HTTP 的连接（数据库、消息代理等）不归它管。
+
+框架的出站路径是否接入，取决于地址是不是用户给的：
+
+| 路径 | 地址来源 | 接入 |
+| --- | --- | --- |
+| 工作流 `Http` 活动的缺省客户端 | 流程定义，租户管理员可编辑 | 接入（RFC-0021） |
+| CloudEvents Webhook | 运维配置，但接收方是第三方，它的 3xx 能把请求引到内网 | 接入（`protocol/cloudevents.md`） |
+| S3 命名实例 | `BlobStoreDefinition`，可能来自应用的库（RFC-0012） | 接入 |
+| S3 缺省实例 | 运维配置 | 不接入 |
+| OpenAI Provider | 运维配置 | 不接入。应用的提供商目录让用户填端点时，给命名客户端 `OpenAIFeature.HttpClientName` 接上（RFC-0022） |
+| OpenID Connect 发现与 JWKS | 运维配置，签发者常在内网，且它本身就是令牌的信任根 | 不接入。`OpenIdConnectMetadataCache` 接受应用传入的 `HttpClient` |
+| Nacos、Kubernetes API Server、OTLP 导出 | 运维配置，都在内网 | 不接入 |
+| 进程外插件通道、CLI 健康探测 | 本机，由框架自己决定 | 不接入 |
+
+应用替换了主处理器或 `WorkflowHttpClient` 时，由替换后的处理器决定能连哪里。
 
 ## 一致性
 
