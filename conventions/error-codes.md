@@ -139,7 +139,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PROTOCOLS_NOTFOUND_003` | CloudEvents：派发模式下主题没有处理器 |
 | `PROTOCOLS_NOTFOUND_004` | CloudEvents：主题没有配置出站 Webhook |
 | `PROTOCOLS_UNAVAILABLE_001` | CloudEvents：Webhook 返回非 2xx |
-| `PROTOCOLS_UNAVAILABLE_002` | CloudEvents：Webhook 无法连接 |
+| `PROTOCOLS_UNAVAILABLE_002` | CloudEvents：Webhook 无法连接（`reason` 只写异常类型的全名，完整异常进日志，ADR-0115） |
 | `HOSTING_VALIDATION_001` | 命令行：用法不合法（选项值、载荷或数据文件有误） |
 | `HOSTING_NOTFOUND_001` | 命令行：操作未登记或未暴露给命令行 |
 | `HOSTING_NOTFOUND_002` | 命令行：命令不存在 |

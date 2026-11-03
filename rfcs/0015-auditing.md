@@ -1,6 +1,6 @@
 # RFC-0015 审计
 
-> 状态：已采纳（2026-10-27 修订：数据库 Provider；2026-10-28 修订：主体与租户取自安全上下文、记录列长；2026-11-01 修订：受保护的操作含只用策略保护的；2026-11-01 修订：按操作排除） | 日期：2026-10-23 | 对应 ADR：ADR-0028（数据库 Provider）、ADR-0036、ADR-0071（受保护的操作）、ADR-0080（按操作排除） | 参考实现：`XiHan.Framework.Auditing.Abstractions`、`XiHan.Framework.Auditing.InMemory`、`XiHan.Framework.Auditing.Database` | 一致性：`XiHan.Framework.Auditing.Conformance`
+> 状态：已采纳（2026-10-27 修订：数据库 Provider；2026-10-28 修订：主体与租户取自安全上下文、记录列长；2026-11-01 修订：受保护的操作含只用策略保护的；2026-11-01 修订：按操作排除；2026-11-04 修订：查询失败的 `reason` 只写异常类型） | 日期：2026-10-23 | 对应 ADR：ADR-0028（数据库 Provider）、ADR-0036、ADR-0071（受保护的操作）、ADR-0080（按操作排除）、ADR-0115 | 参考实现：`XiHan.Framework.Auditing.Abstractions`、`XiHan.Framework.Auditing.InMemory`、`XiHan.Framework.Auditing.Database` | 一致性：`XiHan.Framework.Auditing.Conformance`
 
 ## 摘要
 
@@ -17,7 +17,7 @@
 ## 查询
 
 - `IAuditTrail.QueryAsync(AuditQuery)` → `Result<AuditPage>`：按写入顺序升序；过滤项 `From` / `To`（含边界）、`Action`、`PrincipalId`、`TenantId`、`TraceId`、`Succeeded`；`PageSize` 1 到 1000（默认 100）；`ContinuationToken` 不透明，页未满时为空。
-- 不合法的查询（页大小越界、起止颠倒、令牌不可识别）→ `AUDITING_VALIDATION_001`；存储不可达 → `AUDITING_UNAVAILABLE_001`。
+- 不合法的查询（页大小越界、起止颠倒、令牌不可识别）→ `AUDITING_VALIDATION_001`；存储不可达 → `AUDITING_UNAVAILABLE_001`，`reason` 只写异常类型的全名，完整异常进日志（2026-11-04，ADR-0115）。
 
 ## 默认实现
 

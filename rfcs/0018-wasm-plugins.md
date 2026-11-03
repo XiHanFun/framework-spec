@@ -1,6 +1,6 @@
 # RFC-0018 Wasm 插件 ABI（Experimental）
 
-> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：贡献的中间件随运行期加载成组登记、随卸载按归属撤回，运行期可以加载贡献中间件的插件；同日第三次修订：回调的超时归因在不再等待与回调已返回两条路径同一判断，运行时不再按时钟改写插件写下的取消） | 日期：2026-10-23 | 对应 ADR：0006（范围）、0009（ABI 形态）、0085（卸载撤回登记）、0088（中间件撤回）、0092（超时归因） | 参考实现：`XiHan.Framework.Plugins.Wasm`（P4-03） | 规范性文本：`spec/plugin/wasm.md`、`spec/plugin/plugin.proto`（中间件消息）、`spec/conformance/vectors/plugin/wasm-exports.json`
+> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：贡献的中间件随运行期加载成组登记、随卸载按归属撤回，运行期可以加载贡献中间件的插件；同日第三次修订：回调的超时归因在不再等待与回调已返回两条路径同一判断，运行时不再按时钟改写插件写下的取消；2026-11-04 修订：崩溃细节只写陷阱种类） | 日期：2026-10-23 | 对应 ADR：0006（范围）、0009（ABI 形态）、0085（卸载撤回登记）、0088（中间件撤回）、0092（超时归因）、0115 | 参考实现：`XiHan.Framework.Plugins.Wasm`（P4-03） | 规范性文本：`spec/plugin/wasm.md`、`spec/plugin/plugin.proto`（中间件消息）、`spec/conformance/vectors/plugin/wasm-exports.json`
 
 ## 摘要
 
@@ -71,7 +71,7 @@ Wasm 插件是 `xihan.plugin.v1` 的第二种载体：**同一套消息（`plugi
 - **内存**：`MemoryLimitBytes`（默认 64 MiB）作为线性内存上限，`StackLimitBytes`（默认 1 MiB）作为 Wasm 栈上限；超限由 `memory.grow` 失败或陷阱表现，宿主把陷阱记为崩溃。
 - **CPU**：宿主启用 epoch 中断，按 `EpochIntervalMilliseconds`（默认 10）递增 epoch；每次调用的截止时间换算成 epoch 配额：到达即陷阱，调用方得到 `KERNEL_TIMEOUT_001`，实例随后重建（陷阱后不能保证客体状态一致）。生命周期调用用 `CallTimeoutSeconds`（默认 30），中间件用 `MiddlewareTimeoutMilliseconds`（默认 100），操作与事件用调用上下文的截止时间（没有截止时间时取 `CallTimeoutSeconds`）。
 - **状态机**与 `lifecycle.md` 相同：实例化 + `_initialize` + `xihan_handshake` 成功 → `Resolved`；`xihan_configure` → `Configured`；`xihan_start` → `Started` → `Ready`；健康按 `HealthIntervalSeconds` 轮询 `xihan_health`，连续失败达到阈值视为失效；`xihan_stop` 后丢弃实例 → `Stopped`。
-- **崩溃**：任何陷阱（含栈溢出、内存超限、未处理 panic）或 `xihan_*` 返回 `0` 都是崩溃：插件 `Failed`（`PLUGINS_UNEXPECTED_002`，细节含陷阱消息）、宿主 `Degraded`、按 `lifecycle.md` §6 的退避重建实例（重建 = 重新实例化同一模块并重走握手、配置、启动，握手声明必须与首次一致）。
+- **崩溃**：任何陷阱（含栈溢出、内存超限、未处理 panic）或 `xihan_*` 返回 `0` 都是崩溃：插件 `Failed`（`PLUGINS_UNEXPECTED_002`，细节 `trap` 只写陷阱种类或异常类型，陷阱原文进日志（2026-11-04，ADR-0115））、宿主 `Degraded`、按 `lifecycle.md` §6 的退避重建实例（重建 = 重新实例化同一模块并重走握手、配置、启动，握手声明必须与首次一致）。
 - **激活**：`onStartup` 加载时实例化并启动；`onOperation:` / `onEvent:` 在加载时实例化、握手取得声明后丢弃实例，首次调用或投递时再实例化（Wasm 实例化在毫秒级，懒激活成本远低于子进程）。
 - **宿主进程**：wasmtime 处理陷阱时改写线程上下文，与 Windows 用户态影子栈（Intel CET）冲突：.NET 9 起 apphost 默认 CET 兼容，影子栈强制时第一次陷阱就让进程 fail-fast（`0xC0000409`），到不了宿主的崩溃处理。宿主可执行项目必须设置 `<CETCompat>false</CETCompat>`；参考实现在创建引擎前查询进程的影子栈策略，强制（启用且非审计）时以 `PLUGINS_UNAVAILABLE_003` 抛出配置错误拒绝创建宿主，而不是运行到第一次陷阱才崩溃。Linux / macOS 不受影响。
 - 每个插件是宿主的健康条目 `plugins.<清单 ID>`（内核 `IHealthContributor`），语义同进程外插件。

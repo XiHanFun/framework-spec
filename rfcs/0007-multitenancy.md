@@ -1,6 +1,6 @@
 # RFC-0007 多租户
 
-> 状态：已采纳（2026-10-26 修订：租户分片；2026-10-27 修订：租户目录的数据库 Provider；2026-11-01 修订：资源名租户段与租户 ID 同一文法、内存实现只为被选中的能力注册） | 日期：2026-10-21 | 对应 ADR：ADR-0018（分片）、ADR-0026（数据库 Provider） | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory`、`XiHan.Framework.MultiTenancy.Database` | 一致性：`XiHan.Framework.MultiTenancy.Conformance`
+> 状态：已采纳（2026-10-26 修订：租户分片；2026-10-27 修订：租户目录的数据库 Provider；2026-11-01 修订：资源名租户段与租户 ID 同一文法、内存实现只为被选中的能力注册；2026-11-04 修订：分片解析失败的 `reason` 只写异常类型） | 日期：2026-10-21 | 对应 ADR：ADR-0018（分片）、ADR-0026（数据库 Provider）、ADR-0115 | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory`、`XiHan.Framework.MultiTenancy.Database` | 一致性：`XiHan.Framework.MultiTenancy.Conformance`
 
 ## 摘要
 
@@ -35,7 +35,7 @@
 
 ## 分片
 
-`multitenancy.sharding@1`：按租户选择数据连接。Provider 实现 `ITenantShardResolver`：`ResolveAsync(tenantId)` 返回 `Result<Maybe<TenantShard>>`——无分片（共库租户、未知租户）是成功且无值，租户存储不可达返回 `MULTITENANCY_UNAVAILABLE_002`；`Invalidate(tenantId?)` 丢弃缓存（空为全部）。
+`multitenancy.sharding@1`：按租户选择数据连接。Provider 实现 `ITenantShardResolver`：`ResolveAsync(tenantId)` 返回 `Result<Maybe<TenantShard>>`——无分片（共库租户、未知租户）是成功且无值，租户存储不可达返回 `MULTITENANCY_UNAVAILABLE_002`（`reason` 只写异常类型的全名，完整异常进日志（2026-11-04，ADR-0115））；`Invalidate(tenantId?)` 丢弃缓存（空为全部）。
 
 - `TenantShard`：租户 ID、连接串、可选的提供者名（小写，如 `postgresql`）、透传给持久化 Provider 的属性。
 - 默认解析器 `TenantStoreShardResolver` 从 `ITenantStore` 的租户属性推出分片：`ConnectionString` 有值即分库，`DatabaseProvider` 为提供者名，`Shard.<key>` 透传为 `<key>`（用点不用冒号：属性来自配置时冒号是节分隔符）。结果按租户缓存（含"无分片"），容量 `ShardCacheSize`（配置键 `XiHan:MultiTenancy:ShardCacheSize`，正整数，默认 10000，满时整体清空；不是正整数时装配失败）；租户连接变更后调用 `Invalidate`。

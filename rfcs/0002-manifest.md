@@ -1,6 +1,6 @@
 # RFC-0002 清单
 
-> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务；2026-11-01 修订：配置节可带子节；2026-11-01 修订：手写清单，`[Capability]` 生成器顺延；2026-11-01 修订：插件声明的权限码由宿主登记；2026-11-01 修订：选中区分被要求与兜底选出；2026-11-01 修订：插件里只有 Wasm 插件能贡献中间件，其他隔离级别写了 `contributes.pipeline` 在发现时被拒） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点、配置节的子节、生成器顺延）、0080（插件声明的权限码）、0082（被要求的选中）、0092（插件的中间件贡献） | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
+> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务；2026-11-01 修订：配置节可带子节；2026-11-01 修订：手写清单，`[Capability]` 生成器顺延；2026-11-01 修订：插件声明的权限码由宿主登记；2026-11-01 修订：选中区分被要求与兜底选出；2026-11-01 修订：插件里只有 Wasm 插件能贡献中间件，其他隔离级别写了 `contributes.pipeline` 在发现时被拒；2026-11-04 修订：探针抛出时 `reason` 只写异常类型） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点、配置节的子节、生成器顺延）、0080（插件声明的权限码）、0082（被要求的选中）、0092（插件的中间件贡献）、0115 | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
 
 ## 摘要
 
@@ -57,7 +57,7 @@ PascalWord = %x41-5A *( ALPHA / DIGIT )
 
 `contributes.health` 声明的每个条目名（`^[a-z][a-z0-9.-]*$`，约定 `<领域>.<机制>.<对象>`，如 `caching.redis.connection`、`persistence.inmemory.capacity`）必须由同一个包以内核的 `IHealthContributor` 实现并登记，反之登记了 `IHealthContributor` 的包必须声明条目（插件宿主例外：它们的条目名来自各插件自己的清单）；参考实现的架构测试核对两者一致。条目进入宿主健康快照的 `contributions`，Degraded / Failed 只把应用从 Ready 压成 Degraded，不退出。
 
-- 连接类 Provider（数据库、缓存、消息代理、对象存储等外部服务）用内核的 `PeriodicHealthContributor(name, probe, interval)` 周期探测：启动时同步探一次，之后按 `HealthProbeIntervalSeconds`（各 Provider 配置节，默认 15）重探；探针失败或超时记 `KERNEL_UNAVAILABLE_005`（`name`、`reason`）并报 Degraded，恢复后报 Ready；探测不经管道、不受应用服务状态影响。
+- 连接类 Provider（数据库、缓存、消息代理、对象存储等外部服务）用内核的 `PeriodicHealthContributor(name, probe, interval)` 周期探测：启动时同步探一次，之后按 `HealthProbeIntervalSeconds`（各 Provider 配置节，默认 15）重探；探针失败或超时记 `KERNEL_UNAVAILABLE_005`（`name`、`reason`；`reason` 只写异常类型的全名，完整异常进日志，同一种失败第一次记 Warning，之后记 Debug（2026-11-04，ADR-0115））并报 Degraded，恢复后报 Ready；探测不经管道、不受应用服务状态影响。
 - 容量类 Provider（内存实现的存储、队列）同步上报：达到容量即 Degraded，错误码取所属领域的 UNAVAILABLE 容量码（如 `CACHING_UNAVAILABLE_002`、`OBJECTSTORAGE_UNAVAILABLE_002`）。
 - 条目详情（ADR-0054）：`ContributorStatus` 除名字、状态与错误外可带：
   - `Description`：检查的是什么。
