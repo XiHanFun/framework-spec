@@ -21,7 +21,7 @@ gRPC 元数据就是 HTTP/2 头，复用 HTTP 载体的映射（`protocol/http.m
 | `number` + `format: float` / `double` | `float` / `double` | |
 | `number` 其他（decimal、无格式） | `string` | 十进制文本，JSON 侧为数字 |
 | `array` | `repeated T` | 元素只能是标量或消息；数值与布尔打包写出，读取接受打包与不打包 |
-| `object` + `additionalProperties` | `map<string, T>` | 值只能是标量或消息 |
+| `object` + `additionalProperties` | `map<string, T>` | 值只能是标量或消息；键总是 `string`（JSON 属性名的文本），`propertyNames` 不影响映射（`Dictionary<int, T>` 也是 `map<string, T>`） |
 | `$ref` | 消息 | 递归允许；指向字符串枚举这类标量定义时按该标量（`string`），不建 proto enum，线格式不变 |
 | `type` 含 `null` / `anyOf` 含 `null` | `optional` | JSON `null` 与缺席等价，不上线 |
 | 无约束（`{}`） | `string` | JSON 文本原样；作数组元素或映射值时同样（`JsonArray` → `repeated string`，`JsonObject` → `map<string, string>`，每个元素或值一段 JSON 文本） |
