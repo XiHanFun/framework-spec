@@ -1,6 +1,6 @@
 # RFC-0009 消息、CloudEvents 信封与发件箱
 
-> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka` | 一致性：`XiHan.Framework.Messaging.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题；2026-11-03 修订：发件箱把代理抛出与返回失败一样计入尝试、重试逐条发布、一轮遇到抛出即停止发布） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题）、ADR-0108（发件箱计入代理抛出） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka` | 一致性：`XiHan.Framework.Messaging.Conformance`
 
 ## 摘要
 
@@ -97,7 +97,7 @@ Provider：
 3. 重放：`IMessageReplayer.ReplayAsync(topic, since)` 用独立的消费位点把该时刻起的消息重新投递给当前竞争订阅的处理器（广播订阅不回放），经完整管道、按同样的重试与死信规则；不影响正常消费的位点；主题不存在或该时刻之后没有消息时成功返回。重放是有意的重复投递，去重仍由处理器自理。
 
 `Messaging.Kafka`：主题映射为 `<TopicPrefix><topic>`（默认 `xihan.`），竞争订阅的消费组 `GroupId`（默认 `xihan`），每个订阅（主题加订阅方式）一个消费者；生产者幂等且 `acks=all`，批量发布用客户端的原生批量后一次等待全部投递报告；无法解码或重试耗尽的消息发布到 `<topic><DeadLetterSuffix>`，没有落盘或发布失败时按「流」第 2 条回退，`RedeliveryDelaySeconds`（默认 5）秒后重新投递；`Properties:<key>` 透传 librdkafka 配置（`security.protocol`、`sasl.*`、`ssl.*`）。连接不上在启动时失败。发布到不存在的主题时，主题由 broker 按 `auto.create.topics.enable`（Kafka 缺省开启）自动建出；没人订阅的主题里的消息只占到保留期（`retention.ms`，缺省 7 天）为止，没有消费组也就没有积压，不会像队列那样无限堆积（ADR-0079）。broker 关闭了自动建主题时，主题不存在是部署错误，框架不替它建，也不把它当作没有订阅者（ADR-0085）：
-- 发布：客户端判定主题不存在后失败（`MESSAGING_UNAVAILABLE_001`，librdkafka 的 `topic.metadata.propagation.max.ms`，缺省 30 秒）；直接发布的返回失败，经发件箱的按发件箱的规则退避重试、到上限进死信（「发件箱」）。
+- 发布：客户端判定主题不存在后失败（`MESSAGING_UNAVAILABLE_001`，librdkafka 的 `topic.metadata.propagation.max.ms`，缺省 30 秒），批量发布整批抛出；直接发布的把异常抛给发布方，经发件箱的按发件箱的规则退避重试、到上限进死信（「发件箱」；2026-11-03 之前发件箱遇到抛出整轮回滚、不计尝试，这条消息与同批的消息会一直卡住，ADR-0108）。
 - 订阅：消费者每次取消息都报主题不存在，记 Warning 日志后继续等，主题建好之后才开始收。
 - 死信：死信主题不存在时死信发布失败，按「流」第 2 条回退、重新投递，这条消息所在的分区停在原地。
 - 所以这类部署必须预先建好（名字都带 `TopicPrefix`）：应用发布与订阅的主题；被订阅主题的死信主题 `<topic><DeadLetterSuffix>`；框架自己发布的事件主题——装配了调度时 `scheduling.job.*` 与 `scheduling.run.*` 共 9 个（RFC-0013「事件」），装配了工作流时 `workflow.*`（RFC-0021「事件」），没人订阅的也要建。
@@ -118,12 +118,19 @@ Provider：
 `OutboxFeature` 需要 `messaging.queue@1` 与 `persistence.relational@1`：
 
 - 把 `IMessagePublisher` 换成 `OutboxPublisher`：有活动工作单元时写入 `OutboxMessage` 表（随业务事务提交或回滚；批量发布用仓储的 `AddRangeAsync` 一次写入），没有时直接发布。
-- 后台循环按 `PollInterval`（默认 1 秒）每轮一个工作单元：取到期的消息（未投递、未进死信、`NextAttemptAt` 为空或已到；按创建时间，最多 `BatchSize`，默认 100，取 1 到 `EntityQuery.DefaultMaxTake`（1000）：每轮按它分页查发件箱表，超出在解析配置时拒绝），按主题批量发布，每条计一次尝试：
+- 后台循环按 `PollInterval`（默认 1 秒）每轮一个工作单元（只覆盖发件箱行的状态写回与保留期清理；代理不在事务里，发出去的收不回来）：取到期的消息（未投递、未进死信、`NextAttemptAt` 为空或已到；按创建时间，最多 `BatchSize`，默认 100，取 1 到 `EntityQuery.DefaultMaxTake`（1000）：每轮按它分页查发件箱表，超出在解析配置时拒绝），按下面的发布单元发布，发布过的每条计一次尝试：
   - 成功记投递时间 `DispatchedAt`。
   - 失败记原因 `LastError`，`NextAttemptAt` 推后 `RetryDelay`（默认 5 秒）乘以 2 的（尝试次数减一）次方，不超过 `MaxRetryDelay`（默认 5 分钟）。
   - 尝试达到 `MaxAttempts`（默认 10），或载荷无法解码（`MESSAGING_VALIDATION_002`，重试也解不开），记 `DeadLetteredAt` 进死信：不再取到，行保留供排查；把 `DeadLetteredAt` 置空、`NextAttemptAt` 设为现在即重新投递。
   - 退避中与死信的消息不占批次，永久失败的消息不挡后面的消息。
-- 代理整批抛出（不可达）时本轮回滚，不计尝试：代理故障不消耗尝试次数，恢复后照常投递。
+- 发布单元：首次投递的消息按主题合成一次 `PublishManyAsync`（主题按首次出现的顺序，组内保持创建顺序）；重试的消息（`Attempts` 不为 0）每条单独一次 `PublishManyAsync`。代理整批抛出时分不出是哪一条，上一次失败时它可能就是让整批失败的那条，单独发布才不会让同批的别的消息跟着它一起退避、一起进死信。
+- 代理抛出与返回失败同样计入（2026-11-03 修订，ADR-0108；此前整轮回滚、不计尝试，某条消息让代理一直抛出时它永远进不了死信，同批与排在后面的消息也一直发不出去）：
+  - 抛出的那次调用里的每条记一次失败的尝试，按上面的规则退避或进死信。`LastError` 与代理返回的失败同形，是 `MESSAGING_UNAVAILABLE_001`，原因 `reason` 取框架异常（`FrameworkException`，代理契约里的基础设施失败）的消息；别的异常的消息可能带连接串、主机名等，不进发件箱行，原因只写异常类型名。
+  - 每次抛出的调用记一条 Warning 日志（带异常，不带载荷）；每条消息的失败与进死信照旧各记一条。
+  - 本轮随即停止发布：代理可能整体不可用，余下的消息不计尝试、不写回，留到下一轮；本轮已有的结果照常提交。一轮至多一次抛出的调用，代理不可达时不会把整批逐条试一遍，一轮的时长以一次调用的超时为界。
+  - 不是调用方取消引起的 `OperationCanceledException`（代理客户端自己的超时）也是一次失败。
+- 调用方取消（宿主停止：`OperationCanceledException` 且循环的令牌已取消）不是失败：本轮回滚，不计尝试、不进死信，本轮已发出的下一轮重发。存储失败（读不出、写不回、提交失败）同样回滚本轮，循环记日志后继续。
+- 代理长时间不可达时，积压的消息按同样的规则累计尝试；一轮只有一次调用抛出，消息累计尝试比逐条失败更慢。缺省参数下一条消息连续失败约 20 分钟才进死信，需要更长的容忍度时调大 `MaxAttempts` 或 `MaxRetryDelay`；进了死信的按上面的办法重投。
 - 投递成功的行保留 `DispatchedRetention`（默认 1 天）后由循环删除，每轮最多 `BatchSize` 行，与投递同一工作单元；为 0 时投递成功即在同一工作单元删除。死信行不自动删除。
 - 表结构：`Topic` 长 128（主题文法上限），`LastError` 为长文本，`NextAttemptAt` 与 `DeadLetteredAt` 可空（加在已有数据的表上时旧行为空，视为到期、未进死信）。
 - 投递是至少一次：循环提交前崩溃会重复投递。
@@ -131,6 +138,8 @@ Provider：
 ## 一致性
 
 Provider 必须继承 `MessageBrokerConformance` 并通过全部用例，含批量发布：一次发布多条保持顺序、逐项结果、空集合、主题不合法逐项失败；发布到没人订阅的主题（单条与批量）成功；同一主题的竞争订阅与广播订阅各收到一次；两个实例连同一个代理时广播每个实例都收到、竞争只有一个实例收到（跨宿主共享代理的 Provider，内存代理以 `SupportsMultipleInstances = false` 跳过）。提供 `messaging.stream@1` 的 Provider 还要继承 `MessageStreamConformance`（同键有序、按时刻重放）。
+
+发件箱的存储经仓储，内存持久化与数据库 Provider 都要通过 `OutboxConformance`（Preview，`CreateFeature()` 返回持久化特性；2026-11-03，ADR-0108）：代理对某条消息一直抛出时按尝试上限、退避进死信，同批的其他消息照常发出；返回失败与抛出逐轮状态相同；调用方取消回滚本轮、不计尝试；不是调用方取消的 `OperationCanceledException` 计为失败。
 
 ## 错误码
 
