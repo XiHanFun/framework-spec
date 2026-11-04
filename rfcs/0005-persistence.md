@@ -182,8 +182,8 @@ EF Core（10.0）：SQLite 上三个方法一律译成 `LIKE … ESCAPE '\'`（2
 | 取用 | `GetOrAddAsync(definition)`：同名同定义返回已有实例；没有就建；定义变了建新实例替换旧的并释放旧的（替换时仍在旧实例上进行的调用可能失败）。建实例不连库，连不上的库照样登记，使用时报告。`GetAsync(name)` 只取本进程已登记的，没有 → `PERSISTENCE_NOTFOUND_002` |
 | 失效 | 显式失效加定义比对，不用配置变化令牌（定义来自应用的库，不来自 `IConfiguration`）：记录改了、停用或删了，调 `RemoveAsync(names)`（批量，逐项返回是否存在过，同一批里重复的名字第二次为否，空集合返回空列表）；每次使用都以记录里当前的定义调 `GetOrAddAsync`，定义变了即替换。注册表是进程内的：多实例时改记录的实例调 `RemoveAsync`，其他实例在下一次以新定义 `GetOrAddAsync` 时替换；所以读库结构等入口收定义而不收名字，只按名字 `GetAsync` 的代码看不到别的实例上的修改 |
 | 容量 | 登记数上限 `XiHan:Persistence:DataSources:MaxCount`（缺省 64，1–1024）。满了再登记新名字 → `PERSISTENCE_UNAVAILABLE_007`，不淘汰已有的；替换同名的不占名额 |
-| 测试连接 | `TestAsync(definition)`：按定义建临时实例，打开一次连接再关闭，然后释放；不登记、不占名额、不影响同名的已登记实例。成功返回成功，连不上 → `PERSISTENCE_UNAVAILABLE_006`（参数 `name`、`reason`）；等多久由调用方的取消令牌与连接串里驱动自己的连接超时决定 |
-| 健康 | 每个已登记的数据源一条 `persistence.datasource.<name>`（数据 `databaseType`、`provider`），按 `XiHan:Persistence:DataSources:HealthProbeIntervalSeconds`（缺省 15，也是单次探测的超时）在后台逐个打开连接再关闭，一轮没探完跳过下一轮；新登记的立即探一次。尚未探过 Started，成功 Ready，失败或超时 Degraded（`PERSISTENCE_UNAVAILABLE_006`），Degraded 不影响 readiness；探测期间被替换或移除的结果丢弃 |
+| 测试连接 | `TestAsync(definition)`：按定义建临时实例，探一次（关系型 Provider 走一次数据库往返，见「连通性探测」），然后释放；不登记、不占名额、不影响同名的已登记实例。成功返回成功，连不上或超时 → `PERSISTENCE_UNAVAILABLE_006`（参数 `name`、`reason`）；单次上限是 `XiHan:Persistence:DataSources:HealthProbeIntervalSeconds`，调用方取消照常抛出（2026-11-04 修订，ADR-0123） |
+| 健康 | 每个已登记的数据源一条 `persistence.datasource.<name>`（数据 `databaseType`、`provider`），按 `XiHan:Persistence:DataSources:HealthProbeIntervalSeconds`（缺省 15，也是单次探测的超时）在后台逐个探一次（同上），一轮没探完跳过下一轮；新登记的立即探一次。尚未探过 Started，成功 Ready，失败或超时 Degraded（`PERSISTENCE_UNAVAILABLE_006`），Degraded 不影响 readiness；探测期间被替换或移除的结果丢弃 |
 | 机密 | 连接串不进日志、错误与健康详情。`DataSourceDefinition.ToString()` 不含连接串；错误与健康项的 `reason` 取驱动异常消息（含内层异常），先经 `ConnectionStrings.Redact(text, connectionString)` 把整串连接串与口令类键（键名含 `password`、`pwd`、`secret`、`token`、`key`，不区分大小写）的值换成 `***`；驱动消息可能带主机名、端口、库名与用户名，不带口令——这是定下的脱敏范围（ADR-0084）：主机、端口、库名、用户名是排查连接问题要用的，不算机密。日志只记名字与数据库类型 |
 | 失败 | 数据库类型 Provider 不认识、连接串格式错 → `PERSISTENCE_VALIDATION_006`，同名的已登记实例不受影响；没有支持运行时数据源的 Provider → `PERSISTENCE_UNAVAILABLE_008` |
 
@@ -242,6 +242,15 @@ EF Core（10.0）：SQLite 上三个方法一律译成 `LIKE … ESCAPE '\'`（2
   - SqlSugar 不核对，它没有这类静默误读：`DateTimeOffset` 列在 SQLite 上一直存 UTC 日期时间文本（`DateTimeOffsetConverter` 写入 `DateTime`，ADR-0013 起没有变过），读取按整段文本解析（`DateTime.Parse`），不是取开头的年份；库里是整数或浮点数（如 EF Core 建的库）时转换抛出 `InvalidCastException`，读取失败而不是读成错误的时刻。
 - 开销：每个连接一次读表结构（`sqlite_master` 联 `pragma_table_info`，只读库结构，与行数无关），每张有这类列的表一次抽样查询（至多读 1000 行）；与表数成正比、与表的大小无关，没有表数上限。租户分片是每个分片库首次绑定时一次（被淘汰后再绑定时再一次），计入那次调用。实测（Microsoft.Data.Sqlite 10.0.13，本地 SSD）：1 张 100 万行的表约 1 毫秒，200 张表各 1 万行约 100 毫秒，1000 张表各 100 行约 75 毫秒。
 
+### 连通性探测（2026-11-04 修订，ADR-0123）
+
+只有 `Persistence.SqlSugar` 的三个探测适用：健康项 `persistence.sqlsugar.database`、运行时数据源（健康项与测试连接）、从库探针。它们都走一次数据库往返：另建连接，打开之后执行一条语句。
+
+- 只打开连接不够：连接池把空闲连接直接交出来，数据库宕了也打得开，`Ado.IsValidConnection` 同样。
+- 语句：`SELECT 1`；Oracle、达梦、`OceanBaseForOracle`、`TDSQLForOracleODBC` 是 `SELECT 1 FROM DUAL`，HANA 是 `SELECT 1 FROM DUMMY`，DB2 是 `SELECT 1 FROM SYSIBM.SYSDUMMY1`。`MongoDb`、`Custom`、`Odbc` 没有通用的语句，只打开连接。
+- 超时：`persistence.sqlsugar.database` 的单次上限是 `XiHan:Persistence:SqlSugar:HealthProbeIntervalSeconds`，运行时数据源是 `XiHan:Persistence:DataSources:HealthProbeIntervalSeconds`，从库探针见「读写分离」。驱动不理取消令牌时也不等它，那次探测的连接到驱动自己的超时才结束。
+- `persistence.sqlsugar.database` 失败时错误是 `KERNEL_UNAVAILABLE_005`（`name`、`reason`，`reason` 只写异常类型），完整异常进日志，同一种失败第一次 Warning，之后 Debug（ADR-0115）。条目 Degraded，应用仍然就绪。
+
 ### 命令超时（2026-11-04 修订，ADR-0119）
 
 只有 `Persistence.SqlSugar` 支持。`XiHan:Persistence:SqlSugar:CommandTimeoutSeconds`（正整数，缺省 300，与 SqlSugar 自己的缺省值相同，不配时行为不变）设在特性建的客户端的每个连接上：默认连接、命名连接与分片连接。
@@ -269,7 +278,7 @@ EF Core（10.0）：SQLite 上三个方法一律译成 `LIKE … ESCAPE '\'`（2
 健康探测（默认连接与命名连接）：
 
 - 配置节 `XiHan:Persistence:SqlSugar:Replicas`：`HealthCheck`（缺省 `true`）、`HealthCheckIntervalSeconds`（缺省 30）、`FailureCooldownSeconds`（缺省 120，可以为 0）。配了从库才有探测，所以缺省打开。关掉之后权重不再变化，宕机的从库照常接读流量。
-- 探针用从库自己的连接串另建连接，打开之后执行一条语句（`SELECT 1`，Oracle 与达梦 `SELECT 1 FROM DUAL`），单次超时取 5 秒与间隔一半的较小者。只打开连接不够：连接池把空闲连接直接交出来，从库宕了也打得开。只探连通，不看复制延迟。
+- 探针用从库自己的连接串走一次数据库往返（见「连通性探测」），单次超时取 5 秒与间隔一半的较小者。只探连通，不看复制延迟。
 - 探测失败的从库摘除：新的作用域不再读它，已经开着的作用域保留自己的快照。全部不可读时副本上没有从库，读回到主库。探通之后要离最后一次失败超过冷却窗口才恢复。
 - 健康项 `persistence.sqlsugar.replicas`：全部可读 Ready；否则 Degraded，错误 `PERSISTENCE_UNAVAILABLE_009`（`connection`、`index`、`reason`，`reason` 只写异常类型），应用仍然就绪，调用不受影响。数据 `<连接>.replicas`、`<连接>.available`、`<连接>.<序号>`（`available` / `unavailable` / `cooling-down`）、`<连接>.<序号>.reason`。连接串是机密，不进错误、数据和日志消息。完整异常进日志：同一种失败第一次 Warning，之后 Debug（ADR-0115）。一个连接的从库全部不可读时记一条 Error，恢复时记 Information。启动时同步探一轮，宿主 Ready 时读已经绕开连不上的从库。
 
