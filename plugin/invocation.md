@@ -41,7 +41,8 @@
 | --- | --- |
 | `Unavailable`、连接失败、进程已退出 | `PLUGINS_UNAVAILABLE_001` |
 | `DeadlineExceeded` | `KERNEL_TIMEOUT_001` |
-| `Cancelled` | `KERNEL_CANCELLED_001`（宿主不按时钟判断是不是超时：截止时间到了的由 Resilience 阶段的截止时间中间件改报 `KERNEL_TIMEOUT_001`，RFC-0004） |
+| `Cancelled`，调用方的令牌（含截止令牌）已触发 | `KERNEL_CANCELLED_001`（宿主不按时钟判断是不是超时：截止时间到了的由 Resilience 阶段的截止时间中间件改报 `KERNEL_TIMEOUT_001`，RFC-0004） |
+| `Cancelled`，调用方的令牌没有触发（插件停机或连接释放切断了进行中的调用） | `PLUGINS_UNAVAILABLE_001` |
 | `Unimplemented`（插件未实现该 RPC 或操作） | `KERNEL_NOTFOUND_001` |
 | `InvalidArgument`（帧序或载荷不合法） | `KERNEL_VALIDATION_001` |
 | 其他 | `PLUGINS_UNEXPECTED_001`，细节含状态码与消息 |
