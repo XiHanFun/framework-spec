@@ -53,7 +53,7 @@ JSON 是 XGI 的规范编码；gRPC 等二进制协议在适配器里转换（`P
 规则：
 
 1. 描述在管道开始前进入上下文（`context.SetOperation`）。Authorize 阶段没有显式授权要求时按契约的 `permission` / `policy` 判定（`Security.Abstractions.AuthorizationMiddleware`）。
-2. 载荷不合法（非 JSON、`null`、类型不匹配）返回 `KERNEL_VALIDATION_001`，不执行操作。
+2. 载荷不合法（非 JSON、`null`、类型不匹配）返回 `KERNEL_VALIDATION_001`，不执行操作。JSON 错误的 `reason` 只写路径（`$.quantity`），不带目标类型名（2026-11-04 修订，ADR-0124）。
 3. 解码后的请求对象与执行成功的响应对象记录在上下文（`GetOperationRequest` / `GetOperationResponse`），供 Validate、Egress 与适配器使用；原始载荷记录在 `GetOperationPayload`。
 4. 宿主端点在进入管道前就绑定载荷：`Protocols.Http` 的端点元数据携带 `OperationPayloadBinder`，`UseXiHan()` 据此在构造上下文时把路由值、请求体与查询串绑定为载荷放进上下文（绑定失败直接写 Problem Details，不进管道），端点内 `ExecuteAsync` 用 Validate 阶段解码好的请求。
 5. 操作抛出的异常由 Observe 阶段翻译为 `KERNEL_UNEXPECTED_001`，与普通调用一致。
