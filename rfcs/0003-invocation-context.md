@@ -22,7 +22,7 @@
 
 1. 截止时间与取消并存：到达截止时间时取消令牌必须触发，错误码 `KERNEL_TIMEOUT_001`；截止时间到达之前的外部取消为 `KERNEL_CANCELLED_001`。截止令牌已触发即报超时，调用方同时取消也一样：下游抛出的取消与下游写成 `KERNEL_CANCELLED_001` 结果的取消都由截止时间中间件按这一条归因为 `KERNEL_TIMEOUT_001`（2026-11-01 起的行为变化，RFC-0004「行为变化：截止时间到了一律报超时」，ADR-0088、ADR-0092）。
 2. 下游调用的截止时间不得晚于上游。
-3. Baggage 只传已登记的键（`conventions/baggage-keys.md`）：每个载体的入站只收已登记的键，格式合法但未登记的 `xihan.` 键与其他键一律丢弃；出站（HTTP 的 `baggage` 头、插件元数据、消息扩展属性）只写已登记的键。进程内可以用 `WithBaggage` 带格式合法的其他 `xihan.<name>` 键，它们不出进程。剥离发生在载体的编解码处，没有单独的 Egress 阶段中间件。
+3. Baggage 只传已登记的键（`conventions/baggage-keys.md`）：HTTP、gRPC、MCP 的网络入站不收 `xihan.tenant` 与 `xihan.principal`，它们不能由调用方自报（2026-11-04 修订，ADR-0121）；每个载体的入站只收已登记的键，格式合法但未登记的 `xihan.` 键与其他键一律丢弃；出站（HTTP 的 `baggage` 头、插件元数据、消息扩展属性）只写已登记的键。进程内可以用 `WithBaggage` 带格式合法的其他 `xihan.<name>` 键，它们不出进程。剥离发生在载体的编解码处，没有单独的 Egress 阶段中间件。
 4. 安全上下文（主体、租户）由 Authenticate 与 Tenant 阶段写入，之后不可变；Baggage 中只传 ID。
 5. 载体映射见 `spec/conventions/baggage-keys.md`。
 6. 调用来源（2026-10-29 增补，ADR-0043）：协议适配器与派发器建上下文时在 `Items` 写入一次 `InvocationOrigin`，之后只读、不跨进程传播；访问日志、异常日志、登录与会话记录据此取客户端信息，与协议无关。字段为协议、请求目标、远端地址（IP 文本，不含端口，IPv4 映射的 IPv6 还原为 IPv4）、User-Agent 与来源页，以及宿主匹配到的端点的路由模板与名字（ADR-0048，没有匹配到端点或协议没有端点时为空），没有的记空。内部发起的调用（缓存回源、存储维护、测试宿主）没有来源。

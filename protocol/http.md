@@ -7,7 +7,7 @@
 | 字段 | 请求头 | 说明 |
 | --- | --- | --- |
 | Trace | `traceparent` | W3C：trace-id、parent-id 与 trace-flags（上游「不采样」原样保留）；缺失或不合法时并入宿主当前的请求 Activity（ASP.NET Core 的请求 Span），也没有时生成新的 trace-id（RFC-0003 规则 7） |
-| Baggage | `baggage` | W3C；只保留已登记的 `xihan.` 键 |
+| Baggage | `baggage` | W3C；只保留已登记的 `xihan.` 键，其中 `xihan.tenant` 与 `xihan.principal` 不收（ADR-0121）：调用方的租户与主体只来自认证 |
 | Deadline | `xihan-deadline` | RFC 3339，UTC |
 | Locale | `Accept-Language` | 没有显式 `xihan.locale` Baggage 时按权重协商写入 |
 | Credential | `Authorization` | 原样进入凭据，由 Authenticate 阶段解释 |

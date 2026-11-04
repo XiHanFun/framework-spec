@@ -19,13 +19,13 @@
 
 ## 解析
 
-1. 按注册顺序调用 `ITenantResolver`，第一个有值的结果生效。默认顺序：已认证主体的 `tenant` 声明 → Baggage `xihan.tenant`。已认证身份所属的租户优先于客户端自报的租户。
+1. 按注册顺序调用 `ITenantResolver`，第一个有值的结果生效。默认顺序：已认证主体的 `tenant` 声明 → Baggage `xihan.tenant`。Baggage 里的租户只来自进程内建上下文的地方（消息派发、作业、工作流、命令行宿主）：HTTP、gRPC、MCP 的网络入站不收这个键（2026-11-04 修订，ADR-0121），网络调用方的租户只来自认证。
 2. 没有解析到时用 `DefaultTenant`；仍没有时，`RequireTenant` 为真返回 `MULTITENANCY_VALIDATION_002`，否则无租户继续。
 3. 校验格式，不合法返回 `MULTITENANCY_VALIDATION_001`。
 4. `ValidateAgainstStore` 为真（默认）时核对 `ITenantStore`：不存在返回 `MULTITENANCY_NOTFOUND_001`，禁用返回 `MULTITENANCY_DENIED_001`；显示名随之写入上下文。
 5. 写入 `SecurityContext.Tenant`。
 
-宿主适配器（P3）把 HTTP 头或主机名映射为 Baggage，不直接写租户。
+要按主机名或请求头选租户的应用，登记自己的 `ITenantResolver`（排在这两个之后），由它决定信什么、核对什么。框架不提供通用的头映射。
 
 ## 存储
 

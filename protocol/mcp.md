@@ -11,7 +11,7 @@ stdio 传输（命令行宿主的 `mcp` 命令：客户端启动服务端进程�
 | 字段 | 来源 | 说明 |
 | --- | --- | --- |
 | Credential | `--authorization '<scheme> <value>'` 或环境变量 `XIHAN_AUTHORIZATION` | 选项优先；原样进入每个 `tools/call` 的上下文，由该次调用的 Authenticate 阶段解释 |
-| Baggage `xihan.tenant` | `--tenant <id>` | 由 Tenant 阶段按 RFC-0007 解析与核对 |
+| Baggage `xihan.tenant` | `--tenant <id>` | 由 Tenant 阶段按 RFC-0007 解析与核对。这是本机操作者给的，HTTP 传输的 `baggage` 头不收这个键（ADR-0121） |
 | Baggage `xihan.correlation` | `--correlation <id>` | |
 | Baggage `xihan.locale` | `--locale <locale>` | 规范化后写入；`tools/list` 的 `title` / `description` 与失败文案据此翻译（经 RFC-0010 协商），没有时为默认区域 |
 | Deadline | `--timeout <seconds>` | 每个 `tools/call` 的时限，从这次调用开始计 |

@@ -14,8 +14,8 @@
 
 | 载体 | 映射 |
 | --- | --- |
-| HTTP | W3C `baggage` 头；Trace 走 `traceparent`；截止时间走 `xihan-deadline`（RFC 3339，UTC） |
-| gRPC | 同名元数据键 |
+| HTTP | W3C `baggage` 头，入站不收 `xihan.tenant` 与 `xihan.principal`（RFC-0003 规则 3）；Trace 走 `traceparent`；截止时间走 `xihan-deadline`（RFC 3339，UTC） |
+| gRPC | 同名元数据键，入站取舍同 HTTP |
 | CloudEvents | 扩展属性，去掉点与连字符：`xihantenant`、`xihanprincipal`、`xihancorrelation`、`xihanlocale`；Trace 走 `traceparent`（CloudEvents 分布式追踪扩展）。`xihan.idempotency-key` 不进入消息，见下文 |
 | 插件协议 | `metadata` 映射，键名原样 |
 
