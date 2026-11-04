@@ -4,7 +4,7 @@
 
 ## 摘要
 
-Wasm 插件是 `xihan.plugin.v1` 的第二种载体：**同一套消息（`plugin.proto`），调用约定从 gRPC 换成导出函数 + 线性内存**。插件是一个 WASI reactor 形态的核心 Wasm 模块，宿主用 wasmtime 在进程内加载，以沙箱（内存上限、CPU 截止、无环境权限）运行不可信代码；与进程外插件相比，它多了一种贡献——在管道阶段插入中间件（Envoy 过滤器模式）。5.0 以 Experimental 发布：ABI 只增不改，但不承诺 5.x 内不升版本。
+Wasm 插件是 `xihan.plugin.v1` 的第二种载体：**同一套消息（`plugin.proto`），调用约定从 gRPC 换成导出函数 + 线性内存**。插件是一个 WASI reactor 形态的核心 Wasm 模块，宿主用 wasmtime 在进程内加载，以沙箱（内存上限、CPU 截止、无环境权限）运行不可信代码；与进程外插件相比，它多了一种贡献——在管道阶段插入中间件（Envoy 过滤器模式）。当前以 Experimental 发布：ABI 只增不改，但不承诺同一大版本内不升版本。
 
 ## 范围
 

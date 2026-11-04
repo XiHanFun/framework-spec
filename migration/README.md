@@ -2,7 +2,7 @@
 
 > 规范性（RFC-0020）。定义 `xihan migrate <来源版本>` 的命令形态、规则集、标记与报告格式；每个来源版本的规则正文是本目录下的 `<来源版本>.md`。实现：`XiHan.Framework.Cli`。
 
-当前没有规则集。4.x 由维护者单独维护，不提供 4.x → 5.0 的迁移规则（ADR-0021）；5.x 之后的大版本升级按本约定增补规则集。
+当前没有规则集；大版本升级按本约定增补规则集。
 
 ## 1. 原则
 
@@ -19,7 +19,7 @@
 xihan migrate <来源版本> [--path <目录|.csproj|.slnx>] [--fixers <规则编号,…>] [--dry-run] [--report <文件>]
 ```
 
-- `<来源版本>` 选规则集（如 `v5`），不区分大小写；没有对应规则集报 `CLI_VALIDATION_002`。
+- `<来源版本>` 选规则集（如 `v1`），不区分大小写；没有对应规则集报 `CLI_VALIDATION_002`。
 - `--path` 默认当前目录；给 `.csproj` 或 `.slnx` 时处理其所在目录；不存在报 `CLI_NOTFOUND_002`。
 - `--fixers` 选择规则子集，默认全部，仍按规则集顺序执行；不认识的编号报 `CLI_VALIDATION_003`。
 - `--dry-run` 只出报告不写文件。
@@ -29,7 +29,7 @@ xihan migrate <来源版本> [--path <目录|.csproj|.slnx>] [--fixers <规则�
 ## 3. 标记
 
 ```csharp
-// xihan-migrate(V5-03): <说明>
+// xihan-migrate(V1-03): <说明>
 ```
 
 标记插在受影响的成员或语句之前的独立一行，作为前导注释保留原缩进；同一位置同一规则同一文案只插一次。
@@ -37,21 +37,21 @@ xihan migrate <来源版本> [--path <目录|.csproj|.slnx>] [--fixers <规则�
 ## 4. 规则集
 
 - 每个来源版本一份规则正文 `migration/<来源版本>.md`，写明每条规则对哪些写法做什么改写、改不了时留什么标记。
-- 规则编号为来源版本大写加两位序号（`V5-01`、`V5-02` …），一经发布不复用；同一编号可以由多个实现单元承担，报告按编号合并。
+- 规则编号为来源版本大写加两位序号（`V1-01`、`V1-02` …），一经发布不复用；同一编号可以由多个实现单元承担，报告按编号合并。
 - 规则可以写出新文件、删除已转换的文件、给文件改名；这些动作在全部文件改写回写之后执行，试运行时都不执行。生成文件与磁盘上已有内容相同时不算改动。
 
 ## 5. 报告
 
 ```json
 {
-  "version": "v5",
+  "version": "v1",
   "path": "E:/app/backend",
   "dryRun": false,
   "rules": [
-    { "id": "V5-01", "changed": 12, "markers": 2, "files": ["src/Orders/OrdersFeature.cs"] }
+    { "id": "V1-01", "changed": 12, "markers": 2, "files": ["src/Orders/OrdersFeature.cs"] }
   ],
   "markers": [
-    { "rule": "V5-01", "file": "src/Orders/OrdersFeature.cs", "line": 18, "message": "…" }
+    { "rule": "V1-01", "file": "src/Orders/OrdersFeature.cs", "line": 18, "message": "…" }
   ]
 }
 ```

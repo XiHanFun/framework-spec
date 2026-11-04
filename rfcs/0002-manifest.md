@@ -70,7 +70,7 @@ PascalWord = %x41-5A *( ALPHA / DIGIT )
 
 ## 与 .NET 的映射
 
-现状（5.0，2026-11-01 修订，ADR-0075）：每个特性在 `IFeature.Manifest` 属性里手写清单对象（原语层 `Manifest` 及其组成类型），内核在构建期以 `Manifest.Validate()` 校验格式；插件的清单是插件目录里的 `xihan.manifest.json` 文件，由内核 `ManifestReader` 读取。
+现状（2026-11-01 修订，ADR-0075）：每个特性在 `IFeature.Manifest` 属性里手写清单对象（原语层 `Manifest` 及其组成类型），内核在构建期以 `Manifest.Validate()` 校验格式；插件的清单是插件目录里的 `xihan.manifest.json` 文件，由内核 `ManifestReader` 读取。
 
 ```csharp
 public sealed class EntityFrameworkCoreFeature : IHostedFeature
@@ -90,7 +90,7 @@ public sealed class EntityFrameworkCoreFeature : IHostedFeature
 }
 ```
 
-`[Capability]` 清单生成器顺延：原计划由源生成器从入口类型上的 `[Capability(...)]` 产出 `Manifest` 属性并把 `xihan.manifest.json` 作为嵌入资源写入程序集，`bindings`、`contributes` 由同一特性的可选参数或伴随特性声明。内核保留 `CapabilityAttribute` 类型（运行期不读取），5.0 没有生成器；实现生成器时手写的清单是它的一致性基准，生成结果必须与手写清单逐字段相同。
+`[Capability]` 清单生成器顺延：原计划由源生成器从入口类型上的 `[Capability(...)]` 产出 `Manifest` 属性并把 `xihan.manifest.json` 作为嵌入资源写入程序集，`bindings`、`contributes` 由同一特性的可选参数或伴随特性声明。内核保留 `CapabilityAttribute` 类型（运行期不读取），当前没有生成器；实现生成器时手写的清单是它的一致性基准，生成结果必须与手写清单逐字段相同。
 
 ## 一致性向量
 

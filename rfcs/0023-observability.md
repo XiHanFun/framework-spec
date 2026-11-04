@@ -72,17 +72,17 @@
 | 主板 | `/sys/class/dmi/id/` 的 `board_*`、`sys_vendor`、`product_name`、`bios_*` | 注册表 `HKLM\HARDWARE\DESCRIPTION\System\BIOS` | 空 |
 | 运行时与进程 | `RuntimeInformation`、`Environment`、`Process`、`GC` | 同左 | 同左 |
 
-### 与 4.x 的已知差异
+### 取不到的项
 
-4.x 的 `HardwareInfos` 靠外部命令取数（Windows 的 `powershell Get-CimInstance`，Linux 的 `dmidecode`、`lspci`、`nvidia-smi`、`top`、`df`，macOS 的 `system_profiler`、`sysctl`、`vm_stat`），有挂起与注入面。本 RFC 不启动外部命令，因此比 4.x 少了这些：
+外部命令（Windows 的 `powershell Get-CimInstance`，Linux 的 `dmidecode`、`lspci`、`nvidia-smi`、`top`、`df`，macOS 的 `system_profiler`、`sysctl`、`vm_stat`）有挂起与注入面。本 RFC 不启动外部命令，因此取不到这些：
 
 - GPU：
-  - 没有 NVIDIA 专有驱动的显存与温度（4.x 经 `nvidia-smi`）；`amdgpu` 等在 sysfs 公开的驱动仍可读。
-  - 没有 GPU 与显存的使用率、显示模式（`VideoModeDescription`）与设备状态（`Status`）；后两项 4.x 经 WMI。
+  - 没有 NVIDIA 专有驱动的显存与温度；`amdgpu` 等在 sysfs 公开的驱动仍可读。
+  - 没有 GPU 与显存的使用率、显示模式（`VideoModeDescription`）与设备状态（`Status`）。
   - Windows 没有温度；列出的是装过驱动的 PCI 显示适配器，已拔下的设备可能仍在列。
-- 主板：Windows 没有序列号（4.x 经 WMI `Win32_BaseBoard`）；Linux 只有 root 读得到 `board_serial`（4.x 的 `dmidecode` 同样要 root）。
-- macOS 等其他平台：只有 BCL 读得到的部分（运行时与进程、逻辑核心与架构、系统运行时长、磁盘、网卡）；CPU 型号与使用率、内存、GPU、主板为空（4.x 经 `sysctl`、`vm_stat`、`top`、`system_profiler`）。
-- 内存：Windows 没有空闲字节（4.x 的 `FreeBytes` 来自 WMI）。
+- 主板：Windows 没有序列号；Linux 只有 root 读得到 `board_serial`。
+- macOS 等其他平台：只有 BCL 读得到的部分（运行时与进程、逻辑核心与架构、系统运行时长、磁盘、网卡）；CPU 型号与使用率、内存、GPU、主板为空。
+- 内存：Windows 没有空闲字节。
 - 网卡：没有 DHCP 服务器、是否多播、是否只收，以及丢包与错误包计数。
 - 运行时：没有命令行参数、环境变量个数、系统目录与当前目录。
 - 容器里：内存与 CPU 使用率是宿主机的数值（来自 `/proc`），不是 cgroup 限额；逻辑核心数是 .NET 看到的可用核心数。

@@ -4,7 +4,7 @@ XiHan Framework 的语言中立规范：原语语义与线上编码、清单 Sch
 
 | 实现 | 仓库 | 角色 |
 | --- | --- | --- |
-| .NET | [XiHan.Framework](https://github.com/XiHanFun/XiHan.Framework)（`next/`） | 参考实现，以 submodule 引用本仓库到 `next/spec` |
+| .NET | [XiHan.Framework](https://github.com/XiHanFun/XiHan.Framework)（`framework/`） | 参考实现，以 submodule 引用本仓库到 `framework/spec` |
 | Go | [framework-sdk-go](https://github.com/XiHanFun/framework-sdk-go) | 第二语言 SDK，以 submodule 引用本仓库到 `spec` |
 | TypeScript | [framework-sdk-typescript](https://github.com/XiHanFun/framework-sdk-typescript) | 占位，规划中（ADR-0004：Go 之后的下一个）；npm 组织 `xihan-framework` 已注册 |
 | Rust | [framework-sdk-rust](https://github.com/XiHanFun/framework-sdk-rust) | 占位，规划中（进程外与 Wasm 插件）；crates.io `xihan-framework` 0.0.1 已占名 |
@@ -61,10 +61,10 @@ git submodule update --init
 ## RFC 流程
 
 1. 在 `rfcs/` 新建 `NNNN-<slug>.md`，状态 `草案`。
-2. 评审通过后写 ADR（XiHan.Framework 的 `nextdocs/adr/`），RFC 状态改为 `已采纳`，正文并入对应规范性目录。
+2. 评审通过后写 ADR（XiHan.Framework 的 `design/adr/`），RFC 状态改为 `已采纳`，正文并入对应规范性目录。
 3. 实现与一致性向量随 RFC 一起合并；没有 RFC 的公开契约变更不合并。
 
-参考实现一栏的路径相对 XiHan.Framework 的 `next/src`。
+参考实现一栏的路径相对 XiHan.Framework 的 `framework/src`。
 
 | RFC | 标题 | 状态 |
 | --- | --- | --- |
@@ -87,10 +87,10 @@ git submodule update --init
 | [0017](rfcs/0017-plugin-protocol.md) | 进程外插件协议 `xihan.plugin.v1` | 已采纳（规范 `plugin/`；参考实现 `Plugins.OutOfProcess`，套件 `Plugins.Conformance`） |
 | [0018](rfcs/0018-wasm-plugins.md) | Wasm 插件 ABI（Experimental）：同一套消息经导出函数 + 线性内存 | 已采纳（规范 `plugin/wasm.md`；参考实现 `Plugins.Wasm`，套件 `Plugins.Conformance`） |
 | [0019](rfcs/0019-remote-providers.md) | 远程 Provider：子系统能力经插件操作提供，首个操作集 `caching.distributed@1` | 已采纳（规范 `provider/`；适配器 `Caching.Remote`，插件 `framework-sdk-go` 的 `caching` 包） |
-| [0020](rfcs/0020-migration.md) | 版本迁移：`xihan migrate <来源版本>` 按规则集做语法级重写，不做运行期兼容桥 | 已采纳（2026-10-26 修订：撤掉 4.x 规则集，见 ADR-0021；规范 `migration/README.md`；实现 `XiHan.Framework.Cli`） |
+| [0020](rfcs/0020-migration.md) | 版本迁移：`xihan migrate <来源版本>` 按规则集做语法级重写，不做运行期兼容桥 | 已采纳（规范 `migration/README.md`；实现 `XiHan.Framework.Cli`） |
 | [0021](rfcs/0021-workflow.md) | 工作流：持久化执行 | 已采纳（2026-10-26 修订：触发式启动、事件网关、外部任务、HTTP 与补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；参考实现 `Workflow.Abstractions`、`Workflow.InMemory`、`Workflow.Database`，套件 `Workflow.Conformance`） |
 | [0022](rfcs/0022-ai.md) | AI：聊天、嵌入、工具与知识 | 已采纳（参考实现 `AI.Abstractions`、`AI.OpenAI`、`AI.VectorData`，套件 `AI.Conformance`） |
-| [0023](rfcs/0023-observability.md) | 可观测性：导出与运行信息 | 已采纳（参考实现 `Observability.Abstractions`、`Observability.Host`、`Observability.OpenTelemetry`；运行信息不启动外部命令，与 4.x 的差异见正文） |
+| [0023](rfcs/0023-observability.md) | 可观测性：导出与运行信息 | 已采纳（参考实现 `Observability.Abstractions`、`Observability.Host`、`Observability.OpenTelemetry`；运行信息不启动外部命令，取不到的项见正文） |
 
 ## 版本
 

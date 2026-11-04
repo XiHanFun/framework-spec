@@ -100,13 +100,3 @@ Provider 必须继承 `JobSchedulerConformance`（触发与状态、间隔与 cr
 ## 错误码
 
 见 `conventions/error-codes.md` 中 `SCHEDULING_*`。
-
-## 与 4.x 的对应
-
-| 4.x | 5.0 |
-| --- | --- |
-| `IJobWorker` + `XiHanJobBuilder.AddJob<T>()` | `IJob` + `services.AddJob<TJob>(name, schedule)` |
-| `DynamicJobWorker`（每租户的运行时作业） | `IJobScheduler.ScheduleAsync`（运行时作业，持久化在存储里） |
-| Quartz `JobDataMap` / 多触发器 / misfire / 暂停 / 集群 | `JobDefinition.Data`、`Triggers`、`MisfirePolicy`、`PauseAsync`、`Scheduling.Database` |
-| `LeaderOnly` | `RunOnEveryInstance`（取反） |
-| 任务的 `maxRetryCount` / `timeoutSeconds` | `JobDefinition.Retry`（另有固定 / 指数退避与上限）/ `JobDefinition.Timeout` |
