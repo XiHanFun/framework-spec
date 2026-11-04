@@ -55,7 +55,7 @@
 - 仓储的写入在写入时拒绝、不触后端：`AddAsync` / `UpdateAsync` / `RemoveAsync` 返回 `PERSISTENCE_UNEXPECTED_001`，`AddRangeAsync` / `UpdateRangeAsync` / `RemoveRangeAsync` 逐项都是它（空集合不算写入，仍返回空列表）。拒绝同时把工作单元记为失败：处理器忽略这次失败而返回成功时，提交回滚并返回同一错误，调用以它结束——误写不会被静默忽略，也不会变成未处理异常。
 - Provider 暴露给直接写入的入口——EF Core 与 SqlSugar 工作单元的 `EnsureTransactionAsync`（直接用 `DbContext` 或 SqlSugar 客户端写入之前开启事务）——在只读工作单元里抛出携带 `PERSISTENCE_UNEXPECTED_001` 的 `FrameworkException`，写入不会执行；Transaction 阶段的中间件把它转为同码的结果并回滚，不经 Observe 阶段包成 `KERNEL_UNEXPECTED_001`——错误码直接指出是只读写入，文案按调用方区域本地化。EF Core 提交时另查变更跟踪器：绕过仓储改了跟踪实体而未保存的，同样以 `PERSISTENCE_UNEXPECTED_001` 回滚。不经这两处、直接对客户端执行的写入在 Provider 视野之外，不受守卫，也不在事务里。
 - `PERSISTENCE_UNEXPECTED_001` 是操作实现的缺陷（只读操作写了数据），不是调用方能修正的输入，也不是权限不足或可重试的不可用：HTTP 500、gRPC `Internal`、命令行按 UNEXPECTED 的退出码，与其他服务端缺陷一起进 5xx 告警；熔断计数（RFC-0004 计 UNAVAILABLE / TIMEOUT / UNEXPECTED，按操作 ID，只影响这个有缺陷的操作）。同一服务作用域里再经管道的嵌套调用另以 `PERSISTENCE_VALIDATION_002` 拒绝（见「嵌套调用」），不是这个码。
-- 管道外自己开工作单元的代码由 `UnitOfWorkOptions(TenantId, IsReadOnly, Connection)` 决定，`UnitOfWorkOptions.Default` 是无租户、可写、不绑定连接（`Connection` 见「命名连接」）；框架的单例存储（租户目录与授予的读取、审计查询、租约探测）读取时显式开只读工作单元，写入（发件箱、审计落库、调度与工作流存储）开可写工作单元，不受操作契约影响。
+- 管道外自己开工作单元的代码由 `UnitOfWorkOptions(TenantId, IsReadOnly, Connection)` 决定，`UnitOfWorkOptions.Default` 是无租户、可写、不绑定连接（`Connection` 见「命名连接」，`ReadsPrimary` 见「读写分离」）；框架的单例存储（租户目录与授予的读取、审计查询、租约探测）读取时显式开只读工作单元，其中租户目录与授予读主库，写入（发件箱、审计落库、调度与工作流存储）开可写工作单元，不受操作契约影响。
 
 ### 嵌套调用
 
@@ -257,7 +257,7 @@ EF Core（10.0）：SQLite 上三个方法一律译成 `LIKE … ESCAPE '\'`（2
 
 路由：
 
-1. 只读工作单元（`UnitOfWorkOptions.IsReadOnly`）读从库。
+1. 只读工作单元（`UnitOfWorkOptions.IsReadOnly`）读从库。设了 `UnitOfWorkOptions.ReadsPrimary` 的除外（2026-11-04 修订，ADR-0122）：它读主库，其余仍是只读的语义，不开事务，写入照样拒绝。读到落后的数据会放行不该放行的调用时用它，框架的授予与租户目录读取就是这样；没有从库的 Provider 上它没有作用。
 2. 其余工作单元读写都走主库，第一次写入之前的读也一样，事务开着不开都一样：事务要到第一次写入才开，写入之前的读（判重、取并发戳）读到落后的从库就会做错决定。这个作用域之后的读也留在主库上，提交之后同一作用域读得到刚写的。跨调用读己之写不保证：另一次只读调用可能读到落后的从库。
 3. 工作单元之外直接用客户端时按 SqlSugar 的规则：事务内与写入走主库，事务外的读走从库。
 4. 仓储写入撞上约束后另开连接判断冲突，库结构读取，都读主库。
@@ -281,7 +281,7 @@ EF Core（10.0）：SQLite 上三个方法一律译成 `LIKE … ESCAPE '\'`（2
 
 ## 一致性
 
-Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合；可空值类型与 null 的相等 / 不等按存在性过滤（字面量 null、闭包里的 null 变量、左右互换、与 `HasValue` 一致，组合到别的条件里也成立）；一次查询最多取 `EntityQuery.DefaultMaxTake` 条、超过的取出条数在构造查询时以 `PERSISTENCE_VALIDATION_005` 拒绝，调用里先写入再构造超限查询的调用以该码结束、写入回滚；判空与取反嵌套在与 / 或条件里照常过滤（或条件在与条件右侧、判空或取反是或条件的左操作数、取反整个与 / 或条件、双重否定）；规约里字符串的 `Contains` / `StartsWith` / `EndsWith` 按字面匹配（实参里的 `%`、`_`、`[`、反斜杠、`!` 与单引号不是通配符、转义符或语法，闭包变量与常量一样；不断言大小写）；这三个方法与常量、闭包变量、列三种实参在 ASCII 字母的大小写上一致（全都区分或全都不区分，不断言是哪一种）；更新沿用存储的创建时间、租户与删除标记、删除不改创建时间（游离实例与读出后改过的实例两种）；两个工作单元先后新增同一标识只有一个成功、另一个返回 `PERSISTENCE_CONFLICT_002`、留下的是成功者的行；回滚的调用在存储里不留修改、并发戳与删除标记，提交前另一个工作单元读到的是旧值；只读操作里单条与批量的新增、更新、删除都返回 `PERSISTENCE_UNEXPECTED_001`、存储不变，处理器忽略拒绝而返回成功时调用仍以它结束，查询照常；只读操作在新的服务作用域里调用写操作，写入照常提交，外层仍拒绝自己的写入；同一作用域里再经管道的调用以 `PERSISTENCE_VALIDATION_002` 结束、处理器不执行；`HasTransaction` 开始前与刚开始时为假，查找、查询、计数与空批量之后仍为假，第一次写入（含结果失败的写入、批量）之后为真并保持到提交，提交与回滚之后为假，只读工作单元里读、被拒绝的写入之后都为假。Provider 有直接写入入口时子类给出它（`EnsureTransaction`），用例验证它开启事务、可写工作单元里重复调用不重开、提交与回滚后复位、只读工作单元里抛出 `PERSISTENCE_UNEXPECTED_001` 且仍为假；Provider 支持命名连接时子类给出连接名（`NamedConnection`，并在配置里声明它），套件把实体 `ConformanceLease` 登记到那个连接，用例验证绑定它的工作单元开始时为假、写入后为真、提交与回滚后为假、只读时为假，业务调用里另开的绑定连接工作单元写入并提交不影响业务调用的值。没有直接写入入口、不支持命名连接的 Provider（内存实现）这两例跳过。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
+Provider 必须继承 `RepositoryConformance` 并通过全部用例，含时间范围提示对不分表实体不过滤的用例与批量用例：批量新增读己之写、批内重复标识逐项报告、批量更新刷新并发戳且过期戳按项冲突、批量删除软删 / 物理删与不存在按项报告、`FindManyAsync` 的顺序与缺失、空集合；可空值类型与 null 的相等 / 不等按存在性过滤（字面量 null、闭包里的 null 变量、左右互换、与 `HasValue` 一致，组合到别的条件里也成立）；一次查询最多取 `EntityQuery.DefaultMaxTake` 条、超过的取出条数在构造查询时以 `PERSISTENCE_VALIDATION_005` 拒绝，调用里先写入再构造超限查询的调用以该码结束、写入回滚；判空与取反嵌套在与 / 或条件里照常过滤（或条件在与条件右侧、判空或取反是或条件的左操作数、取反整个与 / 或条件、双重否定）；规约里字符串的 `Contains` / `StartsWith` / `EndsWith` 按字面匹配（实参里的 `%`、`_`、`[`、反斜杠、`!` 与单引号不是通配符、转义符或语法，闭包变量与常量一样；不断言大小写）；这三个方法与常量、闭包变量、列三种实参在 ASCII 字母的大小写上一致（全都区分或全都不区分，不断言是哪一种）；更新沿用存储的创建时间、租户与删除标记、删除不改创建时间（游离实例与读出后改过的实例两种）；两个工作单元先后新增同一标识只有一个成功、另一个返回 `PERSISTENCE_CONFLICT_002`、留下的是成功者的行；回滚的调用在存储里不留修改、并发戳与删除标记，提交前另一个工作单元读到的是旧值；只读操作里单条与批量的新增、更新、删除都返回 `PERSISTENCE_UNEXPECTED_001`、存储不变，处理器忽略拒绝而返回成功时调用仍以它结束，查询照常；只读操作在新的服务作用域里调用写操作，写入照常提交，外层仍拒绝自己的写入；同一作用域里再经管道的调用以 `PERSISTENCE_VALIDATION_002` 结束、处理器不执行；`HasTransaction` 开始前与刚开始时为假，查找、查询、计数与空批量之后仍为假，第一次写入（含结果失败的写入、批量）之后为真并保持到提交，提交与回滚之后为假，只读工作单元（设了 `ReadsPrimary` 也一样）里读、被拒绝的写入之后都为假。Provider 有直接写入入口时子类给出它（`EnsureTransaction`），用例验证它开启事务、可写工作单元里重复调用不重开、提交与回滚后复位、只读工作单元里抛出 `PERSISTENCE_UNEXPECTED_001` 且仍为假；Provider 支持命名连接时子类给出连接名（`NamedConnection`，并在配置里声明它），套件把实体 `ConformanceLease` 登记到那个连接，用例验证绑定它的工作单元开始时为假、写入后为真、提交与回滚后为假、只读时为假，业务调用里另开的绑定连接工作单元写入并提交不影响业务调用的值。没有直接写入入口、不支持命名连接的 Provider（内存实现）这两例跳过。套件以 `Testing.TestHost` 走完整管道，用自带的 Tenant 阶段中间件从 Baggage 的 `xihan.tenant` 解析租户，不依赖 MultiTenancy 子系统。
 
 运行时数据源：支持它的 Provider 给出一个连得上的定义与一个连不上的定义（子类覆写），用例验证测试连接成功与失败（失败是 `PERSISTENCE_UNAVAILABLE_006`，错误消息与参数里没有连接串与口令）、同定义复用、定义变了替换、批量移除后 `GetAsync` 返回 `PERSISTENCE_NOTFOUND_002`；不给定义的 Provider（EF Core、内存实现）断言取用与测试连接都返回 `PERSISTENCE_UNAVAILABLE_008`，不返回空结果冒充。
 
