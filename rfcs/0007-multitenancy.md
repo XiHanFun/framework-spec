@@ -19,7 +19,7 @@
 
 ## 解析
 
-1. 按注册顺序调用 `ITenantResolver`，第一个有值的结果生效。默认顺序：已认证主体的 `tenant` 声明 → Baggage `xihan.tenant`。Baggage 里的租户只来自进程内建上下文的地方（消息派发、作业、工作流、命令行宿主）：HTTP、gRPC、MCP 的网络入站不收这个键（2026-11-04 修订，ADR-0121），网络调用方的租户只来自认证。
+1. 按注册顺序调用 `ITenantResolver`，第一个有值的结果生效。默认顺序：已认证主体的 `tenant` 声明 → Baggage `xihan.tenant`。Baggage 里的租户只来自进程内建上下文的地方（消息派发、作业、工作流、命令行宿主）：HTTP、gRPC、MCP 的网络入站不收这个键（2026-11-04 修订，ADR-0121），这些调用方的租户只来自认证。CloudEvents 入站例外：事件的 `xihantenant` 是发送方给的，经消息派发进 Baggage，不与请求的身份核对，端点的权限由宿主加（`protocol/cloudevents.md`）。
 2. 没有解析到时用 `DefaultTenant`；仍没有时，`RequireTenant` 为真返回 `MULTITENANCY_VALIDATION_002`，否则无租户继续。
 3. 校验格式，不合法返回 `MULTITENANCY_VALIDATION_001`。
 4. `ValidateAgainstStore` 为真（默认）时核对 `ITenantStore`：不存在返回 `MULTITENANCY_NOTFOUND_001`，禁用返回 `MULTITENANCY_DENIED_001`；显示名随之写入上下文。
