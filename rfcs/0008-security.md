@@ -128,7 +128,7 @@ IP 归属地（ADR-0047）是能力 `security.ip-region@1`：`IIpRegionResolver.
 - 主机名在 `AllowedHosts` 里（不区分大小写，整名相等，不支持通配符）时不看解析结果。值不是主机名（带协议或端口）即启动失败。
 - 解析结果里一部分被拒绝时只连其余的，记一条 Debug；全部被拒绝时记一条 Warning（主机、端口与解析出的地址），抛 `OutboundAddressDeniedException`，不发起连接。异常只带请求里的主机名与端口，不带解析出的地址：解析结果是内网信息，只进日志。经 `HttpClient` 发请求时它是 `HttpRequestException` 的 `InnerException`。
 - `Apply` 同时关掉 `UseProxy`：经代理时回调看到的是代理的地址，查不到真正的目标。应用之后再打开代理就绕过了策略，要用代理就在代理上做这层限制。
-- 只管 `SocketsHttpHandler` 经连接回调建立的 TCP 连接。HTTP/3 走 QUIC，不经过连接回调；请求缺省是 HTTP/1.1，把 `Version` 设成 3.0 的请求不受保护。不是 HTTP 的连接（数据库、消息代理等）不归它管。
+- 只管 `SocketsHttpHandler` 经连接回调建立的 TCP 连接。HTTP/3 走 QUIC，不经过连接回调；请求缺省是 HTTP/1.1，把 `Version` 设成 3.0 的请求不受保护。不是 HTTP 但地址来自用户的连接（SMTP）用 `ConnectAsync(host, port, ct)`：规则与上面相同，HTTP 的连接回调就是调用它，返回连好的 `Socket`，由调用方释放；主机名空白、端口不在 1～65535 抛 `ArgumentException`（2026-11-04 修订，ADR-0126）。自己连接的驱动（数据库、消息代理等）不归它管。
 
 框架的出站路径是否接入，取决于地址是不是用户给的：
 
