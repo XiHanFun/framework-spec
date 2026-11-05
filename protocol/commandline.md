@@ -17,7 +17,10 @@
 
 - `invoke <operation-id> [...]` 调用操作；`<resource> <verb> [...]` 等价于 `invoke <resource>.<verb> [...]`（命令名不是已注册命令、且能拼成合法操作 ID 时）。
 - 发布范围：`Expose` 含 `CommandLine` 且非 `Stability.Internal` 的操作；其他 → `HOSTING_NOTFOUND_001`，退出码 3。
-- 载荷（JSON 对象）：`--json <object>` > `--data <file>`（`@file` 亦可）> 其余 `--<field> <value>` 选项（值为字符串，重复的选项成数组；没有字段时为 `{}`）。保留选项：`json`、`data`、`authorization`、`tenant`、`correlation`、`locale`、`timeout`、`help`。
+- 载荷（JSON 对象）：`--json <object>` > `--data <file>`（`@file` 亦可）> 其余 `--<field> <value>` 选项（没有字段时为 `{}`）。`--json` 与 `--data` 的载荷原样进入。保留选项：`json`、`data`、`authorization`、`tenant`、`correlation`、`locale`、`timeout`、`help`。
+- 字段选项的类型（ADR-0128）：操作带 `OperationSchema` 时按请求 Schema 写入。属性取根的 `properties`，没有声明的取 `additionalProperties`；`$ref`、`allOf`、`anyOf`、`oneOf` 展开后取并集。允许 `string` 或不约束类型的写字符串；否则 `boolean`、`integer`、`number` 写 JSON 字面量；`array` 写数组（单值也是一元数组，元素按 `items`）。重复的选项总是数组，目标不是数组时元素写字符串。`object` 不从文本解析，嵌套对象用 `--json` 或 `--data`。
+- 转换不了的值按字符串写入，不算用法错误：进入管道后由 Validate 阶段报 `KERNEL_VALIDATION_003`，退出码 2，违规落在字段路径上。
+- 操作没有 `OperationSchema` 时值都写字符串，重复的选项成字符串数组，由请求类型的序列化上下文决定怎么读。
 - 成功：响应 JSON 一行写到 stdout，退出码 0。
 - 失败：stderr 一行 `{"code":"<错误码>","detail":"<文案>","traceId":"<trace-id>"}`；退出码按 KIND：VALIDATION 2、NOTFOUND 3、DENIED 4、CONFLICT 5、UNAVAILABLE 6、TIMEOUT 7、CANCELLED 8、其他 1。用法错误（无命令、未知命令、选项或载荷不合法）→ 64，stderr 为同样的 JSON（`HOSTING_VALIDATION_001` / `HOSTING_NOTFOUND_002`）。
 
