@@ -1,6 +1,6 @@
 # RFC-0016 应用清单与打包
 
-> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`；2026-11-01 修订：绑定的凭据属性覆盖配置节；2026-11-01 修订：Kustomize 不起 Kafka 与 Nacos 定为规则；2026-11-01 修订：`blob` 的依赖服务由 MinIO 换成 RustFS；2026-11-01 修订：连 `blob` 依赖服务要配条件写入的探测桶；2026-11-02 修订：探测桶不存在与凭据被拒启动失败） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup）、ADR-0082（凭据属性）、ADR-0083（Kustomize 不起依赖服务）、ADR-0086（`blob` 的依赖服务）、ADR-0089（条件写入探测）、ADR-0093（被拒绝与缺桶启动失败） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
+> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`；2026-11-01 修订：绑定的凭据属性覆盖配置节；2026-11-01 修订：Kustomize 不起 Kafka 与 Nacos 定为规则；2026-11-01 修订：`blob` 的依赖服务由 MinIO 换成 RustFS；2026-11-01 修订：连 `blob` 依赖服务要配条件写入的探测桶；2026-11-02 修订：探测桶不存在与凭据被拒启动失败；2026-11-10 修订：`Messaging.Redis` 的绑定） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup）、ADR-0082（凭据属性）、ADR-0083（Kustomize 不起依赖服务）、ADR-0086（`blob` 的依赖服务）、ADR-0089（条件写入探测）、ADR-0093（被拒绝与缺桶启动失败）、ADR-0130（`Messaging.Redis` 的绑定） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json`
 
 ## 摘要
 
@@ -11,7 +11,7 @@
 字段与约束见 `spec/packaging/app-manifest.md`；JSON Schema 见 `spec/packaging/app.schema.json`。要点：
 
 - `name` 是 DNS 标签（`^[a-z][a-z0-9-]{0,62}$`），同时作为镜像仓库名、k8s 资源名与 Compose 项目名的默认值。
-- `bindings` 的类型限定为 `connection:relational`、`cache:distributed`、`queue`、`blob`、`stream`、`configuration:remote`，与清单 `bindings` 的资源类型一致（RFC-0002）。每个绑定对应一个 k8s Secret（按 Service Binding 规范挂到 `SERVICE_BINDING_ROOT`）、一个 Compose 依赖服务与一个 Aspire 资源。这六种类型与框架 Provider 声明的绑定一一对应：持久化（EF Core、SqlSugar）`connection:relational`（绑定名 `db`），`Caching.Redis` `cache:distributed`（`cache`），`Messaging.RabbitMQ` `queue`（`queue`），`ObjectStorage.S3` `blob`（`objectstorage`），`Messaging.Kafka` `stream`（`stream`），`Configuration.Nacos` `configuration:remote`（`nacos`）。清单里的绑定名要与 Provider 读取的绑定名相同，Provider 才取得到注入的值。
+- `bindings` 的类型限定为 `connection:relational`、`cache:distributed`、`queue`、`blob`、`stream`、`configuration:remote`，与清单 `bindings` 的资源类型一致（RFC-0002）。每个绑定对应一个 k8s Secret（按 Service Binding 规范挂到 `SERVICE_BINDING_ROOT`）、一个 Compose 依赖服务与一个 Aspire 资源。框架 Provider 声明的绑定都落在这六种类型里：持久化（EF Core、SqlSugar）`connection:relational`（绑定名 `db`），`Caching.Redis` `cache:distributed`（`cache`），`Messaging.RabbitMQ` `queue`（`queue`），`Messaging.Redis` `cache:distributed`（`queue`），`ObjectStorage.S3` `blob`（`objectstorage`），`Messaging.Kafka` `stream`（`stream`），`Configuration.Nacos` `configuration:remote`（`nacos`）。类型决定依赖服务与主值的形式，绑定名表示资源在应用里的角色：`Messaging.Redis` 与 `Messaging.RabbitMQ` 都读消息队列的绑定 `queue`，前者的资源是一个 Redis 服务，所以类型是 `cache:distributed`；它不读缓存的 `cache`，消息与缓存要用同一台 Redis 时让两个绑定指向它（ADR-0130）。清单里的绑定名要与 Provider 读取的绑定名相同，Provider 才取得到注入的值。
 - `shutdown.graceSeconds` 同时写进 `XiHan:Kernel:StopTimeoutSeconds` 与 `terminationGracePeriodSeconds`（后者多 5 秒，让内核先完成 Draining 再被 kubelet 终止）。
 - `probes` 映射为 startup / readiness / liveness 探针，路径固定为宿主的 `/health/startup`、`/health/ready`、`/health/live`。
 - `config` 把列出的文件做成 ConfigMap 挂到 `mountPath`，并设环境变量 `XIHAN_CONFIG_PATH`；宿主按该目录装载并监听文件（P3-12 实现）。目录里的文件是部署侧的文件配置，紧接 `appsettings.{环境}.json` 插入，位置见下文「挂载的配置目录」。
@@ -33,6 +33,7 @@
 | --- | --- | --- | --- |
 | `Caching.Redis` | `cache`（`cache:distributed`） | `XiHan:Caching:Redis:Configuration` | `username`、`password` 覆盖连接字符串里的 `user`、`password`（连接时以 StackExchange.Redis 的选项设置，不改写字符串） |
 | `Messaging.RabbitMQ` | `queue`（`queue`） | `XiHan:Messaging:RabbitMQ:Configuration` | `username`、`password` 覆盖 AMQP URI 里的用户信息（连接时以 RabbitMQ.Client 的 `UserName`、`Password` 设置，不改写 URI） |
+| `Messaging.Redis` | `queue`（`cache:distributed`） | `XiHan:Messaging:Redis:Configuration` | `username`、`password` 覆盖连接字符串里的 `user`、`password`（同 `Caching.Redis`） |
 | `Messaging.Kafka` | `stream`（`stream`） | `XiHan:Messaging:Kafka:BootstrapServers` | `security.protocol`、`sasl.mechanism`、`sasl.username`、`sasl.password` 覆盖 `XiHan:Messaging:Kafka:Properties` 里的同名键（只认这四项，其余绑定属性不透传给 librdkafka） |
 | `Configuration.Nacos` | `nacos`（`configuration:remote`） | `XiHan:Configuration:Nacos:ServerAddresses` | `username`、`password` 覆盖 `Username`、`Password` |
 | `ObjectStorage.S3` | `objectstorage`（`blob`） | `XiHan:ObjectStorage:S3:ServiceUrl` | `region`、`accessKey`、`secretKey`、`forcePathStyle` 覆盖同名键（空白的属性同样不算给出） |
