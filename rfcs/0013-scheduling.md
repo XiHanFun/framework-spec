@@ -38,15 +38,16 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 
 全部按批量、逐项结果：
 
+- 批量语义（ADR-0148）：写入与按标识的操作都返回与入参等长、同序的逐项结果；空集合不访问存储；重复项按顺序逐项施加；取消在开始前检查，已取消抛出；开始之后取消，已开始的项照常给出结果，尚未开始的项以 `KERNEL_CANCELLED_001` 结束，方法不抛出、不丢已完成项的结果。
 - `ScheduleAsync(definitions[])`：新增或整体替换作业与触发器（来源 `Runtime`；替换代码登记的作业时来源记为 `Overridden`，见下；替换保留暂停状态与同名触发器的上一次运行时刻），立即生效，集群内其他节点在下一个轮询周期看到。作业类型未登记 → `SCHEDULING_NOTFOUND_002`；触发器名重复、日历未登记、计划不合法 → `SCHEDULING_VALIDATION_001`。
 - `UnscheduleAsync(names[])`：删除作业与触发器（进行中的运行照常结束，历史保留）；未登记 → `SCHEDULING_NOTFOUND_001`。删除代码登记的作业只到下次启动：启动时按代码重新写入。
 - `RestoreAsync(names[])`（ADR-0053）：把运行时改过的代码作业恢复为代码定义（来源回到 `Code`，保留暂停状态与同名触发器的进度）；作业没有代码定义 → `SCHEDULING_NOTFOUND_005`。
 - `PauseAsync(names[])` / `ResumeAsync(names[])`：暂停或恢复作业的全部触发器（暂停期间手动触发仍可用）；恢复时按 misfire 策略处理暂停期间错过的运行。`PauseTriggersAsync(keys[])` / `ResumeTriggersAsync(keys[])` 作用于单个触发器；触发器不存在 → `SCHEDULING_NOTFOUND_003`。
-- `TriggerAsync(requests[])`（`JobTriggerRequest(Name, Data?)`）：在本实例立即运行并等待结果，逐项 `JobTriggerResult`；不受暂停与领导限制；未登记 → `SCHEDULING_NOTFOUND_001`，正在运行且不允许并发 → `SCHEDULING_CONFLICT_001`，本实例的调度器尚未启动或已开始停止 → `SCHEDULING_UNAVAILABLE_001`（见下）。
+- `TriggerAsync(requests[])`（`new JobTriggerRequest(name) { Data = … }`）：在本实例立即运行并等待结果，逐项 `JobTriggerResult`；不受暂停与领导限制；未登记 → `SCHEDULING_NOTFOUND_001`，正在运行且不允许并发 → `SCHEDULING_CONFLICT_001`，本实例的调度器尚未启动或已开始停止 → `SCHEDULING_UNAVAILABLE_001`（见下）。
 - `EnqueueAsync(requests[])`：插入一个立即到期的一次性触发器（名 `manual-<id>`），由集群中任一节点运行，不等待；返回触发器名。
 - `CancelRunsAsync(runIds[])`：请求取消运行——本实例的运行立即取消其令牌，其他节点的运行在下一个轮询周期取消；不在运行中 → `SCHEDULING_NOTFOUND_004`。取消的运行记为 `Canceled`，等待它的手动触发得到 `SCHEDULING_CONFLICT_003`。
-- `StatusAsync(name)` / `StatusesAsync()`：`JobStatus`（作业记录、是否暂停、每个触发器的状态与下一次 / 上一次运行时刻与次数、运行中数量、最近一次完成的运行与结果）。
-- `RunsAsync(query)`：运行历史（按作业、状态、时间范围、触发器名、执行节点、有无错误，分页，计划时刻降序）；`CountRunsAsync(query)` 给出同一组过滤项下的总数（不看分页），管理界面分页用（ADR-0053）。`JobRunQuery` 的分页（`Skip` ≥ 0、`Limit` 1～`MaxLimit`（1000），默认 0 与 100）不在构造时抛出：越界时 `RunsAsync` 返回 `SCHEDULING_VALIDATION_002`（HTTP 400，消息键 `scheduling.run.query_page_invalid`，参数 `skip`、`limit`、`max`），不进存储——查询常由请求绑定，越界是调用方可以改正的输入（2026-11-01 修订，ADR-0082）；`CountRunsAsync` 不看分页，不校验。存储收到的查询由调度器校验过。
+- `StatusesAsync(names[])`：按名取 `JobStatus`（作业的只读视图 `JobView`、是否暂停、每个触发器的状态与下一次 / 上一次运行时刻与次数、运行中数量、最近一次完成的运行与结果），与入参等长、同序，未登记的为无值，重复的名字各得一份；单个作业用扩展方法 `StatusAsync(name)`。`ListStatusesAsync(JobStatusQuery)` 按作业名的序数升序分页（`PageSize` 1～1000、缺省 100，不透明的续页令牌，读到令牌为空为止），越界或外来令牌 → `SCHEDULING_VALIDATION_003`。存储读不到时整批失败，不当作未登记（2026-11-11 修订，ADR-0148）。
+- `RunsAsync(query)`：运行历史（按作业、状态、时间范围、触发器名、执行节点、有无错误，分页，计划时刻降序），返回只读视图 `JobRunView`（失败结果在 `Outcome`），存储记录 `JobRunRecord` 只留给 `IJobStore`（ADR-0148）；`CountRunsAsync(query)` 给出同一组过滤项下的总数（不看分页），管理界面分页用（ADR-0053）。`JobRunQuery` 的分页（`Skip` ≥ 0、`Limit` 1～`MaxLimit`（1000），默认 0 与 100）不在构造时抛出：越界时 `RunsAsync` 返回 `SCHEDULING_VALIDATION_002`（HTTP 400，消息键 `scheduling.run.query_page_invalid`，参数 `skip`、`limit`、`max`），不进存储——查询常由请求绑定，越界是调用方可以改正的输入（2026-11-01 修订，ADR-0082）；`CountRunsAsync` 不看分页，不校验。存储收到的查询由调度器校验过。
 
 调度器在应用不在服务状态时（进入服务状态之前、开始排空之后）不按计划运行，领导租约也不拿不续，持有就立即释放（见「引擎」第 1 步）；进入服务状态后首个周期把代码登记的作业写入存储：
 
