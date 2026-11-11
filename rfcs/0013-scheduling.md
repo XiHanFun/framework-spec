@@ -34,6 +34,7 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 - 重试策略与执行时限随作业持久化，代码作业指纹包含它们（设置了才计入，没设的作业指纹不变），运行时 `ScheduleAsync` 修改与 `RestoreAsync` 恢复同改计划的语义；`JobStatus.Job` 带出两项。
 - 运行 `JobRun`：`Id`、`Name`、`TriggerName`（手动为空）、`ScheduledAt`、`Trigger`（`Schedule` / `Manual` / `Recovery` / `Retry`）、`Attempt`（第几次尝试，从 1 起）、`RetryOf`（重试时为首次运行的 ID）、`Data`（作业 `Data` ← 触发器 `Data` ← 手动触发的 `Data` 逐层覆盖）。`JobDispatcher` 为每次运行开新作用域，构造上下文（关联 ID = 运行 ID，运行信息可由 `JobDispatcher.FindRun(context)` 取得），经完整管道执行 `IJob.RunAsync`；返回失败或抛出异常都算失败（异常翻译为 `SCHEDULING_UNEXPECTED_001`）。不写幂等键。作业拿到的取消令牌在 `CancelRunsAsync` 与宿主停止时取消。
 - 作业 `IJob.RunAsync(run, context)`：取消与超时在 `context.CancellationToken` 上，与操作的处理器一样不另传令牌。领导租约 `LeaderLease` 的 `RenewAsync` 与 `ReleaseAsync` 都收令牌、以 `Result` 报告；释放幂等，后端没能删掉租约时返回那个失败，租约到期后自然可被接管（2026-11-11 修订，ADR-0157）。
+- 计划 `JobSchedule` 里不适用的字段是 `null`：`Interval` 只对间隔计划有值，`At` 只对一次性计划有值，不以 `TimeSpan.Zero` 或 `default` 表示「没有」（2026-11-11 修订，ADR-0161）。
 
 ## 调度器 `IJobScheduler`
 
@@ -48,7 +49,7 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 - `EnqueueAsync(requests[])`：插入一个立即到期的一次性触发器（名 `manual-<id>`），由集群中任一节点运行，不等待；返回触发器名。
 - `CancelRunsAsync(runIds[])`：请求取消运行——本实例的运行立即取消其令牌，其他节点的运行在下一个轮询周期取消；不在运行中 → `SCHEDULING_NOTFOUND_004`。取消的运行记为 `Canceled`，等待它的手动触发得到 `SCHEDULING_CONFLICT_003`。
 - `StatusesAsync(names[])`：按名取 `JobStatus`（作业的只读视图 `JobView`、是否暂停、每个触发器的状态与下一次 / 上一次运行时刻与次数、运行中数量、最近一次完成的运行与结果），与入参等长、同序，未登记的为无值，重复的名字各得一份；单个作业用扩展方法 `StatusAsync(name)`。`ListStatusesAsync(JobStatusQuery)` 按作业名的序数升序分页（`PageSize` 1～1000、缺省 100，不透明的续页令牌，读到令牌为空为止），越界或外来令牌 → `SCHEDULING_VALIDATION_003`。存储读不到时整批失败，不当作未登记（2026-11-11 修订，ADR-0148）。
-- `RunsAsync(query)`：运行历史（按作业、状态、时间范围、触发器名、执行节点、有无错误，分页，计划时刻降序），返回只读视图 `JobRunView`（失败结果在 `Outcome`），存储记录 `JobRunRecord` 只留给 `IJobStore`（ADR-0148）；`CountRunsAsync(query)` 给出同一组过滤项下的总数（不看分页），管理界面分页用（ADR-0053）。`JobRunQuery` 的分页（`Skip` ≥ 0、`Take` 1～`MaxTake`（1000），默认 0 与 100）不在构造时抛出：越界时 `RunsAsync` 返回 `SCHEDULING_VALIDATION_002`（HTTP 400，消息键 `scheduling.run.query_page_invalid`，参数 `skip`、`take`、`max`），不进存储——查询常由请求绑定，越界是调用方可以改正的输入（2026-11-01 修订，ADR-0082）；`CountRunsAsync` 不看分页，不校验。存储收到的查询由调度器校验过。
+- `RunsAsync(query)`：运行历史（按作业、状态、时间范围、触发器名 `TriggerName`、触发来源集合 `Triggers`、执行节点、有无错误；查询成员与运行记录同名，2026-11-11 修订，ADR-0161；分页，计划时刻降序），返回只读视图 `JobRunView`（失败结果在 `Outcome`），存储记录 `JobRunRecord` 只留给 `IJobStore`（ADR-0148）；`CountRunsAsync(query)` 给出同一组过滤项下的总数（不看分页），管理界面分页用（ADR-0053）。`JobRunQuery` 的分页（`Skip` ≥ 0、`Take` 1～`MaxTake`（1000），默认 0 与 100）不在构造时抛出：越界时 `RunsAsync` 返回 `SCHEDULING_VALIDATION_002`（HTTP 400，消息键 `scheduling.run.query_page_invalid`，参数 `skip`、`take`、`max`），不进存储——查询常由请求绑定，越界是调用方可以改正的输入（2026-11-01 修订，ADR-0082）；`CountRunsAsync` 不看分页，不校验。存储收到的查询由调度器校验过。
 
 调度器在应用不在服务状态时（进入服务状态之前、开始排空之后）不按计划运行，领导租约也不拿不续，持有就立即释放（见「引擎」第 1 步）；进入服务状态后首个周期把代码登记的作业写入存储：
 

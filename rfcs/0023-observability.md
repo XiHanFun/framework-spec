@@ -27,17 +27,17 @@
 
 ### 契约
 
-`IHostMonitor` 的七个读取方法各返回一份不可变记录：
+`IHostMonitor` 的七个读取方法都是异步的、收取消令牌，各返回一份不可变记录；可能阻塞的系统调用（挂起的网络盘、首次的硬件探测）不占调用方的线程，调用方取消即不再等待，已开始的系统调用在后台自行结束（2026-11-11 修订，ADR-0161）：
 
 | 方法 | 记录与内容 |
 | --- | --- |
-| `ReadRuntime()` | `RuntimeInfo`：操作系统描述、平台、版本与架构，.NET 描述与 RID，进程架构，机器名、用户名、是否交互，进程 ID、名称、启动时刻与运行时长，系统启动时刻与运行时长，工作集、私有字节、托管堆，线程数、句柄数，三代 GC 次数，进程 CPU 使用率 |
-| `ReadProcessor()` | `ProcessorInfo`：型号、厂商、架构、物理核心数、逻辑核心数、标称频率（MHz）、最后一级缓存字节数、系统 CPU 使用率 |
-| `ReadMemory()` | `MemoryInfo`：总量、可用、空闲、缓存（字节），以及由总量与可用算出的已用与使用率 |
-| `ReadDisks()` | `DiskInfo` 列表：挂载点或盘符、设备、卷标、文件系统、类型，总量、空闲与当前用户可用（字节），已用与使用率 |
-| `ReadNetworkInterfaces()` | `NetworkInterfaceInfo` 列表：ID、名称、描述、类型、状态、速率（bit/s）、物理地址、带前缀长度的 IPv4 / IPv6 地址、网关、DNS，累计收发字节与包数，收发速率（字节/秒） |
-| `ReadGpus()` | `GpuInfo` 列表：名称、厂商、PCI 厂商与设备 ID、驱动、驱动版本、显存字节数、温度（℃） |
-| `ReadBoard()` | `BoardInfo`：主板厂商、型号、版本与序列号，整机厂商与型号，BIOS 厂商、版本与日期 |
+| `ReadRuntimeAsync(ct)` | `RuntimeInfo`：操作系统描述、平台、版本与架构，.NET 描述与 RID，进程架构，机器名、用户名、是否交互，进程 ID、名称、启动时刻与运行时长，系统启动时刻与运行时长，工作集、私有字节、托管堆，线程数、句柄数，三代 GC 次数，进程 CPU 使用率 |
+| `ReadProcessorAsync(ct)` | `ProcessorInfo`：型号、厂商、架构、物理核心数、逻辑核心数、标称频率（MHz）、最后一级缓存字节数、系统 CPU 使用率 |
+| `ReadMemoryAsync(ct)` | `MemoryInfo`：总量、可用、空闲、缓存（字节），以及由总量与可用算出的已用与使用率 |
+| `ReadDisksAsync(ct)` | `DiskInfo` 列表：挂载点或盘符、设备、卷标、文件系统、类型，总量、空闲与当前用户可用（字节），已用与使用率 |
+| `ReadNetworkInterfacesAsync(ct)` | `NetworkInterfaceInfo` 列表：ID、名称、描述、类型、状态、速率（bit/s）、物理地址、带前缀长度的 IPv4 / IPv6 地址、网关、DNS，累计收发字节与包数，收发速率（字节/秒） |
+| `ReadGpusAsync(ct)` | `GpuInfo` 列表：名称、厂商、PCI 厂商与设备 ID、驱动、驱动版本、显存字节数、温度（℃） |
+| `ReadBoardAsync(ct)` | `BoardInfo`：主板厂商、型号、版本与序列号，整机厂商与型号，BIOS 厂商、版本与日期 |
 
 - 读不到的项为空（`null`），不以 0 或空串顶替；列表读不到为空列表。字符串去掉首尾空白后为空即视为读不到。
 - 读取不阻塞：不睡眠、不等待采样，不启动外部进程。
