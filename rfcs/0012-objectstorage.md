@@ -44,7 +44,7 @@
 
 ## 默认实现
 
-`ObjectStorage.FileSystem`：根目录（默认 `<AppContext.BaseDirectory>/blobs`）下 `<container>/data/<key>` 存内容、`<container>/meta/<key>.json` 存元数据；写入先落临时文件再原子替换，不覆盖的写入（含分片上传的完成）以不替换的移动原子占位，目标已存在即 `OBJECTSTORAGE_CONFLICT_001`，多个写入方（含共享目录的多个进程）只有一个成功；`ETag` 是内容的 SHA-256；配额 `MaxTotalBytes`（默认 1 GiB）与 `MaxBlobBytes`（默认 256 MiB），启动时扫描目录得到已用量，之后在进程内计量；单进程正确，多进程共享目录时配额只是近似。存储只经 `FileSystemBlobStore.CreateAsync` 创建：建目录、扫描已用量并清掉过期的分片上传后才交出，不提供不初始化的公开构造，否则配额从零算起会放过超额写入（2026-11-11 修订，ADR-0163）。
+`ObjectStorage.FileSystem`：根目录（默认 `<AppContext.BaseDirectory>/blobs`）下 `<container>/data/<key>` 存内容、`<container>/meta/<key>.json` 存元数据；写入先落临时文件再原子替换，不覆盖的写入（含分片上传的完成）先以独占创建（`O_CREAT | O_EXCL` 语义）的空文件占住内容路径，再把内容原子替换上去，目标已存在即 `OBJECTSTORAGE_CONFLICT_001`，多个写入方（含共享目录的多个进程）只有一个成功；不能用「先查目标再改名」的不替换移动，.NET 在 Unix 上的 `File.Move(…, overwrite: false)` 就是这样实现的（2026-11-11 修订，ADR-0168）；`ETag` 是内容的 SHA-256；配额 `MaxTotalBytes`（默认 1 GiB）与 `MaxBlobBytes`（默认 256 MiB），启动时扫描目录得到已用量，之后在进程内计量；单进程正确，多进程共享目录时配额只是近似。存储只经 `FileSystemBlobStore.CreateAsync` 创建：建目录、扫描已用量并清掉过期的分片上传后才交出，不提供不初始化的公开构造，否则配额从零算起会放过超额写入（2026-11-11 修订，ADR-0163）。
 
 ## S3 Provider
 
