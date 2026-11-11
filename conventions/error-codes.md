@@ -95,6 +95,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `CACHING_VALIDATION_001` | 缓存键或幂等键不合法 |
 | `CACHING_VALIDATION_002` | 条目选项不合法（绝对与滑动过期同时设置等）：远程缓存插件按操作集校验 `ttlMs` / `slidingMs` 时返回（`provider/caching-distributed.md`），适配器原样成为异常的错误码；.NET 侧构造或使用不合法的 `CacheEntryOptions` 时直接抛 `ArgumentException`（编程错误），不产生错误码 |
 | `CACHING_VALIDATION_003` | 键列表的每页条数越界：`CacheKeyQuery.PageSize` 不在 1 到 1000 之间（参数 `pageSize`、`max`；不在构造时抛出，`ICacheStoreInspector` / `ICacheInspector` 的 `ListKeysAsync` 以结果返回，HTTP 400） |
+| `CACHING_VALIDATION_004` | 键前缀不合法：列键时 `CacheKeyQuery.Prefix` 不合键的文法，或按前缀删除时前缀为空或不合文法（参数 `prefix`、`max`；不在构造时抛出，以结果返回，HTTP 400；ADR-0156） |
 | `CACHING_UNAVAILABLE_001` | 缓存存储不可达或操作失败 |
 | `CACHING_UNAVAILABLE_002` | 缓存存储已达容量上限（健康项 Degraded 的信号；LRU 不拒绝写入） |
 | `CACHING_CONFLICT_001` | 分布式锁被其他持有者占用：结果式获取 `AcquireAsync` 返回（RFC-0006）；`TryAcquireAsync` 被占用时只是无值 |
