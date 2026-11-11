@@ -154,8 +154,8 @@ public sealed class InvocationContext
     public DateTimeOffset? Deadline { get; init; }
     public required string TraceId { get; init; }                        // 32 位小写十六进制
     public required string SpanId { get; init; }                         // 16 位小写十六进制
-    public required IReadOnlyDictionary<string, string> Baggage { get; init; }   // 键必须符合 xihan.<name>
-    public IDictionary<object, object?> Items { get; }                   // 不传播；派生上下文共享
+    public required IReadOnlyDictionary<string, string> Baggage { get; init; }   // 键必须符合 xihan.<name>；构造时复制成只读副本
+    public IDictionary<object, object?> Items { get; }                   // 不传播；派生上下文共享，可并发读写
     public required IServiceProvider Services { get; init; }
     public bool TryGetBaggage(string key, [MaybeNullWhen(false)] out string value);
     public InvocationContext WithBaggage(string key, string value);
