@@ -278,6 +278,7 @@ public static class Redaction
 - **只升不降**：同一大版本内，级别可以在任意小版本从 `Experimental` 升到 `Preview` 再升到 `Stable`，不能从 `Stable` 降回 `Preview` 或 `Experimental` 来绕开破坏限制；`Stable` 要去掉只能走 `Deprecated`。
 - **`Stable` 不依赖不稳定的类型**：`Stable` 成员的签名（参数、返回值、基类、实现的接口、泛型约束）不得引用 `Preview` 或 `Experimental` 的类型，否则后者的破坏会连带破坏前者。只做组装的元包（Profile）级别不高于它组装的组件。
 - **原语层**：整体冻结（见「冻结规则」），不适用破坏豁免。
+- **数据类型的形状**：会演进或跨 Provider 边界的数据类型（请求、响应、状态、事件、记录）不用位置记录。构成身份的一两个必需成员经构造给出（照清单记录的写法），其余成员一律经初始化器给出，必需的标 `required`；以后加字段只加可选的初始化字段，不改构造的参数表，也不产生新的解构签名。初始化器在设值时校验，`with` 走同一校验。位置记录只留给封闭的小值，如 `TypedId`、`ResourceName` 与 `(Key, Outcome)` 形的逐项结果（2026-11-11 修订，ADR-0142）。
 
 各语言实现把「登记豁免」落到自己的工具链上。.NET 用包验证的 `CompatibilitySuppressions.xml` 与 PublicAPI 文件的 `*REMOVED*` 行，门禁核对豁免只指向非 `Stable` 的成员（ADR-0131）。
 
