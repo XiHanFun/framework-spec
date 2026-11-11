@@ -150,9 +150,10 @@ public sealed class PipelineBuilder
 {
     public const string AppOwner = "app";
     public PipelineBuilder Use<TMiddleware>() where TMiddleware : IPipelineMiddleware;     // = UseAt<TMiddleware>(PipelineStage.Transaction)
-    public PipelineBuilder UseAt<TMiddleware>(PipelineStage stage, Placement placement = Placement.End, string owner = AppOwner) where TMiddleware : IPipelineMiddleware;
-    public PipelineBuilder UseInstance<TMiddleware>(TMiddleware instance, PipelineStage stage, Placement placement = Placement.End, string owner = AppOwner) where TMiddleware : IPipelineMiddleware;
-    public PipelineBuilder UseNamedInstance(string name, IPipelineMiddleware instance, PipelineStage stage, Placement placement = Placement.End, string owner = AppOwner);
+    // 位置与归属用逐级重载，不用默认值：省略 placement 取 Placement.End，省略 owner 取 AppOwner（RFC-0001「可选参数」）
+    public PipelineBuilder UseAt<TMiddleware>(PipelineStage stage, Placement placement, string owner) where TMiddleware : IPipelineMiddleware;   // 另有 (stage) 与 (stage, placement)
+    public PipelineBuilder UseInstance<TMiddleware>(TMiddleware instance, PipelineStage stage, Placement placement, string owner) where TMiddleware : IPipelineMiddleware;
+    public PipelineBuilder UseNamedInstance(string name, IPipelineMiddleware instance, PipelineStage stage, Placement placement, string owner);
     public PipelineBuilder Before<TMiddleware, TOther>() where TMiddleware : IPipelineMiddleware where TOther : IPipelineMiddleware;
     public PipelineBuilder After<TMiddleware, TOther>() where TMiddleware : IPipelineMiddleware where TOther : IPipelineMiddleware;
     public PipelineBuilder Before(string middleware, string other);   // 按名字：实例名或只登记一次的类型全名

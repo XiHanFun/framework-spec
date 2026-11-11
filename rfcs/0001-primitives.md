@@ -63,7 +63,10 @@ public readonly record struct Result<T>
 ```csharp
 public sealed record Error
 {
-    public Error(string code, string messageKey, IReadOnlyDictionary<string, object?>? details = null, Error? inner = null);
+    // 可选的细节与内部错误用逐级重载，不用默认值（「可选参数」）
+    public Error(string code, string messageKey);
+    public Error(string code, string messageKey, IReadOnlyDictionary<string, object?>? details);
+    public Error(string code, string messageKey, IReadOnlyDictionary<string, object?>? details, Error? inner);
     public string Code { get; }
     public string? MessageKey { get; }                              // 消息键；Literal 创建的为 null
     public string? Text { get; }                                    // 已解析的文案；未解析为 null
@@ -71,13 +74,13 @@ public sealed record Error
     public IReadOnlyDictionary<string, object?>? Details { get; }   // 模板参数，也是结构化细节；按引用比较
     public Error? Inner { get; }
     public string Kind { get; }                                     // 错误码的 KIND 段
-    public static Error Literal(string code, string text, IReadOnlyDictionary<string, object?>? details = null, Error? inner = null);   // 线上还原、异常转换
-    public static Error Validation(string code, string messageKey, IReadOnlyDictionary<string, object?>? details = null);
-    public static Error NotFound(string code, string messageKey, IReadOnlyDictionary<string, object?>? details = null);
-    public static Error Conflict(string code, string messageKey, IReadOnlyDictionary<string, object?>? details = null);
-    public static Error Denied(string code, string messageKey, IReadOnlyDictionary<string, object?>? details = null);
-    public static Error Unavailable(string code, string messageKey, IReadOnlyDictionary<string, object?>? details = null);
-    public static Error Unexpected(string code, string messageKey, IReadOnlyDictionary<string, object?>? details = null, Error? inner = null);
+    public static Error Literal(string code, string text, IReadOnlyDictionary<string, object?>? details, Error? inner);   // 线上还原、异常转换；另有 (code, text) 与 (code, text, details)
+    public static Error Validation(string code, string messageKey, IReadOnlyDictionary<string, object?>? details);       // 另有 (code, messageKey)；NotFound、Conflict、Denied、Unavailable 同
+    public static Error NotFound(string code, string messageKey, IReadOnlyDictionary<string, object?>? details);
+    public static Error Conflict(string code, string messageKey, IReadOnlyDictionary<string, object?>? details);
+    public static Error Denied(string code, string messageKey, IReadOnlyDictionary<string, object?>? details);
+    public static Error Unavailable(string code, string messageKey, IReadOnlyDictionary<string, object?>? details);
+    public static Error Unexpected(string code, string messageKey, IReadOnlyDictionary<string, object?>? details, Error? inner);   // 另有 (code, messageKey) 与 (code, messageKey, details)
     public Error WithCode(string code);                             // 换码，保留键、文案、参数
     public Error WithText(string text);                             // 填入已解析文案
 }
@@ -94,7 +97,7 @@ public static class ErrorCode
     public const string InvalidArgument = "PRIMITIVES_VALIDATION_001";
     public const string UninitializedResult = "PRIMITIVES_VALIDATION_002";
     public static bool IsValid(string? code);
-    public static string Validate(string code, string? paramName = null);
+    public static string Validate(string code, [CallerArgumentExpression(nameof(code))] string? paramName = null);   // 调用方信息参数，由编译器填写
     public static string KindOf(string code);
     public static string DomainOf(string code);
 }
@@ -215,8 +218,10 @@ public static class PipelineStageExtensions
 ### 异常与框架信息
 
 ```csharp
-public class FrameworkException(string code, string message, Exception? innerException = null) : Exception
+public class FrameworkException : Exception
 {
+    public FrameworkException(string code, string message);
+    public FrameworkException(string code, string message, Exception? innerException);
     public string Code { get; }
     public Error ToError();
 }
@@ -276,7 +281,7 @@ public static class Redaction
 - **什么算破坏**：删除公开成员；改签名，含参数、默认值与可空注解；给使用者或 Provider 要实现的接口、抽象类加抽象成员；改基类或加密封；签名不变但语义改变（返回值、失败方式、副作用）也算。
 - **生效级别**：成员没有单独标注时取所在类型的级别；成员单独标注的级别不得高于所在类型。
 - **只升不降**：同一大版本内，级别可以在任意小版本从 `Experimental` 升到 `Preview` 再升到 `Stable`，不能从 `Stable` 降回 `Preview` 或 `Experimental` 来绕开破坏限制；`Stable` 要去掉只能走 `Deprecated`。
-- **`Stable` 不依赖不稳定的类型**：`Stable` 成员的签名（参数、返回值、基类、实现的接口、泛型约束）不得引用 `Preview` 或 `Experimental` 的类型，否则后者的破坏会连带破坏前者。只做组装的元包（Profile）级别不高于它组装的组件。
+- **`Stable` 不依赖不稳定的类型**：`Stable` 成员的签名（参数、返回值、基类、实现的接口、泛型约束，泛型实参一并算）不得引用 `Preview` 或 `Experimental` 的类型，否则后者的破坏会连带破坏前者。实现了 `Preview` 接口的实现类型随接口保持 `Preview`；`Stable` 类型里个别成员要引用不稳定类型时，那个成员单独标注较低的级别。只做组装的元包（Profile）级别不高于它组装的组件。.NET 由分析器 XH0006（签名引用）与 XH0007（成员级别高于所在类型）在编译期检查（2026-11-11 修订，ADR-0167）。
 - **原语层**：整体冻结（见「冻结规则」），不适用破坏豁免。
 - **数据类型的形状**：会演进或跨 Provider 边界的数据类型（请求、响应、状态、事件、记录）不用位置记录。构成身份的一两个必需成员经构造给出（照清单记录的写法），其余成员一律经初始化器给出，必需的标 `required`；以后加字段只加可选的初始化字段，不改构造的参数表，也不产生新的解构签名。初始化器在设值时校验，`with` 走同一校验。位置记录只留给封闭的小值，如 `TypedId`、`ResourceName`（2026-11-11 修订，ADR-0142；逐项结果不再另建记录，见批量优先，ADR-0154）。
 - **缺失用 `null`**：公开契约里可选的值缺失时用 `null`，不用空字符串或默认实例，例如匿名主体的 ID、全局资源的租户段。
@@ -296,10 +301,12 @@ public static class Redaction
   - 续页分页用于存储列举（大集合、后端游标）：查询带 `PageSize` 与 `ContinuationToken`，上限常量 `MaxPageSize`，缺省 `DefaultPageSize`；结果页是 `Items` 与 `ContinuationToken`，没有下一页为 `null`，令牌不透明、原样带回。
   - 分页越界不在构造时抛出，由读取方法以校验错误返回，参数名与成员名一致（`skip`、`take`、`pageSize`、`max`）。
   - 结果页按初始化器形状给出，不用位置记录（2026-11-11 修订，ADR-0154）。
-- **可选参数**：公开方法不用一串可选参数，默认值会编译进调用方，以后加参数就破坏二进制兼容。
-  - 只有一个可选值时用重载，如 `DomainEventBuffer()` 与 `DomainEventBuffer(int capacity)`。
-  - 多个可选值时收进单次调用的选项记录，以后加字段只加属性，如 `App.CreateContext(services, InvocationContextOptions, cancellationToken)`、`BlobPutOptions`、`UnitOfWorkOptions`。
-  - `CancellationToken` 放在最后。
+- **可选参数**：公开方法、构造与索引器不声明默认值，默认值会编译进调用方，以后加参数或改默认值就破坏二进制兼容。
+  - 一两个可选值用重载补齐：至少有不带它们的短重载与参数齐全的长重载，中间一级按需要提供，如 `DomainEventBuffer()` 与 `DomainEventBuffer(int capacity)`、`Error.Unexpected(code, messageKey)` / `(code, messageKey, details)` / `(code, messageKey, details, inner)`。短重载转调长重载，默认值只写在短重载的实现里。
+  - 更多的可选值，或以后还会增加的，收进单次调用的选项记录，以后加字段只加属性，如 `App.CreateContext(services, InvocationContextOptions, cancellationToken)`、`BlobPutOptions`、`UnitOfWorkOptions`。
+  - `CancellationToken` 放在最后，不设默认值。
+  - 调用方信息参数（.NET 的 `CallerArgumentExpression`、`CallerMemberName` 等）由编译器填写，不算可选参数。
+  - .NET 由分析器 XH0008 对生效级别为 `Stable` 的成员在编译期检查；`Preview` 与 `Experimental` 可以在小版本破坏，升 `Stable` 时这条规则随之生效（2026-11-11 修订，ADR-0167）。
   - 例外是面向源码使用的工具链包（`Testing`、`Conformance`）：测试项目总是随框架重新编译，可选参数保留，新参数只加在末尾（2026-11-11 修订，ADR-0157）。
 
 各语言实现把「登记豁免」落到自己的工具链上。.NET 用包验证的 `CompatibilitySuppressions.xml` 与 PublicAPI 文件的 `*REMOVED*` 行，门禁核对豁免只指向非 `Stable` 的成员（ADR-0131）。
