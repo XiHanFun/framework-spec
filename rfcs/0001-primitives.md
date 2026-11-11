@@ -296,6 +296,11 @@ public static class Redaction
   - 续页分页用于存储列举（大集合、后端游标）：查询带 `PageSize` 与 `ContinuationToken`，上限常量 `MaxPageSize`，缺省 `DefaultPageSize`；结果页是 `Items` 与 `ContinuationToken`，没有下一页为 `null`，令牌不透明、原样带回。
   - 分页越界不在构造时抛出，由读取方法以校验错误返回，参数名与成员名一致（`skip`、`take`、`pageSize`、`max`）。
   - 结果页按初始化器形状给出，不用位置记录（2026-11-11 修订，ADR-0154）。
+- **可选参数**：公开方法不用一串可选参数，默认值会编译进调用方，以后加参数就破坏二进制兼容。
+  - 只有一个可选值时用重载，如 `DomainEventBuffer()` 与 `DomainEventBuffer(int capacity)`。
+  - 多个可选值时收进单次调用的选项记录，以后加字段只加属性，如 `App.CreateContext(services, InvocationContextOptions, cancellationToken)`、`BlobPutOptions`、`UnitOfWorkOptions`。
+  - `CancellationToken` 放在最后。
+  - 例外是面向源码使用的工具链包（`Testing`、`Conformance`）：测试项目总是随框架重新编译，可选参数保留，新参数只加在末尾（2026-11-11 修订，ADR-0157）。
 
 各语言实现把「登记豁免」落到自己的工具链上。.NET 用包验证的 `CompatibilitySuppressions.xml` 与 PublicAPI 文件的 `*REMOVED*` 行，门禁核对豁免只指向非 `Stable` 的成员（ADR-0131）。
 

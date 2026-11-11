@@ -33,6 +33,7 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 - 执行时限（ADR-0060）：`Timeout`（大于零、不超过 30 天）到时取消作业拿到的令牌；作业返回之前时限已过，运行记为失败，错误码 `SCHEDULING_TIMEOUT_001`（作业不响应取消时，运行在它返回后才结束）。时限内取消请求或宿主停止仍记为取消。
 - 重试策略与执行时限随作业持久化，代码作业指纹包含它们（设置了才计入，没设的作业指纹不变），运行时 `ScheduleAsync` 修改与 `RestoreAsync` 恢复同改计划的语义；`JobStatus.Job` 带出两项。
 - 运行 `JobRun`：`Id`、`Name`、`TriggerName`（手动为空）、`ScheduledAt`、`Trigger`（`Schedule` / `Manual` / `Recovery` / `Retry`）、`Attempt`（第几次尝试，从 1 起）、`RetryOf`（重试时为首次运行的 ID）、`Data`（作业 `Data` ← 触发器 `Data` ← 手动触发的 `Data` 逐层覆盖）。`JobDispatcher` 为每次运行开新作用域，构造上下文（关联 ID = 运行 ID，运行信息可由 `JobDispatcher.FindRun(context)` 取得），经完整管道执行 `IJob.RunAsync`；返回失败或抛出异常都算失败（异常翻译为 `SCHEDULING_UNEXPECTED_001`）。不写幂等键。作业拿到的取消令牌在 `CancelRunsAsync` 与宿主停止时取消。
+- 作业 `IJob.RunAsync(run, context)`：取消与超时在 `context.CancellationToken` 上，与操作的处理器一样不另传令牌。领导租约 `LeaderLease` 的 `RenewAsync` 与 `ReleaseAsync` 都收令牌、以 `Result` 报告；释放幂等，后端没能删掉租约时返回那个失败，租约到期后自然可被接管（2026-11-11 修订，ADR-0157）。
 
 ## 调度器 `IJobScheduler`
 
