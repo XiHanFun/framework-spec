@@ -90,7 +90,7 @@ public sealed class EntityFrameworkCoreFeature : IHostedFeature
 }
 ```
 
-`[Capability]` 清单生成器顺延：原计划由源生成器从入口类型上的 `[Capability(...)]` 产出 `Manifest` 属性并把 `xihan.manifest.json` 作为嵌入资源写入程序集，`bindings`、`contributes` 由同一特性的可选参数或伴随特性声明。内核保留 `CapabilityAttribute` 类型（运行期不读取），当前没有生成器；实现生成器时手写的清单是它的一致性基准，生成结果必须与手写清单逐字段相同。
+`[Capability]` 清单生成器顺延：原计划由源生成器从入口类型上的 `[Capability(...)]` 产出 `Manifest` 属性并把 `xihan.manifest.json` 作为嵌入资源写入程序集，`bindings`、`contributes` 由同一特性的可选参数或伴随特性声明。当前没有生成器，内核也不提供 `CapabilityAttribute`：它与生成器一起提供，免得一个没有使用者的特性先随 5.0 冻结（2026-11-11 修订，ADR-0135）；实现生成器时手写的清单是它的一致性基准，生成结果必须与手写清单逐字段相同。
 
 ## 一致性向量
 
