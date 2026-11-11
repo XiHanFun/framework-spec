@@ -23,7 +23,7 @@
 
 ## 查询
 
-- `IAuditTrail.QueryAsync(AuditQuery)` → `Result<AuditPage>`：按写入顺序升序；过滤项 `From` / `To`（含边界）、`Action`、`PrincipalId`、`TenantId`、`TraceId`、`Resource`（`xrn:` 文本精确匹配，2026-11-11 修订，ADR-0159）、`Succeeded`；`PageSize` 1 到 1000（默认 100）；`ContinuationToken` 不透明，页未满时为空。
+- `IAuditTrail.QueryAsync(AuditQuery)` → `Result<AuditPage>`：按写入顺序升序；过滤项 `From` / `To`（含边界）、`Action`、`Principal`、`Tenant`、`TraceId`、`Resource`（`xrn:` 文本精确匹配，2026-11-11 修订，ADR-0159）、`Succeeded`；`Principal` 是 `AuditPrincipalFilter`（`Any` 缺省 / `Anonymous` 只要匿名调用 / `Of(id)`），`Tenant` 是 `AuditTenantFilter`（`Any` 缺省 / `Global` 只要不属于任何租户的事件 / `Of(id)`），不用 `null` 表示不过滤，因为事件上的 `null` 主体与租户就是匿名与全局；其余可空的过滤项为 `null` 时不按它过滤（2026-11-11 修订，ADR-0169）；`PageSize` 1 到 1000（默认 100）；`ContinuationToken` 不透明，页未满时为空。
 - 不合法的查询（页大小越界、起止颠倒、令牌不可识别）→ `AUDITING_VALIDATION_001`；存储不可达 → `AUDITING_UNAVAILABLE_001`，`reason` 只写异常类型的全名，完整异常进日志（2026-11-04，ADR-0115）。
 
 ## 默认实现
