@@ -80,7 +80,8 @@
 
 - 主体是用户（`user:<id>`）或角色（`role:<name>`）；授予是（主体，权限码，租户?）。租户为空的授予对任何租户生效，租户专属授予只对该租户生效。
 - 检查器取用户本身的授予与其角色授予之并集；`*` 匹配任何权限。
-- 读不到不是没有（ADR-0071）：`IPermissionGrantStore.GetGrantsAsync` 返回 `Result<IReadOnlyCollection<string>>`，没有授予是成功的空集合，存储不可达（连接、超时、事务失败）是 `SECURITY_UNAVAILABLE_001` 失败，不得以空集合代替；`IPermissionChecker.HasPermissionAsync` 返回 `Result<bool>`，存储、来源或过滤器的失败原样返回，不当作不持有。检查器遇到第一个失败即返回，不再读后面的角色、来源或过滤器（用户与角色读同一个存储，逐个等待只会拖长失败的调用；授予只能加、过滤器只能拿走，部分读取得不出可靠结论）。匿名主体不访问存储，存储故障时仍是不持有。
+- 批量读取（2026-11-11 修订，ADR-0139）：`IPermissionGrantStore` 只有 `GetManyAsync(subjects, tenantId)`，返回与入参等长、顺序一致的 `Result<IReadOnlyList<IReadOnlyCollection<string>>>`，重复的主体各得一份相同的结果，空集合不访问后端；检查器把用户与它的全部角色一次读出，不再一个角色一次往返。单个主体的 `GetGrantsAsync(subject, tenantId)` 是扩展方法，等于只含它的 `GetManyAsync`。
+- 读不到不是没有（ADR-0071）：授予读取返回 `Result`，没有授予是成功的空集合，存储不可达（连接、超时、事务失败）是 `SECURITY_UNAVAILABLE_001` 失败，不得以空集合代替；`IPermissionChecker.HasPermissionAsync` 返回 `Result<bool>`，存储、来源或过滤器的失败原样返回，不当作不持有。检查器遇到第一个失败即返回，不再读来源或过滤器（用户与角色在同一次批量读取里，存储故障时整批失败；授予只能加、过滤器只能拿走，部分读取得不出可靠结论）。匿名主体不访问存储，存储故障时仍是不持有。
 - 收窄（ADR-0039）：授予命中之后，检查器按登记顺序逐个调用全部 `IPermissionFilter`（单例），任一返回假即不持有、后面的不再调用；匿名主体与授予未命中时不调用。`IPermissionFilter.AllowsAsync` 返回 `Result<bool>`：过滤器依赖的数据（套餐、拒绝规则、委托）读不到时返回失败，检查器原样返回（跳过它等于放行，按拒绝处理又会把故障变成 403）。过滤器收到的是具体权限码（通配命中也一样），只能拿走权限、不能凭空给出；用于套餐白名单、显式拒绝、委托到期等授予之外的约束。被收窄的权限在权限策略上同样返回 `SECURITY_DENIED_004`。替换 `IPermissionChecker` 的实现必须同样在授予命中之后施加全部过滤器。
 - 授予来源（ADR-0045）：与收窄对称，`IPermissionGrantSource`（单例）给出主体在授予存储之外的额外授予（权限码或 `*`），用于角色继承、限时委托等不落在主体自己授予行上的授予。检查器在用户与角色的存储授予都没命中时按登记顺序逐个查询，任一命中即算授予命中，之后照常经全部过滤器收窄；匿名主体不查询。`IPermissionGrantSource.GetGrantsAsync` 返回 `Result<IReadOnlyCollection<string>>`：来源依赖的数据（角色继承、委托）读不到时返回失败，检查器原样返回，不当作没有授予。来源只能加、不能拿走；替换 `IPermissionChecker` 的实现必须同样并上全部来源。
 - `IPermissionGrantStore` 由 Provider 实现；内存实现从 `XiHan:Security:InMemory:Grants` 装载全局授予，有界。
