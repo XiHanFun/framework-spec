@@ -23,6 +23,7 @@
 ## 2. 配置与启动
 
 1. `Configure`：`configuration` 是清单 `contributes.config.section` 节的 JSON 对象（宿主配置源经 `IConfiguration` 展开后再序列化；没有声明配置节为 `{}`）；`granted_permissions` 等于清单 `permissions`；`bindings` 只含清单声明的绑定；`work_directory` 是宿主为该插件创建的可写目录（宿主停止时不删除）。配置变更时宿主不重新调用 `Configure`，而是以 `reason: restart` 停止后重新启动进程。
+   - 隔离运行的插件（进程外、Wasm）读宿主配置与绑定要运营方授予（2026-11-12 修订，ADR-0177）：清单的 `contributes.config.section` 要求宿主授予 `config:<配置节>`（与清单逐字相同），`bindings` 的每一项要求授予 `binding:<绑定名>`；没有授予即在发现时以 `PLUGINS_DENIED_001` 拒绝，与清单声明而未授予的权限同一处理，不启动插件代码。配置节里常有密钥、连接串与签名密钥，插件不能自己点名拿到。进程内插件是受信代码，不受此限。
 2. `Start`：返回 `ok` 后宿主才登记代理操作与事件订阅；在此之前到达的调用按 `PLUGINS_UNAVAILABLE_001` 失败。
 3. 每一步都带 `StartTimeout`（默认 30 秒）的截止时间；超时为 `PLUGINS_TIMEOUT_001`，宿主终止进程。
 
