@@ -44,7 +44,7 @@
 
 ## 默认实现
 
-`ObjectStorage.FileSystem`：根目录（默认 `<AppContext.BaseDirectory>/blobs`）下 `<container>/data/<key>` 存内容、`<container>/meta/<key>.json` 存元数据；写入先落临时文件再原子替换，不覆盖的写入（含分片上传的完成）以不替换的移动原子占位，目标已存在即 `OBJECTSTORAGE_CONFLICT_001`，多个写入方（含共享目录的多个进程）只有一个成功；`ETag` 是内容的 SHA-256；配额 `MaxTotalBytes`（默认 1 GiB）与 `MaxBlobBytes`（默认 256 MiB），启动时扫描目录得到已用量，之后在进程内计量；单进程正确，多进程共享目录时配额只是近似。
+`ObjectStorage.FileSystem`：根目录（默认 `<AppContext.BaseDirectory>/blobs`）下 `<container>/data/<key>` 存内容、`<container>/meta/<key>.json` 存元数据；写入先落临时文件再原子替换，不覆盖的写入（含分片上传的完成）以不替换的移动原子占位，目标已存在即 `OBJECTSTORAGE_CONFLICT_001`，多个写入方（含共享目录的多个进程）只有一个成功；`ETag` 是内容的 SHA-256；配额 `MaxTotalBytes`（默认 1 GiB）与 `MaxBlobBytes`（默认 256 MiB），启动时扫描目录得到已用量，之后在进程内计量；单进程正确，多进程共享目录时配额只是近似。存储只经 `FileSystemBlobStore.CreateAsync` 创建：建目录、扫描已用量并清掉过期的分片上传后才交出，不提供不初始化的公开构造，否则配额从零算起会放过超额写入（2026-11-11 修订，ADR-0163）。
 
 ## S3 Provider
 
@@ -74,6 +74,8 @@
 - 关闭（`ConditionalWrites = false`）表示应用明确不需要不覆盖写入（只覆盖写入，或凭据只读，或服务实测不认条件写入）：不探测，`HealthBucket` 可以不配（健康项列桶），`Overwrite = false` 的写入、分片上传的发起与完成一律 → `OBJECTSTORAGE_UNAVAILABLE_003`，不访问存储——不做没有保证的先查再写；覆盖写入、读取、删除、列举、预签名不受影响。
 
 ## 范围读取、分片上传与预签名（2026-10-29 增补，ADR-0049）
+
+分片上传的句柄 `BlobMultipartUpload(container, key, uploadId)` 的覆盖标志 `Overwrite` 是必填的初始化成员：重建句柄（从签名地址、存下的状态）时必须写明，与开始上传时一致；完成时 Provider 可能按句柄上的值决定是否条件写入（2026-11-11 修订，ADR-0163）。
 
 大文件直传、断点续传、音视频拖动与限时下载链接（预签名下载，缺省 30 分钟）。
 
