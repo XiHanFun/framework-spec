@@ -175,10 +175,10 @@ IP 归属地（ADR-0047）是能力 `security.ip-region@1`：`IIpRegionResolver.
    1. 同 3.1，且 `id` 等于存储的凭据 ID（`credential`）。
    2. `clientDataJSON` 的 `type` 为 `webauthn.get`，其余同 3.2。
    3. `authenticatorData` 的长度与结构、RP ID、UP、UV、BE 与 BS 同 3.3、3.4（不要求 AT）。
-   4. 存储的凭据带用户句柄、响应也带 `userHandle` 时两者相同（`user_handle`）。
+   4. 凭据属于谁（2026-11-12 修订，ADR-0179；WebAuthn §7.2 第 6 步）：存储的凭据必须记下所属用户的句柄（注册选项的 `user.id`）。调用方传入登录前已认出的用户（先填账号、第二因素）时，凭据的所属用户必须是他；没有认出用户（免用户名）时，响应必须带 `userHandle`。响应带了 `userHandle` 就必须等于所属用户。任一不满足为 `user_handle`。结果交回所属用户的句柄，免用户名的流程据此确定是谁登录，不取响应里的句柄。
    5. 签名覆盖 `authenticatorData ‖ SHA-256(clientDataJSON)`，算法取存储的公钥：ES256 是 DER 编码的 ECDSA，PS256 是 PSS，RS256 是 PKCS#1 v1.5，都用 SHA-256（`signature`）。
    6. 签名计数：新旧值有一个不为 0 时新值必须大于旧值，否则 `SECURITY_DENIED_006`（认证器可能被复制，应用应提醒本人或停用凭据）；都为 0 是不计数的认证器，放行。
-   成功返回新的签名计数、UV 与 BS，应用据此更新存储的凭据。
+   成功返回新的签名计数、UV、BS 与所属用户的句柄，应用据此更新存储的凭据。
 5. 失败以 `Result` 返回、不抛出，参数 `reason` 是上面括号里的机读原因：
    - 响应解析不了是 `SECURITY_VALIDATION_006`：`id`、`client_data`、`attestation_object`、`authenticator_data`、`flags`、`attested_credential`、`credential_id`、`public_key`、`attestation`。
    - 公钥算法不支持是 `SECURITY_VALIDATION_007`，参数 `algorithm`。

@@ -177,9 +177,11 @@ type WebAuthnCase struct {
 	Name       string          `json:"name"`
 	Challenge  string          `json:"challenge"`
 	Credential json.RawMessage `json:"credential,omitempty"`
-	Response   json.RawMessage `json:"response"`
-	Expected   json.RawMessage `json:"expected,omitempty"`
-	Error      *WebAuthnError  `json:"error,omitempty"`
+	// ExpectedUserHandle 是登录前已认出的用户（base64url）；免用户名的流程为空，此时响应必须带 userHandle（ADR-0179）。
+	ExpectedUserHandle string          `json:"expectedUserHandle,omitempty"`
+	Response           json.RawMessage `json:"response"`
+	Expected           json.RawMessage `json:"expected,omitempty"`
+	Error              *WebAuthnError  `json:"error,omitempty"`
 }
 
 // WebAuthnError 是样例期望的错误：错误码与机读原因（算法不支持时是算法编号）。
