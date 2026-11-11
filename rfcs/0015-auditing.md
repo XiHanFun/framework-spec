@@ -6,6 +6,13 @@
 
 内核已定义审计事件 `AuditEvent` 与接收器 `IAuditSink`（RFC-0001 附属），默认丢弃。审计子系统补上三件事：在 Observe 阶段把每次被选中的调用变成一条事件写进接收器的中间件、调用期间补充动作 / 资源 / 细节的上下文扩展、以及查询契约 `IAuditTrail`。能力 `auditing.trail@1` 的 Provider 同时实现 `IAuditSink` 与 `IAuditTrail`；默认实现是有界的内存环形缓冲，并把每条事件写进日志。
 
+`IAuditSink.WriteAsync` 的契约与日志接收器相同（2026-11-11 修订，ADR-0147）：
+
+- 有界，不阻塞调用路径，不等待存储；返回只表示已接收，不表示已持久化。
+- 不抛出。接收不下（队列满、已停止）或落地失败时，由实现自己丢弃、计数并节流告警，故障不交给调用方。
+- Observe 阶段传 `CancellationToken.None`，被取消的调用同样留痕。
+- 接收器违反契约抛出的异常，Observe 阶段兜住并记一条 Error 日志，不改变调用结果。
+
 ## 事件的产生
 
 - `AuditMiddleware` 挂在 Observe 阶段末尾（`ObserveMiddleware` 之内），调用结束后决定是否记录：动作来自 `context.SetAuditAction(...)` 的显式声明，否则来自当前操作（`AuditSelection.Protected`：只记需要授权的操作，默认——契约声明了权限码或策略名，只用策略保护的操作同样记录，ADR-0071；`All`：所有操作；`None`：只记显式声明的）。没有动作就不记。事件的主体与租户优先取安全上下文（认证后的 `Principal.Id`、解析后的 `TenantContext.Id`），没有时回退到 Baggage 的 `xihan.principal` / `xihan.tenant`（插件协议、消息派发、命令行写入的）；Observe 在 Authenticate 之外、事件在调用结束时构造，安全上下文此时已就绪。
