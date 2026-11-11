@@ -48,7 +48,7 @@
 
 ## 授权
 
-1. 调用的授权要求 `AuthorizationRequirement(policy, resource?)` 由宿主端点元数据或操作契约（P3）在 Authorize 阶段之前写入上下文；没有要求则放行。
+1. 调用的授权要求是宿主在 Authorize 阶段之前写入上下文的全部 `AuthorizationRequirement(policy, resource?)`（端点与路由组元数据上的每一条，以及 Authorize 之前的中间件以 `RequireAuthorization` 追加的），加上操作契约（P3）推导出的那一条（权限码优先于策略名）。Authorize 阶段按顺序逐条判定，全部满足才放行，第一条不满足即以它的结果结束，相同的要求只判定一次；都没有则放行。写入的要求叠加在契约的要求之上，不顶替它：在 `MapXiHanOperations()` 的组上加 `RequireXiHanAuthentication()`，是在每个操作自己的权限之上再要求登录（2026-11-12 修订，ADR-0174）。
 2. 权限码文法 `^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$`：小写、点分、至少两段，每段以小写字母开头，可含数字与连字符，如 `orders.read`；要带领域前缀时写成三段及以上（`sales.orders.read`）。权限码先经特性登记进内核 `PermissionRegistry`（`FeatureContext.AddPermission`），登记时记下归属（特性的清单 ID；插件声明的码归属插件的清单 ID）。
    - 操作契约引用的权限码（`OperationContract.Permission`）必须已登记（ADR-0071）：全部特性配置完、装配完成的那一刻（`AppBuilder.Build`）一次核对，有未登记的即抛出 `KERNEL_VALIDATION_005`（`FrameworkException`，一次列出全部），启动失败。核对在装配完成时而不是登记操作时：定义权限码的特性可能按拓扑排在引用它的特性之后。
    - 装配完成之后才登记的操作（进程外 / Wasm 插件握手之后：重试成功、运行期 `LoadAsync`）在登记时核对，引用了未登记的权限码即登记失败（`KERNEL_VALIDATION_005`），插件整体被拒、不留下任何代理操作（`plugin/invocation.md` §1）。
@@ -61,7 +61,9 @@
      - 此后登记的操作（插件握手之后）在登记时逐个核对，不存在即登记失败（同一错误码），插件整体被拒。
      - 核对放在启动核对而不是配置阶段：策略是容器里的 `IPolicy`，容器建好才知道全部策略名；配置阶段发现的插件的操作与声明的权限码此时都已登记；在任何特性启动之前核对并挂上，插件宿主启动之后的重试登记都经过挂上的核对。
      - `security.authorization@1` 的 Provider 都必须这样做（`Security.InMemory`、`Security.Database` 已实现）；没有装配授权能力时不核对。
-   - 端点元数据上的要求（`RequireXiHanPermission`、`RequireXiHanPolicy`、`RequireXiHanAuthentication`）：`UseXiHan()` 在宿主建请求管道时（路由已全部映射）核对全部端点的 `AuthorizationRequirement`，有不存在的策略或未登记的权限码即抛出 `SECURITY_VALIDATION_004`（一次列出全部），宿主启动失败。
+   - 端点元数据上的要求（`RequireXiHanPermission`、`RequireXiHanPolicy`、`RequireXiHanAuthentication`）：`UseXiHan()` 在宿主建请求管道时（路由已全部映射）核对全部端点的 `AuthorizationRequirement`，有不存在的策略或未登记的权限码即抛出 `SECURITY_VALIDATION_004`（一次列出全部），宿主启动失败。端点上的要求不得被静默跳过（2026-11-12 修订，ADR-0175）：
+     - 绕过宿主管道的端点（`PipelineBypassMetadata`：探针、OpenAPI、`.proto`、自己标注绕过的端点）不会判定要求，挂了要求即抛出 `SECURITY_VALIDATION_008`，宿主启动失败；处理器自己以调用上下文走完整管道并带上端点要求的端点（`PipelineBypassMetadata.SelfInvoking`，gRPC 操作方法）除外，`MapXiHanGrpc()` 上的约定在每次调用里与契约的要求叠加判定。
+     - `RequireXiHan*` 给端点包一层守卫：`UseXiHan()` 没有把端点上的要求写进调用上下文（没调 `UseXiHan()`，或它排在路由之前读不到端点）时，端点不执行、抛出 `InvalidOperationException`，宁可失败不可放行。
    - 没有装配授权能力（容器里没有 `PolicyCatalog`）时两者都不核对：此时 Authorize 阶段不判定任何要求。
 5. 策略不存在返回 `SECURITY_NOTFOUND_001`（宁可拒绝，不可放行）；拒绝返回策略给出的原因，未给出时为 `SECURITY_DENIED_002`。契约的权限码与策略、端点元数据都已在启动时核对（第 2、4 条），这条路径只剩启动时看不到的要求：应用代码以 `RequireAuthorization` 显式写入的要求、启动之后才加进来的端点。
 6. 内置策略：`authenticated`（已认证）；`permission:<code>`（匿名先按 `SECURITY_DENIED_001` 拒绝，缺权限返回 `SECURITY_DENIED_004`）。

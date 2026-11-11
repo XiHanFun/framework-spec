@@ -124,6 +124,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `SECURITY_VALIDATION_005` | 授予列表的分页越界：`PermissionGrantQuery.Skip` 为负或 `Take` 不在 1 到 1000 之间（参数 `skip`、`take`、`max`；不在构造时抛出，以结果返回，HTTP 400；ADR-0158） |
 | `SECURITY_VALIDATION_006` | WebAuthn 响应解析不了：base64url、JSON、CBOR、认证器数据或字段缺失、类型不对（参数 `reason`；ADR-0170） |
 | `SECURITY_VALIDATION_007` | WebAuthn 公钥的算法不支持：只认 ES256（P-256）、PS256、RS256（参数 `algorithm`；ADR-0170） |
+| `SECURITY_VALIDATION_008` | 授权要求挂在不会判定它的端点上：绕过内核管道的端点（探针、OpenAPI、`.proto`、自己标注绕过的）带 `RequireXiHan*`，`UseXiHan()` 建请求管道时发现即启动失败（ADR-0175） |
 | `SECURITY_NOTFOUND_001` | 策略不存在：调用时才看到的要求（应用代码以 `RequireAuthorization` 显式写入的、启动之后才加进来的端点）引用的策略未登记，或其中 `permission:<code>` 的权限码未登记（含插件卸载时撤回、尚未重新登记的权限码）；操作契约的权限码在装配时核对（`KERNEL_VALIDATION_005`），契约的策略与端点元数据在启动时核对（`SECURITY_VALIDATION_004`） |
 | `SECURITY_NOTFOUND_002` | 要撤销的授予不存在 |
 | `SECURITY_NOTFOUND_003` | 取不到条件属性的值 |
