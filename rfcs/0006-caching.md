@@ -41,7 +41,7 @@
 
 | 操作 | 语义 |
 | --- | --- |
-| `ListKeys(query)` | 按前缀（`CacheKeyQuery.Prefix`，空为全部）分页列出键，`Limit` 1–1000（默认 100），`Continuation` 续页（没有更多为空）；返回 `Result<CacheKeyPage>`。`Limit` 越界不在构造时抛出：存储先经 `CacheKeyQuery.Validate()` 核对，越界返回 `CACHING_VALIDATION_003`（HTTP 400，消息键 `caching.inspector.limit_invalid`，参数 `limit`、`max`），不访问后端——查询常由管理界面的请求绑定，越界是调用方可以改正的输入（2026-11-01 修订，ADR-0084）；基础设施失败仍抛 `CACHING_UNAVAILABLE_001` |
+| `ListKeys(query)` | 按前缀（`CacheKeyQuery.Prefix`，空为全部）分页列出键，`PageSize` 1–1000（默认 100），`ContinuationToken` 续页（没有更多为空）；返回 `Result<CacheKeyPage>`。`PageSize` 越界不在构造时抛出：存储先经 `CacheKeyQuery.Validate()` 核对，越界返回 `CACHING_VALIDATION_003`（HTTP 400，消息键 `caching.inspector.page_size_invalid`，参数 `pageSize`、`max`），不访问后端——查询常由管理界面的请求绑定，越界是调用方可以改正的输入（2026-11-01 修订，ADR-0084）；基础设施失败仍抛 `CACHING_UNAVAILABLE_001` |
 | `Inspect(key)` | 条目的载荷字节数、剩余存活时间（不过期为空）与滑动窗口；不存在或已过期为无值 |
 | `RemoveByPrefix(prefix)` | 删除前缀下的全部键，返回删除数；前缀不能为空 |
 
@@ -53,7 +53,7 @@
 
 | 操作 | 语义 |
 | --- | --- |
-| `ListKeys(query)` | 同字节存储：按前缀分页列出对象条目的键，`Limit` 越界同样返回 `CACHING_VALIDATION_003` |
+| `ListKeys(query)` | 同字节存储：按前缀分页列出对象条目的键，`PageSize` 越界同样返回 `CACHING_VALIDATION_003` |
 | `Inspect(key)` | 条目里对象的类型全名、剩余存活时间（不过期为空）与滑动窗口；不存在或已过期为无值；不读出值、不延长滑动过期 |
 | `RemoveByPrefix(prefix)` | 删除前缀下的对象条目，返回删除数；前缀不能为空 |
 

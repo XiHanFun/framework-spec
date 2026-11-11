@@ -94,7 +94,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_UNEXPECTED_001` | 只读工作单元拒绝写入，是操作实现的缺陷：只读操作（动词 `get` / `list` 或声明了 `ReadOnly`）或以 `IsReadOnly` 开启的工作单元里新增、更新、删除（含批量），以及工作流在只读调用里的写入操作（`IWorkflowTransaction.EnsureWritable`，取锁、执行活动之前；数据库与内存实现都是，内存实现按调用的操作契约判断，2026-11-02 修订，ADR-0099）。仓储写入返回结果并把工作单元记为失败（提交返回同一错误）；直接写入入口 `EnsureTransactionAsync` 抛出、由 Transaction 阶段转为同码结果；HTTP 500、gRPC `Internal`、命令行按 UNEXPECTED 的退出码，按操作计入熔断。同一服务作用域里再经管道的嵌套调用仍是 `PERSISTENCE_VALIDATION_002` |
 | `CACHING_VALIDATION_001` | 缓存键或幂等键不合法 |
 | `CACHING_VALIDATION_002` | 条目选项不合法（绝对与滑动过期同时设置等）：远程缓存插件按操作集校验 `ttlMs` / `slidingMs` 时返回（`provider/caching-distributed.md`），适配器原样成为异常的错误码；.NET 侧构造或使用不合法的 `CacheEntryOptions` 时直接抛 `ArgumentException`（编程错误），不产生错误码 |
-| `CACHING_VALIDATION_003` | 键列表的每页上限越界：`CacheKeyQuery.Limit` 不在 1 到 1000 之间（参数 `limit`、`max`；不在构造时抛出，`ICacheStoreInspector` / `ICacheInspector` 的 `ListKeysAsync` 以结果返回，HTTP 400） |
+| `CACHING_VALIDATION_003` | 键列表的每页条数越界：`CacheKeyQuery.PageSize` 不在 1 到 1000 之间（参数 `pageSize`、`max`；不在构造时抛出，`ICacheStoreInspector` / `ICacheInspector` 的 `ListKeysAsync` 以结果返回，HTTP 400） |
 | `CACHING_UNAVAILABLE_001` | 缓存存储不可达或操作失败 |
 | `CACHING_UNAVAILABLE_002` | 缓存存储已达容量上限（健康项 Degraded 的信号；LRU 不拒绝写入） |
 | `CACHING_CONFLICT_001` | 分布式锁被其他持有者占用：结果式获取 `AcquireAsync` 返回（RFC-0006）；`TryAcquireAsync` 被占用时只是无值 |
@@ -166,7 +166,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `SCHEDULING_NOTFOUND_004` | 运行不存在或已结束 |
 | `SCHEDULING_NOTFOUND_005` | 作业没有代码定义（不能恢复为代码定义） |
 | `SCHEDULING_VALIDATION_001` | 作业定义不合法（触发器名重复、日历未登记、计划不合法） |
-| `SCHEDULING_VALIDATION_002` | 运行历史查询的分页越界：`Skip` 为负或 `Limit` 不在 1 到 1000 之间（参数 `skip`、`limit`、`max`；不在构造时抛出，`RunsAsync` 以结果返回，HTTP 400） |
+| `SCHEDULING_VALIDATION_002` | 运行历史查询的分页越界：`Skip` 为负或 `Take` 不在 1 到 1000 之间（参数 `skip`、`take`、`max`；不在构造时抛出，`RunsAsync` 以结果返回，HTTP 400） |
 | `SCHEDULING_VALIDATION_003` | 作业状态列表的查询不合法：`PageSize` 不在 1 到 1000 之间（参数 `pageSize`、`max`），或续页令牌不是调度器给出的；`ListStatusesAsync` 以结果返回（HTTP 400），不进存储（ADR-0148） |
 | `SCHEDULING_CONFLICT_001` | 作业正在运行且不允许并发 |
 | `SCHEDULING_CONFLICT_002` | 领导租约被其他持有者占用 |
