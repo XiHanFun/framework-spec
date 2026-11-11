@@ -115,11 +115,15 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `SECURITY_DENIED_002` | 策略拒绝 |
 | `SECURITY_DENIED_003` | 凭据无效、过期或签名不符 |
 | `SECURITY_DENIED_004` | 缺少权限 |
+| `SECURITY_DENIED_005` | WebAuthn 响应核对不通过：挑战、来源、RP ID、用户在场或验证、凭据、用户句柄或签名不符（参数 `reason`；RFC-0008「WebAuthn」，ADR-0170） |
+| `SECURITY_DENIED_006` | WebAuthn 签名计数没有增加：认证器可能被复制（参数 `stored`、`received`；ADR-0170） |
 | `SECURITY_VALIDATION_001` | 不支持的认证方案或凭据格式不合法 |
 | `SECURITY_VALIDATION_002` | 条件无效：子句编译出错（属性未登记、运算符与值种类不搭配、条件值解析不了） |
 | `SECURITY_VALIDATION_003` | 条件属性的值不是登记的值种类 |
 | `SECURITY_VALIDATION_004` | 按名引用的策略不存在：操作契约的 `policy`（授权能力登记的启动核对里核对：容器建好、任何特性启动之前，不论失败策略都终止启动，ADR-0085；之后登记的操作在登记时返回，插件整体登记失败）、端点元数据的 `RequireXiHanPolicy` / `RequireXiHanPermission` / `RequireXiHanAuthentication`（`UseXiHan()` 建请求管道时核对）引用了未注册的策略，或 `permission:<code>` 的权限码未登记；启动时以 `FrameworkException` 抛出、一次列出全部（RFC-0008，ADR-0080、ADR-0085） |
 | `SECURITY_VALIDATION_005` | 授予列表的分页越界：`PermissionGrantQuery.Skip` 为负或 `Take` 不在 1 到 1000 之间（参数 `skip`、`take`、`max`；不在构造时抛出，以结果返回，HTTP 400；ADR-0158） |
+| `SECURITY_VALIDATION_006` | WebAuthn 响应解析不了：base64url、JSON、CBOR、认证器数据或字段缺失、类型不对（参数 `reason`；ADR-0170） |
+| `SECURITY_VALIDATION_007` | WebAuthn 公钥的算法不支持：只认 ES256（P-256）、PS256、RS256（参数 `algorithm`；ADR-0170） |
 | `SECURITY_NOTFOUND_001` | 策略不存在：调用时才看到的要求（应用代码以 `RequireAuthorization` 显式写入的、启动之后才加进来的端点）引用的策略未登记，或其中 `permission:<code>` 的权限码未登记（含插件卸载时撤回、尚未重新登记的权限码）；操作契约的权限码在装配时核对（`KERNEL_VALIDATION_005`），契约的策略与端点元数据在启动时核对（`SECURITY_VALIDATION_004`） |
 | `SECURITY_NOTFOUND_002` | 要撤销的授予不存在 |
 | `SECURITY_NOTFOUND_003` | 取不到条件属性的值 |

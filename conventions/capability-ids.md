@@ -35,6 +35,7 @@ VersionRange   = 整数接口版本或 ^ 范围（"1"、"^1"）
 | `messaging.queue` / `messaging.stream` | 队列与流 |
 | `security.authentication` / `security.authorization` | 认证与授权 |
 | `security.ip-region` | IP 归属地解析（RFC-0008，离线、可不装） |
+| `security.webauthn` | 通行密钥仪式的选项生成与响应校验（RFC-0008，可不装） |
 | `multitenancy.context` / `multitenancy.sharding` | 租户上下文与分片 |
 | `objectstorage.blob` | 对象存储 |
 | `objectstorage.multipart` / `objectstorage.presign` | 分片上传与预签名地址（RFC-0012） |

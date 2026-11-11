@@ -1,6 +1,7 @@
 package conformance_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/xihanfun/framework-spec/conformance"
@@ -53,6 +54,18 @@ func TestTypedLoadersAreNonEmpty(t *testing.T) {
 	caching, err := conformance.CachingDistributed()
 	if err != nil || caching.Capability != "caching.distributed@1" || len(caching.Operations) != 8 || len(caching.Samples) == 0 || len(caching.InvalidKeys) == 0 || caching.Errors["unavailable"] != "CACHING_UNAVAILABLE_001" {
 		t.Errorf("caching distributed: %v", err)
+	}
+	webauthn, err := conformance.WebAuthn()
+	if err != nil || webauthn.RelyingParty.ID == "" || len(webauthn.RelyingParty.Origins) == 0 || len(webauthn.Registration) == 0 || len(webauthn.Authentication) == 0 {
+		t.Errorf("webauthn: %v", err)
+	}
+	for _, sample := range append(append([]conformance.WebAuthnCase{}, webauthn.Registration...), webauthn.Authentication...) {
+		if (sample.Error == nil) == (len(sample.Expected) == 0) {
+			t.Errorf("webauthn sample %q must have exactly one of expected and error", sample.Name)
+		}
+		if sample.Error != nil && !strings.HasPrefix(sample.Error.Code, "SECURITY_") {
+			t.Errorf("webauthn sample %q has a non-security error code", sample.Name)
+		}
 	}
 	for _, sample := range caching.Samples {
 		found := false

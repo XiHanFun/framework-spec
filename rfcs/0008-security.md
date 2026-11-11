@@ -1,6 +1,6 @@
 # RFC-0008 认证与授权
 
-> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地、绕过管道的端点；2026-11-01 修订：资源名文法、自己产生的租户声明跟随 TenantClaim、权限码文法；授予读不到不当作没有授予、操作引用的权限码装配时核对；插件声明的权限码由宿主登记、按名引用的策略与端点要求启动时核对；同日再修订：契约的策略在宿主的启动核对里核对、不论失败策略都拒绝启动，插件卸载撤回它声明的权限码；2026-11-04 修订：出站地址策略） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地）、ADR-0051（绕过管道的端点）、ADR-0071（授予读不到以 503 结束、操作引用的权限码装配时核对）、ADR-0080（插件声明的权限码、策略与端点要求启动时核对）、ADR-0085（启动核对不归失败策略管、卸载撤回登记）、ADR-0117（出站地址策略） | 参考实现：`XiHan.Framework.Kernel`（出站地址策略）、`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Hosting.AspNetCore`（绕过管道的端点）、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region` | 一致性：`XiHan.Framework.Security.Conformance`
+> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地、绕过管道的端点；2026-11-01 修订：资源名文法、自己产生的租户声明跟随 TenantClaim、权限码文法；授予读不到不当作没有授予、操作引用的权限码装配时核对；插件声明的权限码由宿主登记、按名引用的策略与端点要求启动时核对；同日再修订：契约的策略在宿主的启动核对里核对、不论失败策略都拒绝启动，插件卸载撤回它声明的权限码；2026-11-04 修订：出站地址策略；2026-11-12 修订：WebAuthn） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地）、ADR-0051（绕过管道的端点）、ADR-0071（授予读不到以 503 结束、操作引用的权限码装配时核对）、ADR-0080（插件声明的权限码、策略与端点要求启动时核对）、ADR-0085（启动核对不归失败策略管、卸载撤回登记）、ADR-0117（出站地址策略）、ADR-0170（WebAuthn） | 参考实现：`XiHan.Framework.Kernel`（出站地址策略）、`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Hosting.AspNetCore`（绕过管道的端点）、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region`、`XiHan.Framework.Security.WebAuthn` | 一致性：`XiHan.Framework.Security.Conformance`
 
 ## 摘要
 
@@ -12,6 +12,7 @@
 | --- | --- | --- |
 | `security.authentication@1` | 凭据 → 主体 | `Security.InMemory`（`ApiKey` 方案，配置装载） |
 | `security.authorization@1` | 策略判定与权限授予 | `Security.InMemory`（RBAC 授予存储）；`Security.Database` 是授予进数据库的显式 Provider |
+| `security.webauthn@1` | 通行密钥仪式的选项生成与响应校验（见「WebAuthn」） | `Security.WebAuthn`（可不装） |
 
 `Security.Jwt`（`Bearer`，HS256 对称密钥）与 `Security.OpenIdConnect`（`Bearer`，签发者 JWKS 的非对称密钥）是显式的认证 Provider，同一时刻只装配其一。
 
@@ -147,9 +148,47 @@ IP 归属地（ADR-0047）是能力 `security.ip-region@1`：`IIpRegionResolver.
 
 应用替换了主处理器或 `WorkflowHttpClient` 时，由替换后的处理器决定能连哪里。
 
+## WebAuthn（2026-11-12 增补，ADR-0170）
+
+能力 `security.webauthn@1`：通行密钥（WebAuthn Level 3）注册与认证两个仪式的选项生成与响应校验。参考实现 `Security.WebAuthn`（`WebAuthnCeremonies`）是无状态的：挑战由应用保存到仪式结束，凭据由应用存储，框架只生成与核对。
+
+1. 依赖方配置 `XiHan:Security:WebAuthn`，装配时读一次，值不合法即启动失败：
+   - `RelyingPartyId`：必填，可注册的域名（如 `example.com`、本地开发的 `localhost`），不带协议、端口与路径，按小写比较。
+   - `RelyingPartyName`：认证器上显示的名称，缺省同 `RelyingPartyId`。
+   - `Origins`：必填，至少一个，形如 `scheme://host[:port]`、不带路径；主机必须等于 `RelyingPartyId` 或是它的子域，`https` 之外只允许主机为 `localhost` 的 `http`。
+   - `UserVerification` 与 `ResidentKey`：`Required`、`Preferred`、`Discouraged`，缺省都是 `Required`（免用户名、免密码登录要可发现凭据与本机验证）。
+   - `TimeoutSeconds`：仪式的超时，缺省 300。`ChallengeSize`：挑战字节数，16 到 64，缺省 32。
+2. 选项：`CreateRegistrationOptions(user, excludeCredentials)` 与 `CreateAuthenticationOptions(allowCredentials)` 生成与 `PublicKeyCredentialCreationOptionsJSON` / `PublicKeyCredentialRequestOptionsJSON` 同形的对象，二进制一律 base64url（无填充），浏览器用 `PublicKeyCredential.parseCreationOptionsFromJSON` / `parseRequestOptionsFromJSON` 直接还原。
+   - 挑战取自 `RandomNumberGenerator`；证明一律请求 `none`；算法依次为 ES256（-7）、PS256（-37）、RS256（-257）。
+   - 用户句柄 1 到 64 字节，不能含个人信息；`allowCredentials` 为空即请求可发现凭据（免用户名登录）。
+3. 注册校验 `VerifyRegistration(response, expectedChallenge)` 依次核对，第一处不符即返回：
+   1. `type` 为 `public-key`，`id` 与 `rawId` 相同（`id`）。
+   2. `clientDataJSON` 是 JSON 对象（`client_data`），`type` 为 `webauthn.create`（`type`），`challenge` 与期望值逐字节相同、定长比较（`challenge`），`origin` 在 `Origins` 里（`origin`），`crossOrigin` 不为真（`cross_origin`）。
+   3. 证明对象是 CBOR 映射，带 `fmt`、`attStmt` 与 `authData`（`attestation_object`）；`authData` 的长度与结构合法（`authenticator_data`）。
+   4. RP ID 哈希等于 `SHA-256(RelyingPartyId)`（`rp_id`）；用户在场（UP，`user_present`）；`UserVerification` 为 `Required` 时用户已验证（UV，`user_verified`）；不可备份（BE 为 0）时备份状态（BS）不能置位（`flags`）；带证明凭据数据（AT，`attested_credential`）。
+   5. 凭据 ID 1 到 1023 字节且与 `rawId` 相同（`credential_id`）；公钥是 COSE 键，算法在上面三种里，ES256 只认 P-256，RSA 模长至少 2048 位（`public_key`，算法不在其中为 `SECURITY_VALIDATION_007`）。
+   6. 证明声明不校验，任何格式都按 `none` 对待：依赖方不要求证明，公钥是否真由认证器持有，由之后每次认证的签名证明；只有 `fmt` 为 `none` 时要求 `attStmt` 为空映射（`attestation`）。
+   成功返回凭据 ID、COSE 公钥（base64url）、算法、签名计数、AAGUID、BE、BS、UV 与 `transports`。
+4. 认证校验 `VerifyAuthentication(response, expectedChallenge, credential)`：
+   1. 同 3.1，且 `id` 等于存储的凭据 ID（`credential`）。
+   2. `clientDataJSON` 的 `type` 为 `webauthn.get`，其余同 3.2。
+   3. `authenticatorData` 的长度与结构、RP ID、UP、UV、BE 与 BS 同 3.3、3.4（不要求 AT）。
+   4. 存储的凭据带用户句柄、响应也带 `userHandle` 时两者相同（`user_handle`）。
+   5. 签名覆盖 `authenticatorData ‖ SHA-256(clientDataJSON)`，算法取存储的公钥：ES256 是 DER 编码的 ECDSA，PS256 是 PSS，RS256 是 PKCS#1 v1.5，都用 SHA-256（`signature`）。
+   6. 签名计数：新旧值有一个不为 0 时新值必须大于旧值，否则 `SECURITY_DENIED_006`（认证器可能被复制，应用应提醒本人或停用凭据）；都为 0 是不计数的认证器，放行。
+   成功返回新的签名计数、UV 与 BS，应用据此更新存储的凭据。
+5. 失败以 `Result` 返回、不抛出，参数 `reason` 是上面括号里的机读原因：
+   - 响应解析不了是 `SECURITY_VALIDATION_006`：`id`、`client_data`、`attestation_object`、`authenticator_data`、`flags`、`attested_credential`、`credential_id`、`public_key`、`attestation`。
+   - 公钥算法不支持是 `SECURITY_VALIDATION_007`，参数 `algorithm`。
+   - 核对不通过是 `SECURITY_DENIED_005`：`type`、`challenge`、`origin`、`cross_origin`、`rp_id`、`user_present`、`user_verified`、`credential`、`user_handle`、`signature`。
+   - 参数为 `null` 抛 `ArgumentNullException`；应用给的期望挑战或存储的凭据 ID 不是 base64url 抛 `ArgumentException`（调用方的错误，不是响应的错误）；存储的公钥解不开按 `public_key` 返回。
+6. 不做：证明的信任链与元数据服务（MDS），扩展（客户端扩展结果忽略），挑战与凭据的存储。
+
 ## 一致性
 
 授权 Provider 必须让其 `IPermissionGrantStore` 通过 `PermissionGrantStoreConformance`。套件的「存储不可达」用例要求 Provider 给出一个背后存储不可达的实例（覆写 `CreateUnavailableStoreAsync`），读取必须返回 `SECURITY_UNAVAILABLE_001` 而不是空集合；只有进程内、读取不会失败的存储（内存实现）可以不给，该用例跳过。
+
+WebAuthn 的实现要逐条回放 `conformance/vectors/security/webauthn.json`：注册与认证的样例响应及期望结果（成功时的凭据与签名计数，失败时的错误码与 `reason`）。
 
 ## 错误码
 

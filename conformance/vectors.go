@@ -158,6 +158,42 @@ type CachingDistributedVectors struct {
 	Errors         map[string]string `json:"errors"`
 }
 
+// WebAuthnVectors 对应 security/webauthn.json；响应与凭据保持原样，形状见 RFC-0008「WebAuthn」。
+type WebAuthnVectors struct {
+	RelyingParty   WebAuthnRelyingParty `json:"relyingParty"`
+	Registration   []WebAuthnCase       `json:"registration"`
+	Authentication []WebAuthnCase       `json:"authentication"`
+}
+
+// WebAuthnRelyingParty 是向量所用的依赖方配置。
+type WebAuthnRelyingParty struct {
+	ID               string   `json:"id"`
+	Origins          []string `json:"origins"`
+	UserVerification string   `json:"userVerification"`
+}
+
+// WebAuthnCase 是一条注册或认证样例：成功时有 Expected，失败时有 Error。
+type WebAuthnCase struct {
+	Name       string          `json:"name"`
+	Challenge  string          `json:"challenge"`
+	Credential json.RawMessage `json:"credential,omitempty"`
+	Response   json.RawMessage `json:"response"`
+	Expected   json.RawMessage `json:"expected,omitempty"`
+	Error      *WebAuthnError  `json:"error,omitempty"`
+}
+
+// WebAuthnError 是样例期望的错误：错误码与机读原因（算法不支持时是算法编号）。
+type WebAuthnError struct {
+	Code      string `json:"code"`
+	Reason    string `json:"reason,omitempty"`
+	Algorithm *int64 `json:"algorithm,omitempty"`
+}
+
+// WebAuthn 读取 WebAuthn 注册与认证的样例。
+func WebAuthn() (WebAuthnVectors, error) {
+	return Load[WebAuthnVectors]("security/webauthn.json")
+}
+
 // CachingDistributed 读取 caching.distributed 远程 Provider 的操作集向量。
 func CachingDistributed() (CachingDistributedVectors, error) {
 	return Load[CachingDistributedVectors]("provider/caching-distributed.json")
