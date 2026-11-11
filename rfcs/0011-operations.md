@@ -56,7 +56,7 @@ JSON 是 XGI 的规范编码；gRPC 等二进制协议在适配器里转换（`P
 1. 描述在管道开始前进入上下文（`context.SetOperation`）。Authorize 阶段没有显式授权要求时按契约的 `permission` / `policy` 判定（`Security.Abstractions.AuthorizationMiddleware`）。
 2. 载荷不合法（非 JSON、`null`、类型不匹配）返回 `KERNEL_VALIDATION_001`，不执行操作。JSON 错误的 `reason` 只写路径（`$.quantity`），不带目标类型名（2026-11-04 修订，ADR-0124）。
 3. 解码后的请求对象与执行成功的响应对象记录在上下文（`FindOperationRequest` / `FindOperationResponse`），供 Validate、Egress 与适配器使用；原始载荷记录在 `FindOperationPayload`。
-4. 宿主端点在进入管道前就绑定载荷：`Protocols.Http` 的端点元数据携带 `OperationPayloadBinder`，`UseXiHan()` 据此在构造上下文时把路由值、请求体与查询串绑定为载荷放进上下文（绑定失败直接写 Problem Details，不进管道），端点内 `ExecuteAsync` 用 Validate 阶段解码好的请求。
+4. 宿主端点的载荷在 Validate 阶段才读（2026-11-12 修订，ADR-0176）：`Protocols.Http` 的端点元数据携带 `OperationPayloadBinder`，`UseXiHan()` 不在进管道前读请求体，只把它包成载荷来源 `OperationPayloadSource` 放进上下文（`SetOperationPayloadSource`）；内置的 `ValidationMiddleware` 先经 `ResolveOperationPayloadAsync` 读一次（把路由值、请求体与查询串绑定为载荷放进上下文），再校验 Schema 并解码。Validate 排在 Resilience、Authenticate、Tenant 与 Authorize 之后，被限流、没有认证或没有权限的调用不会让宿主缓冲请求体；读取失败（请求体超过上限、不是 JSON）是调用的失败结果，与其他失败一样写成 Problem Details。关掉内置中间件、没有 Validate 阶段时，执行操作的端点自己解析载荷来源。端点内 `ExecuteAsync` 用 Validate 阶段解码好的请求。
 5. 操作抛出的异常由 Observe 阶段翻译为 `KERNEL_UNEXPECTED_001`，与普通调用一致。
 6. 宿主端点可用 `OperationDescriptor` 作为端点元数据，`Hosting.AspNetCore` 的 `UseXiHan()` 在构造上下文时把它放入上下文，端点内再 `ExecuteAsync`。
 7. 响应过滤（ADR-0061）：操作成功后、响应对象写进上下文之前，调用器从调用的服务作用域里取出全部 `IOperationResponseFilter`（任意生命周期），按登记顺序调用 `FilterAsync(context, descriptor, response)`，后一个拿到前一个的输出，最后的对象才写进上下文。
