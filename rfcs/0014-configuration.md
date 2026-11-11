@@ -50,7 +50,7 @@
 - 版本是内容的 MD5（小写十六进制），与 Nacos 监听接口的约定一致：监听时服务端拿报来的值与它存的内容 MD5（按 UTF-8 编码计算）逐字比较。取配置响应的 `Content-MD5` 头（HTTP 上它是内容头）原文；没有这个头时按同样的算法自己算，不得换成别的摘要，否则监听永远报告变化、退化成普通轮询。`knownVersion` 非空时先以该 MD5 长轮询监听（`LongPollTimeout`，默认 30 秒），服务端报告变化才取整份文档，窗口到期或取消返回无值。
 - 文档格式 `Format`：`Json`（默认，对象按 `A:B` 展平、数组按下标、`null` 保留为空值）或 `Properties`（`a.b=c` → `a:b`，`#` / `!` 行是注释）。
 - 配置构建期的入口 `AddXiHanNacos(options, remote)` 经工厂重载自建客户端（自带 `HttpClient`），随配置根释放；运行期由特性登记进容器的客户端归容器。
-- 配置了 `Username` / `Password` 时先登录取 `accessToken`，到期前自动续；`ServerAddresses` 可以是多个地址，按序尝试。可选绑定 `nacos`（`configuration:remote`）的主值覆盖 `ServerAddresses`，属性 `username` / `password` 覆盖 `Username` / `Password`（各自逐项，空白不算给出），其余键照读配置节（RFC-0016「资源绑定与配置节」）。
+- 配置了 `UserName` / `Password` 时先登录取 `accessToken`，到期前自动续；`ServerAddresses` 可以是多个地址，按序尝试。可选绑定 `nacos`（`configuration:remote`）的主值覆盖 `ServerAddresses`，属性 `username` / `password` 覆盖 `UserName` / `Password`（各自逐项，空白不算给出），其余键照读配置节（RFC-0016「资源绑定与配置节」）。
 - 地址的路径是 Nacos 的上下文路径（`server.servlet.contextPath`，经网关转发时连同网关的前缀），接口路径（`/v1/cs/configs`、`/v1/cs/configs/listener`、`/v1/auth/login`）接在它后面；地址没有路径（或只有 `/`）时用 Nacos 的缺省上下文路径 `/nacos`。`http://host:8848` 与 `http://host:8848/nacos` 等价。
 
 ## 选项里的凭据
@@ -60,7 +60,7 @@
 1. 凭据成员打印为 `Redaction.Mask`（`***`，RFC-0001），值为 `null` 时照记录的写法打印为空（表示没有配置）。凭据指口令、密钥、访问密钥 ID、API 密钥、私钥、令牌与凭据对象（属性名以 `Password`、`Passphrase`、`Secret`、`SecretKey`、`AccessKey`、`AccessKeyId`、`ApiKey`、`PrivateKey`、`ConnectionString`、`Credential(s)` 结尾，或就是 `Token` / `AccessToken` / `RefreshToken` / `BearerToken` / `SessionToken`），以及名字不带这些词、值却是整串连接串的字段——连接串整串遮蔽，与 RFC-0005「机密」的脱敏范围一致（只遮整串连接串与口令类的值）；还有与这些凭据同在一个记录里的用户名（属性名就是 `User`、`UserName`、`Username`，规则 2）。
 2. 访问密钥 ID（S3 的 `AccessKey` 等）是云服务商发给调用方的访问密钥的一半，与密钥一同遮蔽（2026-11-01 修订，ADR-0089）。登录用户名——与口令、密钥等凭据同在一个记录里的 `User`、`UserName`、`Username`，即一对登录凭据里的身份那一半——同样遮蔽（2026-11-01 再修订，ADR-0090）。不带凭据的记录里的用户名不是登录凭据（如 `RuntimeInfo.UserName` 是运行进程的系统账户，属于主机诊断数据），照常打印；端点、文件路径（`TokenPath`）与分页游标（`ContinuationToken`）也照常打印：排查连接问题要用到它们。用户名的遮蔽范围到此为止，已定（2026-11-02，ADR-0093）：不扩到 `RuntimeInfo.UserName`（RFC-0023），也不扩到持久化驱动异常消息里连接串的用户名键（`Username=`、`User Id=` 等）——那是 RFC-0005「机密」的脱敏，主机、端口、库名、用户名保留（ADR-0084）。
 3. 其余成员照常打印，名字、顺序与格式同编译器生成的写法；字典与列表照记录的缺省只打印类型名，不展开内容（Kafka 的 `Properties` 里的 `sasl.password` 等因此不会出现）。
-4. 框架里适用的记录：`RedisCachingOptions`（`Configuration`、`User`、`Password`）、`RabbitMQMessagingOptions`（`Configuration`、`UserName`、`Password`）、`RedisMessagingOptions`（`Configuration`、`User`、`Password`）、`NacosOptions`（`Username`、`Password`）、`S3ObjectStorageOptions`（`AccessKey`、`SecretKey`）、`AIProviderOptions`（`ApiKey`）、`KubernetesSchedulingOptions`（`Token`）、`JwtOptions`（`Secret`）、`HostedBlobUrlOptions`（`Secret`）、`PrincipalRecord`（`ApiKey`）、`TenantShard`（`ConnectionString`）、内核的 `BindingValue`（主值 `Value`）。新加的选项或记录带凭据时同样遮蔽；参考实现以架构测试反射全部公开记录核对（凭据写入哨兵值后 `ToString()` 不含它、凭据打印为 `***`、每个公开属性都仍出现）。
+4. 框架里适用的记录：`RedisCachingOptions`（`Configuration`、`UserName`、`Password`）、`RabbitMQMessagingOptions`（`Configuration`、`UserName`、`Password`）、`RedisMessagingOptions`（`Configuration`、`UserName`、`Password`）、`NacosOptions`（`UserName`、`Password`）、`S3ObjectStorageOptions`（`AccessKey`、`SecretKey`）、`AIProviderOptions`（`ApiKey`）、`KubernetesSchedulingOptions`（`Token`）、`JwtOptions`（`Secret`）、`HostedBlobUrlOptions`（`Secret`）、`PrincipalRecord`（`ApiKey`）、`TenantShard`（`ConnectionString`）、内核的 `BindingValue`（主值 `Value`）。新加的选项或记录带凭据时同样遮蔽；参考实现以架构测试反射全部公开记录核对（凭据写入哨兵值后 `ToString()` 不含它、凭据打印为 `***`、每个公开属性都仍出现）。
 
 ## 一致性
 

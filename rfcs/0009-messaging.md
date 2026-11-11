@@ -44,7 +44,7 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 
 ## 投递
 
-1. 应用用 `AddMessageHandler<THandler>(topic, mode)` 订阅，`mode` 缺省为竞争消费（见「订阅方式」）；处理器是作用域服务。
+1. 应用用 `AddMessageHandler<THandler>(topic, mode)` 订阅，`mode` 缺省为竞争消费（见「订阅方式」）；处理器是作用域服务。订阅只在装配时登记：消息运行时与派发器取用订阅表之后它是只读的，再登记抛出 `InvalidOperationException`，交出的订阅与处理器列表是只读视图（2026-11-11 修订，ADR-0155）。
 2. 代理为每个订阅（主题加订阅方式）消费，把投递交给派发器；投递带订阅方式（`MessageDelivery.Mode`）。派发器为每条消息开新作用域、构造调用上下文（Baggage 与追踪来自扩展属性）、经完整管道依次执行该主题、该方式的处理器，第一个失败即调用结果。
 3. 处理器返回失败或抛异常都算投递失败。代理重试到 `MaxAttempts`（默认 3，含首次），之后竞争订阅进入死信，广播订阅丢弃并记日志。重试的顺序由代理决定（内存实现排到队尾）。
 4. 派发不写幂等键：重试必须重新执行处理器；去重由处理器按 `id` + `source` 自理，或在 P3 由操作契约提供消息级去重。
@@ -64,7 +64,7 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 
 `Messaging.Redis`（ADR-0130，Redis 6.2 或更高）：
 
-- 每个主题一条 Redis 流 `<KeyPrefix><topic>`（前缀默认 `xihan:messaging:`），条目字段 `envelope` 是 CloudEvents 结构化 JSON。竞争订阅用消费组 `GroupName`（默认 `xihan`，文法同实例标识，不含 `@`），消费者名是实例标识。
+- 每个主题一条 Redis 流 `<KeyPrefix><topic>`（前缀默认 `xihan:messaging:`），条目字段 `envelope` 是 CloudEvents 结构化 JSON。竞争订阅用消费组 `ConsumerGroup`（默认 `xihan`，文法同实例标识，不含 `@`），消费者名是实例标识。
 - 流只由订阅方建立：订阅方启动时以 `MKSTREAM` 建组，并在同一段 Lua 里建自己的消费者，组从 `$` 开始。订阅方第一次启动之前发布的消息不投递；之后订阅方离线期间的消息留在流里。
 - 发布 `XADD <key> NOMKSTREAM MAXLEN ~ <MaxLength>`，Redis 应答了条目 ID 才是成功。键不存在即没有订阅者：与内存代理一致，消息丢弃，发布照常成功（批量逐项成功），代理记一条 Debug 级别的日志。批量发布在一个 `MULTI` / `EXEC` 事务里，整批写入或整批不写入。连接或超时异常整批抛出 `MESSAGING_UNAVAILABLE_001`。
 - 每个订阅一个消费循环，`XREADGROUP ... >` 每次最多取 `BatchSize`（默认 10）条，单线程依次派发。没取到就等 `PollIntervalSeconds`（默认 0.2）再取：客户端的多路复用连接不支持 `BLOCK`。成功就 `XACK`。
@@ -73,7 +73,7 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 - 容量：`MAXLEN ~` 是每条流的上限。维护时按全部组的下限（有待确认条目时取最早一条，否则取最后投递的 ID）`XTRIM MINID ~`，去掉已被全部组确认的条目，流里只留积压。消费者落后超过 `MaxLength` 时最旧的条目在投递前被裁掉，这些消息丢失。
 - 实例标识每次启动不同，消费者与广播组会随重启增多，所以要清理：
   - 停止时，竞争订阅没有待确认条目就删除自己的消费者，广播订阅删除自己的组。
-  - 维护时，删除竞争组里空闲超过 `ClaimIdleTimeSeconds`、没有待确认条目的消费者，删除没有消费者或消费者全部空闲超时的 `<GroupName>@*` 广播组。
+  - 维护时，删除竞争组里空闲超过 `ClaimIdleTimeSeconds`、没有待确认条目的消费者，删除没有消费者或消费者全部空闲超时的 `<ConsumerGroup>@*` 广播组。
   - 删组与「流上没有组了就删流」在同一段 Lua 里完成。
 - 用作消息的 Redis 不能淘汰流的键（`maxmemory-policy` 为 `noeviction` 或 `volatile-*`），连接时发现 `allkeys-*` 记 Warning。发布成功只表示主节点收下，不等副本；持久性取决于部署的持久化与复制。
 
@@ -101,8 +101,8 @@ Provider：
 
 - `Messaging.InMemory`：单进程就是一个实例，竞争订阅与广播订阅都在本进程收到一次（各一次投递）；广播投递失败到上限后丢弃，不进死信列表。没有跨进程的语义。
 - `Messaging.RabbitMQ`：广播订阅为每个实例声明独占、非持久、随连接删除的队列 `<QueuePrefix><topic>@<InstanceId>`（`@` 不在主题文法里，不会与竞争队列或死信队列重名），以主题的路由键绑定到交换机；与代理断开时队列随连接删除，客户端自动恢复连接时重新声明，断开期间的消息不进它。重试经默认交换机定向发回这个队列。
-- `Messaging.Kafka`：广播订阅用本实例独占的消费组 `<GroupId>@<InstanceId>`（组内只有本实例，分到全部分区），没有已提交位点时从最新位点开始（`auto.offset.reset=latest`），不提交位点：消费组空了不留位点，重启时没有已提交的位点（生成的标识每次不同，是新的消费组；配置了固定标识时组名不变，但从未提交过位点），不回放历史。分区分配是异步的，启动后要等消费组分到分区（通常几秒）才开始收；组内再均衡同样从最新位点续上。
-- `Messaging.Redis`：广播订阅用本实例独占的消费组 `<GroupName>@<InstanceId>`，从 `$` 开始，不回放历史；重试与回收与竞争订阅相同，到上限或无法解码时确认掉并记 Warning，不进死信。停止时删除这个组；实例崩溃留下的组由还订阅这个主题的实例在维护时删除。两个实例同一标识就是同一个组，广播静默退化成竞争。
+- `Messaging.Kafka`：广播订阅用本实例独占的消费组 `<ConsumerGroup>@<InstanceId>`（组内只有本实例，分到全部分区），没有已提交位点时从最新位点开始（`auto.offset.reset=latest`），不提交位点：消费组空了不留位点，重启时没有已提交的位点（生成的标识每次不同，是新的消费组；配置了固定标识时组名不变，但从未提交过位点），不回放历史。分区分配是异步的，启动后要等消费组分到分区（通常几秒）才开始收；组内再均衡同样从最新位点续上。
+- `Messaging.Redis`：广播订阅用本实例独占的消费组 `<ConsumerGroup>@<InstanceId>`，从 `$` 开始，不回放历史；重试与回收与竞争订阅相同，到上限或无法解码时确认掉并记 Warning，不进死信。停止时删除这个组；实例崩溃留下的组由还订阅这个主题的实例在维护时删除。两个实例同一标识就是同一个组，广播静默退化成竞争。
 
 ## 流
 
@@ -112,7 +112,7 @@ Provider：
 2. 消费位点：按消费组保存，投递完成（成功、重试耗尽进死信、无法解码进死信）后提交；重启续接，仍是至少一次。重试在原位进行（不重新入队），保持分区内顺序。死信发布没有得到确认（投递第 7 条）、或投递因代理不可达等异常没有完成时，投递未完成：不提交位点，消费者回退到这条消息，等 `RedeliveryDelay` 后重新投递（处理器重新执行），期间该分区不往后读；消费者本身出错（不是某条消息的错误）同样等一会儿再取。消费循环只在停止时退出，停止时未完成的消息不提交，重启后重新投递。重放中的死信发布没有得到确认时，重放返回 `MESSAGING_UNAVAILABLE_001`。
 3. 重放：`IMessageReplayer.ReplayAsync(topic, since)` 用独立的消费位点把该时刻起的消息重新投递给当前竞争订阅的处理器（广播订阅不回放），经完整管道、按同样的重试与死信规则；不影响正常消费的位点；主题不存在或该时刻之后没有消息时成功返回。重放是有意的重复投递，去重仍由处理器自理。
 
-`Messaging.Kafka`：主题映射为 `<TopicPrefix><topic>`（默认 `xihan.`），竞争订阅的消费组 `GroupId`（默认 `xihan`），每个订阅（主题加订阅方式）一个消费者；生产者幂等且 `acks=all`，批量发布用客户端的原生批量后一次等待全部投递报告；无法解码或重试耗尽的消息发布到 `<topic><DeadLetterSuffix>`，没有落盘或发布失败时按「流」第 2 条回退，`RedeliveryDelaySeconds`（默认 5）秒后重新投递；`Properties:<key>` 透传 librdkafka 配置（`security.protocol`、`sasl.*`、`ssl.*`）。连接不上在启动时失败。发布到不存在的主题时，主题由 broker 按 `auto.create.topics.enable`（Kafka 缺省开启）自动建出；没人订阅的主题里的消息只占到保留期（`retention.ms`，缺省 7 天）为止，没有消费组也就没有积压，不会像队列那样无限堆积（ADR-0079）。broker 关闭了自动建主题时，主题不存在是部署错误，框架不替它建，也不把它当作没有订阅者（ADR-0085）：
+`Messaging.Kafka`：主题映射为 `<TopicPrefix><topic>`（默认 `xihan.`），竞争订阅的消费组 `ConsumerGroup`（默认 `xihan`），每个订阅（主题加订阅方式）一个消费者；生产者幂等且 `acks=all`，批量发布用客户端的原生批量后一次等待全部投递报告；无法解码或重试耗尽的消息发布到 `<topic><DeadLetterSuffix>`，没有落盘或发布失败时按「流」第 2 条回退，`RedeliveryDelaySeconds`（默认 5）秒后重新投递；`Properties:<key>` 透传 librdkafka 配置（`security.protocol`、`sasl.*`、`ssl.*`）。连接不上在启动时失败。发布到不存在的主题时，主题由 broker 按 `auto.create.topics.enable`（Kafka 缺省开启）自动建出；没人订阅的主题里的消息只占到保留期（`retention.ms`，缺省 7 天）为止，没有消费组也就没有积压，不会像队列那样无限堆积（ADR-0079）。broker 关闭了自动建主题时，主题不存在是部署错误，框架不替它建，也不把它当作没有订阅者（ADR-0085）：
 - 发布：客户端判定主题不存在后失败（`MESSAGING_UNAVAILABLE_001`，librdkafka 的 `topic.metadata.propagation.max.ms`，缺省 30 秒），批量发布整批抛出；直接发布的把异常抛给发布方，经发件箱的按发件箱的规则退避重试、到上限进死信（「发件箱」；2026-11-03 之前发件箱遇到抛出整轮回滚、不计尝试，这条消息与同批的消息会一直卡住，ADR-0108）。
 - 订阅：消费者每次取消息都报主题不存在，记 Warning 日志后继续等，主题建好之后才开始收。
 - 死信：死信主题不存在时死信发布失败，按「流」第 2 条回退、重新投递，这条消息所在的分区停在原地。
