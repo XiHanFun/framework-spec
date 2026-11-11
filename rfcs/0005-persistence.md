@@ -176,7 +176,7 @@ EF Core（10.0）：SQLite 上三个方法一律译成 `LIKE … ESCAPE '\'`（2
 
 ## 运行时数据源
 
-应用在运行时按自己的记录（名字、数据库类型、连接串，通常存在应用自己的库里）连外部库，如代码生成的外部数据源与零代码运行时。`Persistence.Abstractions` 的 `DataSourceRegistry`（单例）按定义建连接、按名缓存，Provider 经 `IDataSourceProvider` 接入（`AddDataSourceProvider<T>`）。运行时数据源与应用自己的连接互不相干：不加进作用域客户端、不参与实体落点、不进工作单元，约定连接 `default` / `shard` 与租户分片照旧。
+应用在运行时按自己的记录（名字、数据库类型、连接串，通常存在应用自己的库里）连外部库，如代码生成的外部数据源与零代码运行时。`Persistence.Abstractions` 的 `DataSourceRegistry`（单例）按定义建连接、按名缓存，Provider 经 `IDataSourceProvider` 接入（`AddDataSourceProvider<T>`），`CreateAsync` 返回 `Result<IDataSource>`，数据库类型不认得或连接串不合法返回 `PERSISTENCE_VALIDATION_006`（`DataSourceFailures.Invalid`，原因统一脱敏），不抛出（2026-11-11 修订，ADR-0150）。运行时数据源与应用自己的连接互不相干：不加进作用域客户端、不参与实体落点、不进工作单元，约定连接 `default` / `shard` 与租户分片照旧。
 
 | 项 | 规则 |
 | --- | --- |
