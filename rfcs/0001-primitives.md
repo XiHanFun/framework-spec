@@ -77,7 +77,7 @@ public sealed record Error
     public static Error Conflict(string code, string messageKey, IReadOnlyDictionary<string, object?>? details = null);
     public static Error Denied(string code, string messageKey, IReadOnlyDictionary<string, object?>? details = null);
     public static Error Unavailable(string code, string messageKey, IReadOnlyDictionary<string, object?>? details = null);
-    public static Error Unexpected(string code, string messageKey, Error? inner = null, IReadOnlyDictionary<string, object?>? details = null);
+    public static Error Unexpected(string code, string messageKey, IReadOnlyDictionary<string, object?>? details = null, Error? inner = null);
     public Error WithCode(string code);                             // 换码，保留键、文案、参数
     public Error WithText(string text);                             // 填入已解析文案
 }
@@ -258,6 +258,8 @@ public static class Redaction
 | `CapabilityId` / `ManifestId` | 格式校验与领域段提取 |
 
 接口版本是整数；`^N` 与 `N` 等价。收集、解析与求解是内核的职责。
+
+清单记录的构造只收必需字段（`Binding(name, type)`、`CapabilityRequirement(id, version)`、`ConfigContribution(section)`、`PipelineContribution(middleware, stage)`），可选字段（`Required`、`Optional`、`Schema`、`Before`、`After`）经初始化器设置：原语层只增不改，以后加字段只加可选的初始化字段，不改构造的参数表。`TryParse` 失败时输出为空（.NET 以 `[NotNullWhen(true)]` 标注）。`Error.Unexpected` 的参数顺序与构造一致：先细节、后内部错误（2026-11-11 修订，ADR-0137）。
 
 ## 稳定性级别
 
