@@ -20,6 +20,8 @@
 | `IValueObject` | — | 标记；用 `record` 取得值相等 |
 | `ISpecification<T>` | `Criteria`、`IsSatisfiedBy` | 同一条件既能内存判定也能交给查询提供器；`And` / `Or` / `Not` 组合必须共享同一参数；可空值类型（`DateTimeOffset?`、`int?` 等）与 null 的 `==` / `!=` 按存在性翻译（`IS NULL` / `IS NOT NULL`，与 `HasValue` 等价），Provider 不得译成 `= NULL`；判空与取反出现在 `&&` / `||` 的任意嵌套位置（如 `A && B && (x == null || …)`、`A && (!(…) || …)`）都照常翻译，Provider 不得漏写运算符 |
 
+`TenantId` 与 `ConcurrencyStamp` 的类型不可空：已持久化的行一定有值。新建实体在新增前以 `string.Empty` 占位，新增时由 Provider 写入，调用方写的值不生效（2026-11-11 修订，ADR-0145）。
+
 领域事件集合有界（默认 256），超出抛出 `InvalidOperationException`：那是忘记提交的编程错误。
 
 ### 协议字段只由 Provider 写入

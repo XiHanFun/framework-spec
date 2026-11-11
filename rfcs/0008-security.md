@@ -18,7 +18,7 @@
 ## 认证
 
 1. 宿主在 Ingress 阶段把协议凭据（HTTP `Authorization: <scheme> <value>`；没有时，登记过的查询串令牌路径下取 `access_token`，见「绕过管道的端点」）放入上下文，自己不解释它。
-2. Authenticate 阶段：没有凭据保持匿名；有凭据交给方案匹配（不区分大小写）的 `IAuthenticationHandler`。不支持的方案返回 `SECURITY_VALIDATION_001`；凭据无效返回 `SECURITY_DENIED_003`，不区分原因对外暴露；它与 `SECURITY_DENIED_001` 同是认证失败（HTTP 401 并带 `WWW-Authenticate`，gRPC `Unauthenticated`，ADR-0042），客户端据此刷新凭据，其余 DENIED 才是已认证但无权限；成功写入 `SecurityContext.Principal`，保留已有租户。
+2. Authenticate 阶段：没有凭据保持匿名（`Principal.Anonymous`，ID 与认证方案都是 `null`；已认证主体两者都不为空，ADR-0145）；有凭据交给方案匹配（不区分大小写）的 `IAuthenticationHandler`。不支持的方案返回 `SECURITY_VALIDATION_001`；凭据无效返回 `SECURITY_DENIED_003`，不区分原因对外暴露；它与 `SECURITY_DENIED_001` 同是认证失败（HTTP 401 并带 `WWW-Authenticate`，gRPC `Unauthenticated`，ADR-0042），客户端据此刷新凭据，其余 DENIED 才是已认证但无权限；成功写入 `SecurityContext.Principal`，保留已有租户。
 3. `XiHan:Security:RequireAuthentication` 为真时匿名调用在此被拒绝（`SECURITY_DENIED_001`）；默认由策略决定。
 4. 声明按原始类型名保留，不映射为 .NET 长类型；角色声明类型由 `XiHan:Security:RoleClaim`（默认 `role`）决定，租户声明类型由多租户选项 `XiHan:MultiTenancy:TenantClaim`（默认 `tenant`）决定。令牌类方案（JWT、OpenID Connect）原样保留令牌里的声明，签发方要按这个类型写租户；自己产生租户声明的方案（`ApiKey` 把主体记录的租户写成声明）读同一个配置键，改了 `TenantClaim` 也能被 Tenant 阶段的声明解析器认出。
 
@@ -71,7 +71,7 @@
 授权要求与审计里的资源用统一资源名 `xrn:<partition>:<service>:<tenant>:<type>/<id>`（内核 `ResourceName`）：
 
 - `partition`、`service`、`type`：`[a-z0-9-]+`。
-- `tenant`：空串（全局资源），或与 RFC-0007「租户 ID」同一文法的租户 ID（`[A-Za-z0-9][A-Za-z0-9._-]{0,63}`，区分大小写）。任何合法的租户 ID 拼进资源名都能原样解析回来，`Acme`、`acme.cn`、`t_42` 都是合法的租户段。
+- `tenant`：空段（全局资源；.NET 的 `ResourceName.Tenant` 为 `null`，构造时传空字符串被拒绝，2026-11-11 修订，ADR-0145），或与 RFC-0007「租户 ID」同一文法的租户 ID（`[A-Za-z0-9][A-Za-z0-9._-]{0,63}`，区分大小写）。任何合法的租户 ID 拼进资源名都能原样解析回来，`Acme`、`acme.cn`、`t_42` 都是合法的租户段。
 - `id`：不含 `/` 与空白的非空串。
 
 解析不合法的资源名失败（`Parse` 抛出参数异常，`TryParse` 返回假），不做大小写或字符替换。
