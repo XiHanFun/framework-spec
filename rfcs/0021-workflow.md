@@ -20,7 +20,7 @@ Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkfl
 - 节点 ID、转移 ID：`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`，定义内唯一。
 - 活动类型 `ActivityType`：`^[A-Za-z][A-Za-z0-9._-]{0,63}$`；内置活动用 PascalCase 名（`Start`、`UserTask`）。
 - 实例、节点实例、书签、任务的 ID 由引擎生成：UUID v7 的 32 位十六进制；存储不解释它们。
-- **值模型是 JSON**：变量、节点属性、输入、输出、节点状态与书签载荷都是 `System.Text.Json.Nodes.JsonObject`（值为 `JsonNode?`：null、bool、string、number、数组、对象）。存储以 JSON 文本持久化（`WorkflowJsonContext` 源生成，AOT 可用），内存实现保存深拷贝（读己之写，不泄漏引用）。`WorkflowVariables` 是对 `JsonObject` 的只读视图加类型化读取（`Get<T>`、`TryGet<T>`）。
+- **值模型是 JSON**：变量、节点属性、输入、输出、节点状态与书签载荷都是 `System.Text.Json.Nodes.JsonObject`（值为 `JsonNode?`：null、bool、string、number、数组、对象）。存储以 JSON 文本持久化（`WorkflowJsonContext` 源生成，AOT 可用），内存实现保存深拷贝（读己之写，不泄漏引用）。`WorkflowVariables` 是对 `JsonObject` 的只读视图加类型化读取（按名的索引器与 `TryGet<T>`，没有、值为 JSON null 或转换失败时返回 false）。
 - 时间一律 `DateTimeOffset`（UTC），取自 `TimeProvider`。租户 ID 是字符串（RFC-0007）。
 
 ## 定义

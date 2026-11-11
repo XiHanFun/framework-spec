@@ -286,6 +286,11 @@ public static class Redaction
   - 从字符串创建会校验并在不合法时抛出，所以只能经构造或显式转换；隐式转换不得抛出，因而不提供从字符串的隐式转换。
   - 值类型的 `default` 不是合法标识：读它的文本抛出 `InvalidOperationException`，`ToString` 返回空串。Provider 第一次读文本就失败，接收标识的入口不必逐一判断 `default`；由多个标识组成的值（如授予主体、触发器键）在构造时拒绝 `default` 成员。
   - 来自不可信输入的文本先用各类型的 `IsValid` 判断，不靠捕获异常（2026-11-11 修订，ADR-0152）。
+- **查找的命名**：方法名决定返回的形状，调用方看名字就知道「没有」怎么表示。
+  - `Find…` 返回 `Maybe<T>`（异步与可失败时包在 `Result` 或任务里），没有是正常结果，例如按标识查实体、按名查绑定、读调用上下文里的条目。
+  - `TryGet…` 只用于 `bool` 加 `out` 参数，与 BCL 的 `TryGetValue` 一致。
+  - `Get…` 必定交出值：没有时是失败结果（如 `NOT_FOUND`）或编程错误，不返回 `null` 或空的 `Maybe`。
+  - 例外是键值存储的读：缓存条目的 `GetAsync` / `GetManyAsync` 沿用键值存储的通用词汇返回 `Maybe`（见批量优先的命名表）；实现 BCL 或第三方接口的成员照原接口命名（2026-11-11 修订，ADR-0153）。
 
 各语言实现把「登记豁免」落到自己的工具链上。.NET 用包验证的 `CompatibilitySuppressions.xml` 与 PublicAPI 文件的 `*REMOVED*` 行，门禁核对豁免只指向非 `Stable` 的成员（ADR-0131）。
 
