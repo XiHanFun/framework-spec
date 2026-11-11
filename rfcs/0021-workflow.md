@@ -70,7 +70,7 @@ Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkfl
 
 ## 活动
 
-- `IActivity.ExecuteAsync(ActivityContext, ct)` → `Result<ActivityOutcome>`；`IResumableActivity.ResumeAsync(ActivityResumeContext, ct)`（书签被消费后调用，上下文带书签与恢复输入）；`ICompensableActivity.CompensateAsync(ActivityContext, ct)`（补偿时按完成顺序逆序调用）。失败的 `Result` 即故障；抛出异常翻译为 `WORKFLOW_UNEXPECTED_001` 的故障。
+- `IActivity.ExecuteAsync(ActivityContext, ct)` → `Result<ActivityOutcome>`；`IResumableActivity.ResumeAsync(ActivityResumeContext, ct)`（书签被消费后调用，上下文带书签与恢复输入）；`ICompensableActivity.CompensateAsync(ActivityContext, ct)`（补偿时按完成顺序逆序调用）。失败的 `Result` 即故障；抛出异常翻译为 `WORKFLOW_UNEXPECTED_001` 的故障。上下文交给扩展代码（活动、结果处理器 `WorkflowOutcomeContext`、指派规则 `AssigneeResolution`）的实例与节点实例是只读视图 `WorkflowInstanceView` / `WorkflowNodeInstanceView`，跟随引擎正在修改的对象；状态变更只经引擎（活动经输出与结果），活动的私有状态经上下文的 `State` 读写（2026-11-11 修订，ADR-0133）。
 - `ActivityOutcome`：`Complete(outputs?, outcome?)`、`EndInstance(outputs?, outcome?)`、`Suspend(bookmarks…)`、`CompleteWithChildren(children, outputs?, outcome?)`、`SuspendWithChildren(children, bookmarks…)`。输出合并进实例变量；`outcome` 写进节点输出，并写进实例变量 `outcome`（最近一次带结果的节点），出边条件与后继决策节点都按它选边（没有结果的节点不覆盖）。
 - 活动是作用域服务：`services.AddActivity<TActivity>(type, outgoing: ActivityOutgoing.AllMatched, descriptor?)`，登记进 `ActivityRegistry`；重复登记同一类型是编程错误。活动经 `ActivityContext.Services` 解析其他服务，经 `ActivityContext.Invocation` 拿到本次执行的调用上下文。
 - **执行方式**（ADR-0077）：节点在引擎这次操作所在的调用里执行——同一服务作用域、同一调用上下文、同一事务：活动经 `ActivityContext.Services` 取到的仓储、结果处理器的写入与引擎的写入一起提交或回滚，活动看到的主体、租户与追踪就是这次调用的。引擎的操作总是在一次调用里：调用方的（加入它的事务），或调用方之外使用时引擎自己开的（见「事务」）。取消令牌是这次调用的令牌：取消即整个操作随事务回滚。活动失败（失败的 `Result` 或异常）按「故障与重试」处理，它在失败之前做的写入留在同一事务里、不单独回滚：会写入的活动与结果处理器先校验、后写入。
