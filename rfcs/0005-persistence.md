@@ -255,7 +255,7 @@ EF Core（10.0）：SQLite 上三个方法一律译成 `LIKE … ESCAPE '\'`（2
 
 ### 命令超时（2026-11-04 修订，ADR-0119）
 
-只有 `Persistence.SqlSugar` 支持。`XiHan:Persistence:SqlSugar:CommandTimeoutSeconds`（正整数，缺省 300，与 SqlSugar 自己的缺省值相同，不配时行为不变）设在特性建的客户端的每个连接上：默认连接、命名连接与分片连接。
+只有 `Persistence.SqlSugar` 支持。`XiHan:Persistence:SqlSugar:CommandTimeoutSeconds`（正整数，缺省 300；选项上是 `TimeSpan CommandTimeout`，与同类型其他时长一致，2026-11-11 修订，ADR-0164；与 SqlSugar 自己的缺省值相同，不配时行为不变）设在特性建的客户端的每个连接上：默认连接、命名连接与分片连接。
 
 - 不是正整数即启动失败。0 不接受：ADO.NET 的 0 是无限等待，也不按「不覆盖」处理。
 - 个别长任务在调用点用 `Ado.CommandTimeOut` 临时调大，只影响这个连接到作用域结束。
