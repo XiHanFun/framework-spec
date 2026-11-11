@@ -212,7 +212,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `WORKFLOW_NOTFOUND_004` | 活动类型或指派规则类型未登记 |
 | `WORKFLOW_CONFLICT_001` | 实例状态不允许该操作 |
 | `WORKFLOW_CONFLICT_002` | 定义状态不允许该操作 |
-| `WORKFLOW_CONFLICT_003` | 书签不可恢复（实例不在运行中、键不匹配） |
+| `WORKFLOW_CONFLICT_003` | 书签不可恢复（实例不在运行中、键不匹配、用户任务与外部任务的书签只能经各自的服务消费） |
 | `WORKFLOW_CONFLICT_004` | 指派人已在任务上或任务已被认领 |
 | `WORKFLOW_CONFLICT_005` | 同一关联 ID 下已有未结束的实例（`ReusePolicy.RejectActive`） |
 | `WORKFLOW_DENIED_001` | 操作者不是任务的指派人 |
