@@ -22,16 +22,16 @@
 1. 按注册顺序调用 `ITenantResolver`，第一个有值的结果生效。默认顺序：已认证主体的 `tenant` 声明 → Baggage `xihan.tenant`。Baggage 里的租户只来自进程内建上下文的地方（消息派发、作业、工作流、命令行宿主）：HTTP、gRPC、MCP 的网络入站不收这个键（2026-11-04 修订，ADR-0121），这些调用方的租户只来自认证。CloudEvents 入站例外：事件的 `xihantenant` 是发送方给的，经消息派发进 Baggage，不与请求的身份核对，端点的权限由宿主加（`protocol/cloudevents.md`）。
 2. 没有解析到时用 `DefaultTenant`；仍没有时，`RequireTenant` 为真返回 `MULTITENANCY_VALIDATION_002`，否则无租户继续。
 3. 校验格式，不合法返回 `MULTITENANCY_VALIDATION_001`。
-4. `ValidateAgainstStore` 为真（默认）时核对 `ITenantStore`：不存在返回 `MULTITENANCY_NOTFOUND_001`，禁用返回 `MULTITENANCY_DENIED_001`；显示名随之写入上下文。
+4. `ValidateAgainstStore` 为真（默认）时核对 `ITenantStore`：存储不可达返回 `MULTITENANCY_UNAVAILABLE_003`（503，不当作不存在），不存在返回 `MULTITENANCY_NOTFOUND_001`，禁用返回 `MULTITENANCY_DENIED_001`；显示名随之写入上下文。
 5. 写入 `SecurityContext.Tenant`。
 
 要按主机名或请求头选租户的应用，登记自己的 `ITenantResolver`（排在这两个之后），由它决定信什么、核对什么。框架不提供通用的头映射。
 
 ## 存储
 
-`ITenantStore`：按 ID 查找、枚举。租户信息含显示名、启用标记与字符串属性（租户专属连接、配额等）。内存实现有界（默认 1000），从 `XiHan:MultiTenancy:Tenants` 装载。内存实现同时声明两种能力；另有显式 Provider 提供 `multitenancy.context` 时，内存实现只为被选中的 `multitenancy.sharding` 注册服务（RFC-0002 第 4 条）：租户存储、解析器、健康项与 Tenant 阶段中间件都由那个 Provider 负责，分片从它的 `ITenantStore` 推出。
+`ITenantStore`（2026-11-11 修订，ADR-0140）：`FindAsync(tenantId)` 返回 `Result<Maybe<TenantInfo>>`，没有这个租户是成功的无值，存储不可达（连接、超时、事务失败）是 `MULTITENANCY_UNAVAILABLE_003` 失败，不以异常或无值代替；`ListAsync(TenantQuery)` 返回 `Result<TenantPage>`，按 ID 升序（比较规则由存储决定）一页一页读：`PageSize` 1～1000（缺省 100）、不透明的 `ContinuationToken`、`EnabledOnly` 只列启用的租户，令牌为空即读完；每页条数越界或令牌不是本存储给出的返回 `MULTITENANCY_VALIDATION_003`。存储不在一次调用里返回无界的结果，也不静默截断。租户信息含显示名、启用标记与字符串属性（租户专属连接、配额等）。内存实现有界（默认 1000），从 `XiHan:MultiTenancy:Tenants` 装载。内存实现同时声明两种能力；另有显式 Provider 提供 `multitenancy.context` 时，内存实现只为被选中的 `multitenancy.sharding` 注册服务（RFC-0002 第 4 条）：租户存储、解析器、健康项与 Tenant 阶段中间件都由那个 Provider 负责，分片从它的 `ITenantStore` 推出。
 
-`MultiTenancy.Database`（ADR-0026）：租户是实体行 `TenantRecord`（ID、显示名、启用标记、属性 JSON、创建 / 修改时间与并发戳；不按租户过滤、不软删除），`ITenantStore` 单例在新作用域直接开只读工作单元读仓储（不经管道），按租户有界缓存查找结果（含"不存在"）并按 TTL 失效（`XiHan:MultiTenancy:Database`：`CacheSize` 默认 10000、`CacheTimeToLiveSeconds` 默认 30 且 0 为不过期、`MaxListedTenants` 默认 10000）；`TenantRecordStore` 在调用方的工作单元里批量新增 / 更新 / 删除并逐项返回结果，写入后失效目录与分片解析器的缓存。它不在清单里声明对 `persistence.relational@1` 的依赖（持久化 Provider 以可选依赖引用 `multitenancy.sharding@1`，再声明即成环），改为启动期核对能力图谱里有持久化 Provider，没有即以 `KERNEL_CAPABILITY_001` 中断启动。
+`MultiTenancy.Database`（ADR-0026）：租户是实体行 `TenantRecord`（ID、显示名、启用标记、属性 JSON、创建 / 修改时间与并发戳；不按租户过滤、不软删除），`ITenantStore` 单例在新作用域直接开只读工作单元读仓储（不经管道），按租户有界缓存查找结果（含"不存在"）并按 TTL 失效（`XiHan:MultiTenancy:Database`：`CacheSize` 默认 10000、`CacheTimeToLiveSeconds` 默认 30 且 0 为不过期）；列表按 ID 排序、以偏移为续页令牌逐页读，读取失败不进缓存；`TenantRecordStore` 在调用方的工作单元里批量新增 / 更新 / 删除并逐项返回结果，写入后失效目录与分片解析器的缓存。它不在清单里声明对 `persistence.relational@1` 的依赖（持久化 Provider 以可选依赖引用 `multitenancy.sharding@1`，再声明即成环），改为启动期核对能力图谱里有持久化 Provider，没有即以 `KERNEL_CAPABILITY_001` 中断启动。
 
 ## 分片
 
