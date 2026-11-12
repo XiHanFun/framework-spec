@@ -1,6 +1,6 @@
 # RFC-0009 消息、CloudEvents 信封与发件箱
 
-> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题；2026-11-03 修订：发件箱把代理抛出与返回失败一样计入尝试、重试逐条发布、一轮遇到抛出即停止发布；2026-11-04 修订：框架异常的消息不拼代理的异常文字；2026-11-10 修订：Redis Streams Provider） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题）、ADR-0108（发件箱计入代理抛出）、ADR-0115、ADR-0130（Redis Streams Provider） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka`、`XiHan.Framework.Messaging.Redis` | 一致性：`XiHan.Framework.Messaging.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题；2026-11-03 修订：发件箱把代理抛出与返回失败一样计入尝试、重试逐条发布、一轮遇到抛出即停止发布；2026-11-04 修订：框架异常的消息不拼代理的异常文字；2026-11-10 修订：Redis Streams Provider；2026-11-12 修订：投递覆盖租户分片库） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题）、ADR-0108（发件箱计入代理抛出）、ADR-0115、ADR-0130（Redis Streams Provider）、ADR-0211（投递覆盖分片库） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka`、`XiHan.Framework.Messaging.Redis` | 一致性：`XiHan.Framework.Messaging.Conformance`
 
 ## 摘要
 
@@ -147,6 +147,12 @@ Provider：
   - 不是调用方取消引起的 `OperationCanceledException`（代理客户端自己的超时）也是一次失败。
 - 调用方取消（宿主停止：`OperationCanceledException` 且循环的令牌已取消）不是失败：本轮回滚，不计尝试、不进死信，本轮已发出的下一轮重发。存储失败（读不出、写不回、提交失败）同样回滚本轮，循环记日志后继续。
 - 代理长时间不可达时，积压的消息按同样的规则累计尝试；一轮只有一次调用抛出，消息累计尝试比逐条失败更慢。缺省参数下一条消息连续失败约 20 分钟才进死信，需要更长的容忍度时调大 `MaxAttempts` 或 `MaxRetryDelay`；进了死信的按上面的办法重投。
+- 投递覆盖租户分片库（2026-11-12 修订，ADR-0211；此前只轮询默认库，EF Core Provider 在带分片的调用里把发件箱行连同业务写入一起写进租户库，这些消息永远发不出去）：
+  - 装配了租户分片（容器里有 `ITenantStore`、`ITenantShardResolver` 与 `TenantShardScope`）且 `IncludeShards` 为真（默认）时，一轮先投递默认库，再逐个投递分片库；每个库各自一个工作单元、各自最多 `BatchSize` 条，返回值是各库之和。
+  - 分片清单：从租户目录逐页读出全部租户（含停用的：停用之前写进发件箱的消息照常发出），经 `ITenantShardResolver` 解析，按连接串与数据库种类去重，每个分片库取它的第一个租户。投递这个库时新建作用域，先以 `TenantShardScope` 绑定这个分片、再取工作单元与仓储，工作单元的租户是这个租户。
+  - 清单每 `ShardRefreshInterval`（默认 1 分钟）重读一次，新建的分片库最迟在这之后纳入。重读失败（租户目录或解析器返回失败）记 Warning 日志、沿用上一次的清单，下一轮再读。
+  - 一个库的存储失败不影响其他库：余下的库照常投递，全部轮完之后再抛出（一个库失败抛出它的异常，多个库失败抛出 `AggregateException`）。调用方取消立即抛出，余下的库不再投递。
+  - 发件箱行落在哪个库由持久化 Provider 决定。SqlSugar 把不实现 `IMultiTenant` 的发件箱行留在默认连接，分片轮次查到的仍是默认库，结果不变、只多出查询，这时可以把 `IncludeShards` 设为假。分片库没有建发件箱表时分片轮次每轮失败；带分片的调用要发消息，分片库就必须有发件箱表。
 - 投递成功的行保留 `DispatchedRetention`（默认 1 天）后由循环删除，每轮最多 `BatchSize` 行，与投递同一工作单元；为 0 时投递成功即在同一工作单元删除。死信行不自动删除。
 - 表结构：`Topic` 长 128（主题文法上限），`LastError` 为长文本，`NextAttemptAt` 与 `DeadLetteredAt` 可空（加在已有数据的表上时旧行为空，视为到期、未进死信）。
 - 投递是至少一次：循环提交前崩溃会重复投递。
