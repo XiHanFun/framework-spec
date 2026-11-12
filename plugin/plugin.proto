@@ -21,6 +21,7 @@ option go_package = "github.com/xihanfun/framework-sdk-go/plugin/v1;pluginv1";
 // ---------------------------------------------------------------------------
 
 // 插件实现、宿主调用。调用顺序：Handshake → Configure → Start → (Invoke | InvokeStream | HandleEvent | Health | WatchHealth)* → Stop。
+// 每次调用都带元数据 `xihan-plugin-session`（会话令牌），插件校验，缺失或不匹配以 `Unauthenticated` 拒绝（`handshake.md` §4）。
 service Plugin {
   // 握手：协商协议版本、核对原语层版本、交换清单、操作与订阅声明、消息目录。
   rpc Handshake(HandshakeRequest) returns (HandshakeResponse);

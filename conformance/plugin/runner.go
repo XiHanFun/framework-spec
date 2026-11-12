@@ -61,6 +61,7 @@ func Run(ctx context.Context, opts Options) ([]Result, error) {
 	cases := map[string]func(context.Context) error{
 		CaseHandshake:          r.caseHandshake,
 		CaseRefusal:            r.caseRefusal,
+		CaseSession:            r.caseSession,
 		CaseLifecycle:          r.caseLifecycle,
 		CaseUnknownOperation:   r.caseUnknownOperation,
 		CaseDeclaredOperations: r.caseDeclaredOperations,

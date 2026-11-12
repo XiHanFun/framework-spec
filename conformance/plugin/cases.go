@@ -64,6 +64,37 @@ func (r *runner) caseRefusal(ctx context.Context) error {
 	return nil
 }
 
+// caseSession：宿主的调用不带会话令牌或令牌不对时，插件必须以 Unauthenticated 拒绝，带对了照常握手（handshake.md §4）。
+func (r *runner) caseSession(ctx context.Context) error {
+	p, err := r.launchProcess(ctx)
+	if err != nil {
+		return err
+	}
+	defer p.close()
+	for _, token := range []string{"", "not-the-session-token"} {
+		conn, err := dial(p.endpoint, token)
+		if err != nil {
+			return err
+		}
+		callCtx, cancel := r.deadline(ctx)
+		_, err = pluginv1.NewPluginClient(conn).Handshake(callCtx, r.handshakeRequest(supportedVersions))
+		cancel()
+		_ = conn.Close()
+		if code := status.Code(err); code != codes.Unauthenticated {
+			if token == "" {
+				return fmt.Errorf("a handshake without the session token must be refused with Unauthenticated, got %s: %v", code, err)
+			}
+			return fmt.Errorf("a handshake with a wrong session token must be refused with Unauthenticated, got %s: %v", code, err)
+		}
+	}
+	callCtx, cancel := r.deadline(ctx)
+	defer cancel()
+	if _, err := p.client.Handshake(callCtx, r.handshakeRequest(supportedVersions)); err != nil {
+		return fmt.Errorf("a handshake with the session token must succeed: %v", err)
+	}
+	return nil
+}
+
 // caseLifecycle：Configure 与 Start 成功；Health 与 WatchHealth 报可服务状态；Stop 成功后进程在宽限内退出。
 func (r *runner) caseLifecycle(ctx context.Context) error {
 	s, err := r.open(ctx)

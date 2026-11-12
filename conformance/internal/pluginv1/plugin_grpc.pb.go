@@ -46,6 +46,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // 插件实现、宿主调用。调用顺序：Handshake → Configure → Start → (Invoke | InvokeStream | HandleEvent | Health | WatchHealth)* → Stop。
+// 每次调用都带元数据 `xihan-plugin-session`（会话令牌），插件校验，缺失或不匹配以 `Unauthenticated` 拒绝（`handshake.md` §4）。
 type PluginClient interface {
 	// 握手：协商协议版本、核对原语层版本、交换清单、操作与订阅声明、消息目录。
 	Handshake(ctx context.Context, in *HandshakeRequest, opts ...grpc.CallOption) (*HandshakeResponse, error)
@@ -182,6 +183,7 @@ func (c *pluginClient) HandleEvent(ctx context.Context, in *HandleEventRequest, 
 // for forward compatibility.
 //
 // 插件实现、宿主调用。调用顺序：Handshake → Configure → Start → (Invoke | InvokeStream | HandleEvent | Health | WatchHealth)* → Stop。
+// 每次调用都带元数据 `xihan-plugin-session`（会话令牌），插件校验，缺失或不匹配以 `Unauthenticated` 拒绝（`handshake.md` §4）。
 type PluginServer interface {
 	// 握手：协商协议版本、核对原语层版本、交换清单、操作与订阅声明、消息目录。
 	Handshake(context.Context, *HandshakeRequest) (*HandshakeResponse, error)

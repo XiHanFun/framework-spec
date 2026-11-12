@@ -178,7 +178,7 @@ func start(ctx context.Context, directory string, manifest Manifest, l launch, t
 	}
 	p.endpoint = endpoint
 
-	conn, err := dial(endpoint)
+	conn, err := dial(endpoint, l.sessionToken)
 	if err != nil {
 		p.close()
 		return nil, err

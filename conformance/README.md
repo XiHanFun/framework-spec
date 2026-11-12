@@ -30,13 +30,14 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | --- | --- |
 | `handshake` | 握手行合法、协商出宿主支持的版本、原语层版本相同、握手清单与目录里的文件一致、操作与订阅都在清单声明范围内、目录至少一种区域 |
 | `refusal` | 宿主没有共同版本时以 `FailedPrecondition` 拒绝 |
+| `session` | 不带会话令牌或带错令牌的调用以 `Unauthenticated` 拒绝，带对了照常握手（`handshake.md` §4，ADR-0202） |
 | `lifecycle` | `Configure`、`Start` 成功；`Health` 与 `WatchHealth` 报 Started / Ready / Degraded，健康项都已声明；`Stop` 成功且进程在 5 秒宽限内退出 |
 | `unknown-operation` | 未声明的操作以 `Unimplemented` 结束 |
 | `declared-operations` | 每个声明的一元操作都返回 `status`：成功时载荷是 JSON，失败时错误码合法 |
 | `event` | 向第一个声明的订阅投递消息得到确认；没有订阅时跳过 |
 | `stdin` | 关闭 stdin 后进程自行退出 |
 
-每个用例单独启动一次插件进程；运行器不提供宿主回调服务，回调相关的权限与令牌由宿主实现的测试覆盖。
+每个用例单独启动一次插件进程；运行器不提供宿主回调服务，回调相关的权限与令牌由宿主实现的测试覆盖；运行器调用插件时每次都带会话令牌。
 
 ```bash
 go install github.com/xihanfun/framework-spec/conformance/cmd/xihan-conformance@latest

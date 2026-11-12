@@ -13,6 +13,8 @@ const (
 	CaseHandshake = "handshake"
 	// CaseRefusal 核对没有共同协议版本时握手以 FailedPrecondition 拒绝。
 	CaseRefusal = "refusal"
+	// CaseSession 核对不带或带错会话令牌的调用以 Unauthenticated 拒绝（handshake.md §4）。
+	CaseSession = "session"
 	// CaseLifecycle 核对 Configure / Start / Health / WatchHealth / Stop 与宽限内退出。
 	CaseLifecycle = "lifecycle"
 	// CaseUnknownOperation 核对未声明的操作以 Unimplemented 结束。
@@ -26,7 +28,7 @@ const (
 )
 
 // AllCases 是全部用例，按执行顺序。
-var AllCases = []string{CaseHandshake, CaseRefusal, CaseLifecycle, CaseUnknownOperation, CaseDeclaredOperations, CaseEvent, CaseStdin}
+var AllCases = []string{CaseHandshake, CaseRefusal, CaseSession, CaseLifecycle, CaseUnknownOperation, CaseDeclaredOperations, CaseEvent, CaseStdin}
 
 // DefaultTimeout 是每一步的默认截止时间。
 const DefaultTimeout = 15 * time.Second

@@ -81,4 +81,4 @@
 
 ## 7. 一致性
 
-gRPC 黑盒套件 `XiHan.Framework.Plugins.Conformance`（`PluginProtocolConformance`，任何语言的插件以其构建产物目录继承运行）以本文件、`handshake.md` 与 `lifecycle.md` 为用例来源：握手行与版本协商、无共同版本时拒绝、清单一致性（含清单不写 `contributes.pipeline`）、Configure / Start / Health / WatchHealth / Stop 与宽限内退出、未知操作 `Unimplemented`、声明的操作都返回 `status`、订阅投递确认、stdin 关闭即退出。回调的令牌与权限、崩溃重启由宿主实现的测试覆盖；流式帧序随流式操作契约补充。数据向量见 `conformance/vectors/plugin/`。
+gRPC 黑盒套件 `XiHan.Framework.Plugins.Conformance`（`PluginProtocolConformance`，任何语言的插件以其构建产物目录继承运行）以本文件、`handshake.md` 与 `lifecycle.md` 为用例来源：握手行与版本协商、无共同版本时拒绝、不带或带错会话令牌的调用以 `Unauthenticated` 拒绝（`handshake.md` §4，ADR-0202）、清单一致性（含清单不写 `contributes.pipeline`）、Configure / Start / Health / WatchHealth / Stop 与宽限内退出、未知操作 `Unimplemented`、声明的操作都返回 `status`、订阅投递确认、stdin 关闭即退出。回调的令牌与权限、崩溃重启由宿主实现的测试覆盖；流式帧序随流式操作契约补充。数据向量见 `conformance/vectors/plugin/`。
