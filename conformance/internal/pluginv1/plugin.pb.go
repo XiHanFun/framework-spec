@@ -1413,6 +1413,7 @@ type InvocationMetadata struct {
 	// 绝对截止时间（RFC 3339，UTC）；可空。gRPC 调用自身的截止时间必须与之一致。
 	Deadline string `protobuf:"bytes,3,opt,name=deadline,proto3" json:"deadline,omitempty"`
 	// 已登记的 Baggage（`conventions/baggage-keys.md`，键名原样），未登记的键必须剥离。
+	// 回调时 `xihan.tenant` 只能是宿主随调用交给插件的租户（`invocation.md` §2、§5）。
 	Baggage       map[string]string `protobuf:"bytes,4,rep,name=baggage,proto3" json:"baggage,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2133,7 +2134,7 @@ type MiddlewareResponse struct {
 	Action MiddlewareAction `protobuf:"varint,1,opt,name=action,proto3,enum=xihan.plugin.v1.MiddlewareAction" json:"action,omitempty"`
 	// `SHORT_CIRCUIT` 时的调用结果；必须是失败。
 	Outcome *Status `protobuf:"bytes,2,opt,name=outcome,proto3" json:"outcome,omitempty"`
-	// 追加或改写的已登记 Baggage（`xihan.principal` 不可改写）；只在 `before` 有效。
+	// 追加或改写的已登记 Baggage（`xihan.principal` 与 `xihan.tenant` 不可改写）；只在 `before` 有效。
 	Baggage       map[string]string `protobuf:"bytes,3,rep,name=baggage,proto3" json:"baggage,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
