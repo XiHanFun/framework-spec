@@ -1,6 +1,6 @@
 # RFC-0006 缓存、分布式锁与幂等
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配、两级缓存；2026-11-01 修订：幂等回放操作的响应；2026-11-01 修订：键列表的每页上限越界返回校验错误） | 日期：2026-10-21 | 对应 ADR：ADR-0064（幂等响应回放）、ADR-0084（键列表分页越界） | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配、两级缓存；2026-11-01 修订：幂等回放操作的响应；2026-11-01 修订：键列表的每页上限越界返回校验错误；2026-11-12 修订：幂等作用域键里主体带长度前缀、外层请求把幂等键交给内层调用） | 日期：2026-10-21 | 对应 ADR：ADR-0064（幂等响应回放）、ADR-0084（键列表分页越界） | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
 
 ## 摘要
 
@@ -81,6 +81,10 @@
 ## 幂等
 
 Idempotency 阶段的中间件按 Baggage `xihan.idempotency-key` 去重，作用域为（租户、主体、键）：
+
+- 作用域键 `idem:<租户或 ->:<主体>:<键>`，主体写成 `<长度>.<主体 ID>`，匿名为 `-`（2026-11-12 修订，ADR-0205；以前主体 ID 直接拼接，它能含冒号，主体 `a:b` 配键 `c` 与主体 `a` 配键 `b:c` 共用一条记录）。
+- 匿名调用共用一个命名空间：没有能区分匿名调用方的身份，键就是唯一的保护，调用方要用猜不到的随机键（至少 128 位）。已知并接受，拒绝匿名的幂等调用会让公开的幂等端点不能用（ADR-0205）。
+- 端点为请求里的消息另起内层调用（MCP 的 `tools/call`）时，外层请求不按幂等键去重，键交给内层调用（2026-11-12 修订，ADR-0205；以前外层先写下「处理中」，同一个键的内层调用随即撞上它）。
 
 1. 首次调用用 `TryAdd` 写入"处理中"标记（`InProgressTimeToLive`，默认 60 秒）并执行处理器。
 2. 处理器完成后用调用结果（成功，或错误码与消息）替换标记，保留 `TimeToLive`（默认 24 小时）。操作调用（上下文里有操作描述，RFC-0011）另记操作 ID；成功时把上下文里的响应对象按描述编成 XGI 的 JSON 一起记（`EncodeResponse`，已经过响应过滤，与首次调用拿到的一致）。
