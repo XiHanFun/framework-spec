@@ -25,6 +25,8 @@
 4. `ValidateAgainstStore` 为真（默认）时核对 `ITenantStore`：存储不可达返回 `MULTITENANCY_UNAVAILABLE_003`（503，不当作不存在），不存在返回 `MULTITENANCY_NOTFOUND_001`，禁用返回 `MULTITENANCY_DENIED_001`；显示名随之写入上下文。
 5. 写入 `SecurityContext.Tenant`。
 
+Tenant 阶段一进入就调用 `context.MarkTenantResolved()`（内核 `SecurityContextExtensions`，2026-11-12 修订，ADR-0191）：不论之后解析出租户、裁定为无租户还是拒绝调用，安全上下文里的租户就是这次调用唯一可信的租户，观察者以 `IsTenantResolved()` 判断，不再回退到调用方自报的 Baggage。
+
 要按主机名或请求头选租户的应用，登记自己的 `ITenantResolver`（排在这两个之后），由它决定信什么、核对什么；不该放行的调用由它返回失败。框架不提供通用的头映射。
 
 ## 存储
