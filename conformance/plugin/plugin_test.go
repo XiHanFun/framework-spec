@@ -38,6 +38,8 @@ func TestSameManifestIgnoresDefaultsAndEmptyValues(t *testing.T) {
 func TestEnvironmentKeepsOnlyTheWhitelist(t *testing.T) {
 	t.Setenv("XIHAN_CONFORMANCE_SECRET", "leak")
 	t.Setenv("DOTNET_CLI_TELEMETRY_OPTOUT", "1")
+	t.Setenv("GOMAXPROCS", "2")
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "/secrets/key.json")
 	env := environment(launch{versions: []uint32{1, 2}, primitives: 1, sessionToken: "token", hostEndpoint: placeholderHostEndpoint(), instanceID: "id", locale: "en-US"})
 	joined := strings.Join(env, "\n")
 	if strings.Contains(joined, "XIHAN_CONFORMANCE_SECRET") {
@@ -45,6 +47,12 @@ func TestEnvironmentKeepsOnlyTheWhitelist(t *testing.T) {
 	}
 	if !strings.Contains(joined, "DOTNET_CLI_TELEMETRY_OPTOUT=1") {
 		t.Error("DOTNET_* variables must be inherited")
+	}
+	if !strings.Contains(joined, "GOMAXPROCS=2") {
+		t.Error("Go runtime variables must be inherited")
+	}
+	if strings.Contains(joined, "GOOGLE_APPLICATION_CREDENTIALS") {
+		t.Error("GOOGLE_* credentials must not be inherited (ADR-0208)")
 	}
 	for _, expected := range []string{"XIHAN_PLUGIN_PROTOCOL_VERSIONS=1,2", "XIHAN_PLUGIN_PRIMITIVES=1", "XIHAN_PLUGIN_SESSION=token", "XIHAN_PLUGIN_INSTANCE=id", "XIHAN_PLUGIN_LOCALE=en-US", "XIHAN_PLUGIN_HOST_ADDRESS="} {
 		if !strings.Contains(joined, expected) {

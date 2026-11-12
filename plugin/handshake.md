@@ -7,7 +7,7 @@
 宿主从插件目录读取 `xihan.manifest.json`（RFC-0002；`kind: plugin`、`isolation: out-of-process`），校验 Schema、原语层大版本与权限授予后启动进程：
 
 - `entry` 是相对插件目录的可执行文件路径（Windows 上没有扩展名时补 `.exe`）；工作目录是插件目录。
-- 宿主只继承必要的环境变量（`PATH`、`HOME` / `USERPROFILE`、临时目录、区域与时区、操作系统运行所需的系统变量、`DOTNET_*`、`GO*`），并追加下表；插件不得假定其他变量存在。
+- 宿主只继承必要的环境变量（`PATH`、`HOME` / `USERPROFILE`、临时目录、区域与时区、操作系统运行所需的系统变量、`DOTNET_*`，以及 Go 运行时的 `GOMAXPROCS`、`GOGC`、`GOMEMLIMIT`、`GODEBUG`、`GOTRACEBACK`），并追加下表；插件不得假定其他变量存在。Go 只列这几个名字、不按 `GO` 前缀继承（2026-11-12 修订，ADR-0208；以前按 `GO*` 继承，`GOOGLE_APPLICATION_CREDENTIALS` 等 Google 云凭据随之交给了插件）。
 - 宿主把插件的 stderr 逐行转为自己的日志（来源 `plugins.<清单 ID>`，级别见 `invocation.md` §6）；stdout 只用于握手行，握手完成后的 stdout 输出按 Information 记录。
 - 一行最多 16384 个字符（2026-11-12 修订，ADR-0185）：超过的部分宿主读掉丢弃、不进内存，行照常记录并另记一条告警；握手行超过即握手不合法（`PLUGINS_VALIDATION_003`），宿主读到上限就判定，不等行尾。
 - 宿主保持插件的 stdin 打开直到停止；插件必须在 stdin 关闭（宿主退出或崩溃）时自行退出，不留孤儿进程。

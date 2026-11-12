@@ -25,10 +25,12 @@ import (
 var inheritedNames = []string{
 	"PATH", "HOME", "USERPROFILE", "TMP", "TEMP", "TMPDIR", "LANG", "LC_ALL", "TZ",
 	"SystemRoot", "windir", "ComSpec", "PATHEXT", "SystemDrive", "APPDATA", "LOCALAPPDATA", "ProgramData", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432",
+	"GOMAXPROCS", "GOGC", "GOMEMLIMIT", "GODEBUG", "GOTRACEBACK",
 }
 
-// inheritedPrefixes 是按前缀原样传给插件的环境变量。
-var inheritedPrefixes = []string{"DOTNET_", "GO"}
+// inheritedPrefixes 是按前缀原样传给插件的环境变量：只有 .NET 运行时的配置。
+// Go 只列上面几个运行时变量，不按 GO 前缀放行，否则 GOOGLE_APPLICATION_CREDENTIALS 等凭据会交给插件（ADR-0208）。
+var inheritedPrefixes = []string{"DOTNET_"}
 
 // launch 是一次启动的参数（handshake.md §1 的环境变量）。
 type launch struct {
