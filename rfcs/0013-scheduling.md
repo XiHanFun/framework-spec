@@ -87,7 +87,7 @@ Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 �
 
 - `ILeaderElection.TryAcquire(resource, ttl)`：空闲（或租约已过期）时授予 `LeaderLease`；被持有返回 `SCHEDULING_CONFLICT_002`。
 - `LeaderLease.Renew()` 延长 `ttl`；`Release()` 立即放弃，应用不在服务状态时也必须生效（引擎在排空中的周期与停止时释放，ADR-0091）；过期后他人可获取，原持有者续约失败。不可重入。持有者标识是实例身份（进程内实现每次获取生成新值，Kubernetes 实现是 Pod 名，数据库实现是节点 ID）。
-- Provider：`Scheduling.InMemory`（进程内）、`Scheduling.Kubernetes`（`coordination.k8s.io` Lease，直接调用 API Server；存活时间按秒向上取整写入，API Server 不可达 → `SCHEDULING_UNAVAILABLE_002`）、`Scheduling.Database`（租约行，并发戳 CAS 接管）。
+- Provider：`Scheduling.InMemory`（进程内）、`Scheduling.Kubernetes`（`coordination.k8s.io` Lease，直接调用 API Server；ServiceAccount 的 CA 存在时是唯一信任根，证书照常校验主机名、叶证书要有服务端认证用途（2026-11-12 修订，ADR-0201；以前只核对证书链，集群 CA 签发的任何证书都能冒充 API Server）；存活时间按秒向上取整写入，API Server 不可达 → `SCHEDULING_UNAVAILABLE_002`）、`Scheduling.Database`（租约行，并发戳 CAS 接管）。
 
 ## Provider
 
