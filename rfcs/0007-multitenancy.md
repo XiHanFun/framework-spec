@@ -35,7 +35,7 @@ Tenant 阶段一进入就调用 `context.MarkTenantResolved()`（内核 `Securit
 
 `MultiTenancy.Database`（ADR-0026）：租户是实体行 `TenantRecord`（ID、显示名、启用标记、属性 JSON、创建 / 修改时间与并发戳；不按租户过滤、不软删除），`ITenantStore` 单例在新作用域直接开只读工作单元读仓储（不经管道），按租户有界缓存查找结果（含"不存在"）并按 TTL 失效（`XiHan:MultiTenancy:Database`：`CacheSize` 默认 10000、`CacheTimeToLiveSeconds` 默认 30 且 0 为不过期）；列表按 ID 排序、以偏移为续页令牌逐页读，读取失败不进缓存；`TenantRecordStore` 在调用方的工作单元里批量新增 / 更新 / 删除并逐项返回结果，写入后失效目录与分片解析器的缓存。它不在清单里声明对 `persistence.relational@1` 的依赖（持久化 Provider 以可选依赖引用 `multitenancy.sharding@1`，再声明即成环），改为启动期核对能力图谱里有持久化 Provider，没有即以 `KERNEL_CAPABILITY_001` 中断启动。
 
-租户管理（2026-11-11 修订，ADR-0160）：可选接口 `ITenantAdministration`，内存与数据库实现都提供。`UpsertAsync(tenants[])`（整份覆盖，同一批里后一项覆盖前一项，新增超出容量为 `MULTITENANCY_UNAVAILABLE_001`）与 `RemoveAsync(tenantIds[])`（不存在为 `MULTITENANCY_NOTFOUND_001`）返回与入参同序的逐项结果，写入后让租户目录与分片解析器丢弃这些租户的缓存；列出租户只经 `ITenantStore.ListAsync`。缓存失效的形状是 `Invalidate(ids[])` 加显式的 `InvalidateAll()`，不以 `null` 表示全部：分片解析器、数据库租户目录、数据库授予缓存与 AI 提供方目录一律如此。
+租户管理（2026-11-11 修订，ADR-0160）：可选接口 `ITenantAdministration`，内存与数据库实现都提供。`UpsertAsync(tenants[])`（整份覆盖，同一批里后一项覆盖前一项，新增超出容量为 `MULTITENANCY_UNAVAILABLE_001`）与 `RemoveAsync(tenantIds[])`（不存在为 `MULTITENANCY_NOTFOUND_001`）返回与入参同序的逐项结果，写入后让租户目录与分片解析器丢弃这些租户的缓存；写入在提交之后才可见，所以作用域释放时再失效一次，两处缓存都按代数丢弃失效之前开始的读取，提交之前读回的旧租户不留在缓存里（2026-11-12 修订，ADR-0194）；列出租户只经 `ITenantStore.ListAsync`。缓存失效的形状是 `Invalidate(ids[])` 加显式的 `InvalidateAll()`，不以 `null` 表示全部：分片解析器、数据库租户目录、数据库授予缓存与 AI 提供方目录一律如此。
 
 ## 分片
 
