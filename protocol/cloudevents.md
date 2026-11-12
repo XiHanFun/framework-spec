@@ -26,7 +26,7 @@
 
 - `CloudEventsWebhookPublisher.PublishAsync(topic, envelope)`：POST 到 `XiHan:Protocols:CloudEvents:Webhooks:<topic>`；`Outbound = Binary`（默认，`ce-*` 头 + 数据体，头值按规范百分号编码非可打印 ASCII）或 `Structured`（`application/cloudevents+json` 体）。
 - `PublishManyAsync(topic, envelopes)`（批量优先）：一条沿用上面的模式；多条用 batch 内容模式（`application/cloudevents-batch+json`，结构化事件的数组、顺序同入参）一次 POST，接收方须支持该模式，一个响应对整批生效（逐项结果相同）。
-- 没有配置 → `PROTOCOLS_NOTFOUND_004`；响应非 2xx → `PROTOCOLS_UNAVAILABLE_001`（`status` 在详情里）；连接失败 → `PROTOCOLS_UNAVAILABLE_002`。重试由调用方决定（经发件箱投递即获得至少一次语义）。
+- 没有配置 → `PROTOCOLS_NOTFOUND_004`；响应非 2xx → `PROTOCOLS_UNAVAILABLE_001`（`status` 在详情里）；连接失败 → `PROTOCOLS_UNAVAILABLE_002`。结果只看状态码，读到响应头即判定，响应体不读（2026-11-12 修订，ADR-0188；以前先把响应体整个缓冲进内存）。重试由调用方决定（经发件箱投递即获得至少一次语义）。
 - 使用命名 HttpClient `xihan.protocols.cloudevents`。
 - 过出站地址策略（已定，RFC-0008、ADR-0117）：地址是运维配的，但接收方是第三方，它的 3xx 能把请求引到内网，所以这个命名客户端的连接与重定向都检查。接收方在内网时要放行。被拒绝按连接失败报告 `PROTOCOLS_UNAVAILABLE_002`，`reason` 是 `OutboundAddressDeniedException` 的类型全名，不发起连接。整个替换主处理器后由替换后的处理器决定能连哪里。
 - HTTP 层的追踪头缺省不传播（已定，ADR-0083）：这个命名客户端不写 W3C 追踪上下文头 `traceparent`、`tracestate`、`baggage`（也不写旧格式的 `Request-Id`、`Correlation-Context`）。启用追踪时 .NET 的 HttpClient 本会按当前 Activity 写这些头，与信封扩展无关，同样会把内部的追踪 ID 与 Baggage 推给第三方，与下一条同理。`XiHan:Protocols:CloudEvents:PropagateTraceContext = true`（缺省 `false`，只接受 `true` / `false`，否则装配时 `ArgumentException`）显式打开，按 .NET 的全局传播器（`DistributedContextPropagator.Current`）写。只作用于这个命名客户端的主处理器（`SocketsHttpHandler.ActivityHeadersPropagator`），不改进程全局的传播；出站请求自身的客户端跨度照常按追踪配置记录。应用整个替换这个客户端的主处理器时由替换后的处理器决定是否传播；只想调连接参数而保留缺省，用 `UseSocketsHttpHandler` 配置同一个处理器。
