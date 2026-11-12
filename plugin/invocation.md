@@ -30,6 +30,8 @@
 | Baggage | `baggage` | 只含已登记的 `xihan.*` 键（`conventions/baggage-keys.md`）；租户、主体、关联 ID、幂等键、区域都在其中 |
 | Items / Services | — | 不传播 |
 
+`baggage` 里的 `xihan.tenant` 是这次调用的租户：Tenant 阶段裁定过时取裁定结果，裁定为无租户时不带；还没有裁定（宿主没有 Tenant 阶段，或调用还没走到它）时原样传递调用携带的值（2026-11-12 修订，ADR-0195）。插件回调与发布能带的租户以它为限（§5）。
+
 插件必须按 `deadline` 与 gRPC 取消停止工作；返回的 `Error` 若是超时或取消，用 `KERNEL_TIMEOUT_001` / `KERNEL_CANCELLED_001`。
 
 ## 3. 错误映射
@@ -57,7 +59,13 @@
 
 ## 5. 回调（`Host` 服务）
 
-每次回调带元数据 `xihan-plugin-session`（`handshake.md`）；宿主以插件身份执行：主体 ID 为清单 ID、认证方案 `Plugin`、无声明；回调元数据里的 `xihan.principal` 被忽略并覆盖，`xihan.tenant` 与其余已登记 Baggage 采用，追踪以回调的 `trace_parent` 为父。
+每次回调带元数据 `xihan-plugin-session`（`handshake.md`）；宿主以插件身份执行：主体 ID 为清单 ID、认证方案 `Plugin`、无声明；回调元数据里的 `xihan.principal` 被忽略并覆盖，其余已登记 Baggage 采用，追踪以回调的 `trace_parent` 为父。
+
+租户只能是宿主随调用交给插件的那一个（2026-11-12 修订，ADR-0195；以前 `xihan.tenant` 原样采用，插件身份没有租户声明可比对，插件能在任意启用的租户里调用宿主操作、发布消息）：
+
+- `Host.Invoke` 的元数据带 `xihan.tenant` 时，它必须是宿主此刻交给该插件处理的某个调用（操作、事件或中间件）的租户（§2），否则不执行，`Status.error` 为 `PLUGINS_DENIED_002`。不带时是无租户的调用。
+- `Host.Publish` 的信封带 `xihantenant` 扩展时逐项按同一规则判定，越界的那一项为 `PLUGINS_DENIED_002`，其余照常发布。
+- 宿主没有在处理该插件的调用时（调用已结束、插件在后台回调），回调不能带租户。
 
 | RPC | 权限 | 语义 |
 | --- | --- | --- |

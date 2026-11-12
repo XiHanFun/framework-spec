@@ -278,6 +278,7 @@ message InvocationMetadata {
   // 绝对截止时间（RFC 3339，UTC）；可空。gRPC 调用自身的截止时间必须与之一致。
   string deadline = 3;
   // 已登记的 Baggage（`conventions/baggage-keys.md`，键名原样），未登记的键必须剥离。
+  // 回调时 `xihan.tenant` 只能是宿主随调用交给插件的租户（`invocation.md` §2、§5）。
   map<string, string> baggage = 4;
 }
 
@@ -391,7 +392,7 @@ message MiddlewareResponse {
   MiddlewareAction action = 1;
   // `SHORT_CIRCUIT` 时的调用结果；必须是失败。
   Status outcome = 2;
-  // 追加或改写的已登记 Baggage（`xihan.principal` 不可改写）；只在 `before` 有效。
+  // 追加或改写的已登记 Baggage（`xihan.principal` 与 `xihan.tenant` 不可改写）；只在 `before` 有效。
   map<string, string> baggage = 3;
 }
 

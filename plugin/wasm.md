@@ -50,6 +50,7 @@ Wasm 插件与进程外插件共用同一套消息；本文只定义载体：模
 
 - 导入函数的响应由宿主经 `xihan_alloc` 写入客体内存并返回 `(ptr << 32) | len`。
 - 权限判定同 `invocation.md` §5：须在清单声明且已被授予，授予而未声明的不放行；未声明或未授予不陷阱，返回 `Status.error = PLUGINS_DENIED_002`。
+- 租户判定同 `invocation.md` §5：调用串行，`invoke` 元数据的 `xihan.tenant` 与 `publish` 信封的 `xihantenant` 只能是当前调用的租户，没有当前调用（实例化期间的 `_initialize`）时不能带租户；越界不陷阱，返回 `PLUGINS_DENIED_002`（2026-11-12 修订，ADR-0195）。
 - 回调在当前调用的截止时间内完成，并随当前调用取消：`invoke` 发起的新调用，截止时间取请求 `metadata.deadline` 与当前调用截止时间中较早者（请求没给时就是当前调用的截止时间），取消令牌随当前调用；`publish` 同样以当前调用的截止时间与取消约束。当前调用是宿主进入模块的那次导出调用（操作与事件为调用上下文的截止时间，没有时取调用时限；中间件为中间件时限；生命周期调用为宿主的调用时限），再入不另设截止时间。到期时宿主不再等待，导入函数返回 `KERNEL_TIMEOUT_001`（截止时间到达之前被取消为 `KERNEL_CANCELLED_001`；回调的计时器已触发或时钟已过截止时间即超时，当前调用同时被取消也一样，不再等待与回调已返回两条路径同一判断）：`invoke` 为 `Status.error`，`publish` 为尚未完成的各项。嵌套深度上限 8，超过返回 `PLUGINS_UNAVAILABLE_002`。
 - WASI：时钟与随机数可用；stdin 为空；stdout / stderr 写入即丢弃（2026-11-12 修订，ADR-0186；以前写到插件工作目录下的 `stdout.log` / `stderr.log`，文件大小没有上限），日志走 `xihan.log`；`poll_oneoff` 与 `clock_time_get` 由宿主实现：睡眠最多到当前调用的截止时间，调用被取消时立即醒来，没睡到订阅的时刻就以 epoch 中断结束这次调用（`KERNEL_TIMEOUT_001`），文件描述符订阅立即就绪；无参数；环境变量只有 `XIHAN_PLUGIN_PRIMITIVES`、`XIHAN_PLUGIN_PROTOCOL_VERSIONS`、`XIHAN_PLUGIN_INSTANCE`、`XIHAN_PLUGIN_LOCALE`。
 - 文件系统：`fs.read:<客体路径>` / `fs.write:<客体路径>` 各预开放一个目录（只读 / 可写）；宿主侧目录由宿主配置映射，未映射视为未授予（`PLUGINS_DENIED_001`）。
@@ -73,7 +74,7 @@ Wasm 插件与进程外插件共用同一套消息；本文只定义载体：模
 
 清单 `contributes.pipeline[]`（`middleware`、`stage`、`before`、`after`）的每一项在宿主管道的对应阶段插入一个中间件，归属为插件清单 ID，排序同 RFC-0004；`stage` 不得是 `handle`。宿主以 `<清单 ID>:<middleware>` 为名登记它。`before` / `after` 的每一项先按本插件 `contributes.pipeline` 里的 `middleware` 解析为本插件的中间件；否则原样作为宿主管道里的中间件名（RFC-0004 第 7 条）：另一个插件的 `<清单 ID>:<middleware>`，或只登记一次的宿主中间件的类型全名。配置阶段发现的插件，目标与按类型声明的约束一样在宿主排序管道时解析（构建或打印管道时）；运行期 `LoadAsync` 的插件在登记时立即解析（RFC-0004「运行期改动」）。未登记、有歧义或不在同一阶段为 `KERNEL_PIPELINE_003`，成环为 `KERNEL_PIPELINE_001`，都是配置错误。每次调用，宿主在进入下游前后各调用一次 `xihan_middleware`（消息见 `plugin.proto` 的 `MiddlewareRequest` / `MiddlewareResponse`）：
 
-- `before` + `CONTINUE`：合并 `baggage`（未登记的键丢弃，`xihan.principal` 不可改写）后进入下游。
+- `before` + `CONTINUE`：合并 `baggage`（未登记的键丢弃，`xihan.principal` 与 `xihan.tenant` 不可改写）后进入下游（2026-11-12 修订，ADR-0195：以前中间件能改写 `xihan.tenant`，Tenant 阶段之前的插件中间件能把调用放进任意启用的租户）。
 - `before` + `SHORT_CIRCUIT`：把 `outcome` 写为调用结果，不进入下游；`outcome` 缺失或不是失败时按 `KERNEL_VALIDATION_001` 处理。
 - `after`：只观察；`action` 与 `baggage` 忽略。
 - 中间件看不到请求与响应载荷，不能改写载荷。
