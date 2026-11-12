@@ -44,7 +44,7 @@
 
 ## 默认实现
 
-`ObjectStorage.FileSystem`：根目录（默认 `<AppContext.BaseDirectory>/blobs`）下 `<container>/data/<key>` 存内容、`<container>/meta/<key>.json` 存元数据；写入先落临时文件再原子替换，不覆盖的写入（含分片上传的完成）由文件系统原子判定谁先占住内容路径，目标已存在即 `OBJECTSTORAGE_CONFLICT_001`，多个写入方（含共享目录的多个进程）只有一个成功：Unix 上先以独占创建（`O_CREAT | O_EXCL` 语义）的空文件占位，再以 `rename` 把内容原子替换上去，不能用「先查目标再改名」的不替换移动，.NET 在 Unix 上的 `File.Move(…, overwrite: false)` 就是这样实现的（2026-11-11 修订，ADR-0168）；Windows 上用不替换的改名（`MoveFileEx` 不带替换标志，本身原子），不用占位再替换——替换要求目标此刻没有被打开，并发写入方探测占位文件的那一下就让占到位的一方失败（2026-11-12 修订，ADR-0172）；`ETag` 是内容的 SHA-256；配额 `MaxTotalBytes`（默认 1 GiB）与 `MaxBlobBytes`（默认 256 MiB），启动时扫描目录得到已用量，之后在进程内计量；单进程正确，多进程共享目录时配额只是近似。存储只经 `FileSystemBlobStore.CreateAsync` 创建：建目录、扫描已用量并清掉过期的分片上传后才交出，不提供不初始化的公开构造，否则配额从零算起会放过超额写入（2026-11-11 修订，ADR-0163）。
+`ObjectStorage.FileSystem`：根目录（默认 `<AppContext.BaseDirectory>/blobs`）下 `<container>/data/<key>` 存内容、`<container>/meta/<key>.json` 存元数据；写入先落临时文件再原子替换，不覆盖的写入（含分片上传的完成）由文件系统原子判定谁先占住内容路径，目标已存在即 `OBJECTSTORAGE_CONFLICT_001`，多个写入方（含共享目录的多个进程）只有一个成功：Unix 上先以独占创建（`O_CREAT | O_EXCL` 语义）的空文件占位，再以 `rename` 把内容原子替换上去，不能用「先查目标再改名」的不替换移动，.NET 在 Unix 上的 `File.Move(…, overwrite: false)` 就是这样实现的（2026-11-11 修订，ADR-0168）；Windows 上用不替换的改名（`MoveFileEx` 不带替换标志，本身原子），不用占位再替换——替换要求目标此刻没有被打开，并发写入方探测占位文件的那一下就让占到位的一方失败（2026-11-12 修订，ADR-0172）；`ETag` 是内容的 SHA-256；配额 `MaxTotalBytes`（默认 1 GiB）与 `MaxBlobBytes`（默认 256 MiB），启动时扫描目录得到已用量，之后在进程内计量；单进程正确，多进程共享目录时配额只是近似。写入边复制边在进程内预留额度，总配额按已用量加全部预留判定，并发写入合计不超过它；覆盖期间新旧内容同时在盘上，预留按新内容的全长，旧对象的字节到提交时才释放。提交（改名）、删除与记账在同一把锁里完成，按此刻磁盘上旧内容的实际长度计算差值，并发覆盖与删除同一个键时用量与磁盘一致（2026-11-12 修订，ADR-0183；以前只检查不预留，并发写入能超额最多 N×`MaxBlobBytes`，并发覆盖按开始时读到的旧长度扣减会少记用量）。存储只经 `FileSystemBlobStore.CreateAsync` 创建：建目录、扫描已用量并清掉过期的分片上传后才交出，不提供不初始化的公开构造，否则配额从零算起会放过超额写入（2026-11-11 修订，ADR-0163）。
 
 ## S3 Provider
 
