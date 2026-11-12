@@ -132,6 +132,9 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PROTOCOLS_VALIDATION_002` | MCP：协议版本不受支持 |
 | `PROTOCOLS_VALIDATION_003` | MCP：tool 参数不是 JSON 对象 |
 | `PROTOCOLS_VALIDATION_004` | MCP：推导或配置的 tool 名不合法（启动失败） |
+| `PROTOCOLS_DENIED_001` | MCP：HTTP 请求的 `Origin` 不在 `XiHan:Protocols:Mcp:AllowedOrigins` 里（参数 `origin`；HTTP 403；ADR-0199） |
+| `PROTOCOLS_VALIDATION_015` | MCP：HTTP 请求的 `Content-Type` 不是 `application/json`（参数 `contentType`；HTTP 415；ADR-0199） |
+| `PROTOCOLS_VALIDATION_016` | MCP：HTTP 请求体超过 `XiHan:Protocols:Mcp:MaxRequestBodyBytes`（参数 `max`；HTTP 413；ADR-0199） |
 | `PROTOCOLS_NOTFOUND_001` | MCP：JSON-RPC 方法不受支持 |
 | `PROTOCOLS_NOTFOUND_002` | MCP：tool 未登记 |
 | `PROTOCOLS_CONFLICT_001` | MCP：两个操作得到同一个 tool 名（启动失败） |
