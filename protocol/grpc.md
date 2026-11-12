@@ -4,7 +4,7 @@
 
 ## 上下文映射（RFC-0003）
 
-gRPC 元数据就是 HTTP/2 头，复用 HTTP 载体的映射（`protocol/http.md`）：`traceparent`、`baggage`、`authorization`、`accept-language`、`xihan-deadline`。截止时间另接受 gRPC 标准的 `grpc-timeout`（`{数值}{H|M|S|m|u|n}`，相对当前时刻；没有 `xihan-deadline` 时生效）。每次调用是一次独立调用：处理器以请求头构造上下文，经完整内核管道。
+gRPC 元数据就是 HTTP/2 头，复用 HTTP 载体的映射（`protocol/http.md`）：`traceparent`、`baggage`、`authorization`、`accept-language`、`xihan-deadline`。截止时间另接受 gRPC 标准的 `grpc-timeout`（`{数值}{H|M|S|m|u|n}`，相对当前时刻；没有 `xihan-deadline` 时生效）；换算出的时刻超出时间能表示的范围时截到最远的时刻（2026-11-12 修订，ADR-0203；以前溢出抛异常，调用以 500 结束）。每次调用是一次独立调用：处理器以请求头构造上下文，经完整内核管道。
 
 ## 操作映射（RFC-0011）
 
