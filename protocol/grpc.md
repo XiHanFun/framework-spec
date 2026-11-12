@@ -43,4 +43,4 @@ gRPC 元数据就是 HTTP/2 头，复用 HTTP 载体的映射（`protocol/http.m
 | 其他 | `Internal` |
 
 - `grpc-message` 为按 `accept-language` 翻译的文案；尾部元数据 `xihan-error-code` 为框架错误码，`xihan-trace-id` 为 trace-id（成功时也有）。
-- 请求不是合法 protobuf 或与 Schema 不符 → `InvalidArgument` + `PROTOCOLS_VALIDATION_005`；响应无法按 Schema 编码 → `Internal` + `PROTOCOLS_UNEXPECTED_001`；应用未就绪 → `Unavailable` + `KERNEL_UNAVAILABLE_001`；未登记的方法 → `Unimplemented`（gRPC 服务端默认）。
+- 请求不是合法 protobuf 或与 Schema 不符 → `InvalidArgument` + `PROTOCOLS_VALIDATION_005`；嵌套消息超过 64 层（根消息算第 1 层，与 JSON 请求体的深度上限相同）同为 `PROTOCOLS_VALIDATION_005`，在解析之前判定（2026-11-12 修订，ADR-0189；以前递归的消息描述能嵌套到写 JSON 时以非预期异常失败，调用方得到 `Internal`）；响应无法按 Schema 编码 → `Internal` + `PROTOCOLS_UNEXPECTED_001`；应用未就绪 → `Unavailable` + `KERNEL_UNAVAILABLE_001`；未登记的方法 → `Unimplemented`（gRPC 服务端默认）。
