@@ -1,6 +1,6 @@
 # RFC-0007 多租户
 
-> 状态：已采纳（2026-10-26 修订：租户分片；2026-10-27 修订：租户目录的数据库 Provider；2026-11-01 修订：资源名租户段与租户 ID 同一文法、内存实现只为被选中的能力注册；2026-11-04 修订：分片解析失败的 `reason` 只写异常类型） | 日期：2026-10-21 | 对应 ADR：ADR-0018（分片）、ADR-0026（数据库 Provider）、ADR-0115 | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory`、`XiHan.Framework.MultiTenancy.Database` | 一致性：`XiHan.Framework.MultiTenancy.Conformance`
+> 状态：已采纳（2026-10-26 修订：租户分片；2026-10-27 修订：租户目录的数据库 Provider；2026-11-01 修订：资源名租户段与租户 ID 同一文法、内存实现只为被选中的能力注册；2026-11-04 修订：分片解析失败的 `reason` 只写异常类型；2026-11-12 修订：租户 ID 只用小写、整串匹配） | 日期：2026-10-21 | 对应 ADR：ADR-0018（分片）、ADR-0026（数据库 Provider）、ADR-0115、ADR-0196（租户 ID 只用小写） | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory`、`XiHan.Framework.MultiTenancy.Database` | 一致性：`XiHan.Framework.MultiTenancy.Conformance`
 
 ## 摘要
 
@@ -15,7 +15,9 @@
 
 ## 租户 ID
 
-`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`，区分大小写。它出现在 Baggage `xihan.tenant`、`xrn` 资源名的租户段（RFC-0008「资源名」）、持久化实体的 `TenantId` 中，三处同一文法：任何合法的租户 ID 在三处都原样可用，不改写大小写、不替换字符。
+`^[a-z0-9][a-z0-9._-]{0,63}$`，整串匹配（结尾的换行同样不合文法）：小写字母或数字开头，之后是小写字母、数字、`.`、`_`、`-`，最长 64 个字符。它出现在 Baggage `xihan.tenant`、`xrn` 资源名的租户段（RFC-0008「资源名」）、持久化实体的 `TenantId` 中，三处同一文法：任何合法的租户 ID 在三处都原样可用，不改写大小写、不替换字符。
+
+只用小写（2026-11-12 修订，ADR-0196；以前允许大写并规定区分大小写）：租户 ID 要在数据库列、文件路径、主机名与缓存键里比较，SQL Server 与 MySQL 的缺省排序规则、Windows 与 macOS 的文件系统、主机名都不区分大小写，`Acme` 与 `acme` 在那里是同一个值，在框架里却是两个租户，一个租户的调用能读写另一个的行。只用小写时按序数比较与不区分大小写的比较结论相同，Provider 与部署不必依赖区分大小写的排序规则。含大写的 ID 不合文法：Tenant 阶段解析出来的为 `MULTITENANCY_VALIDATION_001`，构造 `TenantInfo` 与资源名时被拒绝；框架不把大写改写成小写。
 
 ## 解析
 
@@ -33,7 +35,7 @@ Tenant 阶段一进入就调用 `context.MarkTenantResolved()`（内核 `Securit
 
 `ITenantStore`（2026-11-11 修订，ADR-0140）：`FindAsync(tenantId)` 返回 `Result<Maybe<TenantInfo>>`，没有这个租户是成功的无值，存储不可达（连接、超时、事务失败）是 `MULTITENANCY_UNAVAILABLE_003` 失败，不以异常或无值代替；`ListAsync(TenantQuery)` 返回 `Result<TenantPage>`，按 ID 升序（比较规则由存储决定）一页一页读：`PageSize` 1～1000（缺省 100）、不透明的 `ContinuationToken`、`EnabledOnly` 只列启用的租户，令牌为空即读完；每页条数越界或令牌不是本存储给出的返回 `MULTITENANCY_VALIDATION_003`。存储不在一次调用里返回无界的结果，也不静默截断。租户信息含显示名、启用标记与字符串属性（租户专属连接、配额等）。内存实现有界（默认 1000），从 `XiHan:MultiTenancy:Tenants` 装载。内存实现同时声明两种能力；另有显式 Provider 提供 `multitenancy.context` 时，内存实现只为被选中的 `multitenancy.sharding` 注册服务（RFC-0002 第 4 条）：租户存储、解析器、健康项与 Tenant 阶段中间件都由那个 Provider 负责，分片从它的 `ITenantStore` 推出。
 
-`MultiTenancy.Database`（ADR-0026）：租户是实体行 `TenantRecord`（ID、显示名、启用标记、属性 JSON、创建 / 修改时间与并发戳；不按租户过滤、不软删除），`ITenantStore` 单例在新作用域直接开只读工作单元读仓储（不经管道），按租户有界缓存查找结果（含"不存在"）并按 TTL 失效（`XiHan:MultiTenancy:Database`：`CacheSize` 默认 10000、`CacheTimeToLiveSeconds` 默认 30 且 0 为不过期）；列表按 ID 排序、以偏移为续页令牌逐页读，读取失败不进缓存；`TenantRecordStore` 在调用方的工作单元里批量新增 / 更新 / 删除并逐项返回结果，写入后失效目录与分片解析器的缓存。它不在清单里声明对 `persistence.relational@1` 的依赖（持久化 Provider 以可选依赖引用 `multitenancy.sharding@1`，再声明即成环），改为启动期核对能力图谱里有持久化 Provider，没有即以 `KERNEL_CAPABILITY_001` 中断启动。
+`MultiTenancy.Database`（ADR-0026）：租户是实体行 `TenantRecord`（ID、显示名、启用标记、属性 JSON、创建 / 修改时间与并发戳；不按租户过滤、不软删除），`ITenantStore` 单例在新作用域直接开只读工作单元读仓储（不经管道），读回的行按序数核对 ID，与请求的 ID 不同即视为不存在（排序规则不区分大小写时，迁移之前留下的大写 ID 不被当作它的小写形式，2026-11-12 修订，ADR-0196）；按租户有界缓存查找结果（含"不存在"）并按 TTL 失效（`XiHan:MultiTenancy:Database`：`CacheSize` 默认 10000、`CacheTimeToLiveSeconds` 默认 30 且 0 为不过期）；列表按 ID 排序、以偏移为续页令牌逐页读，读取失败不进缓存；`TenantRecordStore` 在调用方的工作单元里批量新增 / 更新 / 删除并逐项返回结果，写入后失效目录与分片解析器的缓存。它不在清单里声明对 `persistence.relational@1` 的依赖（持久化 Provider 以可选依赖引用 `multitenancy.sharding@1`，再声明即成环），改为启动期核对能力图谱里有持久化 Provider，没有即以 `KERNEL_CAPABILITY_001` 中断启动。
 
 租户管理（2026-11-11 修订，ADR-0160）：可选接口 `ITenantAdministration`，内存与数据库实现都提供。`UpsertAsync(tenants[])`（整份覆盖，同一批里后一项覆盖前一项，新增超出容量为 `MULTITENANCY_UNAVAILABLE_001`）与 `RemoveAsync(tenantIds[])`（不存在为 `MULTITENANCY_NOTFOUND_001`）返回与入参同序的逐项结果，写入后让租户目录与分片解析器丢弃这些租户的缓存；写入在提交之后才可见，所以作用域释放时再失效一次，两处缓存都按代数丢弃失效之前开始的读取，提交之前读回的旧租户不留在缓存里（2026-11-12 修订，ADR-0194）；列出租户只经 `ITenantStore.ListAsync`。缓存失效的形状是 `Invalidate(ids[])` 加显式的 `InvalidateAll()`，不以 `null` 表示全部：分片解析器、数据库租户目录、数据库授予缓存与 AI 提供方目录一律如此。
 

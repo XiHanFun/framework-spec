@@ -1,6 +1,6 @@
 # RFC-0008 认证与授权
 
-> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地、绕过管道的端点；2026-11-01 修订：资源名文法、自己产生的租户声明跟随 TenantClaim、权限码文法；授予读不到不当作没有授予、操作引用的权限码装配时核对；插件声明的权限码由宿主登记、按名引用的策略与端点要求启动时核对；同日再修订：契约的策略在宿主的启动核对里核对、不论失败策略都拒绝启动，插件卸载撤回它声明的权限码；2026-11-04 修订：出站地址策略；2026-11-12 修订：WebAuthn） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地）、ADR-0051（绕过管道的端点）、ADR-0071（授予读不到以 503 结束、操作引用的权限码装配时核对）、ADR-0080（插件声明的权限码、策略与端点要求启动时核对）、ADR-0085（启动核对不归失败策略管、卸载撤回登记）、ADR-0117（出站地址策略）、ADR-0170（WebAuthn） | 参考实现：`XiHan.Framework.Kernel`（出站地址策略）、`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Hosting.AspNetCore`（绕过管道的端点）、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region`、`XiHan.Framework.Security.WebAuthn` | 一致性：`XiHan.Framework.Security.Conformance`
+> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地、绕过管道的端点；2026-11-01 修订：资源名文法、自己产生的租户声明跟随 TenantClaim、权限码文法；授予读不到不当作没有授予、操作引用的权限码装配时核对；插件声明的权限码由宿主登记、按名引用的策略与端点要求启动时核对；同日再修订：契约的策略在宿主的启动核对里核对、不论失败策略都拒绝启动，插件卸载撤回它声明的权限码；2026-11-04 修订：出站地址策略；2026-11-12 修订：WebAuthn；同日再修订：授予缓存在写入提交之后失效，资源名的租户段只用小写、整串匹配） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地）、ADR-0051（绕过管道的端点）、ADR-0071（授予读不到以 503 结束、操作引用的权限码装配时核对）、ADR-0080（插件声明的权限码、策略与端点要求启动时核对）、ADR-0085（启动核对不归失败策略管、卸载撤回登记）、ADR-0117（出站地址策略）、ADR-0170（WebAuthn）、ADR-0194（授予缓存在提交之后失效）、ADR-0196（租户段只用小写） | 参考实现：`XiHan.Framework.Kernel`（出站地址策略）、`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Hosting.AspNetCore`（绕过管道的端点）、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region`、`XiHan.Framework.Security.WebAuthn` | 一致性：`XiHan.Framework.Security.Conformance`
 
 ## 摘要
 
@@ -74,10 +74,10 @@
 授权要求与审计里的资源用统一资源名 `xrn:<partition>:<service>:<tenant>:<type>/<id>`（内核 `ResourceName`）：
 
 - `partition`、`service`、`type`：`[a-z0-9-]+`。
-- `tenant`：空段（全局资源；.NET 的 `ResourceName.Tenant` 为 `null`，构造时传空字符串被拒绝，2026-11-11 修订，ADR-0145），或与 RFC-0007「租户 ID」同一文法的租户 ID（`[A-Za-z0-9][A-Za-z0-9._-]{0,63}`，区分大小写）。任何合法的租户 ID 拼进资源名都能原样解析回来，`Acme`、`acme.cn`、`t_42` 都是合法的租户段。
+- `tenant`：空段（全局资源；.NET 的 `ResourceName.Tenant` 为 `null`，构造时传空字符串被拒绝，2026-11-11 修订，ADR-0145），或与 RFC-0007「租户 ID」同一文法的租户 ID（`[a-z0-9][a-z0-9._-]{0,63}`，只用小写，2026-11-12 修订，ADR-0196）。任何合法的租户 ID 拼进资源名都能原样解析回来，`acme`、`acme.cn`、`t_42` 都是合法的租户段，`Acme` 不是。
 - `id`：不含 `/` 与空白的非空串。
 
-解析不合法的资源名失败（`Parse` 抛出参数异常，`TryParse` 返回假），不做大小写或字符替换。
+解析不合法的资源名失败（`Parse` 抛出参数异常，`TryParse` 返回假），不做大小写或字符替换；整串匹配，结尾带换行的同样不合法（2026-11-12 修订，ADR-0196）。
 
 ## RBAC 授予
 
