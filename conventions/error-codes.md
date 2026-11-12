@@ -147,6 +147,8 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PROTOCOLS_UNEXPECTED_001` | gRPC：操作的响应无法按 Schema 编码为 protobuf |
 | `PROTOCOLS_VALIDATION_008` | CloudEvents：请求不是 CloudEvent（内容类型既非结构化 / 批量格式，也没有 `ce-specversion` 头） |
 | `PROTOCOLS_VALIDATION_009` | CloudEvents：事件类型没有映射到主题，类型本身也不是合法主题 |
+| `PROTOCOLS_VALIDATION_013` | CloudEvents：入站请求体超过 `XiHan:Protocols:CloudEvents:MaxRequestBodyBytes`（参数 `max`；ADR-0187） |
+| `PROTOCOLS_VALIDATION_014` | CloudEvents：入站 batch 的事件数超过 `MaxBatchSize`（参数 `count`、`max`；ADR-0187） |
 | `PROTOCOLS_NOTFOUND_003` | CloudEvents：派发模式下主题没有处理器 |
 | `PROTOCOLS_NOTFOUND_004` | CloudEvents：主题没有配置出站 Webhook |
 | `PROTOCOLS_UNAVAILABLE_001` | CloudEvents：Webhook 返回非 2xx |
