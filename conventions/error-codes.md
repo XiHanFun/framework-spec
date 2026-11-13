@@ -253,4 +253,5 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `CLI_NOTFOUND_004` | `setup` 在 `--path` 及其上级找不到项目根（git 根、解决方案或项目文件） |
 | `CLI_VALIDATION_005` | `setup` 的 `--client` 或 `--mode` 不认识 |
 | `CLI_VALIDATION_006` | `setup` 要合并的编码助手配置不是合法的 JSON 对象；不改动任何文件 |
+| `CLI_VALIDATION_007` | `pack`：进 ConfigMap 的配置文件里有带值的凭据键（参数 `file`、`keys`，只列键的路径、不带值）；不写任何文件（ADR-0222） |
 | `CLI_CONFLICT_001` | `setup --check`：配置或技能未就绪 |

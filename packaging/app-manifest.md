@@ -18,7 +18,7 @@
 | `bindings.<name>.type` | 是（有绑定时） | — | `connection:relational` / `cache:distributed` / `queue` / `blob` / `stream` / `configuration:remote` |
 | `bindings.<name>.secret` | 否 | `<app>-<name>` | k8s Secret 名 |
 | `config.mountPath` | 否 | `/etc/xihan` | 绝对路径 |
-| `config.files` | 否 | `[]` | 文件名（无目录分隔符），存在时内容进 ConfigMap，否则为 `{}` |
+| `config.files` | 否 | `[]` | 文件名（无目录分隔符），存在时内容进 ConfigMap，否则为 `{}`。ConfigMap 不加密、读得到它的人多，JSON 文件里有带值的凭据键（名字按 RFC-0014「选项里的凭据」，外加 `ConnectionStrings` 节）时 `pack` 生成 kustomize 失败 `CLI_VALIDATION_007`，列出文件与键的路径、不带值；凭据走绑定的 Secret 或环境变量（2026-11-13 修订，ADR-0222） |
 | `probes.startupSeconds` | 否 | `60` | ≥ `periodSeconds` |
 | `probes.periodSeconds` | 否 | `10` | ≥ 1 |
 | `probes.timeoutSeconds` | 否 | `2` | ≥ 1 |
