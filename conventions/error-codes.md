@@ -77,6 +77,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PERSISTENCE_VALIDATION_007` | 库结构表列表的分页越界：`TableListQuery.Skip` 为负或 `Take` 小于 1（参数 `skip`、`take`；不在构造时抛出，读结构的 Provider 以结果返回，HTTP 400） |
 | `PERSISTENCE_VALIDATION_008` | 库里已有数据的存储形式与模型不符：EF Core 在 SQLite 上由约定映射成 UTC ticks 整数的 `DateTimeOffset` 列，库里的列声明类型不是 INTEGER 亲和性（旧库的 `TEXT`，空表也算），或抽样最早写入的 1000 行查到非整数的值（重建表时没换算）——照读会静默读成错误的时刻。特性启动时逐连接核对，以异常抛出、启动失败，一个连接的不符列一次列出（参数 `connection`、`columns`；RFC-0005「EF Core 在 SQLite 上的时间列核对」，ADR-0094）；租户分片库在首次绑定时核对（工作单元开始时以异常抛出，经管道的调用是 `KERNEL_UNEXPECTED_001`、原因是本码，HTTP 500，已定、不转成 400 也不另立码，ADR-0099；消息键 `persistence.schema.shard_timestamp_format_mismatch`，参数 `tenant`、`columns`；通过的分片只查一次，不符的每次绑定重查；2026-11-02 修订，ADR-0097） |
 | `PERSISTENCE_VALIDATION_009` | 连接用了别的库的从库（装配错误，以异常抛出）：主库不同的连接共用同一个从库，读会读到别的库的数据；默认连接与命名连接启动时核对，分片连接在作用域取客户端时核对 |
+| `PERSISTENCE_VALIDATION_010` | 工作单元的租户与客户端绑定的分片的租户不一致（含工作单元不带租户）：开始工作单元时抛出，工作单元保持未开始（ADR-0223） |
 | `PERSISTENCE_NOTFOUND_001` | 更新或删除的实体不存在（含已软删除、不属于当前租户） |
 | `PERSISTENCE_NOTFOUND_002` | 运行时数据源没有在本进程登记（`DataSourceRegistry.GetAsync`） |
 | `PERSISTENCE_NOTFOUND_003` | 库里没有要读结构的表（`ISchemaReader.GetTablesAsync` 的逐项结果，参数 `dataSource`、`table`） |

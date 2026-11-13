@@ -53,7 +53,7 @@ Tenant 阶段一进入就调用 `context.MarkTenantResolved()`（内核 `Securit
   - `Bind(shard)` 直接绑定一个分片。
   - 绑定必须在作用域内首次创建持久化客户端之前；客户端建好之后再绑定、或改绑另一个分片，抛出 `InvalidOperationException`，不静默沿用原连接。同一个分片重复绑定无副作用。
   - 显式绑定优先于调用上下文里的分片；`TenantShardBinding.Resolve` 先看它，再看当前调用。
-  - 工作单元的 `TenantId` 仍由调用方在 `UnitOfWorkOptions` 里给出，应与绑定的租户一致。
+  - 工作单元的 `TenantId` 仍由调用方在 `UnitOfWorkOptions` 里给出，必须与绑定的租户一致（2026-11-13 修订，ADR-0223；以前不核对）：持久化 Provider 在客户端建在分片上时，开始工作单元即核对，不一致（含工作单元不带租户）抛出 `PERSISTENCE_VALIDATION_010`，工作单元保持未开始。不一致时工作单元按一个租户过滤、写入，连的却是另一个租户的库，一个租户的行会写进别的租户的库。经管道的调用不会不一致：Tenant 阶段解析出的租户既决定分片，也是 Transaction 阶段工作单元的租户。
   - 多租户 Provider（`MultiTenancy.InMemory`、`MultiTenancy.Database`）登记 `TenantShardScope`；自带分片 Provider 的应用同样登记它。
 
 ## 一致性
