@@ -212,6 +212,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `MULTITENANCY_VALIDATION_004` | 已认证主体带多个值不同的租户声明：签发方给出了矛盾的身份，不取其中任何一个（ADR-0218） |
 | `MULTITENANCY_NOTFOUND_001` | 租户不存在 |
 | `MULTITENANCY_DENIED_001` | 租户已禁用 |
+| `MULTITENANCY_CONFLICT_001` | 租户 ID 属于已删除的租户（墓碑），不能再新建：删除租户不清理按租户 ID 归属的数据，复用会让新租户接手（参数 `tenantId`；ADR-0225） |
 | `MULTITENANCY_UNAVAILABLE_001` | 租户存储容量已满 |
 | `MULTITENANCY_UNAVAILABLE_002` | 租户分片无法解析（租户存储不可达） |
 | `MULTITENANCY_UNAVAILABLE_003` | 租户存储不可达（连接、超时、事务失败） |
