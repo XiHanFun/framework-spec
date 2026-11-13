@@ -173,15 +173,15 @@ IP 归属地（ADR-0047）是能力 `security.ip-region@1`：`IIpRegionResolver.
    2. `clientDataJSON` 是 JSON 对象（`client_data`），`type` 为 `webauthn.create`（`type`），`challenge` 与期望值逐字节相同、定长比较（`challenge`），`origin` 在 `Origins` 里（`origin`），`crossOrigin` 不为真（`cross_origin`）。
    3. 证明对象是 CBOR 映射，带 `fmt`、`attStmt` 与 `authData`（`attestation_object`）；`authData` 的长度与结构合法（`authenticator_data`）。
    4. RP ID 哈希等于 `SHA-256(RelyingPartyId)`（`rp_id`）；用户在场（UP，`user_present`）；`UserVerification` 为 `Required` 时用户已验证（UV，`user_verified`）；不可备份（BE 为 0）时备份状态（BS）不能置位（`flags`）；带证明凭据数据（AT，`attested_credential`）。
-   5. 凭据 ID 1 到 1023 字节且与 `rawId` 相同（`credential_id`）；公钥是 COSE 键，算法在上面三种里，ES256 只认 P-256，RSA 模长至少 2048 位（`public_key`，算法不在其中为 `SECURITY_VALIDATION_007`）。
+   5. 凭据 ID 1 到 1023 字节且与 `rawId` 相同（`credential_id`）；公钥是 COSE 键，算法在上面三种里，ES256 只认 P-256，RSA 模长 2048 到 4096 位（`public_key`；2026-11-13 修订，ADR-0216：以前不设上限，几万位的模数让每次验签都很慢；算法不在其中为 `SECURITY_VALIDATION_007`）。
    6. 证明声明不校验，任何格式都按 `none` 对待：依赖方不要求证明，公钥是否真由认证器持有，由之后每次认证的签名证明；只有 `fmt` 为 `none` 时要求 `attStmt` 为空映射（`attestation`）。
    成功返回凭据 ID、COSE 公钥（base64url）、算法、签名计数、AAGUID、BE、BS、UV 与 `transports`。
 4. 认证校验 `VerifyAuthentication(response, expectedChallenge, credential)`：
    1. 同 3.1，且 `id` 等于存储的凭据 ID（`credential`）。
    2. `clientDataJSON` 的 `type` 为 `webauthn.get`，其余同 3.2。
    3. `authenticatorData` 的长度与结构、RP ID、UP、UV、BE 与 BS 同 3.3、3.4（不要求 AT）。
-   4. 凭据属于谁（2026-11-12 修订，ADR-0179；WebAuthn §7.2 第 6 步）：存储的凭据必须记下所属用户的句柄（注册选项的 `user.id`）。调用方传入登录前已认出的用户（先填账号、第二因素）时，凭据的所属用户必须是他；没有认出用户（免用户名）时，响应必须带 `userHandle`。响应带了 `userHandle` 就必须等于所属用户。任一不满足为 `user_handle`。结果交回所属用户的句柄，免用户名的流程据此确定是谁登录，不取响应里的句柄。
-   5. 签名覆盖 `authenticatorData ‖ SHA-256(clientDataJSON)`，算法取存储的公钥：ES256 是 DER 编码的 ECDSA，PS256 是 PSS，RS256 是 PKCS#1 v1.5，都用 SHA-256（`signature`）。
+   4. 签名覆盖 `authenticatorData ‖ SHA-256(clientDataJSON)`，算法取存储的公钥：ES256 是 DER 编码的 ECDSA，PS256 是 PSS，RS256 是 PKCS#1 v1.5，都用 SHA-256（`signature`）。
+   5. 凭据属于谁（2026-11-12 修订，ADR-0179；WebAuthn §7.2 第 6 步；2026-11-13 修订，ADR-0216：移到验签之后，以前在验签之前，没有私钥的人拿任意凭据 ID 与句柄试，就能从 `user_handle` 与 `signature` 两种原因分辨凭据属于谁）：存储的凭据必须记下所属用户的句柄（注册选项的 `user.id`）。调用方传入登录前已认出的用户（先填账号、第二因素）时，凭据的所属用户必须是他；没有认出用户（免用户名）时，响应必须带 `userHandle`。响应带了 `userHandle` 就必须等于所属用户。任一不满足为 `user_handle`。结果交回所属用户的句柄，免用户名的流程据此确定是谁登录，不取响应里的句柄。
    6. 签名计数：新旧值有一个不为 0 时新值必须大于旧值，否则 `SECURITY_DENIED_006`（认证器可能被复制，应用应提醒本人或停用凭据）；都为 0 是不计数的认证器，放行。
    成功返回新的签名计数、UV、BS 与所属用户的句柄，应用据此更新存储的凭据。
 5. 失败以 `Result` 返回、不抛出，参数 `reason` 是上面括号里的机读原因：
@@ -189,7 +189,7 @@ IP 归属地（ADR-0047）是能力 `security.ip-region@1`：`IIpRegionResolver.
    - 公钥算法不支持是 `SECURITY_VALIDATION_007`，参数 `algorithm`。
    - 核对不通过是 `SECURITY_DENIED_005`：`type`、`challenge`、`origin`、`cross_origin`、`rp_id`、`user_present`、`user_verified`、`credential`、`user_handle`、`signature`。
    - 参数为 `null` 抛 `ArgumentNullException`；应用给的期望挑战或存储的凭据 ID 不是 base64url 抛 `ArgumentException`（调用方的错误，不是响应的错误）；存储的公钥解不开按 `public_key` 返回。
-6. 不做：证明的信任链与元数据服务（MDS），扩展（客户端扩展结果忽略），挑战与凭据的存储。
+6. 不做：证明的信任链与元数据服务（MDS；AAGUID 在 `none` 证明下是认证器自报的型号，没有经过证明，不能拿来限制型号，2026-11-13，ADR-0216），扩展（客户端扩展结果忽略），挑战与凭据的存储。
 
 ## 一致性
 

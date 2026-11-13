@@ -755,6 +755,31 @@
       }
     },
     {
+      "name": "credential-of-another-user-bad-signature",
+      "challenge": "4u2c26nq7CTHRFq9LF4h3Y3m6a-veCLZZ7xxXGILv60",
+      "credential": {
+        "credentialId": "2IWnG4tBfWBMtDZXNiMgag",
+        "publicKey": "pQECAyYgASFYII5iNo8QHwn5wX9cqIbD2iyqmMc3UjzTmpMmwc4b1615IlggS7My33AV_ukr-rlFongKO1gQLel5VjioedQ4CMM2AZs",
+        "signCount": 0,
+        "userHandle": "dXNlci0wMDAx"
+      },
+      "expectedUserHandle": "dXNlci0wMDAz",
+      "response": {
+        "id": "2IWnG4tBfWBMtDZXNiMgag",
+        "rawId": "2IWnG4tBfWBMtDZXNiMgag",
+        "type": "public-key",
+        "response": {
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiNHUyYzI2bnE3Q1RIUkZxOUxGNGgzWTNtNmEtdmVDTFpaN3h4WEdJTHY2MCIsIm9yaWdpbiI6Imh0dHBzOi8vZXhhbXBsZS5jb20iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+          "authenticatorData": "o3mm9u6vuaVeN4wRgDTidR5oL6ufLTCrE9ISVYbOGUcdAAAAAA",
+          "signature": "MEUCIBHvmKkvUbnHQzNSDGudrTfQN4uO2lEwfwuRR342ADN2AiEAqloybQwlZKiYH5_BciI0E-D2d8dhJMlpurJjZvd1twU"
+        }
+      },
+      "error": {
+        "code": "SECURITY_DENIED_005",
+        "reason": "signature"
+      }
+    },
+    {
       "name": "identified-user-without-handle",
       "challenge": "kHb-o0xtb_EpqrShwwAQ_UEAA_f3c8bXsSv_9Lxg_Ns",
       "credential": {
@@ -802,6 +827,31 @@
       "error": {
         "code": "SECURITY_DENIED_005",
         "reason": "user_handle"
+      }
+    },
+    {
+      "name": "rsa-modulus-too-large",
+      "challenge": "G0odysfmQVZvn_KPF_qnD38wec5mmsXuqUSQxBcYb7c",
+      "credential": {
+        "credentialId": "2IWnG4tBfWBMtDZXNiMgag",
+        "publicKey": "pAEDAzkBACBZBACCVrSVZG6P0Gllu_0q6qcUqYUF0LeUzjVcEk2RjoXqHE19HtQq8lZdkCnXGCLt54jinx7ZnbjRKiGiwtcuHzIYdDKQLtClO-AVPy8h5ozcgVFnUFzmUR2hjNyyD1SooY7o5P2YwdNwTKtHWlvdw_wRpOlLaVq-E47SrqzytSli4bIrczKQkqZ8s9x3f39nfcFKV7-DNF-in5OExFpZXGPw81RL7KJnJ0JfoMG5p4tOO9YZ5wb-19olbMKCXq66_jXk6KvLYK-hdcUX75H-S6lxvEu9PJgodcczb3vQ9N57hqDZl93pAWWgr_h7Zye_vxfDjjnhkvEcvFwRXA3CdC2kj2N88hKg95nvfaIG9u8T2VYE0_3w2WLqdwIZY8_0OsKXXk2QRmZSH3SgBltsbCZ6cQbHWGae2aLMScVwZ_sDgYBSuJSZxB08_ieQEZL0mCi3Eg34r7DF_Jz2bSQdHtF4bC_o6ac804bRHhy2HfZ7zTavG174_ImWLo36dnqXZA1dFaXCfvmtp1Yij3taTv0E7kOLJTIvTMP6YhZK1Xq4kdA2AoxHv3btN9j2E98vgGruaAkFcTxXTOKtL1qww3ZjiNdkzRJAsvuZOwM37e1mulQS9xsVbSrfbHtNrsyG6If9v8L7xQT1DskEPE-VjyF04-WPmdHvV9kMIBnuzrrkISr03QrbhSR71A4V6H-0MmWsHDju7ZYj4pUORMA_j1T7DEEbZFNk43V58FTpX4-mMT-X5zqm1ehkd3BeD2nU0seEl0RGR7bggMz2qd_0badrHSt-4IB56EVb99KL_tzccORQuU-4yN3_xZFhy3nOtgyURZDX8jb7a7IQy_r1ZJSRYmH8MeFibFv_0dN1AgwSk8sqYmVVIEj1mrY07vseANBjFgNLlama7pzsr-Ma5lgw5sWGxHzb4MvssLuGpJmiAzYsvlWlWsmZPzJAR4eYGUmgkpzD94J6curzom-H_59vt8S9bXcdyR8t5XRK7CuaihPV0oI8zC-aiwh0NQY35nhbfm7to8r7K4TzGYy3Oczw5LRn4O2CZzLcIYnZIsTP4OKAl31QUqAA2twNXRxo8mrHb-y6wIFVmu8hAGmtLW5eR7rcJjGamqjjxIx6yHnG0qVtTWlrDbfUdbKfbXWmGDtmgwZpf_6eVchHd3q894Ie7c51mab2_MNgDj0I1sV5A5W7nAfNF0LWfnJPRUHlzF8hUBF7sNwuYqZT4kVAvafcnj6woDREi0YKKT-jC1pdUY5r_kDp-Afy8VccnxM6g0gM-375BFjcvDOkBdOFent05f4kOhHLShHmw2Sbh1Y4bn1Mdn0_NpMwLt5eJwxSK_L2_iaG5uqjq7WLJ8_Q6q0rIUMBAAE",
+        "signCount": 0,
+        "userHandle": "dXNlci0wMDAx"
+      },
+      "response": {
+        "id": "2IWnG4tBfWBMtDZXNiMgag",
+        "rawId": "2IWnG4tBfWBMtDZXNiMgag",
+        "type": "public-key",
+        "response": {
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiRzBvZHlzZm1RVlp2bl9LUEZfcW5EMzh3ZWM1bW1zWHVxVVNReEJjWWI3YyIsIm9yaWdpbiI6Imh0dHBzOi8vZXhhbXBsZS5jb20iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+          "authenticatorData": "o3mm9u6vuaVeN4wRgDTidR5oL6ufLTCrE9ISVYbOGUcdAAAAAA",
+          "signature": "MEYCIQCEBHJh3rd62bSmi9T1dQ43CLVW2UsBoORma40YmL_xAgIhAL6SaOZzUmZNWQL-hUnup3jeLNxvY_XTwnapT_ImTBQT",
+          "userHandle": "dXNlci0wMDAx"
+        }
+      },
+      "error": {
+        "code": "SECURITY_VALIDATION_006",
+        "reason": "public_key"
       }
     }
   ]
