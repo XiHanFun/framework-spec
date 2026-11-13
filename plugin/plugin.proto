@@ -321,6 +321,10 @@ message HandleEventRequest {
   InvocationMetadata metadata = 2;
   // 投递次数，从 1 起。
   uint32 attempt = 3;
+  // 这次投递的订阅方式（RFC-0009「订阅方式」）：`competing` 或 `broadcast`，宿主总是填写；空同 `competing`。
+  // 插件只把消息交给以这种方式订阅了该主题、类型也匹配的处理器：同一主题的不同类型可以各用一种方式，
+  // 一条消息可能以两种方式各到一次，没有它插件分不出该交给哪个处理器。
+  string mode = 4;
 }
 
 // 投递结果；失败按宿主消息代理的重试与死信策略处理。

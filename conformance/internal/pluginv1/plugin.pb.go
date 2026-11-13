@@ -1706,7 +1706,11 @@ type HandleEventRequest struct {
 	// 上下文（Baggage 与追踪来自信封扩展属性）。
 	Metadata *InvocationMetadata `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// 投递次数，从 1 起。
-	Attempt       uint32 `protobuf:"varint,3,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	Attempt uint32 `protobuf:"varint,3,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	// 这次投递的订阅方式（RFC-0009「订阅方式」）：`competing` 或 `broadcast`，宿主总是填写；空同 `competing`。
+	// 插件只把消息交给以这种方式订阅了该主题、类型也匹配的处理器：同一主题的不同类型可以各用一种方式，
+	// 一条消息可能以两种方式各到一次，没有它插件分不出该交给哪个处理器。
+	Mode          string `protobuf:"bytes,4,opt,name=mode,proto3" json:"mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1760,6 +1764,13 @@ func (x *HandleEventRequest) GetAttempt() uint32 {
 		return x.Attempt
 	}
 	return 0
+}
+
+func (x *HandleEventRequest) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
 }
 
 // 投递结果；失败按宿主消息代理的重试与死信策略处理。
@@ -2441,11 +2452,12 @@ const file_plugin_proto_rawDesc = "" +
 	"\x05start\x18\x01 \x01(\v2\x1e.xihan.plugin.v1.InvokeRequestH\x00R\x05start\x12\x16\n" +
 	"\x05chunk\x18\x02 \x01(\fH\x00R\x05chunk\x12+\n" +
 	"\x03end\x18\x03 \x01(\v2\x17.xihan.plugin.v1.StatusH\x00R\x03endB\a\n" +
-	"\x05frame\"\xa6\x01\n" +
+	"\x05frame\"\xba\x01\n" +
 	"\x12HandleEventRequest\x125\n" +
 	"\benvelope\x18\x01 \x01(\v2\x19.xihan.plugin.v1.EnvelopeR\benvelope\x12?\n" +
 	"\bmetadata\x18\x02 \x01(\v2#.xihan.plugin.v1.InvocationMetadataR\bmetadata\x12\x18\n" +
-	"\aattempt\x18\x03 \x01(\rR\aattempt\"F\n" +
+	"\aattempt\x18\x03 \x01(\rR\aattempt\x12\x12\n" +
+	"\x04mode\x18\x04 \x01(\tR\x04mode\"F\n" +
 	"\x13HandleEventResponse\x12/\n" +
 	"\x06status\x18\x01 \x01(\v2\x17.xihan.plugin.v1.StatusR\x06status\"\xf7\x02\n" +
 	"\bEnvelope\x12\x14\n" +

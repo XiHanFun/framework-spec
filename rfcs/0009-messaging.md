@@ -1,6 +1,6 @@
 # RFC-0009 消息、CloudEvents 信封与发件箱
 
-> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题；2026-11-03 修订：发件箱把代理抛出与返回失败一样计入尝试、重试逐条发布、一轮遇到抛出即停止发布；2026-11-04 修订：框架异常的消息不拼代理的异常文字；2026-11-10 修订：Redis Streams Provider；2026-11-12 修订：投递覆盖租户分片库） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题）、ADR-0108（发件箱计入代理抛出）、ADR-0115、ADR-0130（Redis Streams Provider）、ADR-0211（投递覆盖分片库） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka`、`XiHan.Framework.Messaging.Redis` | 一致性：`XiHan.Framework.Messaging.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题；2026-11-03 修订：发件箱把代理抛出与返回失败一样计入尝试、重试逐条发布、一轮遇到抛出即停止发布；2026-11-04 修订：框架异常的消息不拼代理的异常文字；2026-11-10 修订：Redis Streams Provider；2026-11-12 修订：投递覆盖租户分片库；2026-11-13 修订：插件投递带订阅方式） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题）、ADR-0108（发件箱计入代理抛出）、ADR-0115、ADR-0130（Redis Streams Provider）、ADR-0211（投递覆盖分片库）、ADR-0226（插件投递带订阅方式） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka`、`XiHan.Framework.Messaging.Redis` | 一致性：`XiHan.Framework.Messaging.Conformance`
 
 ## 摘要
 
@@ -86,7 +86,7 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 | `Competing`（缺省） | 订阅了这个主题的实例里只有一个收到（工作队列） | 业务事件、领域事件、需要恰好处理一次的工作 |
 | `Broadcast` | 每个在线实例各收到一份 | 断开本实例上的连接、清本地缓存这类每个节点都要做的事 |
 
-1. 登记：`AddMessageHandler<THandler>(topic, SubscriptionMode.Broadcast)`；不写方式即竞争消费。同一主题可以同时有两种方式的处理器：订阅表按（主题，方式）分组，代理按（主题，方式）各消费一份，派发器只执行与投递的方式相同的处理器。同一条消息到达一个实例的竞争订阅与广播订阅是两次独立的投递，各自计尝试次数、各自重试。插件在握手的 `Subscription.mode` 里声明（`plugin/invocation.md`）。
+1. 登记：`AddMessageHandler<THandler>(topic, SubscriptionMode.Broadcast)`；不写方式即竞争消费。同一主题可以同时有两种方式的处理器：订阅表按（主题，方式）分组，代理按（主题，方式）各消费一份，派发器只执行与投递的方式相同的处理器。同一条消息到达一个实例的竞争订阅与广播订阅是两次独立的投递，各自计尝试次数、各自重试。插件在握手的 `Subscription.mode` 里声明，宿主投递时在 `HandleEventRequest.mode` 里带上这次投递的方式，插件据此只执行以这种方式订阅的处理器（`plugin/invocation.md` §4，2026-11-13 修订，ADR-0226）。
 2. 广播是尽力而为：只有订阅时在线、与代理连着的实例收到；实例不在线、重启中、与代理断开期间发布的消息收不到，上线后也不回放历史。需要不丢的用竞争订阅。
 3. 广播的失败：在本实例内按 `MaxAttempts` 重试，到上限后丢弃并记 Warning 日志，不进死信——死信是竞争订阅的共享留存，每个实例各自的一份失败没有地方可以重放；无法解码的消息同样丢弃并记日志。
 4. 广播不共享去重：每个实例各自执行处理器，派发照旧不写幂等键；代理重投时同一实例可能收到重复的投递，处理器要能承受。

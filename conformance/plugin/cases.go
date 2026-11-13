@@ -252,6 +252,8 @@ func (r *runner) caseEvent(ctx context.Context) error {
 		},
 		Metadata: &pluginv1.InvocationMetadata{TraceParent: traceParent},
 		Attempt:  1,
+		// 与宿主一样按订阅声明的方式投递：插件只把消息交给以这种方式订阅的处理器（invocation.md §4）
+		Mode: deliveryMode(subscription.Mode),
 	})
 	if err != nil {
 		return fmt.Errorf("handle event: %w", err)
@@ -260,6 +262,14 @@ func (r *runner) caseEvent(ctx context.Context) error {
 		return fmt.Errorf("the plugin must acknowledge a message on a declared subscription, got %s", describeStatus(response.Status))
 	}
 	return nil
+}
+
+// deliveryMode 把订阅声明的方式换成投递时的方式：宿主总是填写，声明为空即竞争消费。
+func deliveryMode(declared string) string {
+	if declared == "" {
+		return "competing"
+	}
+	return declared
 }
 
 // caseStdin：宿主关闭 stdin 后插件必须自行退出，不留孤儿进程。
