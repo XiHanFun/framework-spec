@@ -19,7 +19,8 @@
 - 容器 `ContainerName`：`^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$`（与 S3 桶名兼容）。
 - 键 `BlobKey`：`/` 分段的路径，1 到 1024 个字符；每段非空、不是 `.` 或 `..`；不含空白、控制字符与 `\`；区分大小写。
 - 保留前缀（2026-11-01 增补，ADR-0090）：首段是 `.xihan` 的键（`.xihan` 本身与 `.xihan/…`，区分大小写，`BlobKey.ReservedSegment`）留给框架自己的对象（如 S3 的条件写入探测键），不在键文法之内：构造时抛出 `ArgumentException`，`BlobKey.IsValid` 为假，业务写不进、读不到、删不掉；各 Provider 列举时跳过存储里已有的这类对象（框架经底层客户端写入的，或从外部放入的），不出现在业务列举里。查询前缀 `BlobQuery.Prefix` 只是筛选，不受此限，以 `.xihan` 开头的前缀列举总是空的。
-- 自定义元数据名：`^[a-z0-9][a-z0-9-]{0,63}$`；值为任意字符串。
+- 自定义元数据名：`^[a-z0-9][a-z0-9-]{0,63}$`；值不含控制字符（含 CR、LF）；名与值合计不超过 2048 个 UTF-8 字节（`BlobPutOptions.MaxMetadataBytes`，与 S3 用户元数据的上限一致）。2026-11-13 修订，ADR-0214；以前值为任意字符串、不限大小，换行进了 S3 的请求头与文件系统的元数据文件，一个对象的元数据可以无限大。
+- 内容类型 `BlobPutOptions.ContentType`（2026-11-13 修订，ADR-0214；以前只要求不空白）：媒体类型 `type/subtype`，两段都是 HTTP 的 token 字符，可跟 `;` 起头的参数（可打印 ASCII 与空格），整体 1 到 255 个字符（`MaxContentTypeLength`），`BlobPutOptions.IsValidContentType` 判定。
 - 标识不合法在构造时抛出 `ArgumentException`（编程错误），不进入 Provider。
 
 ## 契约
@@ -84,7 +85,7 @@
   - 清单不合法（为空、乱序、未上传或 ETag 不符、非末片过小）→ `OBJECTSTORAGE_VALIDATION_002`，上传保留可再完成；上传不存在或已结束 → `OBJECTSTORAGE_NOTFOUND_002`；`Overwrite = false` 时对象已存在，发起与完成都 → `OBJECTSTORAGE_CONFLICT_001`。
 - 预签名（能力 `objectstorage.presign@1`，`IBlobUrlSigner`）：签出限时地址，客户端不带凭据直接下载（`GET`，支持 `Range`，可带保存的文件名）、上传整个对象（`PUT`，可限定内容类型）或上传分片上传的某一片（`PUT`，响应 `ETag` 即分片 ETag）。有效期缺省 30 分钟，1 秒到 7 天。签出的地址带客户端必须发送的请求头。签名是本地计算，不检查对象是否存在。
   - 原生支持的存储（S3）由存储签名、客户端直连存储。
-  - 不支持的存储（文件系统）由宿主代收发：地址指向宿主的端点，签名是对方法、容器、键、过期时刻与各限定项的 HMAC-SHA256，无状态，同一密钥的多个实例互认；端点验签后经存储收发，签名不符或过期 → `OBJECTSTORAGE_DENIED_001`（HTTP 403），范围不可满足回 416。端点的响应都带 `X-Content-Type-Options: nosniff`；写出内容时带 `Content-Security-Policy: sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'`，PDF 除外，应用已经设了这个头时不覆盖（2026-11-04 修订，ADR-0125）。
+  - 不支持的存储（文件系统）由宿主代收发：地址指向宿主的端点，签名是对方法、容器、键、过期时刻与各限定项的 HMAC-SHA256，无状态，同一密钥的多个实例互认；端点验签后经存储收发，签名不符或过期 → `OBJECTSTORAGE_DENIED_001`（HTTP 403），范围不可满足回 416。上传的签名没有限定内容类型时对象的内容类型取请求的 `Content-Type`，不合内容类型文法 → `OBJECTSTORAGE_VALIDATION_006`（HTTP 400），不写入（2026-11-13 修订，ADR-0214）。端点的响应都带 `X-Content-Type-Options: nosniff`；写出内容时带 `Content-Security-Policy: sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'`，PDF 除外，应用已经设了这个头时不覆盖（2026-11-04 修订，ADR-0125）。
 - 文件系统：范围读取定位后只交出该段；分片暂存在容器的 `uploads/<上传标识>/`，分片文件名带内容的 SHA-256，完成时拼接成同目录临时文件再原子替换并计入配额；单片与拼接后的对象受单对象上限约束。暂存有界（2026-11-12 修订，ADR-0184；以前暂存的分片不计入配额、上传数不限、过期的上传只在启动时清掉且清掉之前照样能传分片）：暂存的分片边写边预留、计入总配额，完成或放弃后扣除；未完成的上传数不超过 `MaxMultipartUploads`（默认 1000），满了发起即 `OBJECTSTORAGE_UNAVAILABLE_002`（消息键 `objectstorage.multipart.uploads_exhausted`，参数 `limit`）；超过 `MultipartExpiry`（默认 7 天）未完成的上传当作不存在（再传分片、列举与完成都是 `OBJECTSTORAGE_NOTFOUND_002`），碰到即清掉，启动扫描时与运行期间发起新上传时（至多每小时一次）也清掉。
 - S3：范围读取经 `Range` 头；分片直接映射 S3 multipart（不覆盖的完成先 `Head` 再带 `If-None-Match: *`，服务认条件完成要先由探测确认：尚未确认时不覆盖的发起与完成 → `OBJECTSTORAGE_UNAVAILABLE_004`，探明不认或关闭条件写入时 → `OBJECTSTORAGE_UNAVAILABLE_003`）；预签名经 SDK（签名 V4），兼容服务的端点是 http 时按 http 签。
 
