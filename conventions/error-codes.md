@@ -50,6 +50,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `KERNEL_VALIDATION_003` | 请求不满足操作契约的 JSON Schema（类型、必填、枚举、范围、长度、模式、元素数）；Validate 阶段拒绝，不进 Handle |
 | `KERNEL_VALIDATION_004` | 请求对象的自校验（`IValidatableObject`）失败；Validate 阶段拒绝，不进 Handle |
 | `KERNEL_VALIDATION_005` | 操作契约引用了未登记的权限码：装配完成时以 `FrameworkException` 抛出、启动失败（一次列出全部）；装配之后登记的操作（插件握手之后）在登记时返回，插件整体登记失败（RFC-0008，ADR-0071） |
+| `KERNEL_VALIDATION_006` | 要求授权而没有判定者：操作契约声明了权限码或策略，管道的 Authorize 阶段却没有中间件；或端点挂了授权要求，却没有装配授权能力（`security.authorization@1`）。装配完成或宿主建请求管道时以 `FrameworkException` 抛出、启动失败（一次列出全部）；装配之后登记的操作以同码的校验错误登记失败（参数 `id`、`owner`；ADR-0217） |
 | `KERNEL_OPERATION_001` | 操作 ID 重复登记 |
 | `KERNEL_OPERATION_002` | 操作登记表已满 |
 | `PLUGINS_VALIDATION_001` | 插件清单、种类或隔离级别不合法，或清单声明了该隔离级别不支持的贡献（进程外与进程内插件写了 `contributes.pipeline`：只有 Wasm 插件能贡献中间件） |

@@ -64,7 +64,10 @@
    - 端点元数据上的要求（`RequireXiHanPermission`、`RequireXiHanPolicy`、`RequireXiHanAuthentication`）：`UseXiHan()` 在宿主建请求管道时（路由已全部映射）核对全部端点的 `AuthorizationRequirement`，有不存在的策略或未登记的权限码即抛出 `SECURITY_VALIDATION_004`（一次列出全部），宿主启动失败。端点上的要求不得被静默跳过（2026-11-12 修订，ADR-0175）：
      - 绕过宿主管道的端点（`PipelineBypassMetadata`：探针、OpenAPI、`.proto`、自己标注绕过的端点）不会判定要求，挂了要求即抛出 `SECURITY_VALIDATION_008`，宿主启动失败；处理器自己以调用上下文走完整管道并带上端点要求的端点（`PipelineBypassMetadata.SelfInvoking`，gRPC 操作方法）除外，`MapXiHanGrpc()` 上的约定在每次调用里与契约的要求叠加判定。
      - `RequireXiHan*` 给端点包一层守卫：`UseXiHan()` 没有把端点上的要求写进调用上下文（没调 `UseXiHan()`，或它排在路由之前读不到端点）时，端点不执行、抛出 `InvalidOperationException`，宁可失败不可放行。
-   - 没有装配授权能力（容器里没有 `PolicyCatalog`）时两者都不核对：此时 Authorize 阶段不判定任何要求。
+   - 没有装配授权能力时要求不得静默失效（2026-11-13 修订，ADR-0217；以前两者都不核对、Authorize 阶段不判定任何要求，契约上的权限与端点上的要求等于不存在）：
+     - 内核在装配完成时核对：有操作的契约声明了权限码或策略，而 Authorize 阶段没有任何中间件，即抛出 `KERNEL_VALIDATION_006`（一次列出全部），启动失败。此后登记的操作（插件握手之后）声明了权限码或策略即登记失败（同一错误码），插件整体被拒。
+     - `UseXiHan()` 在宿主建请求管道时核对：容器里没有 `PolicyCatalog`（没有装配授权能力），而有端点挂了 `AuthorizationRequirement`，即抛出 `KERNEL_VALIDATION_006`，宿主启动失败。
+     - 启动之后才写进上下文的要求（`RequireAuthorization`）：没有装配授权能力时抛出 `InvalidOperationException`，宁可失败不可放行。
 5. 策略不存在返回 `SECURITY_NOTFOUND_001`（宁可拒绝，不可放行）；拒绝返回策略给出的原因，未给出时为 `SECURITY_DENIED_002`。契约的权限码与策略、端点元数据都已在启动时核对（第 2、4 条），这条路径只剩启动时看不到的要求：应用代码以 `RequireAuthorization` 显式写入的要求、启动之后才加进来的端点。
 6. 内置策略：`authenticated`（已认证）；`permission:<code>`（匿名先按 `SECURITY_DENIED_001` 拒绝，缺权限返回 `SECURITY_DENIED_004`）。
 7. 策略判定（内核 `IPolicy.EvaluateAsync`）返回 `Result<AuthorizationResult>`（ADR-0071）：成功是允许或拒绝；失败是无法判定——判定依赖的授予存储、授予来源或收窄过滤器读不到数据（`SECURITY_UNAVAILABLE_001`）。Authorize 阶段以该失败结束调用（HTTP 503，gRPC `Unavailable`），既不放行，也不改写成拒绝（403）。权限策略把检查器的失败原样作为判定失败返回。
