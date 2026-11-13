@@ -308,6 +308,13 @@ public static class Redaction
   - 调用方信息参数（.NET 的 `CallerArgumentExpression`、`CallerMemberName` 等）由编译器填写，不算可选参数。
   - .NET 由分析器 XH0008 对生效级别为 `Stable` 的成员在编译期检查；`Preview` 与 `Experimental` 可以在小版本破坏，升 `Stable` 时这条规则随之生效（2026-11-11 修订，ADR-0167）。
   - 例外是面向源码使用的工具链包（`Testing`、`Conformance`）：测试项目总是随框架重新编译，可选参数保留，新参数只加在末尾（2026-11-11 修订，ADR-0157）。
+- **Provider 契约的演进**：Provider 要实现的接口一经发布就被各家实现锁住。新能力与新条件按下面的方式加，旧 Provider 不会在不知情时给出错误或放宽了的结果（2026-11-13 修订，ADR-0228）。
+  - 新能力走可选接口：另建一个接口，能做的 Provider 实现它，调用方按类型判断（.NET 用 `is`），没有就走降级路径或返回「不支持」的错误。先例有 `ICacheStoreInspector`、`IBlobMultipartStore`、`IPermissionGrantAdministration`、`ITenantAdministration`。
+  - 不在已有的 Provider 接口上加成员：对 `Stable` 这是破坏；`Preview` 与 `Experimental` 只在这项能力是每个 Provider 都必须有、缺了契约就不成立时，才登记豁免这样加（如锁续约要的比较后重设到期，ADR-0215）。
+  - 不用带默认实现的接口成员补能力：默认实现不是静默降级就是抛出，前者掩盖缺失，后者把编译期就能发现的缺失推到运行期。
+  - 查询带修订号：交给 Provider 的查询（过滤项与排序键）各有一个修订号常量 `Revision`，5.0 的全部条件属于修订 1；以后新增条件时常量加 1，新条件记在新修订号下。查询按这次实际用到的条件得出所需修订号，没有用到新条件时它不变，旧 Provider 照常服务。
+  - Provider 在入口以编译时取到的修订号核对（.NET 写作 `query.Validate(AuditQuery.Revision)`，常量在编译时写进 Provider），所需修订号更高即返回 `KERNEL_VALIDATION_007`，不读不认识的条件，也不给出放宽了的结果；签名不返回 `Result` 的（仓储的 `ListAsync`、`CountAsync`）以同一错误码抛出。跨进程的 Provider（远程操作集）在请求里带上所需修订号，由插件按自己实现到的修订号核对。
+  - 选项记录（如 `BlobPutOptions`、`UnitOfWorkOptions`）新增的字段，被旧 Provider 忽略时必须仍然安全，只是增强没有生效；忽略了会放宽访问、丢数据或改变结果的，不加字段，走可选接口。
 
 各语言实现把「登记豁免」落到自己的工具链上。.NET 用包验证的 `CompatibilitySuppressions.xml` 与 PublicAPI 文件的 `*REMOVED*` 行，门禁核对豁免只指向非 `Stable` 的成员（ADR-0131）。
 
@@ -320,7 +327,7 @@ public static class Redaction
 | Maybe | 与 `null` 的编码等价，但类型层面不可为空 |
 | TypedId | 编码为底层值；标签不上线 |
 | InvocationContext | 字段集合、W3C 格式、Baggage 键格式与传播载体（RFC-0003） |
-| Stability | 五级含义、只升不降、`Stable` 不依赖不稳定的类型与弃用流程（见「稳定性级别」） |
+| Stability | 五级含义、只升不降、`Stable` 不依赖不稳定的类型、弃用流程与 Provider 契约的演进（见「稳定性级别」） |
 | LifecycleState | 九态与迁移表 |
 | PipelineStage | 十一阶段的名称与顺序 |
 | 清单 | Schema、ID 格式、依赖文本语法 |
