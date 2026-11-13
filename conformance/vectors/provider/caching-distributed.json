@@ -7,6 +7,7 @@
     "cache-entries.try-add",
     "cache-entries.remove",
     "cache-entries.try-remove",
+    "cache-entries.try-refresh",
     "cache-entries.get-many",
     "cache-entries.set-many",
     "cache-entries.remove-many"
@@ -62,6 +63,28 @@
       }
     },
     {
+      "operation": "cache-entries.try-refresh",
+      "request": {
+        "key": "lock:orders",
+        "expected": "b3RoZXI=",
+        "ttlMs": 30000
+      },
+      "response": {
+        "refreshed": false
+      }
+    },
+    {
+      "operation": "cache-entries.try-refresh",
+      "request": {
+        "key": "lock:orders",
+        "expected": "dG9rZW4=",
+        "ttlMs": 30000
+      },
+      "response": {
+        "refreshed": true
+      }
+    },
+    {
       "operation": "cache-entries.try-remove",
       "request": {
         "key": "lock:orders",
@@ -79,6 +102,17 @@
       },
       "response": {
         "removed": true
+      }
+    },
+    {
+      "operation": "cache-entries.try-refresh",
+      "request": {
+        "key": "lock:missing",
+        "expected": "dG9rZW4=",
+        "ttlMs": 30000
+      },
+      "response": {
+        "refreshed": false
       }
     },
     {

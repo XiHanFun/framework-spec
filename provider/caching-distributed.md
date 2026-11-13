@@ -13,6 +13,7 @@
 | `cache-entries.try-add` | `key`、`value`、`ttlMs`?、`slidingMs`? | `added`：不存在（或已过期）时写入为 `true`，否则 `false` |
 | `cache-entries.remove` | `key` | `removed`：删除前存在且未过期为 `true` |
 | `cache-entries.try-remove` | `key`、`expected` | `removed`：当前值等于 `expected` 时删除为 `true`，不存在、已过期或值不同为 `false` |
+| `cache-entries.try-refresh` | `key`、`expected`、`ttlMs` | `refreshed`：当前值等于 `expected` 时把到期时间重设为「现在 + `ttlMs`」为 `true`，不存在、已过期或值不同为 `false`（2026-11-13 增补，ADR-0215） |
 | `cache-entries.get-many` | `keys`：字符串数组 | `values`：与 `keys` 等长的数组，每项是 base64 或 `null` |
 | `cache-entries.set-many` | `entries`：数组，每项 `key`、`value`、`ttlMs`?、`slidingMs`? | 无（`{}`） |
 | `cache-entries.remove-many` | `keys`：字符串数组 | `removed`：与 `keys` 等长的布尔数组 |
@@ -28,10 +29,11 @@
 
 ## 3. 语义
 
-- 过期在读取时判定：`get`、`try-add`、`remove`、`try-remove` 都把已过期的条目视为不存在。
+- 过期在读取时判定：`get`、`try-add`、`remove`、`try-remove`、`try-refresh` 都把已过期的条目视为不存在。
 - 滑动过期的条目在 `get` 命中时把到期时间延长为"现在 + `slidingMs`"；`try-remove` 与 `remove` 不延长。
 - `set` 覆盖已有条目及其过期设置；`try-add` 原子：并发的多次 `try-add` 恰有一次 `added: true`。
 - `try-remove` 原子：比较与删除之间不得插入其他写入。
+- `try-refresh` 原子：比较与重设到期时间之间不得插入其他写入；`ttlMs` 必填，不改值，条目是滑动过期的只重设这一次的到期时间，滑动窗口不变。分布式锁的续约用它。
 - 返回的值是条目写入时的字节，插件不得改写。
 - 插件只在自身串行化范围内保证原子性；跨插件实例的一致性（如多个宿主共用一个 Redis）由插件的后端保证。
 
@@ -64,4 +66,4 @@
 ## 6. 一致性
 
 - 适配器 + 插件通过 `CacheStoreConformance` 全部用例（含 32 路并发 `try-add`、256 KiB 值、真实时间的过期与滑动过期、基于存储的分布式锁）。
-- 向量 `caching-distributed.json`：操作 ID（含三个批量操作）、各操作的请求 / 响应样例、非法键与非法选项样例；各语言实现的单元测试以它核对编码。
+- 向量 `caching-distributed.json`：操作 ID（含三个批量操作与 `try-refresh`）、各操作的请求 / 响应样例、非法键与非法选项样例；各语言实现的单元测试以它核对编码。

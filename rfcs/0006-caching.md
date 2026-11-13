@@ -24,11 +24,12 @@
 | `TryAdd` | 不存在（或已过期）才写入，原子 |
 | `Remove` | 删除并报告是否存在 |
 | `TryRemove(expected)` | 当前值等于期望值才删除，原子 |
+| `TryRefresh(expected, ttl)` | 当前值等于期望值才把到期时刻重设为现在加 `ttl`，原子；不存在、已过期或值不同为假，不改值，不改滑动窗口（2026-11-13 增补，ADR-0215） |
 | `GetMany(keys)` | 逐键同 `Get`，一次往返；结果与键顺序一一对应 |
 | `SetMany(entries)` | 逐项同 `Set`（每项自带过期选项），一次往返；同一键出现多次后者覆盖 |
 | `RemoveMany(keys)` | 逐键同 `Remove`，一次往返；结果与键顺序一一对应，同一键出现多次第二次为假 |
 
-批量方法按 `conventions/batch-first.md`：空集合不触后端；基础设施失败整批抛出 `CACHING_UNAVAILABLE_001`；`TryAdd` 与 `TryRemove` 保持单键（它们是锁与幂等的原子原语，批量没有意义）。Provider 用原生批量（Redis `MGET`、管道里的 `SET` 带过期、管道里的 `DEL`），内存实现一次加锁逐项处理。
+批量方法按 `conventions/batch-first.md`：空集合不触后端；基础设施失败整批抛出 `CACHING_UNAVAILABLE_001`；`TryAdd`、`TryRemove` 与 `TryRefresh` 保持单键（它们是锁与幂等的原子原语，批量没有意义）。Provider 用原生批量（Redis `MGET`、管道里的 `SET` 带过期、管道里的 `DEL`），内存实现一次加锁逐项处理。
 
 - 键：非空、无空白与控制字符、不超过 512 字符、区分大小写。
 - 过期：绝对存活或滑动过期，二选一；都不设时用 Provider 的默认存活时间。
@@ -76,7 +77,7 @@
 
 ## 分布式锁
 
-租约锁：`TryAcquire(resource, ttl)` 即 `TryAdd("lock:" + resource, token, ttl)`；释放即 `TryRemove(key, token)`。不可重入、不续约；到期后他人可获取，原持有者释放返回 `false`。`TryAcquire` 被占用时只是无值；要把占用当作调用失败返回时用结果式的 `Acquire(resource, ttl)`（`DistributedLockExtensions.AcquireAsync`），被占用返回 `CACHING_CONFLICT_001`（消息键 `caching.lock.held`，参数 `resource`）。
+租约锁：`TryAcquire(resource, ttl)` 即 `TryAdd("lock:" + resource, token, ttl)`；释放即 `TryRemove(key, token)`。不可重入；可续约：`LockHandle.TryExtend(ttl)` 即 `TryRefresh(key, token, ttl)`，仍持有才把到期时刻重设为现在加 `ttl` 并返回 `true`，已到期、被他人持有或句柄已释放返回 `false`（2026-11-13 修订，ADR-0215；以前不续约，长期持有的租约只能释放再获取，释放的那一刻别人就能拿走）。到期后他人可获取，原持有者释放返回 `false`。`TryAcquire` 被占用时只是无值；要把占用当作调用失败返回时用结果式的 `Acquire(resource, ttl)`（`DistributedLockExtensions.AcquireAsync`），被占用返回 `CACHING_CONFLICT_001`（消息键 `caching.lock.held`，参数 `resource`）。
 
 ## 幂等
 

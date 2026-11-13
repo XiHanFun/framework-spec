@@ -169,7 +169,7 @@ EF Core（10.0）：SQLite 上三个方法一律译成 `LIKE … ESCAPE '\'`（2
 | 11–0（12 位） | 同一毫秒内的序列 | 0–4095 |
 
 - epoch 缺省 `2026-01-01T00:00:00Z`，可配；同一套数据的 epoch 一经写入不得再改，否则已有标识解析出的时间戳会错位。
-- 机器位两种来源，不做随机：`XiHan:Persistence:Snowflake:WorkerId` 显式指定；未指定时由容器里的 `IDistributedLock`（`caching.distributed` 的 Provider 注册）租约分配——启动时从 0 起逐个尝试锁资源 `persistence:snowflake:worker:<n>`，取得第一个空位，存活时间 `LeaseTimeToLiveSeconds`（缺省 30），每三分之一存活时间续约一次（锁不续约，续约 = 释放再获取同一机器位；释放与重新获取之间空位被别的实例拿走，或存储不可达，都按丢失处理并重新分配）；本地按获取时刻 + 存活时间判定有效，过期未续上即没有机器位。容器里没有分布式锁、或 1024 个机器位都被占用时启动失败。
+- 机器位两种来源，不做随机：`XiHan:Persistence:Snowflake:WorkerId` 显式指定；未指定时由容器里的 `IDistributedLock`（`caching.distributed` 的 Provider 注册）租约分配——启动时从 0 起逐个尝试锁资源 `persistence:snowflake:worker:<n>`，取得第一个空位，存活时间 `LeaseTimeToLiveSeconds`（缺省 30），每三分之一存活时间续约一次：经 `LockHandle.TryExtend` 原子延长同一租约，锁条目一直在、别的实例拿不到这个机器位；延长失败（存储侧已到期或被他人持有）或存储不可达都按丢失处理并重新分配（2026-11-13 修订，ADR-0215；以前续约 = 释放再获取，释放的那一刻别的实例能拿到同一机器位，本实例在发现丢失之前还在用它，两边会发出相同的 ID）；本地按获取时刻 + 存活时间判定有效，过期未续上即没有机器位。容器里没有分布式锁、或 1024 个机器位都被占用时启动失败。
 - 时钟回拨不超过 `ClockDriftToleranceMilliseconds`（缺省 100）时等待时钟追平；超过时抛出携带 `PERSISTENCE_UNAVAILABLE_004` 的 `FrameworkException`。同一毫秒序列用尽时等待下一毫秒。生成器线程安全，单实例上限 4096 个 / 毫秒。
 - 没有机器位（租约尚未取得或已丢失）时抛出携带 `PERSISTENCE_UNAVAILABLE_005` 的 `FrameworkException`；租约状态以健康项 `persistence.snowflake.worker` 上报（持有 Ready，没有 Degraded）。
 - 调用里抛出的 `PERSISTENCE_UNAVAILABLE_004` / `005` 由 `SnowflakeIdFeature` 登记在 Resilience 阶段末尾的中间件转为同码的 UNAVAILABLE 结果（HTTP 503、gRPC `Unavailable`，可重试；消息键 `persistence.snowflake.clock_moved_backwards` / `persistence.snowflake.worker_unavailable`），不经 Observe 阶段包成 `KERNEL_UNEXPECTED_001`。它在幂等与工作单元之外：异常经过内层时工作单元已回滚、幂等标记已清除，重试会重新执行；截止时间与熔断在外层照常计数。其他异常不受影响；管道之外直接调用生成器仍以异常失败。

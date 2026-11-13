@@ -31,6 +31,7 @@ ADR-0006 把进程外插件协议定为"跨语言插件与远程 Provider 的基
 | `cache-entries.try-add` | 同 `set` | `{ "added": bool }` | 不存在（或已过期）才写入，原子 |
 | `cache-entries.remove` | `{ "key" }` | `{ "removed": bool }` | 删除并报告是否存在 |
 | `cache-entries.try-remove` | `{ "key", "expected" }` | `{ "removed": bool }` | 当前值等于期望值才删除，原子 |
+| `cache-entries.try-refresh` | `{ "key", "expected", "ttlMs" }` | `{ "refreshed": bool }` | 当前值等于期望值才把到期时间重设为现在加 `ttlMs`，原子；锁续约用它（2026-11-13 增补，ADR-0215） |
 | `cache-entries.get-many` | `{ "keys": [] }` | `{ "values": [base64 \| null] }` | 逐键同 `get`，结果与键顺序一一对应 |
 | `cache-entries.set-many` | `{ "entries": [{ "key", "value", "ttlMs"?, "slidingMs"? }] }` | `{}` | 逐项同 `set`，同一键后者覆盖 |
 | `cache-entries.remove-many` | `{ "keys": [] }` | `{ "removed": [bool] }` | 逐键同 `remove`，结果与键顺序一一对应 |
