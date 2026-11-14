@@ -1,6 +1,6 @@
 # RFC-0010 本地化
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域、目录名冲突与区域名错误的报告方式） | 日期：2026-10-21 | 对应 ADR：0038、0070 | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/localization/`（P3 补）
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域、目录名冲突与区域名错误的报告方式；2026-11-14 修订：数据库翻译的跨实例重新加载） | 日期：2026-10-21 | 对应 ADR：0038、0070 | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/localization/`（P3 补）
 
 ## 摘要
 
@@ -47,6 +47,7 @@ Segment    = [a-z][a-z0-9_]*
 - `key.L()`、`key.L(("id", id))`、`key.L(count, amount)`（原语层扩展方法）：按 `MessageScope.Current` 解析，调用链里是调用方语言，其他地方是默认语言；没有作用域或找不到键时返回 `MessageTemplate.Describe(key, arguments)`，即 `kernel.feature.start_failed (id=…, reason=…)`。
 - `IMessageLocalizer`（Ring 2）：显式区域的入口，只有 `Options`、`Find(key, locale)` 与 `Resolve(key, locale, arguments)` 三个成员，`Resolve` 给出文案与实际命中的区域。按上下文区域取、翻译错误、退回描述这些形式是扩展方法（`MessageLocalizerExtensions`），由 `Resolve` 推出，各实现行为一致（2026-11-11 修订，ADR-0146）；`context.Localize(key, arguments)` 扩展方法按上下文区域解析。
 - 回退链：请求区域 → 启用列表里同语言的区域 → 默认区域 → `en-US`；同一键先注册的目录优先。
+- 数据库翻译（`Localization.Database`）：查找是同步的，翻译装在进程内的有界快照里，库里的翻译优先于目录。`ICache` 里放翻译版本戳 `localization:translations:version`：`MessageTranslationStore` 写入提交后（作用域释放时）经 `MessageTranslationLoader.PublishChangeAsync` 换版本戳，并唤醒本实例立即重新加载；每个实例按 `ChangeCheckIntervalSeconds`（缺省 1，0 关闭）核对版本戳，变了就重新加载；`RefreshIntervalSeconds`（缺省 300，0 关闭）的周期刷新兜住直接改表与版本戳丢失。重新加载彼此串行。读版本戳遇到缓存后端故障时跳过这次核对；写入后换版本戳失败只记错误日志，本实例照常重新加载。清单依赖 `persistence.relational@1` 与 `caching.local@1`（2026-11-14 修订，ADR-0229；以前只按周期刷新，写入的实例自己也要显式重新加载）。
 
 ## 错误
 

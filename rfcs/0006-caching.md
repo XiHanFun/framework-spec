@@ -1,6 +1,6 @@
 # RFC-0006 缓存、分布式锁与幂等
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配、两级缓存；2026-11-01 修订：幂等回放操作的响应；2026-11-01 修订：键列表的每页上限越界返回校验错误；2026-11-12 修订：幂等作用域键里主体带长度前缀、外层请求把幂等键交给内层调用） | 日期：2026-10-21 | 对应 ADR：ADR-0064（幂等响应回放）、ADR-0084（键列表分页越界） | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配、两级缓存；2026-11-01 修订：幂等回放操作的响应；2026-11-01 修订：键列表的每页上限越界返回校验错误；2026-11-12 修订：幂等作用域键里主体带长度前缀、外层请求把幂等键交给内层调用；2026-11-14 修订：代数缓存区、组件登记缓存类型、两级缓存回填核对失效） | 日期：2026-10-21 | 对应 ADR：ADR-0064（幂等响应回放）、ADR-0084（键列表分页越界）、ADR-0229（代数缓存区与跨实例失效） | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
 
 ## 摘要
 
@@ -75,6 +75,20 @@
 
 `ICache`：`GetAsync<T>`、`SetAsync<T>`、`RemoveAsync`、`GetOrCreateAsync<T>`（未命中时各自执行工厂，不合并并发），以及批量的 `GetManyAsync<T>(keys)`、`SetManyAsync<T>(entries, options)`、`RemoveManyAsync(keys)`，语义与存储契约的批量方法一致，结果与入参顺序一一对应。进程内实现直接存对象引用，不序列化；跨进程实现用 `SerializingCache` 把存储与 `ICacheSerializer` 组合。默认序列化器是 System.Text.Json，要求选项带 `TypeInfoResolver`，通过 `JsonSerializerOptions.GetTypeInfo` 取类型信息，AOT 下无反射；反射版只在允许反射的运行时可用。
 
+框架组件放进缓存的类型用 `CacheSerializerRegistration.AddTypeInfo(services, resolver)` 登记自己的源生成上下文（容器里一项 `CacheTypeInfoSource`，同一个解析器只登记一次）。应用登记了 `JsonSerializerOptions` 时，序列化器的解析器是应用的解析器在前、这些上下文在后，应用的上下文不必认识框架的类型；应用选项没有解析器仍是配置错误。应用自己登记 `ICacheSerializer` 时要自行处理这些类型（2026-11-14 增补，ADR-0229）。
+
+## 代数缓存区
+
+`GenerationCache<T>` 架在 `ICache` 上，是按范围失效、丢弃失效之前开始的读取的读穿缓存区（2026-11-14 增补，ADR-0229）。框架里会被写入改变、多实例要一致的缓存（授予、租户目录）都用它。
+
+- 位置是（范围，条目）。范围是失效的单位，条目区分同一范围下的值，两者都是任意文本。键是 `<区>:gen`（区代数）、`<区>:gen:<范围>`（范围代数）、`<区>:entry:<范围>:<条目>`；范围与条目写成 `<长度>.<文本>`，含空白、控制字符或超过 128 个字符的写成 `#<SHA-256 十六进制>`。
+- 区与每个范围各有一个代数（随机令牌），也存在 `ICache` 里。条目存储为 `GenerationCacheEntry<T>`（区代数、范围代数、值），读取时两个代数都等于当前值才算命中。
+- `GetOrLoadMany(keys, load)`：结果与入参顺序一一对应，重复的位置只读一次、只查一次源，空集合不触缓存。先取代数，缺代数（从未写过、过期或被淘汰）就先写下新代数，再读条目；未命中的一次交给 `load`，结果连同读取开始时的代数写回。`load` 返回失败时原样返回、不写缓存；返回条数不符是编程错误。
+- `Invalidate(scopes)` 给每个范围换新代数，一次批量写入，空集合什么也不做；`InvalidateAll()` 换区代数。失效之后开始的读取看到新代数；失效之前开始的读取写回的条目带着旧代数，任何共用这份缓存的实例都不会当作命中。
+- 条目按构造时给的存活时间过期，代数活到它的 10 倍；代数丢失只会让该范围多查一次源。
+- 缓存后端故障（`CACHING_UNAVAILABLE_001`）时，读取直接查源、不写回，结果仍然正确，每个区每 10 秒最多记一次警告；失效抛给调用方。
+- `ICache` 是两级缓存时，代数与条目都在 L1 命中，读取不出进程；一个实例换代数，经变更通知让各实例 L1 里的旧代数失效。
+
 ## 分布式锁
 
 租约锁：`TryAcquire(resource, ttl)` 即 `TryAdd("lock:" + resource, token, ttl)`；释放即 `TryRemove(key, token)`。不可重入；可续约：`LockHandle.TryExtend(ttl)` 即 `TryRefresh(key, token, ttl)`，仍持有才把到期时刻重设为现在加 `ttl` 并返回 `true`，已到期、被他人持有或句柄已释放返回 `false`（2026-11-13 修订，ADR-0215；以前不续约，长期持有的租约只能释放再获取，释放的那一刻别人就能拿走）。到期后他人可获取，原持有者释放返回 `false`。`TryAcquire` 被占用时只是无值；要把占用当作调用失败返回时用结果式的 `Acquire(resource, ttl)`（`DistributedLockExtensions.AcquireAsync`），被占用返回 `CACHING_CONFLICT_001`（消息键 `caching.lock.held`，参数 `resource`）。
@@ -105,6 +119,7 @@ Idempotency 阶段的中间件按 Baggage `xihan.idempotency-key` 去重，作�
 - 写与删：先 L2 再 L1；`GetOrCreate` 两级都未命中才执行工厂，结果写两级。
 - L1 的存活时间是条目过期与 `LocalTimeToLive`（默认 30 秒）的较小者，滑动过期在 L1 里按绝对时间处理；`LocalCapacity`（默认 10000）满时淘汰最久未访问的条目。
 - 跨实例失效（ADR-0055）：L2 的存储实现了 `ICacheChangeFeed` 时（Redis），本实例与其他实例对存储的写入与删除，都会让 L1 里的这些键（或前缀）立即失效；管理界面直接改存储也一样。
+- 回填核对失效（2026-11-14 修订，ADR-0229；以前读 L2 途中到达的失效通知挡不住读回的旧值回填 L1，旧值留到 `LocalTimeToLive`）：L1 按键散列分 64 个条带记失效轮次，删除一个键让它所在条带的轮次加一，按前缀删除让全部条带加一。读 L2（`Get`、`GetMany`、`GetOrCreate`）之前记下轮次，回填前核对，途中有过失效就不回填，下一次读取再去 L2。写入之后照旧写进 L1。
 - 没有变更通知时（远程插件等），别的实例的写入不会主动失效本实例的 L1：读到旧值的时间最长为 `LocalTimeToLive`；通知丢失时也以此为上限。需要更强一致的键应直接用 `ISharedCache`。
 - `ICache.Store` 是 L2 的字节存储；L1 直接存对象引用，调用方不得修改取回的对象。
 
