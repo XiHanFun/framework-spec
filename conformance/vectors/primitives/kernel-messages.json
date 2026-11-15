@@ -1,0 +1,91 @@
+{
+  "$comment": "SDK 与宿主共用的内核错误（RFC-0011「错误码」，ADR-0233）：错误码、消息键、参数名与 en-US 模板。模板取自 .NET 的 Localization/en-US.json，SDK 自带的默认英文模板必须逐字相同；arguments 与模板里的占位符一一对应；when 只给人看",
+  "messages": [
+    {
+      "code": "PRIMITIVES_VALIDATION_002",
+      "key": "primitives.result.uninitialized",
+      "arguments": [],
+      "template": "The result is uninitialized: a default value is not a valid result.",
+      "when": "读取未初始化的结果（各语言的缺省值或零值）"
+    },
+    {
+      "code": "KERNEL_TIMEOUT_001",
+      "key": "kernel.invocation.deadline_exceeded",
+      "arguments": [],
+      "template": "The invocation exceeded its deadline.",
+      "when": "截止时间在调用途中到达"
+    },
+    {
+      "code": "KERNEL_TIMEOUT_001",
+      "key": "kernel.invocation.deadline_before_start",
+      "arguments": [],
+      "template": "The invocation exceeded its deadline before it started.",
+      "when": "调用开始时截止时间已过"
+    },
+    {
+      "code": "KERNEL_CANCELLED_001",
+      "key": "kernel.invocation.cancelled",
+      "arguments": [],
+      "template": "The invocation was canceled.",
+      "when": "截止时间之前调用方取消"
+    },
+    {
+      "code": "KERNEL_NOTFOUND_001",
+      "key": "kernel.operation.unknown",
+      "arguments": [
+        "id"
+      ],
+      "template": "Operation '{id}' is not registered.",
+      "when": "操作未登记"
+    },
+    {
+      "code": "KERNEL_VALIDATION_001",
+      "key": "kernel.operation.invalid_payload",
+      "arguments": [
+        "id",
+        "reason"
+      ],
+      "template": "The payload of operation '{id}' is not valid: {reason}",
+      "when": "载荷不合法，reason 只写出错位置的 JSON 路径"
+    },
+    {
+      "code": "KERNEL_VALIDATION_002",
+      "key": "kernel.operation.type_mismatch",
+      "arguments": [
+        "id",
+        "expected",
+        "actual"
+      ],
+      "template": "Operation '{id}' handles '{expected}', but '{actual}' was supplied.",
+      "when": "类型化调用的类型与登记不符，expected / actual 是实现语言的类型名"
+    },
+    {
+      "code": "KERNEL_UNEXPECTED_001",
+      "key": "kernel.operation.no_response",
+      "arguments": [
+        "id"
+      ],
+      "template": "Operation '{id}' completed without producing a response.",
+      "when": "管道以成功结束而没有响应"
+    },
+    {
+      "code": "KERNEL_OPERATION_001",
+      "key": "kernel.operation.duplicate",
+      "arguments": [
+        "id",
+        "owner"
+      ],
+      "template": "Operation '{id}' is already registered by '{owner}'.",
+      "when": "操作 ID 重复登记"
+    },
+    {
+      "code": "KERNEL_OPERATION_002",
+      "key": "kernel.operation.registry_full",
+      "arguments": [
+        "capacity"
+      ],
+      "template": "The operation registry has reached its capacity of {capacity}.",
+      "when": "操作登记表已满"
+    }
+  ]
+}

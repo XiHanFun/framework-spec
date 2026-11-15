@@ -162,6 +162,9 @@ func runVectors(args []string) int {
 		{"primitives/baggage-keys.json", func() error { _, err := conformance.BaggageKeys(); return err }},
 		{"primitives/capability-requirements.json", func() error { _, err := conformance.CapabilityRequirements(); return err }},
 		{"primitives/lifecycle-transitions.json", func() error { _, err := conformance.LifecycleTransitions(); return err }},
+		{"primitives/wire-encoding.json", func() error { _, err := conformance.WireEncoding(); return err }},
+		{"primitives/message-templates.json", func() error { _, err := conformance.MessageTemplates(); return err }},
+		{"primitives/kernel-messages.json", func() error { _, err := conformance.KernelMessages(); return err }},
 		{"provider/caching-distributed.json", func() error { _, err := conformance.CachingDistributed(); return err }},
 	}
 	code := 0

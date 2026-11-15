@@ -1,6 +1,6 @@
 # RFC-0003 调用上下文与传播
 
-> 状态：已采纳（2026-10-29 修订：调用来源、端点身份；2026-11-01 修订：追踪标志与 Activity 父级、Baggage 在载体编解码处按已登记过滤；同日再修订：第 1 条写明下游写下的取消结果按超时归因；同日第三次修订：截止时间与调用方取消同时触发时报超时） | 日期：2026-10-21 | 对应 ADR：0002、0043（调用来源）、0048（端点身份）、0065（追踪标志与 Activity 父级）、0088、0092（超时归因） | 参考实现：`InvocationContext`、`DeadlineMiddleware`、`InvocationOrigin`
+> 状态：已采纳（2026-10-29 修订：调用来源、端点身份；2026-11-01 修订：追踪标志与 Activity 父级、Baggage 在载体编解码处按已登记过滤；同日再修订：第 1 条写明下游写下的取消结果按超时归因；同日第三次修订：截止时间与调用方取消同时触发时报超时；2026-11-16 修订：根调用写出的 trace-flags 与采样位） | 日期：2026-10-21 | 对应 ADR：0002、0043（调用来源）、0048（端点身份）、0065（追踪标志与 Activity 父级）、0088、0092（超时归因）、0233（写出的标志） | 参考实现：`InvocationContext`、`DeadlineMiddleware`、`InvocationOrigin`
 
 ## 摘要
 
@@ -40,6 +40,11 @@
 7. 追踪（2026-11-01 增补，ADR-0065）：
    - 来源：载体带合法的 `traceparent` 时取它的 trace-id、parent-id 与 trace-flags，上游「不采样」（`-00`）原样保留；没有时并入宿主当前的 W3C Activity（ASP.NET Core 的请求 Span、外层调用的 Span），取它的 trace-id 与 span-id，它有采样决定（经具名 ActivitySource 创建，或有父级）时连同标志；都没有时内核生成 trace-id 与 parent-id，标志为空。只给 trace-id 不给标志的创建方按上游已采样处理。
    - Observe 阶段的 `xihan.invoke` Span：当前 Activity 与上下文同一 trace 且有采样决定时是它的子 Span；否则上下文有标志时以 trace-id、parent-id 与标志为远端父级，采样随上游；标志为空时它是链路的根 Span——trace-id 用上下文的（与 Problem Details、审计、日志里的一致），没有父级，采样交给采样器的根规则。
+   - 写出（2026-11-16 写明，ADR-0233）：上下文里的标志为空只表示「没有上游」，写出的 `traceparent` 总带两位十六进制的标志。
+     - 写的是这次调用的采样决定：有 `xihan.invoke` Span 时取它的标志，否则取上下文的标志。
+     - 标志为空、又没有采样器的实现（不带 Observe 阶段的语言 SDK）写 `01`，即按已采样传下去，由下游的采样器决定。
+     - 上游给的 `00` 原样写出。
+   - 是否采样只看标志的最低位（W3C 的 `sampled`），其余位原样保留、不解释。
 
 ## .NET 形态
 
@@ -49,4 +54,4 @@
 
 ## 一致性向量
 
-`spec/conformance/vectors/context/*.json`：各载体的编码与解码、截止时间与取消的时序、未登记键剥离。
+`spec/conformance/vectors/context/*.json`（规划中）：各载体的编码与解码、截止时间与取消的时序、未登记键剥离。目前由各实现移植的测试覆盖；Baggage 键与值的约束在 `primitives/baggage-keys.json`。

@@ -7,9 +7,12 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | 文件 | 内容 | 规范 |
 | --- | --- | --- |
 | `primitives/error-codes.json` | 错误码格式的合法与非法样例 | `conventions/error-codes.md` |
-| `primitives/baggage-keys.json` | Baggage 键格式与已登记的键 | `conventions/baggage-keys.md` |
+| `primitives/baggage-keys.json` | Baggage 键格式、已登记的键与值能否进入调用上下文（`values`） | `conventions/baggage-keys.md` |
 | `primitives/capability-requirements.json` | 能力依赖文本的解析结果 | `conventions/capability-ids.md` |
 | `primitives/lifecycle-transitions.json` | 生命周期合法迁移的完整列表 | RFC-0001 |
+| `primitives/wire-encoding.json` | Result 与 Error 线上编码的合法写法（连同规范形式）与必须拒绝的写法 | RFC-0001「Result」 |
+| `primitives/message-templates.json` | 消息键文法、模板的宽松与严格格式化（含可移植的格式说明符与舍入）、`Describe` | RFC-0010「模板」 |
+| `primitives/kernel-messages.json` | SDK 与宿主共用的内核错误：错误码、消息键、参数名与 en-US 模板 | RFC-0011「错误码」 |
 | `plugin/handshake-lines.json` | 插件握手行的合法与非法样例 | `plugin/handshake.md` |
 | `plugin/protocol-versions.json` | 协议版本协商与原语层版本核对 | `plugin/handshake.md` |
 | `plugin/wasm-exports.json` | Wasm ABI v1 的导出与导入表 | `plugin/wasm.md` |
@@ -20,7 +23,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 
 ## 规则（`rules/`）
 
-规范文法与判定的 Go 实现，供运行器使用，也供 SDK 作者对照：错误码、操作 ID、主题、Baggage 键、清单 ID、能力 ID 与依赖文本、握手行（含 tcp 回环判定）、版本协商、生命周期迁移、管道阶段。每条规则都由向量验证（`rules/rules_test.go`）。
+规范文法与判定的 Go 实现，供运行器使用，也供 SDK 作者对照：错误码、操作 ID、主题、Baggage 键与值、清单 ID、能力 ID 与依赖文本、握手行（含 tcp 回环判定）、版本协商、生命周期迁移、管道阶段、消息键与模板占位符、Result 与 Error 的线上编码（`CanonicalResult` / `CanonicalError` 给出再写出时的规范形式）。每条规则都由向量验证（`rules/rules_test.go`、`rules/messages_test.go`）。模板的格式化结果由参考实现 .NET 回放 `message-templates.json` 核对，规则包不另实现一份。
 
 ## 黑盒运行器（`cmd/xihan-conformance`）
 

@@ -1,6 +1,6 @@
 # RFC-0010 本地化
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域、目录名冲突与区域名错误的报告方式；2026-11-14 修订：数据库翻译的跨实例重新加载） | 日期：2026-10-21 | 对应 ADR：0038、0070 | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/localization/`（P3 补）
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域、目录名冲突与区域名错误的报告方式；2026-11-14 修订：数据库翻译的跨实例重新加载；2026-11-16 修订：模板文法、可移植的格式说明符与值的文本形式） | 日期：2026-10-21 | 对应 ADR：0038、0070、0233（模板与值的文本形式） | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/primitives/message-templates.json`
 
 ## 摘要
 
@@ -31,14 +31,54 @@ Domain     = Segment；术语表领域词的小写（kernel、persistence、secu
 Segment    = [a-z][a-z0-9_]*
 ```
 
+整个键最长 128 个字符（`MessageTemplate.MaxKeyLength`，2026-11-16 写明，ADR-0233）。
+
 每个包一个 `<领域>Messages` 静态常量类（`KernelMessages`、`SecurityMessages`、应用的 `OrdersMessages`），只定义键，不含文案；键的说明与占位符名写在 XML 文档里。原语层按主题拆分（`ManifestMessages`、`ResultMessages`）。
 
 ## 语言文件
 
 - 位置 `Localization/<区域>.json`，内容是键 → 模板的平面对象；以 `<EmbeddedResource Include="Localization/*.json" LogicalName="Localization/%(Filename)%(Extension)" />` 嵌入。
 - 10 种内置区域每种一个文件，键集完全一致，各区域模板的占位符与 `en-US` 一致（架构测试 `LocalizationTests`）。
-- 模板语法：`{name}` 按名字、`{0}` 按位置，可带 `:format` 格式说明符（`{amount:N2}`、`{when:yyyy-MM-dd}`），按命中区域的文化格式化；`{{`、`}}` 转义。
+- 模板语法：`{name}` 按名字、`{0}` 按位置，可带 `:format` 格式说明符（`{amount:N2}`、`{when:yyyy-MM-dd}`），按命中区域的文化格式化；`{{`、`}}` 转义。逐字的规则见下节「模板」。
 - `MessageCatalog.FromEmbeddedResources(name, typeof(AnyTypeInThatAssembly))` 装载一个程序集的全部语言文件。`AddMessageCatalog` 把同名目录合并为一份，留在先注册的位置：内容相同（如多个 Provider 都带同一个抽象包的目录）时什么都不变；互为补充（如插件握手带来两种语言、宿主包带全部十种）时区域与键取并集；同一键同一区域的模板不同则抛出携带 `LOCALIZATION_CONFLICT_001` 的 `FrameworkException`，应用启动失败。任何一份都不会被静默丢弃。原语层与内核的目录由 `Localization.InMemory` 代为注册；子系统目录由其 Provider 在 `Configure` 里注册；`Plugins.InProcess` 与应用的目录由应用注册。
+
+## 模板
+
+各语言 SDK 与宿主按同一套规则格式化（2026-11-16 写明，ADR-0233，取自 .NET `MessageTemplate` 的行为）。以前只有上面一句语法说明，Go SDK 把 `:format` 当成 printf 动词，插件把目录交给 .NET 宿主后会被误读。
+
+- 占位符是 `{name}` 或 `{name:format}`：
+  - `name` 符合 `^([A-Za-z][A-Za-z0-9_]*|[0-9]+)$`，按名字或按位置（位置参数的名字是 `0`、`1` …）。
+  - 第一个 `:` 之后到 `}` 是格式说明符。
+- 字面量：
+  - `{{` 与 `}}` 是转义的单个花括号。
+  - 花括号里不是合法名字的（如 JSON 片段 `{"a":1}`），连同花括号原样输出。
+  - 没有闭合的 `{` 及其后的全部文本原样输出。
+  - 参数值里的花括号不再解释。
+- 缺值：
+  - 宽松格式化（`MessageTemplate.Format`）把缺值的占位符连同格式说明符原样留在文本里，如 `{amount:N2}`，让遗漏可见。
+  - 严格格式化（`TryFormat`，本地化器解析时用）任一占位符缺值即失败，调用方退回 `Describe`。
+  - 参数存在而值为 `null` 不算缺值。
+- 值的文本形式（无格式说明符时，`Describe` 同样适用）：
+  - 字符串原样，整数十进制，负号在前。
+  - 布尔写 `true` / `false`。
+  - `null` 写空串。
+  - 浮点在 1e-4 ≤ |x| < 1e15 或 x = 0 时，写成能往返的最短十进制，不用指数；整数值的浮点不带小数点，`2.0` 写 `2`。
+  - 范围之外的浮点、数组与对象不作规定，模板作者不应依赖。
+- 可移植的格式说明符：各语言 SDK 必须支持下面这组，SDK 自己格式化时按不变文化解释。宿主按命中区域的文化解释同一组，`N` 的分组符与小数点随文化变化。
+  - `D` / `Dn`：整数，至少 n 位，不足补零，负号在前。如 `{n:D5}` 取 42 得 `00042`，`{n:D3}` 取 -7 得 `-007`。
+  - `X` / `Xn` 与 `x` / `xn`：非负整数的十六进制，大写或小写，至少 n 位。如 `{n:x4}` 取 255 得 `00ff`。
+  - `F` / `Fn`：定点小数，n 位小数，缺省 2。如 `{n:F}` 取 2 得 `2.00`。
+  - `N` / `Nn`：带千分位的定点小数，不变文化下分组符是 `,`、小数点是 `.`，n 位小数，缺省 2，负号在前。如 `{n:N2}` 取 1234567.891 得 `1,234,567.89`。
+  - `F` 与 `N` 的舍入：按值的精确十进制展开舍入，正好一半时取偶数（四舍六入五成双），与 .NET 的格式化一致。0.125 写 `F2` 得 `0.12`，0.375 写 `F2` 得 `0.38`；2.5 写 `F0` 得 `2`，3.5 得 `4`，-2.5 得 `-2`。2.675 的二进制值略小于 2.675，不是正好一半，写 `F2` 得 `2.67`。JavaScript 的 `toFixed`、Java 的 `String.format`、PHP 的 `number_format` 都是一半时进位，要另行处理。
+  - `D` 与 `X` 只用于整数，`X` 只用于非负数。用在别的值上是模板的错误，结果不作规定。
+  - 其余说明符（日期时间的 `yyyy-MM-dd`、自定义数字模式等）是 .NET 的格式串，由宿主解释。SDK 不支持时按无格式输出，不报错。插件的目录要在 SDK 本地格式化时，只用可移植的这组。
+- `Describe(key, arguments)`：
+  - 没有参数（空或 `null`）时就是键本身。
+  - 有参数时写成 `key (name=value, name=value)`，值按上面的文本形式。
+  - 参数的先后顺序不作规定：.NET 按参数给出的顺序，无序映射的语言（Go）按名字排序。
+  - 它只给人看，不参与程序判断。
+
+向量 `conformance/vectors/primitives/message-templates.json`：消息键的合法与非法样例、宽松与严格格式化的期望结果、`Describe` 的期望结果（至多一个参数，避开顺序）。
 
 ## 解析
 

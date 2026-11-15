@@ -1,0 +1,483 @@
+{
+  "$comment": "消息键文法与模板格式化（RFC-0010「消息键」「模板」，ADR-0233）。keys：合法与非法的消息键。format：lenient 是宽松格式化的结果，strict 是严格格式化的结果，null 表示严格格式化失败（有占位符缺值）；arguments 的 JSON 值按原类型交给格式化：整数、浮点、布尔、字符串、null；位置参数的名字是 \"0\"、\"1\"。SDK 按不变文化格式化。describe：Describe(key, arguments) 的结果，arguments 为 null 表示没有参数；至多一个参数，避开不作规定的参数顺序",
+  "keys": {
+    "valid": [
+      "kernel.operation.unknown",
+      "tenant_members.list.description",
+      "a.b",
+      "x1.y_2.z3",
+      "persistence.entity.stale_stamp",
+      "a.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ],
+    "invalid": [
+      "",
+      "kernel",
+      "Kernel.operation",
+      "kernel.Operation",
+      "kernel..unknown",
+      "kernel.",
+      ".kernel",
+      "1kernel.x",
+      "_kernel.x",
+      "kernel._x",
+      "kernel.op-x",
+      "kernel.op x",
+      "kernel.opé",
+      "a.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ]
+  },
+  "format": [
+    {
+      "name": "按名字",
+      "template": "Operation '{id}' is not registered.",
+      "arguments": {
+        "id": "orders.create"
+      },
+      "lenient": "Operation 'orders.create' is not registered.",
+      "strict": "Operation 'orders.create' is not registered."
+    },
+    {
+      "name": "按位置",
+      "template": "{0} of {1}",
+      "arguments": {
+        "0": "a",
+        "1": "b"
+      },
+      "lenient": "a of b",
+      "strict": "a of b"
+    },
+    {
+      "name": "名字带下划线",
+      "template": "{user_id}",
+      "arguments": {
+        "user_id": "u1"
+      },
+      "lenient": "u1",
+      "strict": "u1"
+    },
+    {
+      "name": "同一占位符两次",
+      "template": "{a}{a}",
+      "arguments": {
+        "a": "z"
+      },
+      "lenient": "zz",
+      "strict": "zz"
+    },
+    {
+      "name": "缺值",
+      "template": "Hello {name}",
+      "arguments": {},
+      "lenient": "Hello {name}",
+      "strict": null
+    },
+    {
+      "name": "缺值连同格式说明符保留",
+      "template": "{amount:N2} paid",
+      "arguments": {},
+      "lenient": "{amount:N2} paid",
+      "strict": null
+    },
+    {
+      "name": "没有参数",
+      "template": "Hello {name}",
+      "arguments": null,
+      "lenient": "Hello {name}",
+      "strict": null
+    },
+    {
+      "name": "没有占位符",
+      "template": "Plain text.",
+      "arguments": null,
+      "lenient": "Plain text.",
+      "strict": "Plain text."
+    },
+    {
+      "name": "转义",
+      "template": "{{literal}} {x}",
+      "arguments": {
+        "x": 1
+      },
+      "lenient": "{literal} 1",
+      "strict": "{literal} 1"
+    },
+    {
+      "name": "单独的右花括号转义",
+      "template": "a }} b",
+      "arguments": {},
+      "lenient": "a } b",
+      "strict": "a } b"
+    },
+    {
+      "name": "没有闭合的左花括号",
+      "template": "a {b",
+      "arguments": {
+        "b": "x"
+      },
+      "lenient": "a {b",
+      "strict": "a {b"
+    },
+    {
+      "name": "花括号里不是名字",
+      "template": "{\"a\":1} {x}",
+      "arguments": {
+        "x": "y"
+      },
+      "lenient": "{\"a\":1} y",
+      "strict": "{\"a\":1} y"
+    },
+    {
+      "name": "数字开头接字母不是名字",
+      "template": "{1a}",
+      "arguments": {
+        "1a": "v"
+      },
+      "lenient": "{1a}",
+      "strict": "{1a}"
+    },
+    {
+      "name": "值里的花括号不再解释",
+      "template": "{v}",
+      "arguments": {
+        "v": "x{y}"
+      },
+      "lenient": "x{y}",
+      "strict": "x{y}"
+    },
+    {
+      "name": "null 值写空串且不算缺值",
+      "template": "[{z}]",
+      "arguments": {
+        "z": null
+      },
+      "lenient": "[]",
+      "strict": "[]"
+    },
+    {
+      "name": "布尔 true",
+      "template": "{b}",
+      "arguments": {
+        "b": true
+      },
+      "lenient": "true",
+      "strict": "true"
+    },
+    {
+      "name": "布尔 false",
+      "template": "{b}",
+      "arguments": {
+        "b": false
+      },
+      "lenient": "false",
+      "strict": "false"
+    },
+    {
+      "name": "整数",
+      "template": "{i}",
+      "arguments": {
+        "i": 42
+      },
+      "lenient": "42",
+      "strict": "42"
+    },
+    {
+      "name": "负整数",
+      "template": "{i}",
+      "arguments": {
+        "i": -3
+      },
+      "lenient": "-3",
+      "strict": "-3"
+    },
+    {
+      "name": "浮点",
+      "template": "{f}",
+      "arguments": {
+        "f": 0.5
+      },
+      "lenient": "0.5",
+      "strict": "0.5"
+    },
+    {
+      "name": "浮点带整数部分",
+      "template": "{f}",
+      "arguments": {
+        "f": 1234.5
+      },
+      "lenient": "1234.5",
+      "strict": "1234.5"
+    },
+    {
+      "name": "浮点 1e-4",
+      "template": "{f}",
+      "arguments": {
+        "f": 0.0001
+      },
+      "lenient": "0.0001",
+      "strict": "0.0001"
+    },
+    {
+      "name": "整数值的浮点不带小数点",
+      "template": "{f}",
+      "arguments": {
+        "f": 2.0
+      },
+      "lenient": "2",
+      "strict": "2"
+    },
+    {
+      "name": "大的整数值浮点不用指数",
+      "template": "{f}",
+      "arguments": {
+        "f": 100000000000000.0
+      },
+      "lenient": "100000000000000",
+      "strict": "100000000000000"
+    },
+    {
+      "name": "D 补零",
+      "template": "{n:D5}",
+      "arguments": {
+        "n": 42
+      },
+      "lenient": "00042",
+      "strict": "00042"
+    },
+    {
+      "name": "D 不限位数",
+      "template": "{n:D}",
+      "arguments": {
+        "n": 42
+      },
+      "lenient": "42",
+      "strict": "42"
+    },
+    {
+      "name": "D 位数不足不截断",
+      "template": "{n:D2}",
+      "arguments": {
+        "n": 123
+      },
+      "lenient": "123",
+      "strict": "123"
+    },
+    {
+      "name": "D 负数",
+      "template": "{n:D3}",
+      "arguments": {
+        "n": -7
+      },
+      "lenient": "-007",
+      "strict": "-007"
+    },
+    {
+      "name": "X 大写",
+      "template": "{n:X}",
+      "arguments": {
+        "n": 255
+      },
+      "lenient": "FF",
+      "strict": "FF"
+    },
+    {
+      "name": "x 小写补零",
+      "template": "{n:x4}",
+      "arguments": {
+        "n": 255
+      },
+      "lenient": "00ff",
+      "strict": "00ff"
+    },
+    {
+      "name": "X 零",
+      "template": "{n:X}",
+      "arguments": {
+        "n": 0
+      },
+      "lenient": "0",
+      "strict": "0"
+    },
+    {
+      "name": "F 缺省两位",
+      "template": "{n:F}",
+      "arguments": {
+        "n": 2
+      },
+      "lenient": "2.00",
+      "strict": "2.00"
+    },
+    {
+      "name": "F 截到两位",
+      "template": "{n:F2}",
+      "arguments": {
+        "n": 3.14159
+      },
+      "lenient": "3.14",
+      "strict": "3.14"
+    },
+    {
+      "name": "F 正好一半取偶（舍）",
+      "template": "{n:F2}",
+      "arguments": {
+        "n": 0.125
+      },
+      "lenient": "0.12",
+      "strict": "0.12"
+    },
+    {
+      "name": "F 正好一半取偶（入）",
+      "template": "{n:F2}",
+      "arguments": {
+        "n": 0.375
+      },
+      "lenient": "0.38",
+      "strict": "0.38"
+    },
+    {
+      "name": "F 按二进制值舍入",
+      "template": "{n:F2}",
+      "arguments": {
+        "n": 2.675
+      },
+      "lenient": "2.67",
+      "strict": "2.67"
+    },
+    {
+      "name": "F0 正好一半取偶（舍）",
+      "template": "{n:F0}",
+      "arguments": {
+        "n": 2.5
+      },
+      "lenient": "2",
+      "strict": "2"
+    },
+    {
+      "name": "F0 正好一半取偶（入）",
+      "template": "{n:F0}",
+      "arguments": {
+        "n": 3.5
+      },
+      "lenient": "4",
+      "strict": "4"
+    },
+    {
+      "name": "F0 负数正好一半取偶",
+      "template": "{n:F0}",
+      "arguments": {
+        "n": -2.5
+      },
+      "lenient": "-2",
+      "strict": "-2"
+    },
+    {
+      "name": "N 缺省两位",
+      "template": "{n:N}",
+      "arguments": {
+        "n": 1234
+      },
+      "lenient": "1,234.00",
+      "strict": "1,234.00"
+    },
+    {
+      "name": "N 分组",
+      "template": "{n:N2}",
+      "arguments": {
+        "n": 1234567.891
+      },
+      "lenient": "1,234,567.89",
+      "strict": "1,234,567.89"
+    },
+    {
+      "name": "N0 正好一半取偶（舍）",
+      "template": "{n:N0}",
+      "arguments": {
+        "n": 1234.5
+      },
+      "lenient": "1,234",
+      "strict": "1,234"
+    },
+    {
+      "name": "N0 正好一半取偶（入）",
+      "template": "{n:N0}",
+      "arguments": {
+        "n": 1235.5
+      },
+      "lenient": "1,236",
+      "strict": "1,236"
+    },
+    {
+      "name": "N 负数",
+      "template": "{n:N1}",
+      "arguments": {
+        "n": -1234.56
+      },
+      "lenient": "-1,234.6",
+      "strict": "-1,234.6"
+    },
+    {
+      "name": "N 小于一千",
+      "template": "{n:N0}",
+      "arguments": {
+        "n": 999
+      },
+      "lenient": "999",
+      "strict": "999"
+    },
+    {
+      "name": "N 小数",
+      "template": "{n:N2}",
+      "arguments": {
+        "n": 0.5
+      },
+      "lenient": "0.50",
+      "strict": "0.50"
+    }
+  ],
+  "describe": [
+    {
+      "key": "kernel.operation.unknown",
+      "arguments": null,
+      "text": "kernel.operation.unknown"
+    },
+    {
+      "key": "kernel.operation.unknown",
+      "arguments": {},
+      "text": "kernel.operation.unknown"
+    },
+    {
+      "key": "kernel.operation.unknown",
+      "arguments": {
+        "id": "orders.create"
+      },
+      "text": "kernel.operation.unknown (id=orders.create)"
+    },
+    {
+      "key": "orders.line.invalid",
+      "arguments": {
+        "line": 3
+      },
+      "text": "orders.line.invalid (line=3)"
+    },
+    {
+      "key": "orders.line.invalid",
+      "arguments": {
+        "ratio": 0.5
+      },
+      "text": "orders.line.invalid (ratio=0.5)"
+    },
+    {
+      "key": "orders.line.invalid",
+      "arguments": {
+        "flag": true
+      },
+      "text": "orders.line.invalid (flag=true)"
+    },
+    {
+      "key": "orders.line.invalid",
+      "arguments": {
+        "note": null
+      },
+      "text": "orders.line.invalid (note=)"
+    }
+  ]
+}

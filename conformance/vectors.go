@@ -117,9 +117,81 @@ type ErrorCodeVectors struct {
 
 // BaggageKeyVectors 对应 primitives/baggage-keys.json。
 type BaggageKeyVectors struct {
-	WellFormed []string `json:"wellFormed"`
-	IllFormed  []string `json:"illFormed"`
-	Registered []string `json:"registered"`
+	WellFormed []string            `json:"wellFormed"`
+	IllFormed  []string            `json:"illFormed"`
+	Registered []string            `json:"registered"`
+	Values     BaggageValueVectors `json:"values"`
+}
+
+// BaggageValueVectors 是已登记键的值能否进入调用上下文的样例（ADR-0204、ADR-0233）。
+type BaggageValueVectors struct {
+	Acceptable   []string `json:"acceptable"`
+	Unacceptable []string `json:"unacceptable"`
+}
+
+// WireCase 是一条线上编码样例：Kind 只用于 Result（value / unit / maybe）；
+// 合法样例再写出时按 JSON 值等于 Canonical，Canonical 为空时等于 JSON。
+type WireCase struct {
+	Name      string          `json:"name"`
+	Kind      string          `json:"kind,omitempty"`
+	JSON      json.RawMessage `json:"json"`
+	Canonical json.RawMessage `json:"canonical,omitempty"`
+}
+
+// WireCaseSet 是一组必须读得出与必须拒绝的样例。
+type WireCaseSet struct {
+	Valid   []WireCase `json:"valid"`
+	Invalid []WireCase `json:"invalid"`
+}
+
+// WireEncodingVectors 对应 primitives/wire-encoding.json（RFC-0001「Result」）。
+type WireEncodingVectors struct {
+	Results WireCaseSet `json:"results"`
+	Errors  WireCaseSet `json:"errors"`
+}
+
+// MessageKeyVectors 是消息键的合法与非法样例。
+type MessageKeyVectors struct {
+	Valid   []string `json:"valid"`
+	Invalid []string `json:"invalid"`
+}
+
+// TemplateCase 是一次模板格式化：Arguments 保留原始 JSON（null 表示没有参数），
+// 以便按整数、浮点、布尔、字符串、null 区分取值；Strict 为 nil 表示严格格式化失败。
+type TemplateCase struct {
+	Name      string          `json:"name"`
+	Template  string          `json:"template"`
+	Arguments json.RawMessage `json:"arguments"`
+	Lenient   string          `json:"lenient"`
+	Strict    *string         `json:"strict"`
+}
+
+// DescribeCase 是一次 Describe：Arguments 为 null 表示没有参数，至多一个参数。
+type DescribeCase struct {
+	Key       string          `json:"key"`
+	Arguments json.RawMessage `json:"arguments"`
+	Text      string          `json:"text"`
+}
+
+// MessageTemplateVectors 对应 primitives/message-templates.json（RFC-0010「模板」）。
+type MessageTemplateVectors struct {
+	Keys     MessageKeyVectors `json:"keys"`
+	Format   []TemplateCase    `json:"format"`
+	Describe []DescribeCase    `json:"describe"`
+}
+
+// KernelMessage 是 SDK 与宿主共用的一项内核错误：码、消息键、参数名与 en-US 模板。
+type KernelMessage struct {
+	Code      string   `json:"code"`
+	Key       string   `json:"key"`
+	Arguments []string `json:"arguments"`
+	Template  string   `json:"template"`
+	When      string   `json:"when"`
+}
+
+// KernelMessageVectors 对应 primitives/kernel-messages.json（RFC-0011「错误码」）。
+type KernelMessageVectors struct {
+	Messages []KernelMessage `json:"messages"`
 }
 
 // CapabilityRequirementCase 是一条合法的能力依赖文本及其解析结果。
@@ -234,4 +306,19 @@ func CapabilityRequirements() (CapabilityRequirementVectors, error) {
 // LifecycleTransitions 读取生命周期迁移向量。
 func LifecycleTransitions() (LifecycleTransitionVectors, error) {
 	return Load[LifecycleTransitionVectors]("primitives/lifecycle-transitions.json")
+}
+
+// WireEncoding 读取 Result 与 Error 的线上编码向量。
+func WireEncoding() (WireEncodingVectors, error) {
+	return Load[WireEncodingVectors]("primitives/wire-encoding.json")
+}
+
+// MessageTemplates 读取消息键文法、模板格式化与 Describe 向量。
+func MessageTemplates() (MessageTemplateVectors, error) {
+	return Load[MessageTemplateVectors]("primitives/message-templates.json")
+}
+
+// KernelMessages 读取 SDK 与宿主共用的内核错误向量。
+func KernelMessages() (KernelMessageVectors, error) {
+	return Load[KernelMessageVectors]("primitives/kernel-messages.json")
 }

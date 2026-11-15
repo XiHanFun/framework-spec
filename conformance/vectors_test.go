@@ -40,8 +40,20 @@ func TestTypedLoadersAreNonEmpty(t *testing.T) {
 		t.Errorf("error codes: %v", err)
 	}
 	keys, err := conformance.BaggageKeys()
-	if err != nil || len(keys.Registered) == 0 {
+	if err != nil || len(keys.Registered) == 0 || len(keys.Values.Acceptable) == 0 || len(keys.Values.Unacceptable) == 0 {
 		t.Errorf("baggage keys: %v", err)
+	}
+	wire, err := conformance.WireEncoding()
+	if err != nil || len(wire.Results.Valid) == 0 || len(wire.Results.Invalid) == 0 || len(wire.Errors.Valid) == 0 || len(wire.Errors.Invalid) == 0 {
+		t.Errorf("wire encoding: %v", err)
+	}
+	templates, err := conformance.MessageTemplates()
+	if err != nil || len(templates.Keys.Valid) == 0 || len(templates.Keys.Invalid) == 0 || len(templates.Format) == 0 || len(templates.Describe) == 0 {
+		t.Errorf("message templates: %v", err)
+	}
+	kernel, err := conformance.KernelMessages()
+	if err != nil || len(kernel.Messages) == 0 {
+		t.Errorf("kernel messages: %v", err)
 	}
 	requirements, err := conformance.CapabilityRequirements()
 	if err != nil || len(requirements.Valid) == 0 {

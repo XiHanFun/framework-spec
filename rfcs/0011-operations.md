@@ -1,6 +1,6 @@
 # RFC-0011 操作契约与 XGI
 
-> 状态：已采纳（2026-10-28 修订：Schema 命名——封闭泛型带实参名、字符串枚举进 `$defs`；2026-10-28 修订：程序集级 Expose 缺省与只读声明；2026-11-01 修订：幂等回放还原响应、契约的权限码装配时核对；2026-11-01 修订：只读契约开只读工作单元；2026-11-01 修订：只读操作里的写入是 500 类缺陷；2026-11-01 修订：一组操作连同归属定义的权限码登记、契约的策略启动时核对；同日再修订：按归属撤回登记、契约的策略在宿主的启动核对里核对；2026-11-04 修订：Schema 的类型映射——任意 JSON 与 `JsonObject` / `JsonArray`，类型按命名空间与元数据名识别；同日再修订：`[JsonIgnore]` 的条件与上下文的 `DefaultIgnoreCondition`、任何键类型的字典按对象与 `propertyNames`、生成器诊断 `XHG006`） | 日期：2026-10-22 | 对应 ADR：0034、0041、0064、0071、0073、0080、0081、0085 | 参考实现：`XiHan.Framework.Kernel.Operations` | 一致性：`conformance/vectors/operations/`（随协议适配器补）
+> 状态：已采纳（2026-10-28 修订：Schema 命名——封闭泛型带实参名、字符串枚举进 `$defs`；2026-10-28 修订：程序集级 Expose 缺省与只读声明；2026-11-01 修订：幂等回放还原响应、契约的权限码装配时核对；2026-11-01 修订：只读契约开只读工作单元；2026-11-01 修订：只读操作里的写入是 500 类缺陷；2026-11-01 修订：一组操作连同归属定义的权限码登记、契约的策略启动时核对；同日再修订：按归属撤回登记、契约的策略在宿主的启动核对里核对；2026-11-04 修订：Schema 的类型映射——任意 JSON 与 `JsonObject` / `JsonArray`，类型按命名空间与元数据名识别；同日再修订：`[JsonIgnore]` 的条件与上下文的 `DefaultIgnoreCondition`、任何键类型的字典按对象与 `propertyNames`、生成器诊断 `XHG006`；2026-11-16 修订：SDK 与宿主共用的内核错误与消息键、没有产出响应的调用） | 日期：2026-10-22 | 对应 ADR：0034、0041、0064、0071、0073、0080、0081、0085、0233（共用的内核错误） | 参考实现：`XiHan.Framework.Kernel.Operations` | 一致性：`conformance/vectors/primitives/kernel-messages.json`；`conformance/vectors/operations/`（规划中，随协议适配器补）
 
 ## 摘要
 
@@ -68,6 +68,8 @@ JSON 是 XGI 的规范编码；gRPC 等二进制协议在适配器里转换（`P
    - `InvokeAsync` 的两种入口照常从上下文取响应：XGI 返回同样的载荷，类型化返回同样的响应对象，不是空载荷或 `KERNEL_UNEXPECTED_001`。
    - 宿主端点不执行时由宿主写出：`Protocols.Http` 把写出方式（`OperationResponseWriter`：状态码、内容类型与正文）挂在端点元数据上，`UseXiHan()` 在管道成功结束、响应未开始而上下文里有响应对象时用它写出，与端点执行时写出的一致。
    - 回放不再经过响应过滤：记录里的响应在首次调用时已经过滤，回放给的是同一个（租户、主体、键）。
+9. 没有产出响应（2026-11-16 写明，ADR-0233）：管道以成功结束，上下文里却没有响应，说明某个中间件以成功短路、Handle 没有执行，而且这不是幂等回放。这时两种 `InvokeAsync` 入口都返回 `KERNEL_UNEXPECTED_001` + `kernel.operation.no_response`，不返回成功的空载荷，也不返回未初始化的结果。以前 Go SDK 返回 OK 加空载荷，各 SDK 的做法不一。
+10. 语言 SDK 的范围：语言 SDK 的调用器必须实现规则 1、2、5 与 9、类型化入口与本节的错误。Schema 校验与 `IValidatableObject`（「校验」）、响应过滤（规则 7）、幂等回放（规则 8）与宿主端点（规则 4、6）是宿主能力，SDK 可以不提供；提供时按本文的规则。
 
 ## 校验
 
@@ -91,10 +93,16 @@ Validate 阶段的内置中间件 `ValidationMiddleware`（内核，`KernelOptio
 
 ## 错误码
 
-| 错误码 | 含义 |
-| --- | --- |
-| `KERNEL_NOTFOUND_001` | 操作未登记 |
-| `KERNEL_VALIDATION_001` | 操作载荷不合法 |
-| `KERNEL_VALIDATION_002` | 类型化调用的请求或响应类型与登记不符 |
-| `KERNEL_OPERATION_001` | 操作 ID 重复登记（配置期异常） |
-| `KERNEL_OPERATION_002` | 操作登记表已满（配置期异常） |
+| 错误码 | 消息键 | 参数 | 含义 |
+| --- | --- | --- | --- |
+| `KERNEL_NOTFOUND_001` | `kernel.operation.unknown` | `id` | 操作未登记 |
+| `KERNEL_VALIDATION_001` | `kernel.operation.invalid_payload` | `id`、`reason` | 操作载荷不合法；`reason` 只写出错位置的 JSON 路径（规则 2） |
+| `KERNEL_VALIDATION_002` | `kernel.operation.type_mismatch` | `id`、`expected`、`actual` | 类型化调用的请求或响应类型与登记不符；`expected` / `actual` 是实现语言里的类型名，只给人看 |
+| `KERNEL_VALIDATION_003` | `kernel.operation.schema_violation` | `id`、`reason`；细节另有 `violations` | 请求不符合契约的 Schema（宿主能力，见「校验」） |
+| `KERNEL_UNEXPECTED_001` | `kernel.operation.no_response` | `id` | 管道以成功结束而没有响应（规则 9） |
+| `KERNEL_OPERATION_001` | `kernel.operation.duplicate` | `id`、`owner` | 操作 ID 重复登记（配置期） |
+| `KERNEL_OPERATION_002` | `kernel.operation.registry_full` | `capacity` | 操作登记表已满（配置期，容量 10000） |
+
+截止时间与取消的错误（RFC-0003 第 1 条、RFC-0004）与操作共用同一组码：`KERNEL_TIMEOUT_001` + `kernel.invocation.deadline_exceeded`，调用开始时截止时间已过用 `kernel.invocation.deadline_before_start`；`KERNEL_CANCELLED_001` + `kernel.invocation.cancelled`。这些都没有参数。
+
+SDK 与宿主共用这张表（2026-11-16 修订，ADR-0233）。以前键与参数只在 .NET 的语言文件里，Go SDK 把载荷不合法写成了宿主目录里没有的 `kernel.operation.payload_invalid`，宿主翻译不出来。错误码、消息键、参数名与 en-US 模板逐字列在向量 `conformance/vectors/primitives/kernel-messages.json` 里，en-US 模板以 .NET 的 `Localization/en-US.json` 为准。SDK 自带的默认英文模板必须与向量一致，宿主收到插件的错误后按键用自己的目录翻译。配置期的两个错误怎么交给调用方（返回结果还是抛出）属于各语言自选的形态，码、键与参数不变。

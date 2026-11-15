@@ -1,0 +1,476 @@
+{
+  "$comment": "Result 与 Error 的线上编码（RFC-0001「Result」，ADR-0233）。valid 的每项必须读得出，再写出时按 JSON 值等于 canonical（没有 canonical 时等于 json）；invalid 的每项必须被拒绝。results 的 kind：value 是有值结果，值是任意非 null 的 JSON；unit 是无值结果；maybe 是值类型为 Maybe 的结果，null 即无值。比较按 JSON 值，不比较成员顺序与空白",
+  "results": {
+    "valid": [
+      {
+        "name": "有值成功（对象）",
+        "kind": "value",
+        "json": {
+          "ok": true,
+          "value": {
+            "id": "o1"
+          }
+        }
+      },
+      {
+        "name": "有值成功（0）",
+        "kind": "value",
+        "json": {
+          "ok": true,
+          "value": 0
+        }
+      },
+      {
+        "name": "有值成功（false）",
+        "kind": "value",
+        "json": {
+          "ok": true,
+          "value": false
+        }
+      },
+      {
+        "name": "有值成功（空串）",
+        "kind": "value",
+        "json": {
+          "ok": true,
+          "value": ""
+        }
+      },
+      {
+        "name": "有值成功（空数组）",
+        "kind": "value",
+        "json": {
+          "ok": true,
+          "value": []
+        }
+      },
+      {
+        "name": "无值成功",
+        "kind": "unit",
+        "json": {
+          "ok": true
+        }
+      },
+      {
+        "name": "Maybe 无值",
+        "kind": "maybe",
+        "json": {
+          "ok": true,
+          "value": null
+        }
+      },
+      {
+        "name": "Maybe 有值",
+        "kind": "maybe",
+        "json": {
+          "ok": true,
+          "value": "x"
+        }
+      },
+      {
+        "name": "有值结果的失败",
+        "kind": "value",
+        "json": {
+          "ok": false,
+          "error": {
+            "code": "KERNEL_NOTFOUND_001",
+            "message": "Operation 'orders.create' is not registered.",
+            "messageKey": "kernel.operation.unknown",
+            "details": {
+              "id": "orders.create"
+            }
+          }
+        }
+      },
+      {
+        "name": "无值结果的失败",
+        "kind": "unit",
+        "json": {
+          "ok": false,
+          "error": {
+            "code": "PERSISTENCE_CONFLICT_001",
+            "message": "Order 42 was changed by someone else.",
+            "messageKey": "persistence.entity.stale_stamp",
+            "details": {
+              "entity": "Order",
+              "id": 42
+            },
+            "inner": {
+              "code": "KERNEL_UNEXPECTED_001",
+              "message": "Concurrency stamp mismatch."
+            }
+          }
+        }
+      },
+      {
+        "name": "Maybe 结果的失败",
+        "kind": "maybe",
+        "json": {
+          "ok": false,
+          "error": {
+            "code": "PLUGINS_UNEXPECTED_001",
+            "message": "Plugin failed with status 'Internal'."
+          }
+        }
+      },
+      {
+        "name": "未知成员忽略",
+        "kind": "value",
+        "json": {
+          "ok": true,
+          "value": 1,
+          "revision": 2
+        },
+        "canonical": {
+          "ok": true,
+          "value": 1
+        }
+      },
+      {
+        "name": "无值成功的未知成员忽略",
+        "kind": "unit",
+        "json": {
+          "ok": true,
+          "trace": "t"
+        },
+        "canonical": {
+          "ok": true
+        }
+      }
+    ],
+    "invalid": [
+      {
+        "name": "无值结果带 value（空对象）",
+        "kind": "unit",
+        "json": {
+          "ok": true,
+          "value": {}
+        }
+      },
+      {
+        "name": "无值结果带 value（null）",
+        "kind": "unit",
+        "json": {
+          "ok": true,
+          "value": null
+        }
+      },
+      {
+        "name": "有值结果缺 value",
+        "kind": "value",
+        "json": {
+          "ok": true
+        }
+      },
+      {
+        "name": "有值结果的 value 是 null",
+        "kind": "value",
+        "json": {
+          "ok": true,
+          "value": null
+        }
+      },
+      {
+        "name": "Maybe 结果缺 value",
+        "kind": "maybe",
+        "json": {
+          "ok": true
+        }
+      },
+      {
+        "name": "失败缺 error",
+        "kind": "value",
+        "json": {
+          "ok": false
+        }
+      },
+      {
+        "name": "失败的 error 是 null",
+        "kind": "unit",
+        "json": {
+          "ok": false,
+          "error": null
+        }
+      },
+      {
+        "name": "失败带 value",
+        "kind": "value",
+        "json": {
+          "ok": false,
+          "value": 1,
+          "error": {
+            "code": "PLUGINS_UNEXPECTED_001",
+            "message": "Plugin failed with status 'Internal'."
+          }
+        }
+      },
+      {
+        "name": "成功带 error",
+        "kind": "unit",
+        "json": {
+          "ok": true,
+          "error": {
+            "code": "PLUGINS_UNEXPECTED_001",
+            "message": "Plugin failed with status 'Internal'."
+          }
+        }
+      },
+      {
+        "name": "缺 ok",
+        "kind": "value",
+        "json": {
+          "value": 1
+        }
+      },
+      {
+        "name": "ok 不是布尔",
+        "kind": "value",
+        "json": {
+          "ok": "true",
+          "value": 1
+        }
+      },
+      {
+        "name": "不是对象（数组）",
+        "kind": "value",
+        "json": [
+          true,
+          1
+        ]
+      },
+      {
+        "name": "不是对象（null）",
+        "kind": "unit",
+        "json": null
+      },
+      {
+        "name": "失败的 error 不合法",
+        "kind": "unit",
+        "json": {
+          "ok": false,
+          "error": {
+            "code": "bad",
+            "message": "x"
+          }
+        }
+      }
+    ]
+  },
+  "errors": {
+    "valid": [
+      {
+        "name": "带键、细节与内部错误",
+        "json": {
+          "code": "PERSISTENCE_CONFLICT_001",
+          "message": "Order 42 was changed by someone else.",
+          "messageKey": "persistence.entity.stale_stamp",
+          "details": {
+            "entity": "Order",
+            "id": 42
+          },
+          "inner": {
+            "code": "KERNEL_UNEXPECTED_001",
+            "message": "Concurrency stamp mismatch."
+          }
+        }
+      },
+      {
+        "name": "带键与细节",
+        "json": {
+          "code": "KERNEL_NOTFOUND_001",
+          "message": "Operation 'orders.create' is not registered.",
+          "messageKey": "kernel.operation.unknown",
+          "details": {
+            "id": "orders.create"
+          }
+        }
+      },
+      {
+        "name": "Literal 没有键",
+        "json": {
+          "code": "PLUGINS_UNEXPECTED_001",
+          "message": "Plugin failed with status 'Internal'."
+        }
+      },
+      {
+        "name": "细节值是各种 JSON 值",
+        "json": {
+          "code": "ORDERS_VALIDATION_001",
+          "message": "orders.line.invalid (line=3)",
+          "messageKey": "orders.line.invalid",
+          "details": {
+            "line": 3,
+            "ratio": 0.5,
+            "flag": true,
+            "note": "x",
+            "none": null,
+            "tags": [
+              "a"
+            ],
+            "range": {
+              "min": 1
+            }
+          }
+        }
+      },
+      {
+        "name": "空细节不写出",
+        "json": {
+          "code": "KERNEL_CANCELLED_001",
+          "message": "The invocation was canceled.",
+          "messageKey": "kernel.invocation.cancelled",
+          "details": {}
+        },
+        "canonical": {
+          "code": "KERNEL_CANCELLED_001",
+          "message": "The invocation was canceled.",
+          "messageKey": "kernel.invocation.cancelled"
+        }
+      },
+      {
+        "name": "两层内部错误",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "a",
+          "inner": {
+            "code": "KERNEL_UNEXPECTED_001",
+            "message": "b",
+            "inner": {
+              "code": "PLUGINS_UNAVAILABLE_001",
+              "message": "c"
+            }
+          }
+        }
+      },
+      {
+        "name": "未知成员忽略",
+        "json": {
+          "code": "KERNEL_TIMEOUT_001",
+          "message": "The invocation exceeded its deadline.",
+          "messageKey": "kernel.invocation.deadline_exceeded",
+          "severity": "high"
+        },
+        "canonical": {
+          "code": "KERNEL_TIMEOUT_001",
+          "message": "The invocation exceeded its deadline.",
+          "messageKey": "kernel.invocation.deadline_exceeded"
+        }
+      }
+    ],
+    "invalid": [
+      {
+        "name": "缺 code",
+        "json": {
+          "message": "x"
+        }
+      },
+      {
+        "name": "code 不合文法",
+        "json": {
+          "code": "kernel_notfound_001",
+          "message": "x"
+        }
+      },
+      {
+        "name": "code 不是字符串",
+        "json": {
+          "code": 1,
+          "message": "x"
+        }
+      },
+      {
+        "name": "缺 message",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001"
+        }
+      },
+      {
+        "name": "message 是空串",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": ""
+        }
+      },
+      {
+        "name": "message 不是字符串",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": 1
+        }
+      },
+      {
+        "name": "messageKey 不合文法",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "x",
+          "messageKey": "Kernel.Unexpected"
+        }
+      },
+      {
+        "name": "messageKey 是 null",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "x",
+          "messageKey": null
+        }
+      },
+      {
+        "name": "details 是 null",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "x",
+          "details": null
+        }
+      },
+      {
+        "name": "details 是数组",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "x",
+          "details": [
+            1
+          ]
+        }
+      },
+      {
+        "name": "details 是字符串",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "x",
+          "details": "id=1"
+        }
+      },
+      {
+        "name": "inner 是 null",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "x",
+          "inner": null
+        }
+      },
+      {
+        "name": "inner 不是对象",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "x",
+          "inner": "y"
+        }
+      },
+      {
+        "name": "inner 不合法",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "x",
+          "inner": {
+            "code": "bad",
+            "message": "y"
+          }
+        }
+      },
+      {
+        "name": "不是对象",
+        "json": "KERNEL_UNEXPECTED_001"
+      }
+    ]
+  }
+}

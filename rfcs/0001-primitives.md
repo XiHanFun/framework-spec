@@ -1,6 +1,6 @@
 # RFC-0001 原语层
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086 | 参考实现：`framework/src/XiHan.Framework.Primitives`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节） | 参考实现：`framework/src/XiHan.Framework.Primitives`
 
 ## 摘要
 
@@ -55,8 +55,26 @@ public readonly record struct Result<T>
 
 ```json
 { "ok": true, "value": … }
+{ "ok": true }
 { "ok": false, "error": { "code": "PERSISTENCE_CONFLICT_001", "message": "…", "messageKey": "persistence.entity.stale_stamp", "details": { … }, "inner": { … } } }
 ```
+
+各语言按同一套规则读写（2026-11-16 修订，ADR-0233）。以前只给了有值的写法，无值成功被各 SDK 分别写成 `{"ok":true}` 与 `{"ok":true,"value":{}}`，互相读不出：
+
+- `ok` 必填，是布尔。
+- 有值成功（`Result<T>`）：`value` 必填。值类型是 `Maybe<T>` 时，无值的 `value` 是 `null`；其余类型的 `value` 不能是 `null`。
+- 无值成功（非泛型 `Result`，或其他语言里值类型为单元类型的结果）：只写 `{"ok":true}`，不写 `value`。读取时带了 `value` 即不合法，`{}` 与 `null` 也一样。
+- 失败：`error` 必填，不能带 `value`；成功不能带 `error`。
+- `Error` 写出时成员顺序是 `code`、`message`、`messageKey`、`details`、`inner`：
+  - `code` 必填，符合错误码文法。
+  - `message` 必填，是非空字符串。
+  - `messageKey` 只在有键时写（Literal 没有键），写了就必须符合消息键文法。
+  - `details` 为空时不写，写了就必须是 JSON 对象。
+  - 没有内部错误时不写 `inner`，写了就必须是 `Error`。
+  - 可选成员缺失表示没有，写成 `null` 不合法。
+- 读取方忽略未知成员：v1 期间编码只增不改，新成员一律可选。接收方按 JSON 值比较，不比较成员顺序与空白。
+
+向量 `conformance/vectors/primitives/wire-encoding.json` 列出两类写法：必须读得出的（连同再写出时的规范形式），以及必须拒绝的。
 
 ### Error 与 ErrorCode
 
@@ -105,7 +123,7 @@ public static class ErrorCode
 
 - `Code` 必须符合 `<领域大写>_<KIND>_<NNN>`；工厂方法校验 KIND 段与方法名一致。
 - `Message` 面向人，不参与程序判断；`Details` 只允许 JSON 可表示的值。
-- `MessageKey` 文法 `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`（首段与后段同形，操作 ID 的资源段把连字符换成下划线后可直接作首段，如 `tenant_members.list.description`），文案在语言文件里（RFC-0010）；`message` 线上字段是发送端已解析的文案，`messageKey` 让接收端可再翻译。
+- `MessageKey` 文法 `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`，最长 128 个字符（`MessageTemplate.MaxKeyLength`，2026-11-16 写明，ADR-0233）（首段与后段同形，操作 ID 的资源段把连字符换成下划线后可直接作首段，如 `tenant_members.list.description`），文案在语言文件里（RFC-0010）；`message` 线上字段是发送端已解析的文案，`messageKey` 让接收端可再翻译。
 
 ### Maybe
 
@@ -262,7 +280,7 @@ public static class Redaction
 | `Contributions` / `PipelineContribution` / `ConfigContribution` | 贡献点 |
 | `CapabilityId` / `ManifestId` | 格式校验与领域段提取 |
 
-接口版本是整数；`^N` 与 `N` 等价。收集、解析与求解是内核的职责。
+接口版本是正整数，清单里写成十进制数字字符串（`"1"`）。只有依赖（`requires[].version` 与依赖文本）可以写成 `^N`，与 `N` 等价；`primitives` 与 `provides[].version` 只写数字（2026-11-16 写明，ADR-0233；以前的「`^N` 与 `N` 等价」没说只限依赖，与 Schema 不一致）。收集、解析与求解是内核的职责。
 
 清单记录的构造只收必需字段（`Binding(name, type)`、`CapabilityRequirement(id, version)`、`ConfigContribution(section)`、`PipelineContribution(middleware, stage)`），可选字段（`Required`、`Optional`、`Schema`、`Before`、`After`）经初始化器设置：原语层只增不改，以后加字段只加可选的初始化字段，不改构造的参数表。`TryParse` 失败时输出为空（.NET 以 `[NotNullWhen(true)]` 标注）。`Error.Unexpected` 的参数顺序与构造一致：先细节、后内部错误（2026-11-11 修订，ADR-0137）。
 
@@ -332,7 +350,7 @@ public static class Redaction
 | PipelineStage | 十一阶段的名称与顺序 |
 | 清单 | Schema、ID 格式、依赖文本语法 |
 
-线上 JSON 编码由协议适配器与源生成器实现，原语层不含序列化代码（保持零行为与零反射）。
+.NET 的线上 JSON 编码由协议适配器与源生成器实现，原语层不含序列化代码（保持零行为与零反射）。其他语言的 SDK 可以把编码放在原语包里，这属于各语言自选的内部形态；编码本身以「Result」一节的规则与向量为准。
 
 ## 冻结规则
 
@@ -340,7 +358,7 @@ public static class Redaction
 
 ## 一致性向量
 
-`spec/conformance/vectors/primitives/`：`error-codes.json`、`lifecycle-transitions.json`、`capability-requirements.json`、`baggage-keys.json`。Result/Error/Maybe/TypedId 的编码向量随协议适配器（P3）补充。
+`spec/conformance/vectors/primitives/`：`error-codes.json`、`lifecycle-transitions.json`、`capability-requirements.json`、`baggage-keys.json`（含 Baggage 值的约束）、`wire-encoding.json`（Result 与 Error 的编码）、`message-templates.json`（消息键文法、模板格式化与 `Describe`，RFC-0010）、`kernel-messages.json`（SDK 与宿主共用的内核错误码、消息键、参数与 en-US 模板，RFC-0011）。TypedId 的编码就是底层值，不另设向量。
 
 ## 备选方案
 
