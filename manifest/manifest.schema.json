@@ -26,6 +26,7 @@
     "contributes": { "$ref": "#/$defs/contributions" },
     "activation": {
       "type": "array",
+      "minItems": 1,
       "items": { "type": "string", "pattern": "^(onStartup|onOperation:[a-z0-9.*-]+|onEvent:[a-z0-9.*-]+)$" },
       "default": ["onStartup"]
     },

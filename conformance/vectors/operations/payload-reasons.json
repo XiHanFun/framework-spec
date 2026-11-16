@@ -1,0 +1,297 @@
+{
+  "$comment": "载荷不合法时 reason 的路径（RFC-0011 规则 2，ADR-0235），期望值由 .NET 参考实现（System.Text.Json）算出。两个请求类型各语言都能声明：counts 是成员值都为整数的对象（整数字典），order 是 { lines: [ { quantity: 整数 } ] }（成员名 camelCase）。payload 是原样的 JSON 文本，解码失败时错误为 KERNEL_VALIDATION_001 + kernel.operation.invalid_payload，参数 reason 必须等于期望值。syntaxErrors 是 JSON 语法错误：同样是 KERNEL_VALIDATION_001，reason 的具体路径不作规定，只要求以 $ 开头",
+  "requests": {
+    "counts": "对象，成员值都是整数",
+    "order": "对象：lines 是数组，每项是对象，quantity 是整数"
+  },
+  "cases": [
+    {
+      "name": "值的类型不符",
+      "request": "counts",
+      "payload": "{\"a\":\"x\"}",
+      "reason": "$.a"
+    },
+    {
+      "name": "第二个成员不符",
+      "request": "counts",
+      "payload": "{\"a\":1,\"b\":\"x\"}",
+      "reason": "$.b"
+    },
+    {
+      "name": "小数不是整数",
+      "request": "counts",
+      "payload": "{\"a\":1.5}",
+      "reason": "$.a"
+    },
+    {
+      "name": "null 不是整数",
+      "request": "counts",
+      "payload": "{\"a\":null}",
+      "reason": "$.a"
+    },
+    {
+      "name": "成员名含空格",
+      "request": "counts",
+      "payload": "{\"a b\":\"x\"}",
+      "reason": "$['a b']"
+    },
+    {
+      "name": "成员名含点",
+      "request": "counts",
+      "payload": "{\"a.b\":\"x\"}",
+      "reason": "$['a.b']"
+    },
+    {
+      "name": "成员名含单引号",
+      "request": "counts",
+      "payload": "{\"a'b\":\"x\"}",
+      "reason": "$['a'b']"
+    },
+    {
+      "name": "成员名含斜杠",
+      "request": "counts",
+      "payload": "{\"a/b\":\"x\"}",
+      "reason": "$['a/b']"
+    },
+    {
+      "name": "成员名含双引号",
+      "request": "counts",
+      "payload": "{\"a\\\"b\":\"x\"}",
+      "reason": "$['a\"b']"
+    },
+    {
+      "name": "成员名含左方括号",
+      "request": "counts",
+      "payload": "{\"a[b\":\"x\"}",
+      "reason": "$['a[b']"
+    },
+    {
+      "name": "成员名含右方括号",
+      "request": "counts",
+      "payload": "{\"a]b\":\"x\"}",
+      "reason": "$['a]b']"
+    },
+    {
+      "name": "成员名含左圆括号",
+      "request": "counts",
+      "payload": "{\"a(b\":\"x\"}",
+      "reason": "$['a(b']"
+    },
+    {
+      "name": "成员名含右圆括号",
+      "request": "counts",
+      "payload": "{\"a)b\":\"x\"}",
+      "reason": "$['a)b']"
+    },
+    {
+      "name": "成员名含制表符",
+      "request": "counts",
+      "payload": "{\"a\\tb\":\"x\"}",
+      "reason": "$['a\tb']"
+    },
+    {
+      "name": "成员名含反斜杠",
+      "request": "counts",
+      "payload": "{\"a\\\\b\":\"x\"}",
+      "reason": "$['a\\b']"
+    },
+    {
+      "name": "成员名含换行",
+      "request": "counts",
+      "payload": "{\"a\\nb\":\"x\"}",
+      "reason": "$['a\nb']"
+    },
+    {
+      "name": "成员名含回车",
+      "request": "counts",
+      "payload": "{\"a\\rb\":\"x\"}",
+      "reason": "$['a\rb']"
+    },
+    {
+      "name": "成员名含退格",
+      "request": "counts",
+      "payload": "{\"a\\bb\":\"x\"}",
+      "reason": "$['a\bb']"
+    },
+    {
+      "name": "成员名含换页",
+      "request": "counts",
+      "payload": "{\"a\\fb\":\"x\"}",
+      "reason": "$['a\fb']"
+    },
+    {
+      "name": "成员名含 U+0001",
+      "request": "counts",
+      "payload": "{\"a\\u0001b\":\"x\"}",
+      "reason": "$.a\u0001b"
+    },
+    {
+      "name": "成员名含 U+0085",
+      "request": "counts",
+      "payload": "{\"a\\u0085b\":\"x\"}",
+      "reason": "$['a\u0085b']"
+    },
+    {
+      "name": "成员名含 U+2028",
+      "request": "counts",
+      "payload": "{\"a\\u2028b\":\"x\"}",
+      "reason": "$['a\u2028b']"
+    },
+    {
+      "name": "成员名含 U+2029",
+      "request": "counts",
+      "payload": "{\"a\\u2029b\":\"x\"}",
+      "reason": "$['a\u2029b']"
+    },
+    {
+      "name": "成员名含不换行空格",
+      "request": "counts",
+      "payload": "{\"a\\u00a0b\":\"x\"}",
+      "reason": "$.a\u00A0b"
+    },
+    {
+      "name": "成员名含花括号",
+      "request": "counts",
+      "payload": "{\"a{b}\":\"x\"}",
+      "reason": "$.a{b}"
+    },
+    {
+      "name": "成员名含逗号",
+      "request": "counts",
+      "payload": "{\"a,b\":\"x\"}",
+      "reason": "$.a,b"
+    },
+    {
+      "name": "成员名含星号",
+      "request": "counts",
+      "payload": "{\"a*b\":\"x\"}",
+      "reason": "$.a*b"
+    },
+    {
+      "name": "成员名含井号",
+      "request": "counts",
+      "payload": "{\"a#b\":\"x\"}",
+      "reason": "$.a#b"
+    },
+    {
+      "name": "成员名含问号",
+      "request": "counts",
+      "payload": "{\"a?b\":\"x\"}",
+      "reason": "$.a?b"
+    },
+    {
+      "name": "成员名为空",
+      "request": "counts",
+      "payload": "{\"\":\"x\"}",
+      "reason": "$."
+    },
+    {
+      "name": "成员名含连字符",
+      "request": "counts",
+      "payload": "{\"a-b\":\"x\"}",
+      "reason": "$.a-b"
+    },
+    {
+      "name": "成员名含冒号",
+      "request": "counts",
+      "payload": "{\"a:b\":\"x\"}",
+      "reason": "$.a:b"
+    },
+    {
+      "name": "成员名含 @",
+      "request": "counts",
+      "payload": "{\"a@b\":\"x\"}",
+      "reason": "$.a@b"
+    },
+    {
+      "name": "成员名含 $",
+      "request": "counts",
+      "payload": "{\"a$b\":\"x\"}",
+      "reason": "$.a$b"
+    },
+    {
+      "name": "成员名含下划线",
+      "request": "counts",
+      "payload": "{\"a_b\":\"x\"}",
+      "reason": "$.a_b"
+    },
+    {
+      "name": "成员名是汉字",
+      "request": "counts",
+      "payload": "{\"数量\":\"x\"}",
+      "reason": "$.数量"
+    },
+    {
+      "name": "载荷是 null",
+      "request": "counts",
+      "payload": "null",
+      "reason": "$"
+    },
+    {
+      "name": "载荷是数组",
+      "request": "counts",
+      "payload": "[]",
+      "reason": "$"
+    },
+    {
+      "name": "载荷是字符串",
+      "request": "counts",
+      "payload": "\"s\"",
+      "reason": "$"
+    },
+    {
+      "name": "载荷是数字",
+      "request": "counts",
+      "payload": "42",
+      "reason": "$"
+    },
+    {
+      "name": "明细里的值不符",
+      "request": "order",
+      "payload": "{\"lines\":[{\"quantity\":1},{\"quantity\":\"x\"}]}",
+      "reason": "$.lines[1].quantity"
+    },
+    {
+      "name": "明细不是数组",
+      "request": "order",
+      "payload": "{\"lines\":\"x\"}",
+      "reason": "$.lines"
+    },
+    {
+      "name": "明细项不是对象",
+      "request": "order",
+      "payload": "{\"lines\":[1]}",
+      "reason": "$.lines[0]"
+    },
+    {
+      "name": "明细是对象",
+      "request": "order",
+      "payload": "{\"lines\":{\"a\":1}}",
+      "reason": "$.lines"
+    },
+    {
+      "name": "明细里的小数",
+      "request": "order",
+      "payload": "{\"lines\":[{\"quantity\":1.5}]}",
+      "reason": "$.lines[0].quantity"
+    }
+  ],
+  "syntaxErrors": [
+    {
+      "request": "order",
+      "payload": "{\"lines\":[1,"
+    },
+    {
+      "request": "order",
+      "payload": "{,}"
+    },
+    {
+      "request": "order",
+      "payload": "{\"lines\":[{\"quantity\":1}]"
+    },
+    {
+      "request": "counts",
+      "payload": "{\"a\":1}x"
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "$comment": "W3C traceparent 的解析与写出（RFC-0003 规则 7，ADR-0235）。parse.valid 必须解析成给出的 traceId、spanId 与 sampled（只看标志的最低位）；parse.invalid 必须当作没有给出。format 用 traceId、spanId 与 sampled 写出 text；sampled 为 null 表示上下文没有标志（链路的根、没有采样器），写 01",
+  "parse": {
+    "valid": [
+      {
+        "text": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "traceId": "0af7651916cd43dd8448eb211c80319c",
+        "spanId": "b7ad6b7169203331",
+        "sampled": true
+      },
+      {
+        "text": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00",
+        "traceId": "0af7651916cd43dd8448eb211c80319c",
+        "spanId": "b7ad6b7169203331",
+        "sampled": false
+      },
+      {
+        "text": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-03",
+        "traceId": "0af7651916cd43dd8448eb211c80319c",
+        "spanId": "b7ad6b7169203331",
+        "sampled": true
+      },
+      {
+        "text": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-02",
+        "traceId": "0af7651916cd43dd8448eb211c80319c",
+        "spanId": "b7ad6b7169203331",
+        "sampled": false
+      },
+      {
+        "text": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-ff",
+        "traceId": "0af7651916cd43dd8448eb211c80319c",
+        "spanId": "b7ad6b7169203331",
+        "sampled": true
+      },
+      {
+        "text": "00-00000000000000000000000000000001-0000000000000001-01",
+        "traceId": "00000000000000000000000000000001",
+        "spanId": "0000000000000001",
+        "sampled": true
+      }
+    ],
+    "invalid": [
+      "",
+      "01-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+      "ff-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+      "00-0AF7651916CD43DD8448EB211C80319C-b7ad6b7169203331-01",
+      "00-0af7651916cd43dd8448eb211c80319c-B7AD6B7169203331-01",
+      "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-0A",
+      "00-00000000000000000000000000000000-b7ad6b7169203331-01",
+      "00-0af7651916cd43dd8448eb211c80319c-0000000000000000-01",
+      "00-0af7651916cd43dd8448eb211c80319-b7ad6b7169203331-01",
+      "00-0af7651916cd43dd8448eb211c80319c-b7ad6b71692033311-01",
+      "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-1",
+      "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01-extra",
+      " 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+      "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01 ",
+      "00_0af7651916cd43dd8448eb211c80319c_b7ad6b7169203331_01",
+      "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331",
+      "00-0af7651916cd43dd8448eb211c80319g-b7ad6b7169203331-01"
+    ]
+  },
+  "format": [
+    {
+      "traceId": "0af7651916cd43dd8448eb211c80319c",
+      "spanId": "b7ad6b7169203331",
+      "sampled": true,
+      "text": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+    },
+    {
+      "traceId": "0af7651916cd43dd8448eb211c80319c",
+      "spanId": "b7ad6b7169203331",
+      "sampled": false,
+      "text": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00"
+    },
+    {
+      "traceId": "0af7651916cd43dd8448eb211c80319c",
+      "spanId": "b7ad6b7169203331",
+      "sampled": null,
+      "text": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+    }
+  ]
+}

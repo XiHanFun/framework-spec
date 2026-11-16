@@ -1,5 +1,5 @@
 {
-  "$comment": "消息键文法与模板格式化（RFC-0010「消息键」「模板」，ADR-0233）。keys：合法与非法的消息键。format：lenient 是宽松格式化的结果，strict 是严格格式化的结果，null 表示严格格式化失败（有占位符缺值）；arguments 的 JSON 值按原类型交给格式化：整数、浮点、布尔、字符串、null；位置参数的名字是 \"0\"、\"1\"。SDK 按不变文化格式化。describe：Describe(key, arguments) 的结果，arguments 为 null 表示没有参数；至多一个参数，避开不作规定的参数顺序",
+  "$comment": "消息键文法与模板格式化（RFC-0010「消息键」「模板」，ADR-0233）。keys：合法与非法的消息键。format：lenient 是宽松格式化的结果，strict 是严格格式化的结果，null 表示严格格式化失败（有占位符缺值）；arguments 的 JSON 值按原类型交给格式化：整数、浮点、布尔、字符串、null；位置参数的名字是 \"0\"、\"1\"。SDK 按不变文化格式化。describe：Describe(key, arguments) 的结果，arguments 为 null 表示没有参数；多个参数按名字的序数顺序排列（ADR-0235）",
   "keys": {
     "valid": [
       "kernel.operation.unknown",
@@ -431,6 +431,267 @@
       },
       "lenient": "0.50",
       "strict": "0.50"
+    },
+    {
+      "name": "d 小写同 D",
+      "template": "{n:d3}",
+      "arguments": {
+        "n": 7
+      },
+      "lenient": "007",
+      "strict": "007"
+    },
+    {
+      "name": "f 小写同 F",
+      "template": "{n:f1}",
+      "arguments": {
+        "n": 2.25
+      },
+      "lenient": "2.2",
+      "strict": "2.2"
+    },
+    {
+      "name": "n 小写同 N",
+      "template": "{n:n0}",
+      "arguments": {
+        "n": 1234
+      },
+      "lenient": "1,234",
+      "strict": "1,234"
+    },
+    {
+      "name": "X 大写补零",
+      "template": "{n:X4}",
+      "arguments": {
+        "n": 255
+      },
+      "lenient": "00FF",
+      "strict": "00FF"
+    },
+    {
+      "name": "D0",
+      "template": "{n:D0}",
+      "arguments": {
+        "n": 5
+      },
+      "lenient": "5",
+      "strict": "5"
+    },
+    {
+      "name": "D 负数补零不计负号",
+      "template": "{n:D5}",
+      "arguments": {
+        "n": -42
+      },
+      "lenient": "-00042",
+      "strict": "-00042"
+    },
+    {
+      "name": "F 两位数的精度",
+      "template": "{n:F12}",
+      "arguments": {
+        "n": 0.3333333333333333
+      },
+      "lenient": "0.333333333333",
+      "strict": "0.333333333333"
+    },
+    {
+      "name": "N 三位小数",
+      "template": "{n:N3}",
+      "arguments": {
+        "n": 1234.5678
+      },
+      "lenient": "1,234.568",
+      "strict": "1,234.568"
+    },
+    {
+      "name": "F 大数写全部整数位",
+      "template": "{n:F2}",
+      "arguments": {
+        "n": 1e+20
+      },
+      "lenient": "100000000000000000000.00",
+      "strict": "100000000000000000000.00"
+    },
+    {
+      "name": "N 大数写全部整数位",
+      "template": "{n:N2}",
+      "arguments": {
+        "n": 1e+20
+      },
+      "lenient": "100,000,000,000,000,000,000.00",
+      "strict": "100,000,000,000,000,000,000.00"
+    },
+    {
+      "name": "F 超过 1e21 仍不用指数",
+      "template": "{n:F2}",
+      "arguments": {
+        "n": 1e+21
+      },
+      "lenient": "1000000000000000000000.00",
+      "strict": "1000000000000000000000.00"
+    },
+    {
+      "name": "F 负数舍入成零保留负号",
+      "template": "{n:F2}",
+      "arguments": {
+        "n": -0.001
+      },
+      "lenient": "-0.00",
+      "strict": "-0.00"
+    },
+    {
+      "name": "N0 负数舍入成零保留负号",
+      "template": "{n:N0}",
+      "arguments": {
+        "n": -0.4
+      },
+      "lenient": "-0",
+      "strict": "-0"
+    },
+    {
+      "name": "F 负零",
+      "template": "{n:F}",
+      "arguments": {
+        "n": -0.0
+      },
+      "lenient": "-0.00",
+      "strict": "-0.00"
+    },
+    {
+      "name": "N0 0.5 取偶",
+      "template": "{n:N0}",
+      "arguments": {
+        "n": 0.5
+      },
+      "lenient": "0",
+      "strict": "0"
+    },
+    {
+      "name": "N0 1.5 取偶",
+      "template": "{n:N0}",
+      "arguments": {
+        "n": 1.5
+      },
+      "lenient": "2",
+      "strict": "2"
+    },
+    {
+      "name": "浮点 1e16 不用指数",
+      "template": "{f}",
+      "arguments": {
+        "f": 1e+16
+      },
+      "lenient": "10000000000000000",
+      "strict": "10000000000000000"
+    },
+    {
+      "name": "浮点 1.2345e16 不用指数",
+      "template": "{f}",
+      "arguments": {
+        "f": 1.2345e+16
+      },
+      "lenient": "12345000000000000",
+      "strict": "12345000000000000"
+    },
+    {
+      "name": "浮点 9.99e16 不用指数",
+      "template": "{f}",
+      "arguments": {
+        "f": 9.99e+16
+      },
+      "lenient": "99900000000000000",
+      "strict": "99900000000000000"
+    },
+    {
+      "name": "浮点 1e17 用指数",
+      "template": "{f}",
+      "arguments": {
+        "f": 1e+17
+      },
+      "lenient": "1E+17",
+      "strict": "1E+17"
+    },
+    {
+      "name": "浮点多位有效数字的指数",
+      "template": "{f}",
+      "arguments": {
+        "f": 1.2345678901234568e+17
+      },
+      "lenient": "1.2345678901234568E+17",
+      "strict": "1.2345678901234568E+17"
+    },
+    {
+      "name": "负浮点的指数",
+      "template": "{f}",
+      "arguments": {
+        "f": -1e+17
+      },
+      "lenient": "-1E+17",
+      "strict": "-1E+17"
+    },
+    {
+      "name": "浮点 1e100",
+      "template": "{f}",
+      "arguments": {
+        "f": 1e+100
+      },
+      "lenient": "1E+100",
+      "strict": "1E+100"
+    },
+    {
+      "name": "浮点 0.00012 不用指数",
+      "template": "{f}",
+      "arguments": {
+        "f": 0.00012
+      },
+      "lenient": "0.00012",
+      "strict": "0.00012"
+    },
+    {
+      "name": "浮点 9.9e-5 用指数",
+      "template": "{f}",
+      "arguments": {
+        "f": 9.9e-05
+      },
+      "lenient": "9.9E-05",
+      "strict": "9.9E-05"
+    },
+    {
+      "name": "浮点 1.5e-7",
+      "template": "{f}",
+      "arguments": {
+        "f": 1.5e-07
+      },
+      "lenient": "1.5E-07",
+      "strict": "1.5E-07"
+    },
+    {
+      "name": "最小的次正规数",
+      "template": "{f}",
+      "arguments": {
+        "f": 5e-324
+      },
+      "lenient": "5E-324",
+      "strict": "5E-324"
+    },
+    {
+      "name": "负零",
+      "template": "{f}",
+      "arguments": {
+        "f": -0.0
+      },
+      "lenient": "-0",
+      "strict": "-0"
+    },
+    {
+      "name": "0.1 + 0.2 的最短往返",
+      "template": "{f}",
+      "arguments": {
+        "f": 0.30000000000000004
+      },
+      "lenient": "0.30000000000000004",
+      "strict": "0.30000000000000004"
     }
   ],
   "describe": [
@@ -478,6 +739,31 @@
         "note": null
       },
       "text": "orders.line.invalid (note=)"
+    },
+    {
+      "key": "orders.line.invalid",
+      "arguments": {
+        "id": "o1",
+        "entity": "Order"
+      },
+      "text": "orders.line.invalid (entity=Order, id=o1)"
+    },
+    {
+      "key": "orders.line.invalid",
+      "arguments": {
+        "b": 1,
+        "B": 2,
+        "a": 3
+      },
+      "text": "orders.line.invalid (B=2, a=3, b=1)"
+    },
+    {
+      "key": "orders.line.invalid",
+      "arguments": {
+        "f": 1e+17,
+        "z": -0.0
+      },
+      "text": "orders.line.invalid (f=1E+17, z=-0)"
     }
   ]
 }

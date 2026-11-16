@@ -1,6 +1,6 @@
 # RFC-0001 原语层
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节） | 参考实现：`framework/src/XiHan.Framework.Primitives`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235 | 参考实现：`framework/src/XiHan.Framework.Primitives`
 
 ## 摘要
 
@@ -73,6 +73,7 @@ public readonly record struct Result<T>
   - 没有内部错误时不写 `inner`，写了就必须是 `Error`。
   - 可选成员缺失表示没有，写成 `null` 不合法。
 - 读取方忽略未知成员：v1 期间编码只增不改，新成员一律可选。接收方按 JSON 值比较，不比较成员顺序与空白。
+- 同一层出现重复的成员名（如两个 `ok`）不合法，不取第一个也不取最后一个（2026-11-16 写明，ADR-0235）。
 
 向量 `conformance/vectors/primitives/wire-encoding.json` 列出两类写法：必须读得出的（连同再写出时的规范形式），以及必须拒绝的。
 
@@ -194,10 +195,19 @@ public static class BaggageKeys
     public static IReadOnlyList<string> Registered { get; }
     public static bool IsWellFormed(string? key);
     public static bool IsRegistered(string? key);
+    public const int MaxValueLength = 256;
+    public static bool IsAcceptableValue(string? value);   // 非空、按 UTF-16 码元不超过 256、不含控制字符（ADR-0204）
+}
+
+// W3C traceparent 的解析与写出（2026-11-16 增补，ADR-0235）：各载体共用一份文法
+public readonly record struct TraceParent(string TraceId, string SpanId, bool Sampled)
+{
+    public static bool TryParse(string? text, out TraceParent value);   // 只认版本 00、小写十六进制；trace-id 或 parent-id 全零不合法
+    public override string ToString();                                   // 00-<trace-id>-<parent-id>-<00|01>
 }
 ```
 
-语义见 RFC-0003。
+语义见 RFC-0003。`WithBaggage` 给已登记的键（幂等键除外）一个 `IsAcceptableValue` 不接受的值时抛出 `ArgumentException`，与键不合文法时一样：程序内逐项派生给出的值不合法是编程错误。外部输入（载体、插件协议、Wasm 中间件）在交给 `WithBaggage` 之前按 `conventions/baggage-keys.md` 丢弃不合的成员（2026-11-16 修订，ADR-0235；以前 `WithBaggage` 不核对值，Wasm 中间件把插件给的值原样并进上下文）。
 
 ### 稳定性、生命周期与管道阶段
 
@@ -358,7 +368,7 @@ public static class Redaction
 
 ## 一致性向量
 
-`spec/conformance/vectors/primitives/`：`error-codes.json`、`lifecycle-transitions.json`、`capability-requirements.json`、`baggage-keys.json`（含 Baggage 值的约束）、`wire-encoding.json`（Result 与 Error 的编码）、`message-templates.json`（消息键文法、模板格式化与 `Describe`，RFC-0010）、`kernel-messages.json`（SDK 与宿主共用的内核错误码、消息键、参数与 en-US 模板，RFC-0011）。TypedId 的编码就是底层值，不另设向量。
+`spec/conformance/vectors/primitives/`：`error-codes.json`、`lifecycle-transitions.json`、`capability-requirements.json`、`baggage-keys.json`（含 Baggage 值的约束）、`wire-encoding.json`（Result 与 Error 的编码）、`message-templates.json`（消息键文法、模板格式化与 `Describe`，RFC-0010）、`kernel-messages.json`（SDK 与宿主共用的内核错误码、消息键、参数与 en-US 模板，RFC-0011）、`trace-context.json`（`traceparent` 的解析与写出，RFC-0003）。TypedId 的编码就是底层值，不另设向量。清单、管道与操作载荷的向量分别在 `vectors/manifest/`、`vectors/pipeline/`、`vectors/operations/`（RFC-0002、0004、0011）。
 
 ## 备选方案
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/xihanfun/framework-spec/conformance"
@@ -32,9 +33,6 @@ func TestMessageKeysFollowTheVectors(t *testing.T) {
 		var arguments map[string]any
 		if err := json.Unmarshal(c.Arguments, &arguments); err != nil {
 			t.Errorf("describe %q arguments: %v", c.Key, err)
-		}
-		if len(arguments) > 1 {
-			t.Errorf("describe %q has %d arguments; at most one keeps the order out of the vectors", c.Key, len(arguments))
 		}
 	}
 }
@@ -172,4 +170,83 @@ func TestWireEncodingFollowsTheVectors(t *testing.T) {
 	}
 	check(vectors.Results, func(c conformance.WireCase) (map[string]any, error) { return rules.CanonicalResult(c.Kind, c.JSON) })
 	check(vectors.Errors, func(c conformance.WireCase) (map[string]any, error) { return rules.CanonicalError(c.JSON) })
+}
+
+func TestTraceContextFollowsTheVectors(t *testing.T) {
+	vectors, err := conformance.TraceContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range vectors.Parse.Valid {
+		parsed, ok := rules.ParseTraceParent(c.Text)
+		if !ok || parsed.TraceID != c.TraceID || parsed.SpanID != c.SpanID || parsed.Sampled != c.Sampled {
+			t.Errorf("%q parsed as %+v (ok=%v)", c.Text, parsed, ok)
+		}
+	}
+	for _, text := range vectors.Parse.Invalid {
+		if _, ok := rules.ParseTraceParent(text); ok {
+			t.Errorf("%q must be invalid", text)
+		}
+	}
+	for _, c := range vectors.Format {
+		// 没有标志的上下文按已采样写出
+		sampled := c.Sampled == nil || *c.Sampled
+		if got := rules.FormatTraceParent(rules.TraceParent{TraceID: c.TraceID, SpanID: c.SpanID, Sampled: sampled}); got != c.Text {
+			t.Errorf("format = %q, want %q", got, c.Text)
+		}
+	}
+}
+
+func TestDuplicateMembersAreRejected(t *testing.T) {
+	vectors, err := conformance.WireEncoding()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vectors.Duplicates) == 0 {
+		t.Fatal("no duplicate cases")
+	}
+	for _, c := range vectors.Duplicates {
+		var err error
+		if c.Target == "result" {
+			_, err = rules.CanonicalResult(c.Kind, []byte(c.Text))
+		} else {
+			_, err = rules.CanonicalError([]byte(c.Text))
+		}
+		if err == nil {
+			t.Errorf("%s: must be rejected", c.Name)
+		}
+	}
+	if err := rules.HasNoDuplicateMembers([]byte(`{"a":{"b":1},"c":[{"b":2},{"b":3}],"b":4}`)); err != nil {
+		t.Errorf("same names in different objects are fine: %v", err)
+	}
+}
+
+func TestNewVectorFilesAreWellFormed(t *testing.T) {
+	manifests, err := conformance.Manifests()
+	if err != nil || len(manifests.Valid) == 0 || len(manifests.Invalid) == 0 {
+		t.Fatalf("manifests: %v", err)
+	}
+	for _, c := range append(append([]conformance.ManifestCase{}, manifests.Valid...), manifests.Invalid...) {
+		if (len(c.Manifest) == 0) == (c.Text == "") {
+			t.Errorf("manifest %q must have exactly one of manifest and text", c.Name)
+		}
+	}
+	pipeline, err := conformance.PipelineOrdering()
+	if err != nil || len(pipeline.Cases) == 0 || len(pipeline.Errors) == 0 {
+		t.Fatalf("pipeline: %v", err)
+	}
+	for _, c := range pipeline.Errors {
+		if !rules.IsErrorCode(c.Error) || !strings.HasPrefix(c.Error, "KERNEL_PIPELINE_") {
+			t.Errorf("pipeline error %q has code %q", c.Name, c.Error)
+		}
+	}
+	reasons, err := conformance.PayloadReasons()
+	if err != nil || len(reasons.Cases) == 0 || len(reasons.SyntaxErrors) == 0 {
+		t.Fatalf("payload reasons: %v", err)
+	}
+	for _, c := range reasons.Cases {
+		if _, ok := reasons.Requests[c.Request]; !ok || !strings.HasPrefix(c.Reason, "$") {
+			t.Errorf("payload case %q is malformed", c.Name)
+		}
+	}
 }

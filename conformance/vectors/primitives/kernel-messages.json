@@ -86,6 +86,13 @@
       ],
       "template": "The operation registry has reached its capacity of {capacity}.",
       "when": "操作登记表已满"
+    },
+    {
+      "code": "KERNEL_UNEXPECTED_001",
+      "key": "kernel.invocation.unhandled_exception",
+      "arguments": [],
+      "template": "An unhandled exception occurred during the invocation.",
+      "when": "处理器或中间件抛出了异常；框架异常的错误放进 inner"
     }
   ]
 }

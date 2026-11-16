@@ -165,6 +165,10 @@ func runVectors(args []string) int {
 		{"primitives/wire-encoding.json", func() error { _, err := conformance.WireEncoding(); return err }},
 		{"primitives/message-templates.json", func() error { _, err := conformance.MessageTemplates(); return err }},
 		{"primitives/kernel-messages.json", func() error { _, err := conformance.KernelMessages(); return err }},
+		{"primitives/trace-context.json", func() error { _, err := conformance.TraceContext(); return err }},
+		{"manifest/manifests.json", func() error { _, err := conformance.Manifests(); return err }},
+		{"pipeline/ordering.json", func() error { _, err := conformance.PipelineOrdering(); return err }},
+		{"operations/payload-reasons.json", func() error { _, err := conformance.PayloadReasons(); return err }},
 		{"provider/caching-distributed.json", func() error { _, err := conformance.CachingDistributed(); return err }},
 	}
 	code := 0

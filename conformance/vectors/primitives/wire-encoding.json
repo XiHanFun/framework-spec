@@ -1,5 +1,5 @@
 {
-  "$comment": "Result 与 Error 的线上编码（RFC-0001「Result」，ADR-0233）。valid 的每项必须读得出，再写出时按 JSON 值等于 canonical（没有 canonical 时等于 json）；invalid 的每项必须被拒绝。results 的 kind：value 是有值结果，值是任意非 null 的 JSON；unit 是无值结果；maybe 是值类型为 Maybe 的结果，null 即无值。比较按 JSON 值，不比较成员顺序与空白",
+  "$comment": "Result 与 Error 的线上编码（RFC-0001「Result」，ADR-0233）。valid 的每项必须读得出，再写出时按 JSON 值等于 canonical（没有 canonical 时等于 json）；invalid 的每项必须被拒绝。results 的 kind：value 是有值结果，值是任意非 null 的 JSON；unit 是无值结果；maybe 是值类型为 Maybe 的结果，null 即无值。比较按 JSON 值，不比较成员顺序与空白。duplicates 是同一层有重复成员名的原文（JSON 值表达不了重复），必须被拒绝；target 是 result（带 kind）或 error",
   "results": {
     "valid": [
       {
@@ -472,5 +472,35 @@
         "json": "KERNEL_UNEXPECTED_001"
       }
     ]
-  }
+  },
+  "duplicates": [
+    {
+      "name": "Result 两个 ok",
+      "target": "result",
+      "kind": "unit",
+      "text": "{\"ok\":true,\"ok\":false}"
+    },
+    {
+      "name": "Result 两个 value",
+      "target": "result",
+      "kind": "value",
+      "text": "{\"ok\":true,\"value\":1,\"value\":2}"
+    },
+    {
+      "name": "失败两个 error",
+      "target": "result",
+      "kind": "value",
+      "text": "{\"ok\":false,\"error\":{\"code\":\"KERNEL_UNEXPECTED_001\",\"message\":\"a\"},\"error\":{\"code\":\"KERNEL_UNEXPECTED_001\",\"message\":\"b\"}}"
+    },
+    {
+      "name": "Error 两个 code",
+      "target": "error",
+      "text": "{\"code\":\"KERNEL_UNEXPECTED_001\",\"code\":\"KERNEL_NOTFOUND_001\",\"message\":\"x\"}"
+    },
+    {
+      "name": "内部错误里的重复成员",
+      "target": "error",
+      "text": "{\"code\":\"KERNEL_UNEXPECTED_001\",\"message\":\"x\",\"inner\":{\"code\":\"KERNEL_UNEXPECTED_001\",\"message\":\"a\",\"message\":\"b\"}}"
+    }
+  ]
 }

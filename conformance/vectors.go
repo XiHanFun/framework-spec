@@ -146,8 +146,95 @@ type WireCaseSet struct {
 
 // WireEncodingVectors 对应 primitives/wire-encoding.json（RFC-0001「Result」）。
 type WireEncodingVectors struct {
-	Results WireCaseSet `json:"results"`
-	Errors  WireCaseSet `json:"errors"`
+	Results    WireCaseSet     `json:"results"`
+	Errors     WireCaseSet     `json:"errors"`
+	Duplicates []DuplicateCase `json:"duplicates"`
+}
+
+// DuplicateCase 是同一层有重复成员名的原文，必须被拒绝；Target 是 result（带 Kind）或 error。
+type DuplicateCase struct {
+	Name   string `json:"name"`
+	Target string `json:"target"`
+	Kind   string `json:"kind,omitempty"`
+	Text   string `json:"text"`
+}
+
+// TraceContextVectors 对应 primitives/trace-context.json（RFC-0003 规则 7）。
+type TraceContextVectors struct {
+	Parse struct {
+		Valid   []ParsedTraceParent `json:"valid"`
+		Invalid []string            `json:"invalid"`
+	} `json:"parse"`
+	Format []TraceParentFormat `json:"format"`
+}
+
+// ParsedTraceParent 是一条合法的 traceparent 及其解析结果。
+type ParsedTraceParent struct {
+	Text    string `json:"text"`
+	TraceID string `json:"traceId"`
+	SpanID  string `json:"spanId"`
+	Sampled bool   `json:"sampled"`
+}
+
+// TraceParentFormat 是一次写出；Sampled 为 nil 表示上下文没有标志，写 01。
+type TraceParentFormat struct {
+	TraceID string `json:"traceId"`
+	SpanID  string `json:"spanId"`
+	Sampled *bool  `json:"sampled"`
+	Text    string `json:"text"`
+}
+
+// ManifestCase 是一份清单：Manifest 是 JSON 值，Text 是原文（表达重复成员）；Reason 只给人看。
+type ManifestCase struct {
+	Name     string          `json:"name"`
+	Manifest json.RawMessage `json:"manifest,omitempty"`
+	Text     string          `json:"text,omitempty"`
+	Reason   string          `json:"reason,omitempty"`
+}
+
+// ManifestVectors 对应 manifest/manifests.json（RFC-0002 解析规则 2）。
+type ManifestVectors struct {
+	Valid   []ManifestCase `json:"valid"`
+	Invalid []ManifestCase `json:"invalid"`
+}
+
+// PipelineCase 是一组登记与期望的 Dump 全文（{type} 换成实现给按名字登记的实例用的类型名）。
+type PipelineCase struct {
+	Name  string            `json:"name"`
+	Steps []json.RawMessage `json:"steps"`
+	Dump  string            `json:"dump"`
+}
+
+// PipelineError 是一组登记与期望的错误码；At 是抛出错误的那一步（从 0 起）或 "sort"。
+type PipelineError struct {
+	Name  string            `json:"name"`
+	Steps []json.RawMessage `json:"steps"`
+	Error string            `json:"error"`
+	At    json.RawMessage   `json:"at"`
+}
+
+// PipelineOrderingVectors 对应 pipeline/ordering.json（RFC-0004）。
+type PipelineOrderingVectors struct {
+	Cases  []PipelineCase  `json:"cases"`
+	Errors []PipelineError `json:"errors"`
+}
+
+// PayloadReasonCase 是一次载荷解码：请求类型（counts / order）、载荷原文与期望的 reason。
+type PayloadReasonCase struct {
+	Name    string `json:"name"`
+	Request string `json:"request"`
+	Payload string `json:"payload"`
+	Reason  string `json:"reason"`
+}
+
+// PayloadReasonVectors 对应 operations/payload-reasons.json（RFC-0011 规则 2）。
+type PayloadReasonVectors struct {
+	Requests     map[string]string   `json:"requests"`
+	Cases        []PayloadReasonCase `json:"cases"`
+	SyntaxErrors []struct {
+		Request string `json:"request"`
+		Payload string `json:"payload"`
+	} `json:"syntaxErrors"`
 }
 
 // MessageKeyVectors 是消息键的合法与非法样例。
@@ -321,4 +408,24 @@ func MessageTemplates() (MessageTemplateVectors, error) {
 // KernelMessages 读取 SDK 与宿主共用的内核错误向量。
 func KernelMessages() (KernelMessageVectors, error) {
 	return Load[KernelMessageVectors]("primitives/kernel-messages.json")
+}
+
+// TraceContext 读取 traceparent 的解析与写出向量。
+func TraceContext() (TraceContextVectors, error) {
+	return Load[TraceContextVectors]("primitives/trace-context.json")
+}
+
+// Manifests 读取清单读取的向量。
+func Manifests() (ManifestVectors, error) {
+	return Load[ManifestVectors]("manifest/manifests.json")
+}
+
+// PipelineOrdering 读取管道排序、打印与报错时机的向量。
+func PipelineOrdering() (PipelineOrderingVectors, error) {
+	return Load[PipelineOrderingVectors]("pipeline/ordering.json")
+}
+
+// PayloadReasons 读取载荷错误路径的向量。
+func PayloadReasons() (PayloadReasonVectors, error) {
+	return Load[PayloadReasonVectors]("operations/payload-reasons.json")
 }

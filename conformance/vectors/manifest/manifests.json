@@ -1,0 +1,547 @@
+{
+  "$comment": "清单的读取（RFC-0002 解析规则 2，ADR-0233、ADR-0235）：valid 的每份必须读得出，invalid 的每份必须被拒绝（.NET 为 KERNEL_CAPABILITY_006）。manifest 是清单的 JSON 值；text 是原文，用于 JSON 值表达不了的写法（重复成员）。reason 只给人看，说明这份为什么不合法",
+  "valid": [
+    {
+      "name": "最小的能力清单",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability"
+      }
+    },
+    {
+      "name": "带全部可选成员的 Provider",
+      "manifest": {
+        "$schema": "https://spec.xihanfun.com/manifest/v1.json",
+        "id": "xihan.orders.core",
+        "package": "XiHan.Orders.Core",
+        "version": "1.2.3-rc.1+build.5",
+        "primitives": "1",
+        "stability": "preview",
+        "kind": "provider",
+        "role": "default",
+        "provides": [
+          {
+            "id": "orders.store",
+            "version": "2"
+          }
+        ],
+        "requires": [
+          {
+            "id": "kernel.hosting",
+            "version": "^1"
+          },
+          {
+            "id": "caching.local",
+            "version": "1",
+            "optional": true
+          }
+        ],
+        "bindings": [
+          {
+            "name": "orders-db",
+            "type": "connection:relational",
+            "required": false
+          }
+        ],
+        "contributes": {
+          "operations": [
+            "orders.create",
+            "order-lines.list"
+          ],
+          "config": {
+            "section": "XiHan:Orders:Core",
+            "schema": "{\"type\":\"object\",\"properties\":{\"limit\":{\"type\":\"integer\"}}}"
+          },
+          "health": [
+            "orders.core.store"
+          ],
+          "permissions": [
+            "orders.order.create"
+          ]
+        },
+        "activation": [
+          "onStartup"
+        ],
+        "entry": "XiHan.Orders.Core.OrdersFeature"
+      }
+    },
+    {
+      "name": "进程外插件",
+      "manifest": {
+        "id": "xihan.samples.echo",
+        "version": "0.1.0",
+        "primitives": "1",
+        "stability": "experimental",
+        "kind": "plugin",
+        "isolation": "out-of-process",
+        "contributes": {
+          "operations": [
+            "echoes.create"
+          ]
+        },
+        "activation": [
+          "onOperation:echoes.*",
+          "onEvent:echo.events"
+        ],
+        "permissions": [
+          "capability:kernel.pipeline",
+          "net.outbound:example.com:443"
+        ],
+        "entry": "echo-go"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "成员名大小写不对",
+      "reason": "ID 不是 id，是 Schema 之外的成员",
+      "manifest": {
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "ID": "xihan.orders.core"
+      }
+    },
+    {
+      "name": "未知成员",
+      "reason": "Schema 不允许额外成员",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "extra": 1
+      }
+    },
+    {
+      "name": "可选成员写成 null",
+      "reason": "缺失表示没有，null 不合法",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "package": null
+      }
+    },
+    {
+      "name": "数组项写成 null",
+      "reason": "null 不合法",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "activation": [
+          null
+        ]
+      }
+    },
+    {
+      "name": "嵌套成员写成 null",
+      "reason": "null 不合法",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "requires": [
+          {
+            "id": "kernel.hosting",
+            "version": "1",
+            "optional": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "重复成员",
+      "reason": "同一层的成员名不能重复",
+      "text": "{\"id\":\"xihan.orders.core\",\"version\":\"1.0.0\",\"primitives\":\"1\",\"stability\":\"stable\",\"kind\":\"capability\",\"kind\":\"provider\"}"
+    },
+    {
+      "name": "原语层版本带 ^",
+      "reason": "只有 requires 的版本可以带 ^",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "^1",
+        "stability": "stable",
+        "kind": "capability"
+      }
+    },
+    {
+      "name": "提供的版本带 ^",
+      "reason": "只有 requires 的版本可以带 ^",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "provides": [
+          {
+            "id": "orders.store",
+            "version": "^1"
+          }
+        ]
+      }
+    },
+    {
+      "name": "原语层版本写成数字",
+      "reason": "接口版本是十进制数字字符串",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": 1,
+        "stability": "stable",
+        "kind": "capability"
+      }
+    },
+    {
+      "name": "依赖的版本是 0",
+      "reason": "接口版本从 1 起",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "requires": [
+          {
+            "id": "kernel.hosting",
+            "version": "0"
+          }
+        ]
+      }
+    },
+    {
+      "name": "操作 ID 大写",
+      "reason": "不合操作 ID 文法",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "operations": [
+            "Orders.Create"
+          ]
+        }
+      }
+    },
+    {
+      "name": "操作 ID 以连字符结尾",
+      "reason": "不合操作 ID 文法（以前 Schema 的 pattern 放过了它）",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "operations": [
+            "orders.create-"
+          ]
+        }
+      }
+    },
+    {
+      "name": "操作 ID 有连续连字符",
+      "reason": "不合操作 ID 文法",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "operations": [
+            "order--lines.list"
+          ]
+        }
+      }
+    },
+    {
+      "name": "activation 为空数组",
+      "reason": "至少一项，缺省才是 onStartup",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "activation": []
+      }
+    },
+    {
+      "name": "未知的激活事件",
+      "reason": "不合激活事件文法",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "activation": [
+          "onBoot"
+        ]
+      }
+    },
+    {
+      "name": "插件没有隔离级别",
+      "reason": "插件必须声明 isolation",
+      "manifest": {
+        "id": "xihan.samples.echo",
+        "version": "0.1.0",
+        "primitives": "1",
+        "stability": "experimental",
+        "kind": "plugin",
+        "contributes": {
+          "operations": [
+            "echoes.create"
+          ]
+        },
+        "activation": [
+          "onOperation:echoes.*",
+          "onEvent:echo.events"
+        ],
+        "permissions": [
+          "capability:kernel.pipeline",
+          "net.outbound:example.com:443"
+        ],
+        "entry": "echo-go"
+      }
+    },
+    {
+      "name": "非插件声明了权限",
+      "reason": "非插件不得声明 permissions",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "permissions": [
+          "capability:kernel.pipeline"
+        ]
+      }
+    },
+    {
+      "name": "缺少 kind",
+      "reason": "kind 必填",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable"
+      }
+    },
+    {
+      "name": "清单 ID 不合文法",
+      "reason": "id 是 xihan.<领域>.<名称>",
+      "manifest": {
+        "id": "orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability"
+      }
+    },
+    {
+      "name": "版本不是 SemVer",
+      "reason": "version 是 SemVer",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability"
+      }
+    },
+    {
+      "name": "稳定性大小写不对",
+      "reason": "枚举值区分大小写",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "Stable",
+        "kind": "capability"
+      }
+    },
+    {
+      "name": "稳定性写成数字文本",
+      "reason": "只认枚举值的名字",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "0",
+        "kind": "capability"
+      }
+    },
+    {
+      "name": "配置节的 Schema 写成对象",
+      "reason": "contributes.config.schema 是字符串",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "config": {
+            "section": "XiHan:Orders",
+            "schema": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "种类不在枚举里",
+      "reason": "kind 只能是枚举值",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "library"
+      }
+    },
+    {
+      "name": "绑定名不合文法",
+      "reason": "绑定名是小写字母开头的 kebab-case",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "bindings": [
+          {
+            "name": "Db",
+            "type": "queue"
+          }
+        ]
+      }
+    },
+    {
+      "name": "重复提供同一能力",
+      "reason": "provides 不能重复",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "provides": [
+          {
+            "id": "orders.store",
+            "version": "1"
+          },
+          {
+            "id": "orders.store",
+            "version": "1"
+          }
+        ]
+      }
+    },
+    {
+      "name": "权限不合文法",
+      "reason": "权限是 net.outbound / fs.read / fs.write / capability 加冒号",
+      "manifest": {
+        "id": "xihan.samples.echo",
+        "version": "0.1.0",
+        "primitives": "1",
+        "stability": "experimental",
+        "kind": "plugin",
+        "isolation": "out-of-process",
+        "contributes": {
+          "operations": [
+            "echoes.create"
+          ]
+        },
+        "activation": [
+          "onOperation:echoes.*",
+          "onEvent:echo.events"
+        ],
+        "permissions": [
+          "admin"
+        ],
+        "entry": "echo-go"
+      }
+    },
+    {
+      "name": "贡献里的未知成员",
+      "reason": "contributes 不允许额外成员",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "routes": []
+        }
+      }
+    },
+    {
+      "name": "能力声明里的未知成员",
+      "reason": "provides 项不允许额外成员",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "provides": [
+          {
+            "id": "orders.store",
+            "version": "1",
+            "since": "5.0"
+          }
+        ]
+      }
+    },
+    {
+      "name": "可选标志不是布尔",
+      "reason": "optional 是布尔",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "requires": [
+          {
+            "id": "kernel.hosting",
+            "version": "1",
+            "optional": "yes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "根不是对象",
+      "reason": "清单是 JSON 对象",
+      "manifest": []
+    },
+    {
+      "name": "根是 null",
+      "reason": "清单是 JSON 对象",
+      "manifest": null
+    }
+  ]
+}

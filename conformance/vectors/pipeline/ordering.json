@@ -1,0 +1,531 @@
+{
+  "$comment": "管道排序、打印与报错时机（RFC-0004「排序规则」「打印格式」，ADR-0235），期望值由 .NET 参考实现的 PipelineBuilder 算出。steps 依次执行：use 是按名字登记一个实例（stage、placement 为 beginning / end、owner），before / after 是 [主体, 目标] 的按名字约束。cases 的 dump 是 Dump() 的全文，每行以 \\n 结尾，{type} 换成本实现给按名字登记的实例用的类型名。errors 的 at 是抛出错误的那一步（从 0 起），sort 表示登记都成功、在排序（Describe / Dump / Build）时报错",
+  "cases": [
+    {
+      "name": "同一归属按登记顺序",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "b",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "c",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        }
+      ],
+      "dump": "validate     {type}[a]\nvalidate     {type}[b]\nvalidate     {type}[c]\n"
+    },
+    {
+      "name": "Beginning 在 End 之前",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "b",
+          "stage": "validate",
+          "placement": "beginning",
+          "owner": "app"
+        },
+        {
+          "use": "c",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "d",
+          "stage": "validate",
+          "placement": "beginning",
+          "owner": "app"
+        }
+      ],
+      "dump": "validate     {type}[b]\nvalidate     {type}[d]\nvalidate     {type}[a]\nvalidate     {type}[c]\n"
+    },
+    {
+      "name": "同一位置按归属的序数字典序",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "xihan.z.z"
+        },
+        {
+          "use": "b",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "c",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "xihan.a.a"
+        },
+        {
+          "use": "d",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "Xihan.b.b"
+        }
+      ],
+      "dump": "validate     {type}[d]\nvalidate     {type}[b]\nvalidate     {type}[c]\nvalidate     {type}[a]\n"
+    },
+    {
+      "name": "先按阶段，空阶段不打印",
+      "steps": [
+        {
+          "use": "h",
+          "stage": "handle",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "o",
+          "stage": "observe",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "v",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "i",
+          "stage": "ingress",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "e",
+          "stage": "egress",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "r",
+          "stage": "resilience",
+          "placement": "end",
+          "owner": "app"
+        }
+      ],
+      "dump": "ingress      {type}[i]\nobserve      {type}[o]\nresilience   {type}[r]\nvalidate     {type}[v]\nhandle       {type}[h]\negress       {type}[e]\n"
+    },
+    {
+      "name": "before 只挪必要的位置",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "b",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "c",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "before": [
+            "c",
+            "a"
+          ]
+        }
+      ],
+      "dump": "validate     {type}[b]\nvalidate     {type}[c]\nvalidate     {type}[a]\n"
+    },
+    {
+      "name": "after 只挪必要的位置",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "b",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "c",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "after": [
+            "a",
+            "c"
+          ]
+        }
+      ],
+      "dump": "validate     {type}[b]\nvalidate     {type}[c]\nvalidate     {type}[a]\n"
+    },
+    {
+      "name": "约束跨归属",
+      "steps": [
+        {
+          "use": "x",
+          "stage": "tenant",
+          "placement": "end",
+          "owner": "xihan.b.b"
+        },
+        {
+          "use": "y",
+          "stage": "tenant",
+          "placement": "end",
+          "owner": "xihan.a.a"
+        },
+        {
+          "after": [
+            "y",
+            "x"
+          ]
+        }
+      ],
+      "dump": "tenant       {type}[x]\ntenant       {type}[y]\n"
+    },
+    {
+      "name": "多条约束的稳定拓扑排序",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "authorize",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "b",
+          "stage": "authorize",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "c",
+          "stage": "authorize",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "d",
+          "stage": "authorize",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "e",
+          "stage": "authorize",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "before": [
+            "d",
+            "b"
+          ]
+        },
+        {
+          "after": [
+            "a",
+            "c"
+          ]
+        },
+        {
+          "before": [
+            "e",
+            "a"
+          ]
+        }
+      ],
+      "dump": "authorize    {type}[c]\nauthorize    {type}[d]\nauthorize    {type}[b]\nauthorize    {type}[e]\nauthorize    {type}[a]\n"
+    },
+    {
+      "name": "约束与位置、归属同时作用",
+      "steps": [
+        {
+          "use": "p",
+          "stage": "transaction",
+          "placement": "beginning",
+          "owner": "xihan.q.q"
+        },
+        {
+          "use": "q",
+          "stage": "transaction",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "r",
+          "stage": "transaction",
+          "placement": "beginning",
+          "owner": "app"
+        },
+        {
+          "use": "s",
+          "stage": "transaction",
+          "placement": "end",
+          "owner": "xihan.a.a"
+        },
+        {
+          "after": [
+            "r",
+            "s"
+          ]
+        }
+      ],
+      "dump": "transaction  {type}[p]\ntransaction  {type}[q]\ntransaction  {type}[s]\ntransaction  {type}[r]\n"
+    },
+    {
+      "name": "已满足的约束不改变次序",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "observe",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "b",
+          "stage": "observe",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "before": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "after": [
+            "b",
+            "a"
+          ]
+        }
+      ],
+      "dump": "observe      {type}[a]\nobserve      {type}[b]\n"
+    }
+  ],
+  "errors": [
+    {
+      "name": "约束成环",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "b",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "before": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "before": [
+            "b",
+            "a"
+          ]
+        }
+      ],
+      "error": "KERNEL_PIPELINE_001",
+      "at": "sort"
+    },
+    {
+      "name": "三者成环",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "b",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "c",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "before": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "before": [
+            "b",
+            "c"
+          ]
+        },
+        {
+          "before": [
+            "c",
+            "a"
+          ]
+        }
+      ],
+      "error": "KERNEL_PIPELINE_001",
+      "at": "sort"
+    },
+    {
+      "name": "约束目标未登记",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "before": [
+            "a",
+            "zz"
+          ]
+        }
+      ],
+      "error": "KERNEL_PIPELINE_003",
+      "at": "sort"
+    },
+    {
+      "name": "约束目标在别的阶段",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "b",
+          "stage": "handle",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "before": [
+            "a",
+            "b"
+          ]
+        }
+      ],
+      "error": "KERNEL_PIPELINE_003",
+      "at": "sort"
+    },
+    {
+      "name": "重复登记",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "a",
+          "stage": "handle",
+          "placement": "end",
+          "owner": "app"
+        }
+      ],
+      "error": "KERNEL_PIPELINE_003",
+      "at": 1
+    },
+    {
+      "name": "约束主体未登记",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "before": [
+            "q",
+            "a"
+          ]
+        }
+      ],
+      "error": "KERNEL_PIPELINE_003",
+      "at": 1
+    },
+    {
+      "name": "after 的主体未登记",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "after": [
+            "q",
+            "a"
+          ]
+        }
+      ],
+      "error": "KERNEL_PIPELINE_003",
+      "at": 1
+    },
+    {
+      "name": "未知阶段",
+      "steps": [
+        {
+          "use": "a",
+          "stage": "validate",
+          "placement": "end",
+          "owner": "app"
+        },
+        {
+          "use": "b",
+          "stage": "bogus",
+          "placement": "end",
+          "owner": "app"
+        }
+      ],
+      "error": "KERNEL_PIPELINE_002",
+      "at": 1
+    }
+  ]
+}

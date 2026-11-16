@@ -3,7 +3,9 @@ package rules
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 )
 
 // Result 的值类型（RFC-0001「Result」）：有值、无值、值是 Maybe。
@@ -128,11 +130,14 @@ func CanonicalError(data []byte) (map[string]any, error) {
 	return canonical, nil
 }
 
-// object 读取一个 JSON 对象的成员；null 与其他类型都不是对象。
+// object 读取一个 JSON 对象的成员；null 与其他类型都不是对象，同一层的重复成员名不合法（ADR-0235）。
 func object(data []byte) (map[string]json.RawMessage, error) {
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 || trimmed[0] != '{' {
 		return nil, fmt.Errorf("expected a JSON object")
+	}
+	if err := HasNoDuplicateMembers(trimmed); err != nil {
+		return nil, err
 	}
 	var members map[string]json.RawMessage
 	if err := json.Unmarshal(trimmed, &members); err != nil {
@@ -177,6 +182,49 @@ func requiredString(members map[string]json.RawMessage, name string) (string, er
 		return "", fmt.Errorf("error '%s': %w", name, err)
 	}
 	return value, nil
+}
+
+// HasNoDuplicateMembers 核对 JSON 文本里每个对象的成员名都不重复（RFC-0001「Result」、RFC-0002 解析规则 2）；
+// encoding/json 解码时后出现的同名成员会悄悄覆盖前一个，所以要在词法上单独查。
+func HasNoDuplicateMembers(data []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	// 每层一个集合：对象层记成员名，数组层为 nil
+	var scopes []map[string]bool
+	expectKey := false
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+		switch value := token.(type) {
+		case json.Delim:
+			switch value {
+			case '{':
+				scopes = append(scopes, map[string]bool{})
+				expectKey = true
+				continue
+			case '[':
+				scopes = append(scopes, nil)
+			case '}', ']':
+				scopes = scopes[:len(scopes)-1]
+			}
+		case string:
+			if expectKey {
+				scope := scopes[len(scopes)-1]
+				if scope[value] {
+					return fmt.Errorf("member '%s' appears more than once in the same object", value)
+				}
+				scope[value] = true
+				expectKey = false
+				continue
+			}
+		}
+		// 一个值读完后，若所在层是对象，下一个字符串是成员名
+		expectKey = len(scopes) > 0 && scopes[len(scopes)-1] != nil && decoder.More()
+	}
 }
 
 // isNull 判断原始 JSON 是不是 null。

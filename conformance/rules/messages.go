@@ -82,3 +82,46 @@ func indexFrom(text string, c byte, from int) int {
 	}
 	return -1
 }
+
+// traceParentPattern 是 W3C traceparent 版本 00 的文法（RFC-0003 规则 7）。
+var traceParentPattern = regexp.MustCompile(`^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$`)
+
+// TraceParent 是解析出的 traceparent：trace-id、parent-id 与采样位。
+type TraceParent struct {
+	TraceID string
+	SpanID  string
+	Sampled bool
+}
+
+// ParseTraceParent 按 RFC-0003 规则 7 解析 traceparent：只认版本 00 与小写十六进制，
+// trace-id 或 parent-id 全零不合法；是否采样只看标志的最低位。
+func ParseTraceParent(text string) (TraceParent, bool) {
+	match := traceParentPattern.FindStringSubmatch(text)
+	if match == nil || isZeros(match[1]) || isZeros(match[2]) {
+		return TraceParent{}, false
+	}
+	flags := match[3]
+	// 最低位在第二个十六进制数字里：奇数即采样
+	last := flags[1]
+	sampled := (last >= '0' && last <= '9' && (last-'0')%2 == 1) || (last >= 'a' && last <= 'f' && (last-'a'+10)%2 == 1)
+	return TraceParent{TraceID: match[1], SpanID: match[2], Sampled: sampled}, true
+}
+
+// FormatTraceParent 写出 00-<trace-id>-<parent-id>-<00|01>。
+func FormatTraceParent(value TraceParent) string {
+	flags := "00"
+	if value.Sampled {
+		flags = "01"
+	}
+	return "00-" + value.TraceID + "-" + value.SpanID + "-" + flags
+}
+
+// isZeros 判断文本是否全为字符 0。
+func isZeros(text string) bool {
+	for _, c := range text {
+		if c != '0' {
+			return false
+		}
+	}
+	return true
+}

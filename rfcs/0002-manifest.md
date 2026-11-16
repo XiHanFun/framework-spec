@@ -1,6 +1,6 @@
 # RFC-0002 清单
 
-> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务；2026-11-01 修订：配置节可带子节；2026-11-01 修订：手写清单，`[Capability]` 生成器顺延；2026-11-01 修订：插件声明的权限码由宿主登记；2026-11-01 修订：选中区分被要求与兜底选出；2026-11-01 修订：插件里只有 Wasm 插件能贡献中间件，其他隔离级别写了 `contributes.pipeline` 在发现时被拒；2026-11-04 修订：探针抛出时 `reason` 只写异常类型；2026-11-16 修订：读取清单时成员名区分大小写、不收 `null`，接口版本只在依赖里带 `^`） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点、配置节的子节、生成器顺延）、0080（插件声明的权限码）、0082（被要求的选中）、0092（插件的中间件贡献）、0115、0233（读取的严格性） | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
+> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务；2026-11-01 修订：配置节可带子节；2026-11-01 修订：手写清单，`[Capability]` 生成器顺延；2026-11-01 修订：插件声明的权限码由宿主登记；2026-11-01 修订：选中区分被要求与兜底选出；2026-11-01 修订：插件里只有 Wasm 插件能贡献中间件，其他隔离级别写了 `contributes.pipeline` 在发现时被拒；2026-11-04 修订：探针抛出时 `reason` 只写异常类型；2026-11-16 修订：读取清单时成员名区分大小写、不收 `null`，接口版本只在依赖里带 `^`；同日再修订：.NET 的读取改为严格、重复成员与空 `activation` 不合法、写出的清单可再读） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点、配置节的子节、生成器顺延）、0080（插件声明的权限码）、0082（被要求的选中）、0092（插件的中间件贡献）、0115、0233（读取的严格性）、0235 | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
 
 ## 摘要
 
@@ -34,6 +34,9 @@
    - 可选成员缺失表示没有，写成 `null` 不合法。
    - 接口版本（`primitives`、`provides[].version`、`requires[].version`）是十进制数字字符串；只有 `requires[].version` 可以带 `^`（RFC-0001「清单」）。
    - `contributes.operations` 的每一项符合操作 ID 文法（RFC-0011）。
+   - 同一层出现重复的成员名不合法；`activation` 至少一项，空数组不合法，缺省才是 `["onStartup"]`（2026-11-16 写明，ADR-0235）。
+   - .NET 的 `ManifestReader` 按这几条读取（2026-11-16 修订，ADR-0235）。以前它的成员名不区分大小写、忽略未知成员、把 `null` 当缺失、读取时不校验操作 ID，与 Schema 不符；这样写错的清单现在在读取时就失败，返回 `KERNEL_CAPABILITY_006` + `kernel.manifest.invalid`（不是 JSON 时 `kernel.manifest.invalid_json`）。
+   - 写出的清单（.NET 的 `ManifestReader.Write`、Go 的 `manifest.Write` 等）再读一遍得到同一份清单；缺省值写不写出、成员顺序与缩进不作规定。宿主核对插件握手里的清单按字段比较，不比较文本。
 3. 求解：按能力 ID 与版本范围求解；同一能力多个候选时，`XiHan:Providers:<能力ID>` 指定 → 唯一的 `role: provider` 候选 → 唯一的 `role: default` 候选 → 否则失败并列出候选（`KERNEL_CAPABILITY_004`）。没有被任何人依赖的能力按同一规则选出提供者。
 4. 选中结果回填到节点：每个节点知道自己被选中提供哪些能力（`SelectedCapabilities`），只为被选中的能力注册服务与中间件；声明了能力却一个都没被选中的节点（被顶替的 default）不装配、不启动，图里标为 `shadowed`。特性另有与能力选择无关的服务（如对象存储的命名实例 Provider，RFC-0012）时实现 `IShadowAwareFeature`：被顶替时内核在同一位置改调它的 `ConfigureShadowed`，只登记那些服务——不注册能力契约，不贡献中间件、操作与权限码，不校验必需绑定，也不启动。节点还知道每项选中是不是被要求的（`IsRequestedFor`，2026-11-01 修订，ADR-0082）：有清单依赖这项能力（必需或可选，且解析到了提供者），或 `XiHan:Providers:<能力ID>` / 代码的 `UseProvider` 指定了提供者，就是被要求的；没人依赖、也没人指定，只按上一条末句选出的，是兜底选出。兜底选出照样算选中（`SelectedCapabilities`、图谱不变），特性可以据此只为被要求的能力承担跨能力的一致性约束（如 RFC-0012 缺省存储的同一存储规则）。
 4. 排序：拓扑排序；循环报 `KERNEL_CAPABILITY_002`，缺失报 `KERNEL_CAPABILITY_001`，版本冲突报 `KERNEL_CAPABILITY_003`，报错必须列出冲突双方。
@@ -98,4 +101,4 @@ public sealed class EntityFrameworkCoreFeature : IHostedFeature
 
 ## 一致性向量
 
-`spec/conformance/vectors/manifest/*.json`（规划中）：合法清单、每种非法清单的期望错误、求解用例（缺失、循环、冲突、多候选、默认角色、可选依赖）。目前由各实现移植的测试覆盖；能力依赖文本在 `primitives/capability-requirements.json`。
+`spec/conformance/vectors/manifest/manifests.json`：合法清单与每种必须拒绝的清单（读取规则第 2 条），.NET 与各语言 SDK 都回放（2026-11-16 增补，ADR-0235）。求解用例（缺失、循环、冲突、多候选、默认角色、可选依赖）是宿主能力，规划中，目前由 .NET 的测试覆盖；能力依赖文本在 `primitives/capability-requirements.json`。

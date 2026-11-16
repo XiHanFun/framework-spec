@@ -13,6 +13,10 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `primitives/wire-encoding.json` | Result 与 Error 线上编码的合法写法（连同规范形式）与必须拒绝的写法 | RFC-0001「Result」 |
 | `primitives/message-templates.json` | 消息键文法、模板的宽松与严格格式化（含可移植的格式说明符与舍入）、`Describe` | RFC-0010「模板」 |
 | `primitives/kernel-messages.json` | SDK 与宿主共用的内核错误：错误码、消息键、参数名与 en-US 模板 | RFC-0011「错误码」 |
+| `primitives/trace-context.json` | `traceparent` 的合法与不合法文本、解析结果与写出 | RFC-0003 规则 7 |
+| `manifest/manifests.json` | 必须读得出与必须拒绝的清单（大小写、未知与重复成员、`null`、版本、操作 ID、激活事件、跨字段约束） | RFC-0002 解析规则 2 |
+| `pipeline/ordering.json` | 管道的登记序列、期望的 `Dump` 全文与各种错误报出的时机（期望值由 .NET 算出） | RFC-0004 |
+| `operations/payload-reasons.json` | 载荷不合法时 `reason` 的路径（两个各语言都能声明的请求类型，期望值由 .NET 算出） | RFC-0011 规则 2 |
 | `plugin/handshake-lines.json` | 插件握手行的合法与非法样例 | `plugin/handshake.md` |
 | `plugin/protocol-versions.json` | 协议版本协商与原语层版本核对 | `plugin/handshake.md` |
 | `plugin/wasm-exports.json` | Wasm ABI v1 的导出与导入表 | `plugin/wasm.md` |
