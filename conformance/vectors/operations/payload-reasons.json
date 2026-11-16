@@ -629,6 +629,48 @@
       "request": "profile",
       "payload": "  ",
       "reason": "$"
+    },
+    {
+      "name": "32 位整数的上限",
+      "request": "counts",
+      "payload": "{\"a\":2147483647}",
+      "reason": null
+    },
+    {
+      "name": "32 位整数溢出",
+      "request": "counts",
+      "payload": "{\"a\":2147483648}",
+      "reason": "$.a"
+    },
+    {
+      "name": "32 位整数的下限",
+      "request": "counts",
+      "payload": "{\"a\":-2147483648}",
+      "reason": null
+    },
+    {
+      "name": "32 位整数下溢",
+      "request": "counts",
+      "payload": "{\"a\":-2147483649}",
+      "reason": "$.a"
+    },
+    {
+      "name": "成员名是 U+0000",
+      "request": "counts",
+      "payload": "{\"\\u0000\":\"x\"}",
+      "reason": "$.\u0000"
+    },
+    {
+      "name": "成员名以 U+0000 开头",
+      "request": "counts",
+      "payload": "{\"\\u0000a\":\"x\"}",
+      "reason": "$.\u0000a"
+    },
+    {
+      "name": "未知成员名以 U+0000 开头",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"\\u0000x\":1}",
+      "reason": null
     }
   ]
 }

@@ -285,7 +285,7 @@ func TestNewVectorFilesAreWellFormed(t *testing.T) {
 		t.Fatalf("pipeline: %v", err)
 	}
 	for _, c := range pipeline.Errors {
-		if !rules.IsErrorCode(c.Error) || !strings.HasPrefix(c.Error, "KERNEL_PIPELINE_") {
+		if !rules.IsErrorCode(c.Error) || !strings.HasPrefix(c.Error, "KERNEL_PIPELINE_") || c.Message == "" {
 			t.Errorf("pipeline error %q has code %q", c.Name, c.Error)
 		}
 	}

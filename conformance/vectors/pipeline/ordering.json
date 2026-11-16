@@ -1,5 +1,5 @@
 {
-  "$comment": "管道排序、打印与报错时机（RFC-0004「排序规则」「打印格式」，ADR-0235），期望值由 .NET 参考实现的 PipelineBuilder 算出。steps 依次执行：use 是按名字登记一个实例（stage、placement 为 beginning / end、owner），before / after 是 [主体, 目标] 的按名字约束。cases 的 dump 是 Dump() 的全文，每行以 \\n 结尾，{type} 换成本实现给按名字登记的实例用的类型名。errors 的 at 是抛出错误的那一步（从 0 起），sort 表示登记都成功、在排序（Describe / Dump / Build）时报错",
+  "$comment": "管道排序、打印与报错时机（RFC-0004「排序规则」「打印格式」，ADR-0235），期望值由 .NET 参考实现的 PipelineBuilder 算出。steps 依次执行：use 是按名字登记一个实例（stage、placement 为 beginning / end、owner），before / after 是 [主体, 目标] 的按名字约束。cases 的 dump 是 Dump() 的全文，每行以 \\n 结尾，{type} 换成本实现给按名字登记的实例用的类型名。errors 的 at 是抛出错误的那一步（从 0 起），sort 表示登记都成功、在排序（Describe / Dump / Build）时报错。errors 的 message 是 FrameworkException 的消息原文，逐字相等（ADR-0236），{type} 换成本实现给按名字登记的实例用的类型名",
   "cases": [
     {
       "name": "同一归属按登记顺序",
@@ -362,7 +362,8 @@
         }
       ],
       "error": "KERNEL_PIPELINE_001",
-      "at": "sort"
+      "at": "sort",
+      "message": "Middleware ordering constraints in stage 'validate' form a cycle: '{type}[a]', '{type}[b]'."
     },
     {
       "name": "三者成环",
@@ -405,7 +406,8 @@
         }
       ],
       "error": "KERNEL_PIPELINE_001",
-      "at": "sort"
+      "at": "sort",
+      "message": "Middleware ordering constraints in stage 'validate' form a cycle: '{type}[a]', '{type}[b]', '{type}[c]'."
     },
     {
       "name": "约束目标未登记",
@@ -424,7 +426,8 @@
         }
       ],
       "error": "KERNEL_PIPELINE_003",
-      "at": "sort"
+      "at": "sort",
+      "message": "The ordering constraint of middleware '{type}[a]' references unregistered middleware 'zz'."
     },
     {
       "name": "约束目标在别的阶段",
@@ -449,7 +452,8 @@
         }
       ],
       "error": "KERNEL_PIPELINE_003",
-      "at": "sort"
+      "at": "sort",
+      "message": "Middleware '{type}[a]' (stage 'validate') and 'b' (stage 'handle') are not in the same stage, so no relative order can be declared between them."
     },
     {
       "name": "重复登记",
@@ -468,7 +472,8 @@
         }
       ],
       "error": "KERNEL_PIPELINE_003",
-      "at": 1
+      "at": 1,
+      "message": "Middleware '{type}' named 'a' is already registered; instance names must be unique within a type."
     },
     {
       "name": "约束主体未登记",
@@ -487,7 +492,8 @@
         }
       ],
       "error": "KERNEL_PIPELINE_003",
-      "at": 1
+      "at": 1,
+      "message": "Middleware 'q' is not registered, so no ordering constraint can be declared for it."
     },
     {
       "name": "after 的主体未登记",
@@ -506,7 +512,8 @@
         }
       ],
       "error": "KERNEL_PIPELINE_003",
-      "at": 1
+      "at": 1,
+      "message": "Middleware 'q' is not registered, so no ordering constraint can be declared for it."
     },
     {
       "name": "未知阶段",
@@ -525,7 +532,8 @@
         }
       ],
       "error": "KERNEL_PIPELINE_002",
-      "at": 1
+      "at": 1,
+      "message": "Unknown pipeline stage 'bogus'."
     }
   ]
 }

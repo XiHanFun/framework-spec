@@ -224,6 +224,8 @@ type PipelineError struct {
 	Steps []json.RawMessage `json:"steps"`
 	Error string            `json:"error"`
 	At    json.RawMessage   `json:"at"`
+	// Message 是配置错误的英文原文，{type} 换成按名字登记的实例的类型名（ADR-0236）。
+	Message string `json:"message"`
 }
 
 // PipelineOrderingVectors 对应 pipeline/ordering.json（RFC-0004）。

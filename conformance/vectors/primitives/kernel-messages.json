@@ -1,5 +1,5 @@
 {
-  "$comment": "SDK 与宿主共用的内核错误（RFC-0011「错误码」，ADR-0233）：错误码、消息键、参数名与 en-US 模板。模板取自 .NET 的 Localization/en-US.json，SDK 自带的默认英文模板必须逐字相同；arguments 与模板里的占位符一一对应；when 只给人看。kernel.operation.type_mismatch 只带 id（ADR-0236）：类型名是实现语言的，各语言写不出同样的参数",
+  "$comment": "SDK 与宿主共用的内核错误（RFC-0011「错误码」，ADR-0233）：错误码、消息键、参数名与 en-US 模板。模板取自 .NET 的 Localization/en-US.json，SDK 自带的默认英文模板必须逐字相同；arguments 与模板里的占位符一一对应；when 只给人看。kernel.operation.type_mismatch 只带 id（ADR-0236）：类型名是实现语言的，各语言写不出同样的参数。清单读取的错误（kernel.manifest.* 与 primitives.manifest.*，读取时错误码都是 KERNEL_CAPABILITY_006）也在这里（ADR-0236），SDK 写出的 message 与 .NET 一样是这些模板的英文句子",
   "messages": [
     {
       "code": "PRIMITIVES_VALIDATION_002",
@@ -91,6 +91,85 @@
       "arguments": [],
       "template": "An unhandled exception occurred during the invocation.",
       "when": "处理器或中间件抛出了异常；框架异常的错误放进 inner"
+    },
+    {
+      "code": "KERNEL_CAPABILITY_006",
+      "key": "kernel.manifest.invalid_json",
+      "arguments": [
+        "reason"
+      ],
+      "template": "The manifest is not valid JSON: {reason}",
+      "when": "清单不是 JSON（reason 为 $）或有重复成员（reason 为第一处重复的路径）"
+    },
+    {
+      "code": "KERNEL_CAPABILITY_006",
+      "key": "kernel.manifest.empty",
+      "arguments": [],
+      "template": "The manifest is empty.",
+      "when": "清单是字面量 null"
+    },
+    {
+      "code": "KERNEL_CAPABILITY_006",
+      "key": "kernel.manifest.file_missing",
+      "arguments": [
+        "path"
+      ],
+      "template": "Manifest file '{path}' does not exist.",
+      "when": "ReadFile 的文件不存在"
+    },
+    {
+      "code": "KERNEL_CAPABILITY_006",
+      "key": "kernel.manifest.invalid",
+      "arguments": [
+        "reason"
+      ],
+      "template": "The manifest is not valid: {reason}",
+      "when": "清单不合 Schema，reason 是第一处问题的路径"
+    },
+    {
+      "code": "KERNEL_CAPABILITY_006",
+      "key": "primitives.manifest.isolation_required",
+      "arguments": [
+        "id"
+      ],
+      "template": "Plugin manifest '{id}' must declare 'isolation'.",
+      "when": "插件清单没有 isolation"
+    },
+    {
+      "code": "KERNEL_CAPABILITY_006",
+      "key": "primitives.manifest.isolation_not_allowed",
+      "arguments": [
+        "id"
+      ],
+      "template": "Manifest '{id}' is not a plugin and must not declare 'isolation' or 'permissions'.",
+      "when": "非插件清单写了 isolation 或 permissions"
+    },
+    {
+      "code": "KERNEL_CAPABILITY_006",
+      "key": "primitives.manifest.duplicate_provides",
+      "arguments": [
+        "id"
+      ],
+      "template": "Manifest '{id}' declares the same capability ID more than once in 'provides'.",
+      "when": "provides 的能力 ID 重复"
+    },
+    {
+      "code": "KERNEL_CAPABILITY_006",
+      "key": "primitives.manifest.duplicate_requires",
+      "arguments": [
+        "id"
+      ],
+      "template": "Manifest '{id}' declares the same capability ID more than once in 'requires'.",
+      "when": "requires 的能力 ID 重复"
+    },
+    {
+      "code": "KERNEL_CAPABILITY_006",
+      "key": "primitives.manifest.duplicate_bindings",
+      "arguments": [
+        "id"
+      ],
+      "template": "Manifest '{id}' declares the same binding name more than once in 'bindings'.",
+      "when": "bindings 的名字重复"
     }
   ]
 }
