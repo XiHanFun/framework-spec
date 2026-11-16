@@ -4,6 +4,7 @@ package conformance
 
 import (
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -188,8 +189,20 @@ type TraceParentFormat struct {
 type ManifestCase struct {
 	Name     string          `json:"name"`
 	Manifest json.RawMessage `json:"manifest,omitempty"`
-	Text     string          `json:"text,omitempty"`
-	Reason   string          `json:"reason,omitempty"`
+	// Text 是原文，用于 JSON 值表达不了的写法；nil 表示没有给出（空串是合法的原文）。
+	Text   *string `json:"text,omitempty"`
+	Reason string  `json:"reason,omitempty"`
+	// Written 是合法清单读出后再写出的全文（ADR-0236）。
+	Written string `json:"written,omitempty"`
+	// Error 是不合法清单期望的错误（ADR-0236）。
+	Error *ManifestError `json:"error,omitempty"`
+}
+
+// ManifestError 是读取清单失败时的错误：码、消息键与参数逐字相等。
+type ManifestError struct {
+	Code       string            `json:"code"`
+	MessageKey string            `json:"messageKey"`
+	Arguments  map[string]string `json:"arguments"`
 }
 
 // ManifestVectors 对应 manifest/manifests.json（RFC-0002 解析规则 2）。
@@ -224,17 +237,14 @@ type PayloadReasonCase struct {
 	Name    string `json:"name"`
 	Request string `json:"request"`
 	Payload string `json:"payload"`
-	Reason  string `json:"reason"`
+	// Reason 为 nil 表示解码成功（ADR-0236）。
+	Reason *string `json:"reason"`
 }
 
 // PayloadReasonVectors 对应 operations/payload-reasons.json（RFC-0011 规则 2）。
 type PayloadReasonVectors struct {
-	Requests     map[string]string   `json:"requests"`
-	Cases        []PayloadReasonCase `json:"cases"`
-	SyntaxErrors []struct {
-		Request string `json:"request"`
-		Payload string `json:"payload"`
-	} `json:"syntaxErrors"`
+	Requests map[string]string   `json:"requests"`
+	Cases    []PayloadReasonCase `json:"cases"`
 }
 
 // MessageKeyVectors 是消息键的合法与非法样例。
@@ -249,11 +259,13 @@ type TemplateCase struct {
 	Name      string          `json:"name"`
 	Template  string          `json:"template"`
 	Arguments json.RawMessage `json:"arguments"`
-	Lenient   string          `json:"lenient"`
-	Strict    *string         `json:"strict"`
+	// Locale 是格式化所用的区域，空表示不变文化（ADR-0236）。
+	Locale  string  `json:"locale,omitempty"`
+	Lenient string  `json:"lenient"`
+	Strict  *string `json:"strict"`
 }
 
-// DescribeCase 是一次 Describe：Arguments 为 null 表示没有参数，至多一个参数。
+// DescribeCase 是一次 Describe：Arguments 为 null 表示没有参数。
 type DescribeCase struct {
 	Key       string          `json:"key"`
 	Arguments json.RawMessage `json:"arguments"`
@@ -423,6 +435,33 @@ func Manifests() (ManifestVectors, error) {
 // PipelineOrdering 读取管道排序、打印与报错时机的向量。
 func PipelineOrdering() (PipelineOrderingVectors, error) {
 	return Load[PipelineOrderingVectors]("pipeline/ordering.json")
+}
+
+// JSONTextCase 是共同 JSON 读取检查的一条样例：Text 是原文（按 UTF-8 编码），Hex 是原始字节。
+type JSONTextCase struct {
+	Name   string  `json:"name"`
+	Text   *string `json:"text,omitempty"`
+	Hex    string  `json:"hex,omitempty"`
+	Expect string  `json:"expect"`
+	Path   string  `json:"path,omitempty"`
+}
+
+// Bytes 返回样例的原始字节。
+func (c JSONTextCase) Bytes() ([]byte, error) {
+	if c.Text != nil {
+		return []byte(*c.Text), nil
+	}
+	return hex.DecodeString(c.Hex)
+}
+
+// JSONTextVectors 对应 primitives/json-text.json（RFC-0001「JSON 文本」）。
+type JSONTextVectors struct {
+	Cases []JSONTextCase `json:"cases"`
+}
+
+// JSONText 读取共同 JSON 读取检查的向量。
+func JSONText() (JSONTextVectors, error) {
+	return Load[JSONTextVectors]("primitives/json-text.json")
 }
 
 // PayloadReasons 读取载荷错误路径的向量。

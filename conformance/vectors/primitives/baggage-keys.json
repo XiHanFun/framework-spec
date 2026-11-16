@@ -1,5 +1,5 @@
 {
-  "$comment": "Baggage 键格式 xihan.<name>；已登记的键见 spec/conventions/baggage-keys.md。values：已登记键的值是否可以进入调用上下文（ADR-0204、ADR-0233）：非空、按 UTF-16 码元计最多 256、不含 U+0000–U+001F 与 U+007F–U+009F；xihan.idempotency-key 不按这条丢弃",
+  "$comment": "Baggage 键格式 xihan.<name>；已登记的键见 spec/conventions/baggage-keys.md。values：已登记键的值是否可以进入调用上下文（ADR-0204、ADR-0233）：非空、按 UTF-16 码元计最多 256、不含 U+0000–U+001F 与 U+007F–U+009F；xihan.idempotency-key 不按这条丢弃。文法按整串匹配，结尾的换行不例外（ADR-0236）",
   "wellFormed": [
     "xihan.tenant",
     "xihan.idempotency-key",
@@ -14,7 +14,8 @@
     "xihan.-tenant",
     "xihan.tenant.id",
     "XiHan.tenant",
-    "xihan_tenant"
+    "xihan_tenant",
+    "xihan.tenant\n"
   ],
   "registered": [
     "xihan.tenant",

@@ -5,7 +5,8 @@ CapabilityId   = Domain "." Capability
 CapabilityRef  = CapabilityId [ "@" VersionRange ] [ "?" ]
 Domain         = 术语表领域词的小写形态
 Capability     = 小写字母与数字，连字符分隔
-VersionRange   = 整数接口版本或 ^ 范围（"1"、"^1"）
+VersionRange   = [ "^" ] Version  ; "1"、"^1"
+Version        = %x31-39 *DIGIT  ; 不带前导零的正整数，不超过 2147483647
 "?"            = 可选依赖（仅在 requires 中）
 ```
 
@@ -14,7 +15,7 @@ VersionRange   = 整数接口版本或 ^ 范围（"1"、"^1"）
 ## 规则
 
 1. 依赖按能力 ID 声明，不按包名；同一能力可由多个 Provider 提供。
-2. 接口版本是整数，变更只加新版本并存（`persistence.relational@2`），不改旧版本语义。
+2. 接口版本是整数，变更只加新版本并存（`persistence.relational@2`），不改旧版本语义。版本文本不带前导零、符号与空白，在 32 位有符号整数范围内；整个文本按整串匹配，结尾的换行不例外（2026-11-16 写明，ADR-0236）。
 3. 能力 ID 一经发布不改；新能力走 RFC。
 
 ## 已登记的能力

@@ -1,6 +1,7 @@
 package rules_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"reflect"
 	"slices"
@@ -150,14 +151,13 @@ func TestWireEncodingFollowsTheVectors(t *testing.T) {
 			if len(expected) == 0 {
 				expected = c.JSON
 			}
-			var want any
-			if err := json.Unmarshal(expected, &want); err != nil {
+			want, err := decodeExact(expected)
+			if err != nil {
 				t.Fatalf("%s: canonical: %v", c.Name, err)
 			}
-			// 规范形式按 JSON 值比较：先过一遍编码，消掉 Go 类型与 JSON 解码结果之间的差别
-			var got any
+			// 规范形式按 JSON 值比较：先过一遍编码，消掉 Go 类型与 JSON 解码结果之间的差别；数字按原文比较，超出双精度的整数也要相等
 			text, _ := json.Marshal(canonical)
-			_ = json.Unmarshal(text, &got)
+			got, _ := decodeExact(text)
 			if !reflect.DeepEqual(got, want) {
 				t.Errorf("%s: canonical = %s, want %s", c.Name, text, expected)
 			}
@@ -221,14 +221,63 @@ func TestDuplicateMembersAreRejected(t *testing.T) {
 	}
 }
 
+func TestJSONTextFollowsTheVectors(t *testing.T) {
+	vectors, err := conformance.JSONText()
+	if err != nil || len(vectors.Cases) == 0 {
+		t.Fatalf("json text: %v", err)
+	}
+	for _, c := range vectors.Cases {
+		data, err := c.Bytes()
+		if err != nil {
+			t.Fatalf("%s: %v", c.Name, err)
+		}
+		problem := rules.CheckJSONText(data)
+		switch c.Expect {
+		case "valid":
+			if problem != nil {
+				t.Errorf("%s: must pass, got %+v", c.Name, *problem)
+			}
+		case "syntax":
+			if problem == nil || !problem.Syntax || problem.Path != "$" {
+				t.Errorf("%s: must be a syntax error, got %+v", c.Name, problem)
+			}
+		case "duplicate":
+			if problem == nil || problem.Syntax || problem.Path != c.Path {
+				t.Errorf("%s: must report the duplicate at %q, got %+v", c.Name, c.Path, problem)
+			}
+		default:
+			t.Errorf("%s: unknown expectation %q", c.Name, c.Expect)
+		}
+	}
+}
+
+// decodeExact 把 JSON 解码成可比较的值，数字保留原文
+func decodeExact(data []byte) (any, error) {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var value any
+	err := decoder.Decode(&value)
+	return value, err
+}
+
 func TestNewVectorFilesAreWellFormed(t *testing.T) {
 	manifests, err := conformance.Manifests()
 	if err != nil || len(manifests.Valid) == 0 || len(manifests.Invalid) == 0 {
 		t.Fatalf("manifests: %v", err)
 	}
 	for _, c := range append(append([]conformance.ManifestCase{}, manifests.Valid...), manifests.Invalid...) {
-		if (len(c.Manifest) == 0) == (c.Text == "") {
+		if (len(c.Manifest) == 0) == (c.Text == nil) {
 			t.Errorf("manifest %q must have exactly one of manifest and text", c.Name)
+		}
+	}
+	for _, c := range manifests.Valid {
+		if c.Written == "" || strings.Contains(c.Written, "\r") || strings.HasSuffix(c.Written, "\n") {
+			t.Errorf("valid manifest %q needs the written text with LF and no trailing newline", c.Name)
+		}
+	}
+	for _, c := range manifests.Invalid {
+		if c.Error == nil || c.Error.Code != "KERNEL_CAPABILITY_006" || !rules.IsMessageKey(c.Error.MessageKey) {
+			t.Errorf("invalid manifest %q needs the expected error", c.Name)
 		}
 	}
 	pipeline, err := conformance.PipelineOrdering()
@@ -241,12 +290,16 @@ func TestNewVectorFilesAreWellFormed(t *testing.T) {
 		}
 	}
 	reasons, err := conformance.PayloadReasons()
-	if err != nil || len(reasons.Cases) == 0 || len(reasons.SyntaxErrors) == 0 {
+	if err != nil || len(reasons.Cases) == 0 {
 		t.Fatalf("payload reasons: %v", err)
 	}
 	for _, c := range reasons.Cases {
-		if _, ok := reasons.Requests[c.Request]; !ok || !strings.HasPrefix(c.Reason, "$") {
+		if _, ok := reasons.Requests[c.Request]; !ok || (c.Reason != nil && !strings.HasPrefix(*c.Reason, "$")) {
 			t.Errorf("payload case %q is malformed", c.Name)
+		}
+		// 共同读取检查不通过的载荷，reason 就是检查给出的路径
+		if problem := rules.CheckJSONText([]byte(c.Payload)); problem != nil && c.Payload != "" && (c.Reason == nil || *c.Reason != problem.Path) {
+			t.Errorf("payload case %q: the JSON text check gives %q", c.Name, problem.Path)
 		}
 	}
 }

@@ -1,5 +1,5 @@
 {
-  "$comment": "SDK 与宿主共用的内核错误（RFC-0011「错误码」，ADR-0233）：错误码、消息键、参数名与 en-US 模板。模板取自 .NET 的 Localization/en-US.json，SDK 自带的默认英文模板必须逐字相同；arguments 与模板里的占位符一一对应；when 只给人看",
+  "$comment": "SDK 与宿主共用的内核错误（RFC-0011「错误码」，ADR-0233）：错误码、消息键、参数名与 en-US 模板。模板取自 .NET 的 Localization/en-US.json，SDK 自带的默认英文模板必须逐字相同；arguments 与模板里的占位符一一对应；when 只给人看。kernel.operation.type_mismatch 只带 id（ADR-0236）：类型名是实现语言的，各语言写不出同样的参数",
   "messages": [
     {
       "code": "PRIMITIVES_VALIDATION_002",
@@ -52,11 +52,9 @@
       "code": "KERNEL_VALIDATION_002",
       "key": "kernel.operation.type_mismatch",
       "arguments": [
-        "id",
-        "expected",
-        "actual"
+        "id"
       ],
-      "template": "Operation '{id}' handles '{expected}', but '{actual}' was supplied.",
+      "template": "Operation '{id}' was invoked with request or response types that do not match its registration.",
       "when": "类型化调用的类型与登记不符，expected / actual 是实现语言的类型名"
     },
     {

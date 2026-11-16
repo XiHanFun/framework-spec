@@ -98,11 +98,12 @@ func ParseCapabilityRequirement(text string) (CapabilityRequirement, bool) {
 	if match == nil {
 		return CapabilityRequirement{}, false
 	}
-	version, err := strconv.Atoi(match[3])
+	// 接口版本在 32 位有符号整数范围内（ADR-0236）
+	version, err := strconv.ParseInt(match[3], 10, 32)
 	if err != nil {
 		return CapabilityRequirement{}, false
 	}
-	return CapabilityRequirement{ID: match[1], Version: version, Optional: match[4] == "?"}, true
+	return CapabilityRequirement{ID: match[1], Version: int(version), Optional: match[4] == "?"}, true
 }
 
 // Endpoint 是握手行里的插件端点。

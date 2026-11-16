@@ -1,0 +1,294 @@
+{
+  "$comment": "XiHan 读取 JSON 文本的共同检查（RFC-0001「JSON 文本」，ADR-0236），Result 与 Error 的线上编码、操作载荷与清单都先过这一遍。text 是原文（按 UTF-8 编码），hex 是原始字节。expect：valid 通过；syntax 不是 JSON（RFC 8259 之外的写法、BOM、嵌套超过 64 层、非法 UTF-8、孤立的代理项转义），不论出现在哪里都优先于重复成员，路径只写 $；duplicate 是任何一层有重复成员（按转义还原后的名字比较），path 是第一处重复（第二次出现的成员）的路径。期望值由 .NET 参考实现算出",
+  "cases": [
+    {
+      "name": "空对象",
+      "text": "{}",
+      "expect": "valid"
+    },
+    {
+      "name": "空数组",
+      "text": "[]",
+      "expect": "valid"
+    },
+    {
+      "name": "数字根",
+      "text": "0",
+      "expect": "valid"
+    },
+    {
+      "name": "字符串根",
+      "text": "\"s\"",
+      "expect": "valid"
+    },
+    {
+      "name": "null 根",
+      "text": "null",
+      "expect": "valid"
+    },
+    {
+      "name": "前后空白",
+      "text": " \t\n{\"a\":1}\r\n ",
+      "expect": "valid"
+    },
+    {
+      "name": "不同层同名",
+      "text": "{\"a\":{\"a\":1}}",
+      "expect": "valid"
+    },
+    {
+      "name": "不同对象同名",
+      "text": "[{\"a\":1},{\"a\":1}]",
+      "expect": "valid"
+    },
+    {
+      "name": "大小写不同",
+      "text": "{\"a\":1,\"A\":1}",
+      "expect": "valid"
+    },
+    {
+      "name": "成对的代理项转义",
+      "text": "{\"\\ud83d\\ude00\":\"\\ud83d\\ude00\"}",
+      "expect": "valid"
+    },
+    {
+      "name": "非 BMP 字符原样",
+      "text": "{\"x\":\"\uD83D\uDE00\"}",
+      "expect": "valid"
+    },
+    {
+      "name": "嵌套 64 层",
+      "text": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+      "expect": "valid"
+    },
+    {
+      "name": "空文本",
+      "text": "",
+      "expect": "syntax"
+    },
+    {
+      "name": "只有空白",
+      "text": "   ",
+      "expect": "syntax"
+    },
+    {
+      "name": "对象尾逗号",
+      "text": "{\"a\":1,}",
+      "expect": "syntax"
+    },
+    {
+      "name": "数组尾逗号",
+      "text": "[1,]",
+      "expect": "syntax"
+    },
+    {
+      "name": "根后有多余文本",
+      "text": "{\"a\":1} x",
+      "expect": "syntax"
+    },
+    {
+      "name": "两个根值",
+      "text": "{} {}",
+      "expect": "syntax"
+    },
+    {
+      "name": "前导零",
+      "text": "{\"a\":01}",
+      "expect": "syntax"
+    },
+    {
+      "name": "小数点后没有数字",
+      "text": "{\"a\":1.}",
+      "expect": "syntax"
+    },
+    {
+      "name": "小数点前没有数字",
+      "text": "{\"a\":.5}",
+      "expect": "syntax"
+    },
+    {
+      "name": "正号",
+      "text": "{\"a\":+1}",
+      "expect": "syntax"
+    },
+    {
+      "name": "NaN",
+      "text": "{\"a\":NaN}",
+      "expect": "syntax"
+    },
+    {
+      "name": "Infinity",
+      "text": "{\"a\":Infinity}",
+      "expect": "syntax"
+    },
+    {
+      "name": "单引号",
+      "text": "{'a':1}",
+      "expect": "syntax"
+    },
+    {
+      "name": "块注释",
+      "text": "{\"a\":1 /*c*/}",
+      "expect": "syntax"
+    },
+    {
+      "name": "行注释",
+      "text": "// c\n{}",
+      "expect": "syntax"
+    },
+    {
+      "name": "BOM",
+      "text": "\uFEFF{}",
+      "expect": "syntax"
+    },
+    {
+      "name": "非法转义",
+      "text": "{\"a\":\"\\q\"}",
+      "expect": "syntax"
+    },
+    {
+      "name": "字符串里的原始控制字符",
+      "text": "{\"a\":\"x\ty\"}",
+      "expect": "syntax"
+    },
+    {
+      "name": "孤立的高代理项转义",
+      "text": "{\"a\":\"\\ud800\"}",
+      "expect": "syntax"
+    },
+    {
+      "name": "孤立的低代理项转义",
+      "text": "{\"a\":\"\\udc00\"}",
+      "expect": "syntax"
+    },
+    {
+      "name": "高代理项后不是低代理项",
+      "text": "{\"a\":\"\\ud800\\u0041\"}",
+      "expect": "syntax"
+    },
+    {
+      "name": "成员名里的孤立代理项",
+      "text": "{\"\\ud800\":1}",
+      "expect": "syntax"
+    },
+    {
+      "name": "嵌套 65 层",
+      "text": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+      "expect": "syntax"
+    },
+    {
+      "name": "未闭合的数组",
+      "text": "[",
+      "expect": "syntax"
+    },
+    {
+      "name": "成员没有值",
+      "text": "{\"a\"}",
+      "expect": "syntax"
+    },
+    {
+      "name": "冒号后没有值",
+      "text": "{\"a\":}",
+      "expect": "syntax"
+    },
+    {
+      "name": "不完整的字面量",
+      "text": "tru",
+      "expect": "syntax"
+    },
+    {
+      "name": "未闭合的字符串",
+      "text": "\"abc",
+      "expect": "syntax"
+    },
+    {
+      "name": "非法 UTF-8 字节",
+      "hex": "7b2261223a22ff227d",
+      "expect": "syntax"
+    },
+    {
+      "name": "过长编码",
+      "hex": "7b2261223a22c0af227d",
+      "expect": "syntax"
+    },
+    {
+      "name": "UTF-8 编码的代理项",
+      "hex": "7b2261223a22eda080227d",
+      "expect": "syntax"
+    },
+    {
+      "name": "截断的多字节字符",
+      "hex": "7b2261223a22e4b8227d",
+      "expect": "syntax"
+    },
+    {
+      "name": "成员名里的非法 UTF-8",
+      "hex": "7b22ff223a317d",
+      "expect": "syntax"
+    },
+    {
+      "name": "UTF-16 编码的文本",
+      "hex": "7b007d00",
+      "expect": "syntax"
+    },
+    {
+      "name": "根上重复",
+      "text": "{\"a\":1,\"a\":2}",
+      "expect": "duplicate",
+      "path": "$.a"
+    },
+    {
+      "name": "嵌套重复",
+      "text": "{\"a\":{\"b\":1,\"b\":2}}",
+      "expect": "duplicate",
+      "path": "$.a.b"
+    },
+    {
+      "name": "数组项里重复",
+      "text": "[{\"a\":1,\"a\":2}]",
+      "expect": "duplicate",
+      "path": "$[0].a"
+    },
+    {
+      "name": "转义后同名",
+      "text": "{\"a\":1,\"\\u0061\":2}",
+      "expect": "duplicate",
+      "path": "$.a"
+    },
+    {
+      "name": "要用方括号的成员名重复",
+      "text": "{\"a b\":1,\"a b\":2}",
+      "expect": "duplicate",
+      "path": "$['a b']"
+    },
+    {
+      "name": "报第一处重复",
+      "text": "{\"a\":1,\"a\":2,\"b\":1,\"b\":2}",
+      "expect": "duplicate",
+      "path": "$.a"
+    },
+    {
+      "name": "先出现的嵌套重复",
+      "text": "{\"x\":{\"b\":1,\"b\":2},\"a\":1,\"a\":2}",
+      "expect": "duplicate",
+      "path": "$.x.b"
+    },
+    {
+      "name": "空名重复",
+      "text": "{\"\":1,\"\":2}",
+      "expect": "duplicate",
+      "path": "$."
+    },
+    {
+      "name": "深处重复",
+      "text": "{\"a\":[{\"b\":{\"c\":1,\"c\":2}}]}",
+      "expect": "duplicate",
+      "path": "$.a[0].b.c"
+    },
+    {
+      "name": "重复之后有语法错误",
+      "text": "{\"a\":1,\"a\":2,}",
+      "expect": "syntax"
+    }
+  ]
+}

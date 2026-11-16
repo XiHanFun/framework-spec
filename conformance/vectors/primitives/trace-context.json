@@ -1,5 +1,5 @@
 {
-  "$comment": "W3C traceparent 的解析与写出（RFC-0003 规则 7，ADR-0235）。parse.valid 必须解析成给出的 traceId、spanId 与 sampled（只看标志的最低位）；parse.invalid 必须当作没有给出。format 用 traceId、spanId 与 sampled 写出 text；sampled 为 null 表示上下文没有标志（链路的根、没有采样器），写 01",
+  "$comment": "W3C traceparent 的解析与写出（RFC-0003 规则 7，ADR-0235）。parse.valid 必须解析成给出的 traceId、spanId 与 sampled（只看标志的最低位）；parse.invalid 必须当作没有给出。format 用 traceId、spanId 与 sampled 写出 text；sampled 为 null 表示上下文没有标志（链路的根、没有采样器），写 01。文法按整串匹配，结尾的换行不例外（ADR-0236）",
   "parse": {
     "valid": [
       {
@@ -56,7 +56,8 @@
       "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01 ",
       "00_0af7651916cd43dd8448eb211c80319c_b7ad6b7169203331_01",
       "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331",
-      "00-0af7651916cd43dd8448eb211c80319g-b7ad6b7169203331-01"
+      "00-0af7651916cd43dd8448eb211c80319g-b7ad6b7169203331-01",
+      "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\n"
     ]
   },
   "format": [

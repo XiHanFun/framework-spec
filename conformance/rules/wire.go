@@ -63,8 +63,8 @@ func CanonicalResult(kind string, data []byte) (map[string]any, error) {
 		if isNull(valueText) && kind == ResultValue {
 			return nil, fmt.Errorf("the value of a successful result must not be null")
 		}
-		var value any
-		if err := json.Unmarshal(valueText, &value); err != nil {
+		value, err := exact(valueText)
+		if err != nil {
 			return nil, fmt.Errorf("result 'value': %w", err)
 		}
 		return map[string]any{"ok": true, "value": value}, nil
@@ -113,8 +113,8 @@ func CanonicalError(data []byte) (map[string]any, error) {
 			return nil, fmt.Errorf("error 'details': %w", err)
 		}
 		if len(details) > 0 {
-			var value map[string]any
-			if err := json.Unmarshal(text, &value); err != nil {
+			value, err := exact(text)
+			if err != nil {
 				return nil, fmt.Errorf("error 'details': %w", err)
 			}
 			canonical["details"] = value
@@ -136,14 +136,29 @@ func object(data []byte) (map[string]json.RawMessage, error) {
 	if len(trimmed) == 0 || trimmed[0] != '{' {
 		return nil, fmt.Errorf("expected a JSON object")
 	}
-	if err := HasNoDuplicateMembers(trimmed); err != nil {
-		return nil, err
+	// 共同的 JSON 读取检查：语法与任何一层的重复成员（RFC-0001「JSON 文本」，ADR-0236）
+	if problem := CheckJSONText(trimmed); problem != nil {
+		if problem.Syntax {
+			return nil, fmt.Errorf("not JSON")
+		}
+		return nil, fmt.Errorf("member '%s' appears more than once", problem.Path)
 	}
 	var members map[string]json.RawMessage
 	if err := json.Unmarshal(trimmed, &members); err != nil {
 		return nil, err
 	}
 	return members, nil
+}
+
+// exact 读取任意 JSON 值，数字保留原文（json.Number），超出双精度的整数也原样往返（ADR-0236）
+func exact(data []byte) (any, error) {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	return value, nil
 }
 
 // boolean 读取 JSON 布尔；encoding/json 会把 null 当成 false，这里先排除

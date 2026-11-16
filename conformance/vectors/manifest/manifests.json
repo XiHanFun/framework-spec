@@ -1,5 +1,5 @@
 {
-  "$comment": "清单的读取（RFC-0002 解析规则 2，ADR-0233、ADR-0235）：valid 的每份必须读得出，invalid 的每份必须被拒绝（.NET 为 KERNEL_CAPABILITY_006）。manifest 是清单的 JSON 值；text 是原文，用于 JSON 值表达不了的写法（重复成员）。reason 只给人看，说明这份为什么不合法",
+  "$comment": "清单的读取与写出（RFC-0002 解析规则 2 与「写出」，ADR-0233、ADR-0235、ADR-0236），期望值由 .NET 参考实现算出。valid 的每份必须读得出，written 是读出后再写出的全文（逐字相等，换行是 LF，末尾不换行）。invalid 的每份必须被拒绝，error 是期望的错误：code、messageKey 与 arguments 逐字相等。manifest 是清单的 JSON 值（按紧凑写法交给读取，成员顺序照写），text 是原文，用于 JSON 值表达不了的写法。reason 只给人看",
   "valid": [
     {
       "name": "最小的能力清单",
@@ -9,7 +9,8 @@
         "primitives": "1",
         "stability": "stable",
         "kind": "capability"
-      }
+      },
+      "written": "{\n  \"$schema\": \"https://spec.xihanfun.com/manifest/v1.json\",\n  \"id\": \"xihan.orders.core\",\n  \"version\": \"1.0.0\",\n  \"primitives\": \"1\",\n  \"stability\": \"stable\",\n  \"kind\": \"capability\",\n  \"role\": \"provider\",\n  \"provides\": [],\n  \"requires\": [],\n  \"bindings\": [],\n  \"contributes\": {\n    \"pipeline\": [],\n    \"operations\": [],\n    \"permissions\": [],\n    \"health\": []\n  },\n  \"activation\": [\n    \"onStartup\"\n  ],\n  \"permissions\": []\n}"
     },
     {
       "name": "带全部可选成员的 Provider",
@@ -66,7 +67,8 @@
           "onStartup"
         ],
         "entry": "XiHan.Orders.Core.OrdersFeature"
-      }
+      },
+      "written": "{\n  \"$schema\": \"https://spec.xihanfun.com/manifest/v1.json\",\n  \"id\": \"xihan.orders.core\",\n  \"package\": \"XiHan.Orders.Core\",\n  \"version\": \"1.2.3-rc.1+build.5\",\n  \"primitives\": \"1\",\n  \"stability\": \"preview\",\n  \"kind\": \"provider\",\n  \"role\": \"default\",\n  \"provides\": [\n    {\n      \"id\": \"orders.store\",\n      \"version\": \"2\"\n    }\n  ],\n  \"requires\": [\n    {\n      \"id\": \"kernel.hosting\",\n      \"version\": \"1\",\n      \"optional\": false\n    },\n    {\n      \"id\": \"caching.local\",\n      \"version\": \"1\",\n      \"optional\": true\n    }\n  ],\n  \"bindings\": [\n    {\n      \"name\": \"orders-db\",\n      \"type\": \"connection:relational\",\n      \"required\": false\n    }\n  ],\n  \"contributes\": {\n    \"pipeline\": [],\n    \"operations\": [\n      \"orders.create\",\n      \"order-lines.list\"\n    ],\n    \"config\": {\n      \"section\": \"XiHan:Orders:Core\",\n      \"schema\": \"{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"limit\\\":{\\\"type\\\":\\\"integer\\\"}}}\"\n    },\n    \"permissions\": [\n      \"orders.order.create\"\n    ],\n    \"health\": [\n      \"orders.core.store\"\n    ]\n  },\n  \"activation\": [\n    \"onStartup\"\n  ],\n  \"permissions\": [],\n  \"entry\": \"XiHan.Orders.Core.OrdersFeature\"\n}"
     },
     {
       "name": "进程外插件",
@@ -91,7 +93,50 @@
           "net.outbound:example.com:443"
         ],
         "entry": "echo-go"
-      }
+      },
+      "written": "{\n  \"$schema\": \"https://spec.xihanfun.com/manifest/v1.json\",\n  \"id\": \"xihan.samples.echo\",\n  \"version\": \"0.1.0\",\n  \"primitives\": \"1\",\n  \"stability\": \"experimental\",\n  \"kind\": \"plugin\",\n  \"role\": \"provider\",\n  \"isolation\": \"out-of-process\",\n  \"provides\": [],\n  \"requires\": [],\n  \"bindings\": [],\n  \"contributes\": {\n    \"pipeline\": [],\n    \"operations\": [\n      \"echoes.create\"\n    ],\n    \"permissions\": [],\n    \"health\": []\n  },\n  \"activation\": [\n    \"onOperation:echoes.*\",\n    \"onEvent:echo.events\"\n  ],\n  \"permissions\": [\n    \"capability:kernel.pipeline\",\n    \"net.outbound:example.com:443\"\n  ],\n  \"entry\": \"echo-go\"\n}"
+    },
+    {
+      "name": "要转义的字符",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "package": "Échø \"q\" \\ <&'+`> \u0001 \t /",
+        "entry": "bin\\demo.exe",
+        "contributes": {
+          "config": {
+            "section": "XiHan:Orders",
+            "schema": "{\"type\":\"object\"}"
+          }
+        }
+      },
+      "written": "{\n  \"$schema\": \"https://spec.xihanfun.com/manifest/v1.json\",\n  \"id\": \"xihan.orders.core\",\n  \"package\": \"Échø \\\"q\\\" \\\\ <&'+`> \\u0001 \\t /\",\n  \"version\": \"1.0.0\",\n  \"primitives\": \"1\",\n  \"stability\": \"stable\",\n  \"kind\": \"capability\",\n  \"role\": \"provider\",\n  \"provides\": [],\n  \"requires\": [],\n  \"bindings\": [],\n  \"contributes\": {\n    \"pipeline\": [],\n    \"operations\": [],\n    \"config\": {\n      \"section\": \"XiHan:Orders\",\n      \"schema\": \"{\\\"type\\\":\\\"object\\\"}\"\n    },\n    \"permissions\": [],\n    \"health\": []\n  },\n  \"activation\": [\n    \"onStartup\"\n  ],\n  \"permissions\": [],\n  \"entry\": \"bin\\\\demo.exe\"\n}"
+    },
+    {
+      "name": "32 位上限的版本",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "2147483647",
+        "stability": "stable",
+        "kind": "capability",
+        "provides": [
+          {
+            "id": "orders.store",
+            "version": "2147483647"
+          }
+        ],
+        "requires": [
+          {
+            "id": "kernel.hosting",
+            "version": "^2147483647"
+          }
+        ]
+      },
+      "written": "{\n  \"$schema\": \"https://spec.xihanfun.com/manifest/v1.json\",\n  \"id\": \"xihan.orders.core\",\n  \"version\": \"1.0.0\",\n  \"primitives\": \"2147483647\",\n  \"stability\": \"stable\",\n  \"kind\": \"capability\",\n  \"role\": \"provider\",\n  \"provides\": [\n    {\n      \"id\": \"orders.store\",\n      \"version\": \"2147483647\"\n    }\n  ],\n  \"requires\": [\n    {\n      \"id\": \"kernel.hosting\",\n      \"version\": \"2147483647\",\n      \"optional\": false\n    }\n  ],\n  \"bindings\": [],\n  \"contributes\": {\n    \"pipeline\": [],\n    \"operations\": [],\n    \"permissions\": [],\n    \"health\": []\n  },\n  \"activation\": [\n    \"onStartup\"\n  ],\n  \"permissions\": []\n}"
     }
   ],
   "invalid": [
@@ -104,6 +149,13 @@
         "stability": "stable",
         "kind": "capability",
         "ID": "xihan.orders.core"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.ID"
+        }
       }
     },
     {
@@ -116,6 +168,13 @@
         "stability": "stable",
         "kind": "capability",
         "extra": 1
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.extra"
+        }
       }
     },
     {
@@ -128,6 +187,13 @@
         "stability": "stable",
         "kind": "capability",
         "package": null
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.package"
+        }
       }
     },
     {
@@ -142,6 +208,13 @@
         "activation": [
           null
         ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.activation[0]"
+        }
       }
     },
     {
@@ -160,12 +233,26 @@
             "optional": null
           }
         ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.requires[0].optional"
+        }
       }
     },
     {
       "name": "重复成员",
       "reason": "同一层的成员名不能重复",
-      "text": "{\"id\":\"xihan.orders.core\",\"version\":\"1.0.0\",\"primitives\":\"1\",\"stability\":\"stable\",\"kind\":\"capability\",\"kind\":\"provider\"}"
+      "text": "{\"id\":\"xihan.orders.core\",\"version\":\"1.0.0\",\"primitives\":\"1\",\"stability\":\"stable\",\"kind\":\"capability\",\"kind\":\"provider\"}",
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid_json",
+        "arguments": {
+          "reason": "$.kind"
+        }
+      }
     },
     {
       "name": "原语层版本带 ^",
@@ -176,6 +263,13 @@
         "primitives": "^1",
         "stability": "stable",
         "kind": "capability"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.primitives"
+        }
       }
     },
     {
@@ -193,6 +287,13 @@
             "version": "^1"
           }
         ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.provides[0].version"
+        }
       }
     },
     {
@@ -204,6 +305,13 @@
         "primitives": 1,
         "stability": "stable",
         "kind": "capability"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.primitives"
+        }
       }
     },
     {
@@ -221,6 +329,13 @@
             "version": "0"
           }
         ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.requires[0].version"
+        }
       }
     },
     {
@@ -236,6 +351,13 @@
           "operations": [
             "Orders.Create"
           ]
+        }
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.contributes.operations[0]"
         }
       }
     },
@@ -253,6 +375,13 @@
             "orders.create-"
           ]
         }
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.contributes.operations[0]"
+        }
       }
     },
     {
@@ -269,6 +398,13 @@
             "order--lines.list"
           ]
         }
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.contributes.operations[0]"
+        }
       }
     },
     {
@@ -281,6 +417,13 @@
         "stability": "stable",
         "kind": "capability",
         "activation": []
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.activation"
+        }
       }
     },
     {
@@ -295,6 +438,13 @@
         "activation": [
           "onBoot"
         ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.activation[0]"
+        }
       }
     },
     {
@@ -320,6 +470,13 @@
           "net.outbound:example.com:443"
         ],
         "entry": "echo-go"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "primitives.manifest.isolation_required",
+        "arguments": {
+          "id": "xihan.samples.echo"
+        }
       }
     },
     {
@@ -334,6 +491,13 @@
         "permissions": [
           "capability:kernel.pipeline"
         ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "primitives.manifest.isolation_not_allowed",
+        "arguments": {
+          "id": "xihan.orders.core"
+        }
       }
     },
     {
@@ -344,6 +508,13 @@
         "version": "1.0.0",
         "primitives": "1",
         "stability": "stable"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.kind"
+        }
       }
     },
     {
@@ -355,6 +526,13 @@
         "primitives": "1",
         "stability": "stable",
         "kind": "capability"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.id"
+        }
       }
     },
     {
@@ -366,6 +544,13 @@
         "primitives": "1",
         "stability": "stable",
         "kind": "capability"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.version"
+        }
       }
     },
     {
@@ -377,6 +562,13 @@
         "primitives": "1",
         "stability": "Stable",
         "kind": "capability"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.stability"
+        }
       }
     },
     {
@@ -388,6 +580,13 @@
         "primitives": "1",
         "stability": "0",
         "kind": "capability"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.stability"
+        }
       }
     },
     {
@@ -407,6 +606,13 @@
             }
           }
         }
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.contributes.config.schema"
+        }
       }
     },
     {
@@ -418,6 +624,13 @@
         "primitives": "1",
         "stability": "stable",
         "kind": "library"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.kind"
+        }
       }
     },
     {
@@ -435,6 +648,13 @@
             "type": "queue"
           }
         ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.bindings[0].name"
+        }
       }
     },
     {
@@ -456,6 +676,13 @@
             "version": "1"
           }
         ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "primitives.manifest.duplicate_provides",
+        "arguments": {
+          "id": "xihan.orders.core"
+        }
       }
     },
     {
@@ -481,6 +708,13 @@
           "admin"
         ],
         "entry": "echo-go"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.permissions[0]"
+        }
       }
     },
     {
@@ -494,6 +728,13 @@
         "kind": "capability",
         "contributes": {
           "routes": []
+        }
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.contributes.routes"
         }
       }
     },
@@ -513,6 +754,13 @@
             "since": "5.0"
           }
         ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.provides[0].since"
+        }
       }
     },
     {
@@ -531,17 +779,653 @@
             "optional": "yes"
           }
         ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.requires[0].optional"
+        }
       }
     },
     {
       "name": "根不是对象",
       "reason": "清单是 JSON 对象",
-      "manifest": []
+      "manifest": [],
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$"
+        }
+      }
     },
     {
       "name": "根是 null",
       "reason": "清单是 JSON 对象",
-      "manifest": null
+      "manifest": null,
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.empty",
+        "arguments": {}
+      }
+    },
+    {
+      "name": "未知成员先于 null",
+      "reason": "按文本顺序逐个成员核对，先报未知成员",
+      "manifest": {
+        "x": null
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.x"
+        }
+      }
+    },
+    {
+      "name": "必填成员为 null",
+      "reason": "null 不合法",
+      "manifest": {
+        "id": null
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.id"
+        }
+      }
+    },
+    {
+      "name": "必填成员类型不对",
+      "reason": "id 是字符串",
+      "manifest": {
+        "id": 5
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.id"
+        }
+      }
+    },
+    {
+      "name": "空对象",
+      "reason": "缺少的成员按 required 顺序报第一个",
+      "manifest": {},
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.id"
+        }
+      }
+    },
+    {
+      "name": "按文本顺序先报 kind",
+      "reason": "kind 写在 id 之前",
+      "manifest": {
+        "kind": "library",
+        "id": "bad"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.kind"
+        }
+      }
+    },
+    {
+      "name": "按文本顺序先报 id",
+      "reason": "id 写在 kind 之前",
+      "manifest": {
+        "id": "bad",
+        "kind": "library"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.id"
+        }
+      }
+    },
+    {
+      "name": "能力声明缺少版本",
+      "reason": "缺少的成员报完整路径",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "provides": [
+          {
+            "id": "orders.store"
+          }
+        ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.provides[0].version"
+        }
+      }
+    },
+    {
+      "name": "能力声明里先报写在前面的成员",
+      "reason": "按文本顺序",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "provides": [
+          {
+            "version": "x",
+            "id": "Bad"
+          }
+        ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.provides[0].version"
+        }
+      }
+    },
+    {
+      "name": "原语层版本超过 32 位",
+      "reason": "接口版本是 32 位有符号整数",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "2147483648",
+        "stability": "stable",
+        "kind": "capability"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.primitives"
+        }
+      }
+    },
+    {
+      "name": "原语层版本取 32 位上限",
+      "reason": "2147483647 合法，但 Validate 之前已读出",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "2147483647",
+        "stability": "stable",
+        "kind": "library"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.kind"
+        }
+      }
+    },
+    {
+      "name": "依赖的版本有两个 ^",
+      "reason": "至多一个 ^",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "requires": [
+          {
+            "id": "kernel.hosting",
+            "version": "^^1"
+          }
+        ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.requires[0].version"
+        }
+      }
+    },
+    {
+      "name": "依赖的版本带 ^ 且超过 32 位",
+      "reason": "接口版本是 32 位有符号整数",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "requires": [
+          {
+            "id": "kernel.hosting",
+            "version": "^2147483648"
+          }
+        ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.requires[0].version"
+        }
+      }
+    },
+    {
+      "name": "中间件名为空",
+      "reason": "middleware 至少一个字符",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "pipeline": [
+            {
+              "middleware": "",
+              "stage": "validate"
+            }
+          ]
+        }
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.contributes.pipeline[0].middleware"
+        }
+      }
+    },
+    {
+      "name": "阶段名大小写不对",
+      "reason": "阶段名只认小写",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "pipeline": [
+            {
+              "middleware": "m",
+              "stage": "Validate"
+            }
+          ]
+        }
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.contributes.pipeline[0].stage"
+        }
+      }
+    },
+    {
+      "name": "贡献的中间件缺少阶段",
+      "reason": "stage 必填",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "pipeline": [
+            {
+              "middleware": "m",
+              "before": [
+                "x"
+              ]
+            }
+          ]
+        }
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.contributes.pipeline[0].stage"
+        }
+      }
+    },
+    {
+      "name": "健康检查名不合文法",
+      "reason": "健康检查名是小写字母开头",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "health": [
+            "Bad"
+          ]
+        }
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.contributes.health[0]"
+        }
+      }
+    },
+    {
+      "name": "贡献的权限码重复",
+      "reason": "报第二次出现的位置",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "permissions": [
+            "orders.read",
+            "orders.write",
+            "orders.read"
+          ]
+        }
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.contributes.permissions[2]"
+        }
+      }
+    },
+    {
+      "name": "贡献的权限码不合文法",
+      "reason": "权限码是小写点分",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "permissions": [
+            "Orders"
+          ]
+        }
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.contributes.permissions[0]"
+        }
+      }
+    },
+    {
+      "name": "配置节缺少 section",
+      "reason": "section 必填",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "config": {
+            "schema": "{}"
+          }
+        }
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.contributes.config.section"
+        }
+      }
+    },
+    {
+      "name": "ID 结尾有换行",
+      "reason": "文法按整串匹配，结尾的换行不例外",
+      "manifest": {
+        "id": "xihan.orders.core\n",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.id"
+        }
+      }
+    },
+    {
+      "name": "权限里有换行",
+      "reason": ".+ 不匹配换行",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "plugin",
+        "isolation": "wasm",
+        "permissions": [
+          "net.outbound:a\nb"
+        ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.permissions[0]"
+        }
+      }
+    },
+    {
+      "name": "插件没有隔离又重复提供",
+      "reason": "跨字段约束按 Validate 的顺序，先报隔离",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "plugin",
+        "provides": [
+          {
+            "id": "orders.store",
+            "version": "1"
+          },
+          {
+            "id": "orders.store",
+            "version": "2"
+          }
+        ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "primitives.manifest.isolation_required",
+        "arguments": {
+          "id": "xihan.orders.core"
+        }
+      }
+    },
+    {
+      "name": "重复依赖同一能力",
+      "reason": "requires 不能重复",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "requires": [
+          {
+            "id": "kernel.hosting",
+            "version": "1"
+          },
+          {
+            "id": "kernel.hosting",
+            "version": "^1",
+            "optional": true
+          }
+        ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "primitives.manifest.duplicate_requires",
+        "arguments": {
+          "id": "xihan.orders.core"
+        }
+      }
+    },
+    {
+      "name": "重复的绑定名",
+      "reason": "bindings 的 name 不能重复",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "bindings": [
+          {
+            "name": "db",
+            "type": "queue"
+          },
+          {
+            "name": "db",
+            "type": "cache"
+          }
+        ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "primitives.manifest.duplicate_bindings",
+        "arguments": {
+          "id": "xihan.orders.core"
+        }
+      }
+    },
+    {
+      "name": "非插件声明了隔离",
+      "reason": "非插件不得声明 isolation",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "isolation": "wasm"
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "primitives.manifest.isolation_not_allowed",
+        "arguments": {
+          "id": "xihan.orders.core"
+        }
+      }
+    },
+    {
+      "name": "空文本",
+      "reason": "不是 JSON",
+      "text": "",
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid_json",
+        "arguments": {
+          "reason": "$"
+        }
+      }
+    },
+    {
+      "name": "截断的文本",
+      "reason": "不是 JSON",
+      "text": "{",
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid_json",
+        "arguments": {
+          "reason": "$"
+        }
+      }
+    },
+    {
+      "name": "开头有 BOM",
+      "reason": "Read 的文本不跳过 BOM（ReadFile 才跳过）",
+      "text": "\uFEFF{}",
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid_json",
+        "arguments": {
+          "reason": "$"
+        }
+      }
+    },
+    {
+      "name": "根是数字",
+      "reason": "清单是 JSON 对象",
+      "text": "5",
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$"
+        }
+      }
+    },
+    {
+      "name": "嵌套成员重复",
+      "reason": "报第一处重复的路径",
+      "text": "{\"id\":\"xihan.orders.core\",\"provides\":[{\"id\":\"orders.store\",\"id\":\"orders.other\",\"version\":\"1\"}]}",
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid_json",
+        "arguments": {
+          "reason": "$.provides[0].id"
+        }
+      }
+    },
+    {
+      "name": "重复之后有语法错误",
+      "reason": "语法错误优先",
+      "text": "{\"id\":\"a\",\"id\":\"b\",}",
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid_json",
+        "arguments": {
+          "reason": "$"
+        }
+      }
+    },
+    {
+      "name": "孤立的代理项转义",
+      "reason": "字符串不是合法的 Unicode",
+      "text": "{\"id\":\"\\ud800\"}",
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid_json",
+        "arguments": {
+          "reason": "$"
+        }
+      }
     }
   ]
 }

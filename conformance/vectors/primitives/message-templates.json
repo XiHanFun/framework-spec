@@ -1,5 +1,5 @@
 {
-  "$comment": "消息键文法与模板格式化（RFC-0010「消息键」「模板」，ADR-0233）。keys：合法与非法的消息键。format：lenient 是宽松格式化的结果，strict 是严格格式化的结果，null 表示严格格式化失败（有占位符缺值）；arguments 的 JSON 值按原类型交给格式化：整数、浮点、布尔、字符串、null；位置参数的名字是 \"0\"、\"1\"。SDK 按不变文化格式化。describe：Describe(key, arguments) 的结果，arguments 为 null 表示没有参数；多个参数按名字的序数顺序排列（ADR-0235）",
+  "$comment": "消息键文法与模板格式化（RFC-0010「消息键」「模板」，ADR-0233）。keys：合法与非法的消息键。format：lenient 是宽松格式化的结果，strict 是严格格式化的结果，null 表示严格格式化失败（有占位符缺值）；arguments 的 JSON 值按原类型交给格式化：整数、浮点、布尔、字符串、null；位置参数的名字是 \"0\"、\"1\"。SDK 按不变文化格式化。describe：Describe(key, arguments) 的结果，arguments 为 null 表示没有参数；多个参数按名字的序数顺序排列（ADR-0235）。format 可带 locale（区域名，不区分大小写）：按它取小数点与分组符（RFC-0010「模板」，ADR-0236），没有时按不变文化；参数可以是数组与对象，整数写法的数字在 64 位范围内是整数，其余是双精度浮点",
   "keys": {
     "valid": [
       "kernel.operation.unknown",
@@ -23,7 +23,8 @@
       "kernel.op-x",
       "kernel.op x",
       "kernel.opé",
-      "a.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      "a.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "orders.line.invalid\n"
     ]
   },
   "format": [
@@ -692,6 +693,589 @@
       },
       "lenient": "0.30000000000000004",
       "strict": "0.30000000000000004"
+    },
+    {
+      "name": "数组",
+      "template": "{v}",
+      "arguments": {
+        "v": [
+          1,
+          "a",
+          true,
+          null,
+          1.5
+        ]
+      },
+      "lenient": "[1,\"a\",true,null,1.5]",
+      "strict": "[1,\"a\",true,null,1.5]"
+    },
+    {
+      "name": "对象成员按名字排序",
+      "template": "{v}",
+      "arguments": {
+        "v": {
+          "b": 2,
+          "a": [
+            1,
+            {
+              "d": null,
+              "c": "x"
+            }
+          ]
+        }
+      },
+      "lenient": "{\"a\":[1,{\"c\":\"x\",\"d\":null}],\"b\":2}",
+      "strict": "{\"a\":[1,{\"c\":\"x\",\"d\":null}],\"b\":2}"
+    },
+    {
+      "name": "对象成员按 UTF-16 码元排序",
+      "template": "{v}",
+      "arguments": {
+        "v": {
+          "ｚ": 1,
+          "\uD83D\uDE00": 2,
+          "b": 3,
+          "B": 4,
+          "é": 5
+        }
+      },
+      "lenient": "{\"B\":4,\"b\":3,\"é\":5,\"\uD83D\uDE00\":2,\"ｚ\":1}",
+      "strict": "{\"B\":4,\"b\":3,\"é\":5,\"\uD83D\uDE00\":2,\"ｚ\":1}"
+    },
+    {
+      "name": "嵌套字符串的转义",
+      "template": "{v}",
+      "arguments": {
+        "v": [
+          "q\"b\\s/\n\t\b\f\r\u0001\u001F\u007F é 中 \u2028"
+        ]
+      },
+      "lenient": "[\"q\\\"b\\\\s/\\n\\t\\b\\f\\r\\u0001\\u001f\u007F é 中 \u2028\"]",
+      "strict": "[\"q\\\"b\\\\s/\\n\\t\\b\\f\\r\\u0001\\u001f\u007F é 中 \u2028\"]"
+    },
+    {
+      "name": "空数组与空对象",
+      "template": "{a}{b}",
+      "arguments": {
+        "a": [],
+        "b": {}
+      },
+      "lenient": "[]{}",
+      "strict": "[]{}"
+    },
+    {
+      "name": "数组不认格式说明符",
+      "template": "{v:F2}",
+      "arguments": {
+        "v": [
+          1.5
+        ]
+      },
+      "lenient": "[1.5]",
+      "strict": "[1.5]"
+    },
+    {
+      "name": "数组里的浮点",
+      "template": "{v}",
+      "arguments": {
+        "v": [
+          1e17,
+          -0.0,
+          2.0,
+          0.1
+        ]
+      },
+      "lenient": "[1E+17,-0,2,0.1]",
+      "strict": "[1E+17,-0,2,0.1]"
+    },
+    {
+      "name": "负零浮点",
+      "template": "{v}",
+      "arguments": {
+        "v": -0.0
+      },
+      "lenient": "-0",
+      "strict": "-0"
+    },
+    {
+      "name": "整数值的浮点",
+      "template": "{v} {v:D3}",
+      "arguments": {
+        "v": 2.0
+      },
+      "lenient": "2 2",
+      "strict": "2 2"
+    },
+    {
+      "name": "D 用在浮点上",
+      "template": "{v:D3}",
+      "arguments": {
+        "v": 2.5
+      },
+      "lenient": "2.5",
+      "strict": "2.5"
+    },
+    {
+      "name": "X 用在负数上",
+      "template": "{v:X}",
+      "arguments": {
+        "v": -1
+      },
+      "lenient": "-1",
+      "strict": "-1"
+    },
+    {
+      "name": "x 用在浮点上",
+      "template": "{v:x}",
+      "arguments": {
+        "v": 2.5
+      },
+      "lenient": "2.5",
+      "strict": "2.5"
+    },
+    {
+      "name": "精度超过两位",
+      "template": "{v:D100}",
+      "arguments": {
+        "v": 5
+      },
+      "lenient": "5",
+      "strict": "5"
+    },
+    {
+      "name": "浮点精度超过两位",
+      "template": "{v:F100}",
+      "arguments": {
+        "v": 0.1
+      },
+      "lenient": "0.1",
+      "strict": "0.1"
+    },
+    {
+      "name": "精度 99",
+      "template": "{v:F99}",
+      "arguments": {
+        "v": 0.1
+      },
+      "lenient": "0.100000000000000005551115123125782702118158340454101562500000000000000000000000000000000000000000000",
+      "strict": "0.100000000000000005551115123125782702118158340454101562500000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "前导零的精度",
+      "template": "{v:F02}",
+      "arguments": {
+        "v": 5
+      },
+      "lenient": "5.00",
+      "strict": "5.00"
+    },
+    {
+      "name": "E 不是可移植的说明符",
+      "template": "{v:E2}",
+      "arguments": {
+        "v": 1234.5
+      },
+      "lenient": "1234.5",
+      "strict": "1234.5"
+    },
+    {
+      "name": "G",
+      "template": "{v:G}",
+      "arguments": {
+        "v": 1234.5
+      },
+      "lenient": "1234.5",
+      "strict": "1234.5"
+    },
+    {
+      "name": "P",
+      "template": "{v:P}",
+      "arguments": {
+        "v": 0.5
+      },
+      "lenient": "0.5",
+      "strict": "0.5"
+    },
+    {
+      "name": "C",
+      "template": "{v:C}",
+      "arguments": {
+        "v": 5
+      },
+      "lenient": "5",
+      "strict": "5"
+    },
+    {
+      "name": "R",
+      "template": "{v:R}",
+      "arguments": {
+        "v": 0.1
+      },
+      "lenient": "0.1",
+      "strict": "0.1"
+    },
+    {
+      "name": "自定义数字格式",
+      "template": "{v:0.00}",
+      "arguments": {
+        "v": 5
+      },
+      "lenient": "5",
+      "strict": "5"
+    },
+    {
+      "name": "自定义分组格式",
+      "template": "{v:#,##0}",
+      "arguments": {
+        "v": 1234567
+      },
+      "lenient": "1234567",
+      "strict": "1234567"
+    },
+    {
+      "name": "日期格式",
+      "template": "{v:yyyy}",
+      "arguments": {
+        "v": 5
+      },
+      "lenient": "5",
+      "strict": "5"
+    },
+    {
+      "name": "说明符前有空格",
+      "template": "{v: F2}",
+      "arguments": {
+        "v": 5
+      },
+      "lenient": "5",
+      "strict": "5"
+    },
+    {
+      "name": "说明符后有空格",
+      "template": "{v:F2 }",
+      "arguments": {
+        "v": 5
+      },
+      "lenient": "5",
+      "strict": "5"
+    },
+    {
+      "name": "空说明符",
+      "template": "{v:}",
+      "arguments": {
+        "v": 5
+      },
+      "lenient": "5",
+      "strict": "5"
+    },
+    {
+      "name": "负精度",
+      "template": "{v:D-1}",
+      "arguments": {
+        "v": 5
+      },
+      "lenient": "5",
+      "strict": "5"
+    },
+    {
+      "name": "两个字母",
+      "template": "{v:FF}",
+      "arguments": {
+        "v": 5
+      },
+      "lenient": "5",
+      "strict": "5"
+    },
+    {
+      "name": "说明符用在布尔上",
+      "template": "{v:F2}",
+      "arguments": {
+        "v": true
+      },
+      "lenient": "true",
+      "strict": "true"
+    },
+    {
+      "name": "说明符用在字符串上",
+      "template": "{v:F2}",
+      "arguments": {
+        "v": "str"
+      },
+      "lenient": "str",
+      "strict": "str"
+    },
+    {
+      "name": "说明符用在 null 上",
+      "template": "{v:D2}",
+      "arguments": {
+        "v": null
+      },
+      "lenient": "",
+      "strict": ""
+    },
+    {
+      "name": "整数的 F",
+      "template": "{v:F2}",
+      "arguments": {
+        "v": 5
+      },
+      "lenient": "5.00",
+      "strict": "5.00"
+    },
+    {
+      "name": "整数的 N",
+      "template": "{v:N2}",
+      "arguments": {
+        "v": -1234567
+      },
+      "lenient": "-1,234,567.00",
+      "strict": "-1,234,567.00"
+    },
+    {
+      "name": "大浮点的 N0",
+      "template": "{v:N0}",
+      "arguments": {
+        "v": 1E+20
+      },
+      "lenient": "100,000,000,000,000,000,000",
+      "strict": "100,000,000,000,000,000,000"
+    },
+    {
+      "name": "64 位整数的上限",
+      "template": "{v}",
+      "arguments": {
+        "v": 9223372036854775807
+      },
+      "lenient": "9223372036854775807",
+      "strict": "9223372036854775807"
+    },
+    {
+      "name": "超出 64 位的整数是浮点",
+      "template": "{v}",
+      "arguments": {
+        "v": 9223372036854775808
+      },
+      "lenient": "9.223372036854776E+18",
+      "strict": "9.223372036854776E+18"
+    },
+    {
+      "name": "超出 64 位的负整数是浮点",
+      "template": "{v}",
+      "arguments": {
+        "v": -9223372036854775809
+      },
+      "lenient": "-9.223372036854776E+18",
+      "strict": "-9.223372036854776E+18"
+    },
+    {
+      "name": "超出 64 位的整数不认 D",
+      "template": "{v:D}",
+      "arguments": {
+        "v": 9223372036854775808
+      },
+      "lenient": "9.223372036854776E+18",
+      "strict": "9.223372036854776E+18"
+    },
+    {
+      "name": "最短往返",
+      "template": "{v}",
+      "arguments": {
+        "v": 0.30000000000000004
+      },
+      "lenient": "0.30000000000000004",
+      "strict": "0.30000000000000004"
+    },
+    {
+      "name": "de-DE 的浮点",
+      "template": "{v}",
+      "arguments": {
+        "v": -1234.5
+      },
+      "locale": "de-DE",
+      "lenient": "-1234,5",
+      "strict": "-1234,5"
+    },
+    {
+      "name": "de-DE 的 N2",
+      "template": "{v:N2}",
+      "arguments": {
+        "v": -1234.5
+      },
+      "locale": "de-DE",
+      "lenient": "-1.234,50",
+      "strict": "-1.234,50"
+    },
+    {
+      "name": "de-DE 的 F1",
+      "template": "{v:F1}",
+      "arguments": {
+        "v": -1234.5
+      },
+      "locale": "de-DE",
+      "lenient": "-1234,5",
+      "strict": "-1234,5"
+    },
+    {
+      "name": "de-DE 的整数不分组",
+      "template": "{v}",
+      "arguments": {
+        "v": 1234567
+      },
+      "locale": "de-DE",
+      "lenient": "1234567",
+      "strict": "1234567"
+    },
+    {
+      "name": "de-DE 的 D5",
+      "template": "{v:D5}",
+      "arguments": {
+        "v": 42
+      },
+      "locale": "de-DE",
+      "lenient": "00042",
+      "strict": "00042"
+    },
+    {
+      "name": "de-DE 的十六进制",
+      "template": "{v:x}",
+      "arguments": {
+        "v": 255
+      },
+      "locale": "de-DE",
+      "lenient": "ff",
+      "strict": "ff"
+    },
+    {
+      "name": "de-DE 的指数",
+      "template": "{v}",
+      "arguments": {
+        "v": 1.5E+20
+      },
+      "locale": "de-DE",
+      "lenient": "1,5E+20",
+      "strict": "1,5E+20"
+    },
+    {
+      "name": "de-DE 的数组仍按不变文化",
+      "template": "{v}",
+      "arguments": {
+        "v": [
+          1.5
+        ]
+      },
+      "locale": "de-DE",
+      "lenient": "[1.5]",
+      "strict": "[1.5]"
+    },
+    {
+      "name": "区域名不区分大小写",
+      "template": "{v:N2}",
+      "arguments": {
+        "v": 1234.5
+      },
+      "locale": "de-de",
+      "lenient": "1.234,50",
+      "strict": "1.234,50"
+    },
+    {
+      "name": "es-ES",
+      "template": "{v:N2}",
+      "arguments": {
+        "v": 1234567.5
+      },
+      "locale": "es-ES",
+      "lenient": "1.234.567,50",
+      "strict": "1.234.567,50"
+    },
+    {
+      "name": "pt-BR",
+      "template": "{v:N2}",
+      "arguments": {
+        "v": 1234567.5
+      },
+      "locale": "pt-BR",
+      "lenient": "1.234.567,50",
+      "strict": "1.234.567,50"
+    },
+    {
+      "name": "fr-FR 的分组符是 U+202F",
+      "template": "{v:N2}",
+      "arguments": {
+        "v": 1234567.5
+      },
+      "locale": "fr-FR",
+      "lenient": "1\u202F234\u202F567,50",
+      "strict": "1\u202F234\u202F567,50"
+    },
+    {
+      "name": "ru-RU 的分组符是 U+00A0",
+      "template": "{v:N2}",
+      "arguments": {
+        "v": 1234567.5
+      },
+      "locale": "ru-RU",
+      "lenient": "1\u00A0234\u00A0567,50",
+      "strict": "1\u00A0234\u00A0567,50"
+    },
+    {
+      "name": "en-US",
+      "template": "{v:N2} {v}",
+      "arguments": {
+        "v": 1234567.5
+      },
+      "locale": "en-US",
+      "lenient": "1,234,567.50 1234567.5",
+      "strict": "1,234,567.50 1234567.5"
+    },
+    {
+      "name": "zh-CN",
+      "template": "{v:N2}",
+      "arguments": {
+        "v": 1234567.5
+      },
+      "locale": "zh-CN",
+      "lenient": "1,234,567.50",
+      "strict": "1,234,567.50"
+    },
+    {
+      "name": "zh-TW",
+      "template": "{v:N2}",
+      "arguments": {
+        "v": 1234567.5
+      },
+      "locale": "zh-TW",
+      "lenient": "1,234,567.50",
+      "strict": "1,234,567.50"
+    },
+    {
+      "name": "ja-JP",
+      "template": "{v:N2}",
+      "arguments": {
+        "v": 1234567.5
+      },
+      "locale": "ja-JP",
+      "lenient": "1,234,567.50",
+      "strict": "1,234,567.50"
+    },
+    {
+      "name": "ko-KR",
+      "template": "{v:N2}",
+      "arguments": {
+        "v": 1234567.5
+      },
+      "locale": "ko-KR",
+      "lenient": "1,234,567.50",
+      "strict": "1,234,567.50"
+    },
+    {
+      "name": "表外的区域按不变文化",
+      "template": "{v:N2} {v}",
+      "arguments": {
+        "v": 1234567.5
+      },
+      "locale": "it-IT",
+      "lenient": "1,234,567.50 1234567.5",
+      "strict": "1,234,567.50 1234567.5"
     }
   ],
   "describe": [
@@ -764,6 +1348,20 @@
         "z": -0.0
       },
       "text": "orders.line.invalid (f=1E+17, z=-0)"
+    },
+    {
+      "key": "orders.line.invalid",
+      "arguments": {
+        "v": [
+          1,
+          "x"
+        ],
+        "m": {
+          "b": 1,
+          "a": null
+        }
+      },
+      "text": "orders.line.invalid (m={\"a\":null,\"b\":1}, v=[1,\"x\"])"
     }
   ]
 }

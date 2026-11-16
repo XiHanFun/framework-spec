@@ -1,8 +1,9 @@
 {
-  "$comment": "载荷不合法时 reason 的路径（RFC-0011 规则 2，ADR-0235），期望值由 .NET 参考实现（System.Text.Json）算出。两个请求类型各语言都能声明：counts 是成员值都为整数的对象（整数字典），order 是 { lines: [ { quantity: 整数 } ] }（成员名 camelCase）。payload 是原样的 JSON 文本，解码失败时错误为 KERNEL_VALIDATION_001 + kernel.operation.invalid_payload，参数 reason 必须等于期望值。syntaxErrors 是 JSON 语法错误：同样是 KERNEL_VALIDATION_001，reason 的具体路径不作规定，只要求以 $ 开头",
+  "$comment": "操作载荷的解码（RFC-0011 规则 2，ADR-0235、ADR-0236），期望值由 .NET 参考实现算出（默认读取选项：成员名区分大小写、数字不从字符串读、未知成员忽略）。payload 是原样的 JSON 文本（按 UTF-8 编码），空载荷等价于 {}。reason 为 null 表示解码成功；否则错误为 KERNEL_VALIDATION_001 + kernel.operation.invalid_payload，参数 reason 必须逐字相等：先过共同的 JSON 读取检查（primitives/json-text.json，语法错误写 $，重复成员写第一处重复的路径），再按请求类型解码，按文本顺序报第一处类型不符的路径，缺少必填成员在所在对象结束时报该对象的路径。requests 给出三个请求类型，各语言按自己的写法声明",
   "requests": {
-    "counts": "对象，成员值都是整数",
-    "order": "对象：lines 是数组，每项是对象，quantity 是整数"
+    "counts": "对象，成员值都是 32 位整数（整数字典）",
+    "order": "对象：lines 是可选的数组，每项是对象，quantity 是可选的 32 位整数",
+    "profile": "对象：name 是必填的字符串；note 是可选的字符串；count 是可选的 64 位整数；ratio 是可选的双精度浮点；flag 是可选的布尔；tags 是可选的字符串数组；scores 是可选的 64 位整数数组；inner 是可选的对象 { n: 必填的 64 位整数 }；meta 是可选的任意 JSON。字符串、数组、对象与任意 JSON 接受 null（等于没有值），整数、浮点、布尔与整数数组的项不接受 null；必填只要求成员出现，值为 null 也算出现"
   },
   "cases": [
     {
@@ -274,24 +275,360 @@
       "request": "order",
       "payload": "{\"lines\":[{\"quantity\":1.5}]}",
       "reason": "$.lines[0].quantity"
-    }
-  ],
-  "syntaxErrors": [
-    {
-      "request": "order",
-      "payload": "{\"lines\":[1,"
     },
     {
+      "name": "语法错误 1",
       "request": "order",
-      "payload": "{,}"
+      "payload": "{\"lines\":[1,",
+      "reason": "$"
     },
     {
+      "name": "语法错误 2",
       "request": "order",
-      "payload": "{\"lines\":[{\"quantity\":1}]"
+      "payload": "{,}",
+      "reason": "$"
     },
     {
+      "name": "语法错误 3",
+      "request": "order",
+      "payload": "{\"lines\":[{\"quantity\":1}]",
+      "reason": "$"
+    },
+    {
+      "name": "语法错误 4",
       "request": "counts",
-      "payload": "{\"a\":1}x"
+      "payload": "{\"a\":1}x",
+      "reason": "$"
+    },
+    {
+      "name": "必填成员缺少",
+      "request": "profile",
+      "payload": "{}",
+      "reason": "$"
+    },
+    {
+      "name": "只有必填成员",
+      "request": "profile",
+      "payload": "{\"name\":\"a\"}",
+      "reason": null
+    },
+    {
+      "name": "必填的字符串是 null",
+      "request": "profile",
+      "payload": "{\"name\":null}",
+      "reason": null
+    },
+    {
+      "name": "字符串给了数字",
+      "request": "profile",
+      "payload": "{\"name\":5}",
+      "reason": "$.name"
+    },
+    {
+      "name": "可选字符串是 null",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"note\":null}",
+      "reason": null
+    },
+    {
+      "name": "整数是 null",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"count\":null}",
+      "reason": "$.count"
+    },
+    {
+      "name": "整数写成 1.0",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"count\":1.0}",
+      "reason": "$.count"
+    },
+    {
+      "name": "整数写成指数",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"count\":1e2}",
+      "reason": "$.count"
+    },
+    {
+      "name": "64 位整数的上限",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"count\":9223372036854775807}",
+      "reason": null
+    },
+    {
+      "name": "64 位整数溢出",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"count\":9223372036854775808}",
+      "reason": "$.count"
+    },
+    {
+      "name": "64 位整数的下限",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"count\":-9223372036854775808}",
+      "reason": null
+    },
+    {
+      "name": "负零是整数 0",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"count\":-0}",
+      "reason": null
+    },
+    {
+      "name": "整数给了字符串",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"count\":\"5\"}",
+      "reason": "$.count"
+    },
+    {
+      "name": "浮点给了整数",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"ratio\":5}",
+      "reason": null
+    },
+    {
+      "name": "浮点上溢是无穷",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"ratio\":1e400}",
+      "reason": null
+    },
+    {
+      "name": "浮点下溢是 0",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"ratio\":1e-400}",
+      "reason": null
+    },
+    {
+      "name": "浮点是 null",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"ratio\":null}",
+      "reason": "$.ratio"
+    },
+    {
+      "name": "浮点给了字符串",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"ratio\":\"1.5\"}",
+      "reason": "$.ratio"
+    },
+    {
+      "name": "布尔给了 1",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"flag\":1}",
+      "reason": "$.flag"
+    },
+    {
+      "name": "布尔是 null",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"flag\":null}",
+      "reason": "$.flag"
+    },
+    {
+      "name": "布尔给了字符串",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"flag\":\"true\"}",
+      "reason": "$.flag"
+    },
+    {
+      "name": "字符串数组是 null",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"tags\":null}",
+      "reason": null
+    },
+    {
+      "name": "字符串数组里有 null",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"tags\":[\"x\",null]}",
+      "reason": null
+    },
+    {
+      "name": "字符串数组里有数字",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"tags\":[\"x\",1]}",
+      "reason": "$.tags[1]"
+    },
+    {
+      "name": "数组给了字符串",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"tags\":\"x\"}",
+      "reason": "$.tags"
+    },
+    {
+      "name": "整数数组里有 null",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"scores\":[1,null]}",
+      "reason": "$.scores[1]"
+    },
+    {
+      "name": "整数数组里有小数",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"scores\":[1,2.5]}",
+      "reason": "$.scores[1]"
+    },
+    {
+      "name": "对象是 null",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"inner\":null}",
+      "reason": null
+    },
+    {
+      "name": "嵌套对象缺必填成员",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"inner\":{}}",
+      "reason": "$.inner"
+    },
+    {
+      "name": "嵌套对象的值不符",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"inner\":{\"n\":\"x\"}}",
+      "reason": "$.inner.n"
+    },
+    {
+      "name": "对象给了数组",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"inner\":[]}",
+      "reason": "$.inner"
+    },
+    {
+      "name": "任意 JSON",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"meta\":{\"x\":[1,{\"y\":null}]}}",
+      "reason": null
+    },
+    {
+      "name": "任意 JSON 是 null",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"meta\":null}",
+      "reason": null
+    },
+    {
+      "name": "成员名区分大小写",
+      "request": "profile",
+      "payload": "{\"Name\":\"a\"}",
+      "reason": "$"
+    },
+    {
+      "name": "未知成员忽略",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"extra\":{\"deep\":[1,2]}}",
+      "reason": null
+    },
+    {
+      "name": "类型不符先于缺少成员",
+      "request": "profile",
+      "payload": "{\"count\":\"x\"}",
+      "reason": "$.count"
+    },
+    {
+      "name": "嵌套对象先结束",
+      "request": "profile",
+      "payload": "{\"inner\":{},\"count\":\"x\"}",
+      "reason": "$.inner"
+    },
+    {
+      "name": "缺少成员在对象结束时报",
+      "request": "profile",
+      "payload": "{\"count\":1}",
+      "reason": "$"
+    },
+    {
+      "name": "重复的必填成员",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"name\":\"b\"}",
+      "reason": "$.name"
+    },
+    {
+      "name": "嵌套对象里重复",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"inner\":{\"n\":1,\"n\":2}}",
+      "reason": "$.inner.n"
+    },
+    {
+      "name": "未知成员里重复",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"x\":{\"k\":1,\"k\":2}}",
+      "reason": "$.x.k"
+    },
+    {
+      "name": "任意 JSON 里重复",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"meta\":{\"k\":1,\"k\":2}}",
+      "reason": "$.meta.k"
+    },
+    {
+      "name": "转义后同名",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"n\\u0061me\":\"b\"}",
+      "reason": "$.name"
+    },
+    {
+      "name": "重复先于后面的类型不符",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"name\":\"b\",\"count\":\"x\"}",
+      "reason": "$.name"
+    },
+    {
+      "name": "重复先于前面的类型不符",
+      "request": "profile",
+      "payload": "{\"count\":\"x\",\"name\":\"a\",\"name\":\"b\"}",
+      "reason": "$.name"
+    },
+    {
+      "name": "重复之后有语法错误",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"name\":\"b\",}",
+      "reason": "$"
+    },
+    {
+      "name": "数组项里重复",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"meta\":[{\"k\":1},{\"k\":1,\"k\":2}]}",
+      "reason": "$.meta[1].k"
+    },
+    {
+      "name": "要用方括号的成员名重复",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"meta\":{\"a b\":1,\"a b\":2}}",
+      "reason": "$.meta['a b']"
+    },
+    {
+      "name": "未知成员里的孤立代理项",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"x\":\"\\ud800\"}",
+      "reason": "$"
+    },
+    {
+      "name": "成员名里的孤立代理项",
+      "request": "profile",
+      "payload": "{\"name\":\"\\udc00\"}",
+      "reason": "$"
+    },
+    {
+      "name": "嵌套 64 层",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"meta\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}",
+      "reason": null
+    },
+    {
+      "name": "嵌套 65 层",
+      "request": "profile",
+      "payload": "{\"name\":\"a\",\"meta\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}",
+      "reason": "$"
+    },
+    {
+      "name": "BOM",
+      "request": "profile",
+      "payload": "\uFEFF{\"name\":\"a\"}",
+      "reason": "$"
+    },
+    {
+      "name": "空载荷等价于空对象",
+      "request": "profile",
+      "payload": "",
+      "reason": "$"
+    },
+    {
+      "name": "只有空白",
+      "request": "profile",
+      "payload": "  ",
+      "reason": "$"
     }
   ]
 }

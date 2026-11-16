@@ -1,6 +1,6 @@
 # RFC-0002 清单
 
-> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务；2026-11-01 修订：配置节可带子节；2026-11-01 修订：手写清单，`[Capability]` 生成器顺延；2026-11-01 修订：插件声明的权限码由宿主登记；2026-11-01 修订：选中区分被要求与兜底选出；2026-11-01 修订：插件里只有 Wasm 插件能贡献中间件，其他隔离级别写了 `contributes.pipeline` 在发现时被拒；2026-11-04 修订：探针抛出时 `reason` 只写异常类型；2026-11-16 修订：读取清单时成员名区分大小写、不收 `null`，接口版本只在依赖里带 `^`；同日再修订：.NET 的读取改为严格、重复成员与空 `activation` 不合法、写出的清单可再读） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点、配置节的子节、生成器顺延）、0080（插件声明的权限码）、0082（被要求的选中）、0092（插件的中间件贡献）、0115、0233（读取的严格性）、0235 | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
+> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务；2026-11-01 修订：配置节可带子节；2026-11-01 修订：手写清单，`[Capability]` 生成器顺延；2026-11-01 修订：插件声明的权限码由宿主登记；2026-11-01 修订：选中区分被要求与兜底选出；2026-11-01 修订：插件里只有 Wasm 插件能贡献中间件，其他隔离级别写了 `contributes.pipeline` 在发现时被拒；2026-11-04 修订：探针抛出时 `reason` 只写异常类型；2026-11-16 修订：读取清单时成员名区分大小写、不收 `null`，接口版本只在依赖里带 `^`；同日再修订：.NET 的读取改为严格、重复成员与空 `activation` 不合法、写出的清单可再读；同日第三次修订：读取的检查顺序、错误的参数与写出的排版） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点、配置节的子节、生成器顺延）、0080（插件声明的权限码）、0082（被要求的选中）、0092（插件的中间件贡献）、0115、0233（读取的严格性）、0235、0236 | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor`
 
 ## 摘要
 
@@ -29,19 +29,41 @@
 ## 解析规则
 
 1. 收集：引用的程序集内嵌清单 + 插件目录中的清单文件。
-2. 校验：Schema、`primitives` 与当前原语层大版本相同、`id` 唯一。读取按 Schema 逐字执行，各语言一致（2026-11-16 写明，ADR-0233）：
-   - 成员名区分大小写，`"ID"` 不是 `"id"`；Schema 不允许额外成员，大小写不对的成员就是额外成员。
-   - 可选成员缺失表示没有，写成 `null` 不合法。
-   - 接口版本（`primitives`、`provides[].version`、`requires[].version`）是十进制数字字符串；只有 `requires[].version` 可以带 `^`（RFC-0001「清单」）。
-   - `contributes.operations` 的每一项符合操作 ID 文法（RFC-0011）。
-   - 同一层出现重复的成员名不合法；`activation` 至少一项，空数组不合法，缺省才是 `["onStartup"]`（2026-11-16 写明，ADR-0235）。
-   - .NET 的 `ManifestReader` 按这几条读取（2026-11-16 修订，ADR-0235）。以前它的成员名不区分大小写、忽略未知成员、把 `null` 当缺失、读取时不校验操作 ID，与 Schema 不符；这样写错的清单现在在读取时就失败，返回 `KERNEL_CAPABILITY_006` + `kernel.manifest.invalid`（不是 JSON 时 `kernel.manifest.invalid_json`）。
-   - 写出的清单（.NET 的 `ManifestReader.Write`、Go 的 `manifest.Write` 等）再读一遍得到同一份清单；缺省值写不写出、成员顺序与缩进不作规定。宿主核对插件握手里的清单按字段比较，不比较文本。
+2. 校验：`primitives` 与当前原语层大版本相同、`id` 唯一。读取按下面的顺序逐项执行，每一步只报第一处问题，各语言报出同一个错误（2026-11-16 修订，ADR-0233、ADR-0235、ADR-0236）；错误码都是 `KERNEL_CAPABILITY_006`：
+   1. JSON 文本：过 RFC-0001「JSON 文本」的共同检查。不是 JSON 时为 `kernel.manifest.invalid_json`，`reason` 为 `$`；任何一层有重复成员时同一个键，`reason` 为第一处重复的路径。`Read` 按原样检查文本，开头的 BOM 是语法错误；`ReadFile` 按 UTF-8 读文件、跳过开头的 UTF-8 BOM，不是合法 UTF-8 时同样是 `invalid_json`，文件不存在为 `kernel.manifest.file_missing`（参数 `path`）。
+   2. 根是字面量 `null`：`kernel.manifest.empty`，没有参数。
+   3. 形状：按 Schema 逐项核对，第一处问题为 `kernel.manifest.invalid`，`reason` 是该处的路径，写法同 RFC-0011 规则 2；根不是对象时为 `$`。
+      - 对象的成员按在文本里出现的顺序核对，每个成员依次查：Schema 之外的成员（成员名区分大小写，`"ID"` 不是 `"id"`）→ `null`（可选成员缺失表示没有，写成 `null` 不合法，数组项同样）→ 类型 → 取值，对象与数组进到里面再查，数组项按下标顺序。
+      - 一个对象的成员都查完后，按 Schema 里 `required` 的顺序查缺少的成员，路径是缺少的成员本身，如 `$.provides[0].version`。
+      - 文法照 Schema 的 `pattern` 按整串匹配（RFC-0001「文法的匹配」）；枚举只认小写名，区分大小写。
+      - 接口版本（`primitives`、`provides[].version`、`requires[].version`）是不带前导零的十进制正整数，不超过 2147483647；只有 `requires[].version` 可以带一个 `^`（RFC-0001「清单」）。
+      - `contributes.pipeline[].middleware` 至少一个字符，`stage` 是 11 个阶段的小写名之一；`contributes.health[]` 符合 `^[a-z][a-z0-9.-]*$`；`contributes.operations[]` 符合操作 ID 文法（RFC-0011）。
+      - `activation` 至少一项，空数组不合法，缺省才是 `["onStartup"]`。
+      - `contributes.permissions` 的项不得重复，路径是第二次出现的项；`provides` 与 `requires` 的重复交给下一步。
+   4. 跨字段约束（`Manifest.Validate`），按这个顺序：插件没有 `isolation` 为 `primitives.manifest.isolation_required`；非插件写了 `isolation` 或 `permissions` 为 `primitives.manifest.isolation_not_allowed`；`provides` 的能力 ID 重复为 `primitives.manifest.duplicate_provides`；`requires` 的能力 ID 重复为 `primitives.manifest.duplicate_requires`；`bindings` 的名字重复为 `primitives.manifest.duplicate_bindings`。参数都只有 `id`（清单 ID）。
+   - 以前（ADR-0235）`reason` 是 .NET 解析器或参数异常的英文消息，各语言写不出同样的文本；`contributes.health` 的文法与中间件名非空 .NET 也没有核对，Schema 里中间件名没有写 `minLength`。
+   - 写出见下文「写出」。宿主核对插件握手里的清单按字段比较，不比较文本。
 3. 求解：按能力 ID 与版本范围求解；同一能力多个候选时，`XiHan:Providers:<能力ID>` 指定 → 唯一的 `role: provider` 候选 → 唯一的 `role: default` 候选 → 否则失败并列出候选（`KERNEL_CAPABILITY_004`）。没有被任何人依赖的能力按同一规则选出提供者。
 4. 选中结果回填到节点：每个节点知道自己被选中提供哪些能力（`SelectedCapabilities`），只为被选中的能力注册服务与中间件；声明了能力却一个都没被选中的节点（被顶替的 default）不装配、不启动，图里标为 `shadowed`。特性另有与能力选择无关的服务（如对象存储的命名实例 Provider，RFC-0012）时实现 `IShadowAwareFeature`：被顶替时内核在同一位置改调它的 `ConfigureShadowed`，只登记那些服务——不注册能力契约，不贡献中间件、操作与权限码，不校验必需绑定，也不启动。节点还知道每项选中是不是被要求的（`IsRequestedFor`，2026-11-01 修订，ADR-0082）：有清单依赖这项能力（必需或可选，且解析到了提供者），或 `XiHan:Providers:<能力ID>` / 代码的 `UseProvider` 指定了提供者，就是被要求的；没人依赖、也没人指定，只按上一条末句选出的，是兜底选出。兜底选出照样算选中（`SelectedCapabilities`、图谱不变），特性可以据此只为被要求的能力承担跨能力的一致性约束（如 RFC-0012 缺省存储的同一存储规则）。
 4. 排序：拓扑排序；循环报 `KERNEL_CAPABILITY_002`，缺失报 `KERNEL_CAPABILITY_001`，版本冲突报 `KERNEL_CAPABILITY_003`，报错必须列出冲突双方。
 5. 可选依赖缺失不阻止启动，对应特性进入 `Degraded`。
 6. 输出已解析图；`xihan graph` 与启动日志打印同一份。
+
+## 写出
+
+`ManifestReader.Write`（各语言同名的写出函数）的排版是规范的一部分，各语言逐字相同（2026-11-16 修订，ADR-0236）。以前只要求再读得到同一份清单：.NET 在 Windows 上写出 CRLF，并按 System.Text.Json 的缺省编码把非 ASCII 字符与 `"`、`+` 写成 `\uXXXX`。
+
+- 两个空格缩进，换行只用 LF，末尾不换行；成员名与值之间是 `: `。
+- 空数组写 `[]`，非空数组每项一行。
+- 成员按下面的顺序。带 `?` 的没有值时不写，其余总写：
+  - `$schema`（固定为 `https://spec.xihanfun.com/manifest/v1.json`）、`id`、`package?`、`version`、`primitives`、`stability`、`kind`、`role`（缺省写 `provider`）、`isolation?`。
+  - `provides`（每项 `id`、`version`）、`requires`（每项 `id`、`version`、`optional`）、`bindings`（每项 `name`、`type`、`required`）。
+  - `contributes`：`pipeline`（每项 `middleware`、`stage`、`before`、`after`）、`operations`、`config?`（`section`、`schema?`）、`permissions`、`health`。
+  - `activation`（缺省写 `["onStartup"]`）、`permissions`、`entry?`。
+- 接口版本写成不带 `^` 的十进制文本，枚举写小写名。
+- 字符串按 RFC-0010「模板」的 JSON 字符串写法转义：只转义 `"`、`\`、控制字符与孤立的代理项。
+
+向量 `conformance/vectors/manifest/manifests.json`：合法清单的 `written` 是读出后再写出的全文，不合法清单的 `error` 是逐字的错误码、消息键与参数。
 
 ## 配置节
 

@@ -1,5 +1,5 @@
 {
-  "$comment": "错误码格式 <领域大写>_<KIND>_<NNN>；见 spec/conventions/error-codes.md",
+  "$comment": "错误码格式 <领域大写>_<KIND>_<NNN>；见 spec/conventions/error-codes.md。文法按整串匹配，结尾的换行不例外（ADR-0236）",
   "valid": [
     "PERSISTENCE_CONFLICT_001",
     "SECURITY_DENIED_003",
@@ -19,6 +19,8 @@
     "_CONFLICT_001",
     "PERSISTENCE__001",
     "PERSISTENCE_CONFLICT_001_EXTRA",
-    "1PERSISTENCE_CONFLICT_001"
+    "1PERSISTENCE_CONFLICT_001",
+    "PERSISTENCE_CONFLICT_001\n",
+    " PERSISTENCE_CONFLICT_001"
   ]
 }

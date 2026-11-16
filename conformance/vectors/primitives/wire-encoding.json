@@ -1,5 +1,5 @@
 {
-  "$comment": "Result 与 Error 的线上编码（RFC-0001「Result」，ADR-0233）。valid 的每项必须读得出，再写出时按 JSON 值等于 canonical（没有 canonical 时等于 json）；invalid 的每项必须被拒绝。results 的 kind：value 是有值结果，值是任意非 null 的 JSON；unit 是无值结果；maybe 是值类型为 Maybe 的结果，null 即无值。比较按 JSON 值，不比较成员顺序与空白。duplicates 是同一层有重复成员名的原文（JSON 值表达不了重复），必须被拒绝；target 是 result（带 kind）或 error",
+  "$comment": "Result 与 Error 的线上编码（RFC-0001「Result」，ADR-0233）。valid 的每项必须读得出，再写出时按 JSON 值等于 canonical（没有 canonical 时等于 json）；invalid 的每项必须被拒绝。results 的 kind：value 是有值结果，值是任意非 null 的 JSON；unit 是无值结果；maybe 是值类型为 Maybe 的结果，null 即无值。比较按 JSON 值，不比较成员顺序与空白。duplicates 是同一层有重复成员名的原文（JSON 值表达不了重复），必须被拒绝；target 是 result（带 kind）或 error。重复成员在任何一层都不合法，含 value 与 details 的内部（ADR-0236，共同的 JSON 读取检查见 json-text.json）。数字按值模型比较（RFC-0010「模板」，ADR-0236）：64 位范围内整数写法的数字是整数，要精确相等（9007199254740993 不等于 9007199254740992）；其余是双精度浮点，按值相等；整数与浮点不相等，所以 2.0 与 -0.0 读写之后仍是浮点",
   "results": {
     "valid": [
       {
@@ -135,6 +135,29 @@
         },
         "canonical": {
           "ok": true
+        }
+      },
+      {
+        "name": "超出双精度的整数原样往返",
+        "kind": "value",
+        "json": {
+          "ok": true,
+          "value": {
+            "n": 9007199254740993,
+            "m": -9223372036854775808
+          }
+        }
+      },
+      {
+        "name": "值里整数值的浮点",
+        "kind": "value",
+        "json": {
+          "ok": true,
+          "value": [
+            2.0,
+            -0.0,
+            2
+          ]
         }
       }
     ],
@@ -355,6 +378,29 @@
           "message": "The invocation exceeded its deadline.",
           "messageKey": "kernel.invocation.deadline_exceeded"
         }
+      },
+      {
+        "name": "细节里超出双精度的整数",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "x",
+          "details": {
+            "n": 9007199254740993
+          }
+        }
+      },
+      {
+        "name": "细节里整数值的浮点",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "x",
+          "details": {
+            "f": 2.0,
+            "z": -0.0,
+            "e": 1e+17,
+            "n": 2
+          }
+        }
       }
     ],
     "invalid": [
@@ -501,6 +547,28 @@
       "name": "内部错误里的重复成员",
       "target": "error",
       "text": "{\"code\":\"KERNEL_UNEXPECTED_001\",\"message\":\"x\",\"inner\":{\"code\":\"KERNEL_UNEXPECTED_001\",\"message\":\"a\",\"message\":\"b\"}}"
+    },
+    {
+      "name": "值里的重复成员",
+      "target": "result",
+      "kind": "value",
+      "text": "{\"ok\":true,\"value\":{\"a\":1,\"a\":2}}"
+    },
+    {
+      "name": "值里数组项的重复成员",
+      "target": "result",
+      "kind": "value",
+      "text": "{\"ok\":true,\"value\":[{\"a\":1},{\"b\":1,\"b\":2}]}"
+    },
+    {
+      "name": "细节里的重复成员",
+      "target": "error",
+      "text": "{\"code\":\"KERNEL_UNEXPECTED_001\",\"message\":\"x\",\"details\":{\"a\":{\"b\":1,\"b\":2}}}"
+    },
+    {
+      "name": "内部错误细节里的重复成员",
+      "target": "error",
+      "text": "{\"code\":\"KERNEL_UNEXPECTED_001\",\"message\":\"x\",\"inner\":{\"code\":\"KERNEL_UNEXPECTED_001\",\"message\":\"y\",\"details\":{\"n\":1,\"n\":2}}}"
     }
   ]
 }

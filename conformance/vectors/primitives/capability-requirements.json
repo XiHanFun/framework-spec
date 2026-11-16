@@ -1,11 +1,42 @@
 {
-  "$comment": "能力依赖文本 <能力ID>@[^]<版本>[?]；见 spec/conventions/capability-ids.md",
+  "$comment": "能力依赖文本 <能力ID>@[^]<版本>[?]；见 spec/conventions/capability-ids.md。版本是不带前导零、符号与空白的正整数，在 32 位有符号整数范围内；文法按整串匹配，结尾的换行不例外（ADR-0236）",
   "valid": [
-    { "input": "kernel.hosting@1", "id": "kernel.hosting", "version": 1, "optional": false },
-    { "input": "kernel.hosting@^1", "id": "kernel.hosting", "version": 1, "optional": false },
-    { "input": "multitenancy.context@^1?", "id": "multitenancy.context", "version": 1, "optional": true },
-    { "input": "persistence.relational@2?", "id": "persistence.relational", "version": 2, "optional": true },
-    { "input": "ai.tools@12", "id": "ai.tools", "version": 12, "optional": false }
+    {
+      "input": "kernel.hosting@1",
+      "id": "kernel.hosting",
+      "version": 1,
+      "optional": false
+    },
+    {
+      "input": "kernel.hosting@^1",
+      "id": "kernel.hosting",
+      "version": 1,
+      "optional": false
+    },
+    {
+      "input": "multitenancy.context@^1?",
+      "id": "multitenancy.context",
+      "version": 1,
+      "optional": true
+    },
+    {
+      "input": "persistence.relational@2?",
+      "id": "persistence.relational",
+      "version": 2,
+      "optional": true
+    },
+    {
+      "input": "ai.tools@12",
+      "id": "ai.tools",
+      "version": 12,
+      "optional": false
+    },
+    {
+      "input": "kernel.hosting@2147483647",
+      "id": "kernel.hosting",
+      "version": 2147483647,
+      "optional": false
+    }
   ],
   "invalid": [
     "",
@@ -18,6 +49,13 @@
     "Kernel.Hosting@1",
     "kernel@1",
     "kernel.hosting@1??",
-    "kernel.hosting@-1"
+    "kernel.hosting@-1",
+    "kernel.hosting@1\n",
+    "kernel.hosting@01",
+    "kernel.hosting@^01",
+    "kernel.hosting@2147483648",
+    "kernel.hosting@+1",
+    " kernel.hosting@1",
+    "kernel.hosting\n@1"
   ]
 }
