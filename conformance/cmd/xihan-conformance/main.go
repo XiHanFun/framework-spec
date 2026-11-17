@@ -160,6 +160,7 @@ func runVectors(args []string) int {
 		{"plugin/deadlines.json", func() error { _, err := conformance.Deadlines(); return err }},
 		{"plugin/plugin-messages.json", func() error { _, err := conformance.PluginMessages(); return err }},
 		{"plugin/callback-status.json", func() error { _, err := conformance.CallbackStatus(); return err }},
+		{"plugin/error-reading.json", func() error { _, err := conformance.ErrorReading(); return err }},
 		{"plugin/protocol-versions.json", func() error { _, err := conformance.ProtocolVersions(); return err }},
 		{"plugin/wasm-exports.json", func() error { _, err := conformance.WasmExports(); return err }},
 		{"primitives/error-codes.json", func() error { _, err := conformance.ErrorCodes(); return err }},

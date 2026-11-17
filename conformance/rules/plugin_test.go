@@ -224,6 +224,121 @@ func endpointsOf(entries []conformance.HostEndpoint) []rules.Endpoint {
 	return endpoints
 }
 
+func TestErrorReadingFollowsTheVectors(t *testing.T) {
+	vectors, err := conformance.ErrorReading()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rules.IsManifestID(vectors.PluginID) {
+		t.Fatalf("plugin %q must be a manifest ID", vectors.PluginID)
+	}
+	for _, c := range vectors.Cases {
+		decoded := rules.ReadProtoError(protoError(c.Error), vectors.PluginID)
+		compareDecoded(t, c.Name, &decoded, &c.Expected)
+	}
+	for _, c := range vectors.StatusWithoutError {
+		phase := c.Phase
+		if c.Reader == rules.ReaderPlugin {
+			operation := ""
+			if c.Operation != nil {
+				operation = *c.Operation
+			}
+			phase = rules.CallbackPhase(c.RPC, operation)
+		}
+		name := c.Reader + " " + phase
+		compareDecoded(t, name, rules.ReadProtoStatus(false, nil, c.Reader, phase, vectors.PluginID), &c.Expected)
+		// 带着 error 时按 error 读，ok 为真时没有错误
+		if got := rules.ReadProtoStatus(true, nil, c.Reader, phase, vectors.PluginID); got != nil {
+			t.Errorf("%s: an ok status must read as no error, got %+v", name, got)
+		}
+		withError := rules.ReadProtoStatus(false, &rules.ProtoError{Code: "ORDERS_VALIDATION_001", Text: "boom"}, c.Reader, phase, vectors.PluginID)
+		if withError == nil || withError.Code != "ORDERS_VALIDATION_001" || withError.Text != "boom" {
+			t.Errorf("%s: a failed status with an error must read the error, got %+v", name, withError)
+		}
+	}
+}
+
+func TestDetailsFollowTheValueModel(t *testing.T) {
+	// 64 位范围内整数写法的数是 int64，其余的数（含带小数点或指数的整数值、超出 64 位的整数、下溢）是 float64
+	details := rules.ReadDetails(`{"a":1,"b":1.0,"c":1e2,"d":9223372036854775807,"e":9223372036854775808,"f":-0,"g":1e-400,"h":[1,{"i":2.5}],"j":null,"k":true,"l":"x"}`)
+	want := map[string]any{
+		"a": int64(1), "b": 1.0, "c": 100.0, "d": int64(9223372036854775807), "e": 9223372036854775808.0, "f": int64(0), "g": 0.0,
+		"h": []any{int64(1), map[string]any{"i": 2.5}}, "j": nil, "k": true, "l": "x",
+	}
+	if !reflect.DeepEqual(details, want) {
+		t.Errorf("details = %#v, want %#v", details, want)
+	}
+	for _, text := range []string{"", " ", "{} x", `{"a":1e309}`, `{"a":[-1e309]}`, "[]", `"x"`} {
+		if details := rules.ReadDetails(text); details != nil {
+			t.Errorf("%q must read as no details, got %v", text, details)
+		}
+	}
+	if details := rules.ReadDetails(" {} "); details == nil || len(details) != 0 {
+		t.Errorf("an empty object is an empty set of details, got %#v", details)
+	}
+}
+
+// protoError 把向量里的线上 Error 换成规则包的类型。
+func protoError(wire conformance.ProtoError) rules.ProtoError {
+	converted := rules.ProtoError{Code: wire.Code, MessageKey: wire.MessageKey, Text: wire.Text, Details: wire.Details}
+	if wire.Inner != nil {
+		inner := protoError(*wire.Inner)
+		converted.Inner = &inner
+	}
+	return converted
+}
+
+// compareDecoded 按 JSON 值比较读入的错误与期望：键与文案的 null 即空，细节的数字按 JSON 数值比较。
+func compareDecoded(t *testing.T, name string, got *rules.DecodedError, want *conformance.DecodedErrorExpectation) {
+	t.Helper()
+	gotText, _ := json.Marshal(decodedJSON(got))
+	wantText, _ := json.Marshal(expectedJSON(t, want))
+	var gotValue, wantValue any
+	_ = json.Unmarshal(gotText, &gotValue)
+	_ = json.Unmarshal(wantText, &wantValue)
+	if !reflect.DeepEqual(gotValue, wantValue) {
+		t.Errorf("%s: read as %s, want %s", name, gotText, wantText)
+	}
+}
+
+// decodedJSON 把读入的错误写成与向量同形的 JSON 值。
+func decodedJSON(decoded *rules.DecodedError) any {
+	if decoded == nil {
+		return nil
+	}
+	value := map[string]any{"code": decoded.Code, "key": nil, "text": nil, "details": nil, "inner": decodedJSON(decoded.Inner)}
+	if decoded.Key != "" {
+		value["key"] = decoded.Key
+	}
+	if decoded.Text != "" {
+		value["text"] = decoded.Text
+	}
+	if decoded.Details != nil {
+		value["details"] = decoded.Details
+	}
+	return value
+}
+
+// expectedJSON 把向量里期望的错误写成 JSON 值。
+func expectedJSON(t *testing.T, expected *conformance.DecodedErrorExpectation) any {
+	t.Helper()
+	if expected == nil {
+		return nil
+	}
+	var details any
+	if err := json.Unmarshal(expected.Details, &details); err != nil {
+		t.Fatalf("expected details %s: %v", expected.Details, err)
+	}
+	value := map[string]any{"code": expected.Code, "key": nil, "text": nil, "details": details, "inner": expectedJSON(t, expected.Inner)}
+	if expected.Key != nil {
+		value["key"] = *expected.Key
+	}
+	if expected.Text != nil {
+		value["text"] = *expected.Text
+	}
+	return value
+}
+
 // mustTime 读向量里 RFC 3339 写法的 UTC 时刻。
 func mustTime(t *testing.T, text string) time.Time {
 	t.Helper()

@@ -49,7 +49,7 @@
 
 ## 一致性
 
-- 数据向量：`conformance/vectors/plugin/handshake-lines.json`（握手行文法）、`protocol-versions.json`（版本协商）、`host-addresses.json`（回调端点列表与选择）、`deadlines.json`（`deadline` 的读法与生效的截止时间）、`plugin-messages.json`（运行时的消息键）、`callback-status.json`（插件一侧回调失败的映射）。
+- 数据向量：`conformance/vectors/plugin/handshake-lines.json`（握手行文法）、`protocol-versions.json`（版本协商）、`host-addresses.json`（回调端点列表与选择）、`deadlines.json`（`deadline` 的读法与生效的截止时间）、`plugin-messages.json`（运行时的消息键）、`callback-status.json`（插件一侧回调失败的映射）、`error-reading.json`（读入对方写来的 `Error`）。
 - gRPC 黑盒套件（P4-04）：`XiHan.Framework.Plugins.Conformance` 的 `PluginProtocolConformance`，以本 RFC 的三份规范性文本为用例来源，对任何语言的插件实现做一致性测试；远程 Provider 的套件随各子系统的 Conformance 包。
 
 ## 与 .NET 的映射（P4-02）

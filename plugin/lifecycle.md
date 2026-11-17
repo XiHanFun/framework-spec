@@ -86,14 +86,14 @@
 
 ### 7.3 启动与就绪
 
-启动回调返回成功后插件进入 `Started`；有健康回调时立即求一次（§7.4），按结果进入 `Ready`、`Degraded` 或 `Failed`，没有健康回调即进入 `Ready`；然后才应答 `StartResponse`（`ok`）。所以 `Start` 应答之后的状态是 `Ready`、`Degraded` 或 `Failed`。启动回调返回失败或抛出：规则同 §7.2（`phase` 为 `start`），插件进入 `Failed`。
+启动回调返回成功后插件进入 `Started`；有健康回调时立即求一次（§7.4），按结果进入 `Ready`、`Degraded` 或 `Failed`（回调报其他状态的按 `Ready`，回调抛出的按 `Degraded`），没有健康回调即进入 `Ready`；然后才应答 `StartResponse`（`ok`）。所以 `Start` 应答之后的状态是 `Ready`、`Degraded` 或 `Failed`。启动回调返回失败或抛出：规则同 §7.2（`phase` 为 `start`），插件进入 `Failed`。
 
 只有 `Ready` 与 `Degraded` 是可服务的状态：其余状态下到达的调用与投递以 `PLUGINS_UNAVAILABLE_001` + `plugins.process.unavailable` 失败（`state` 是插件此刻的状态名，如 `Configured`、`Draining`、`Failed`）。
 
 ### 7.4 健康
 
 - `Health` 与 `WatchHealth` 任何状态都可以调用。`Start` 之前报本地状态（`Declared`、`Resolved` 或 `Configured`），没有健康项、不调健康回调；`Started` 之后照实报，`Draining`、`Stopped`、`Failed` 不再调健康回调。
-- `Ready` 与 `Degraded` 期间，`Health` 每次都求一次健康回调；健康回调报 `Ready`、`Degraded` 或 `Failed` 的照办（迁移按 `lifecycle-transitions.json`，`Failed` 之后不再回来），报其他状态的不改变状态。健康项名不在清单 `contributes.health` 里的丢掉、不发给宿主，同一个名字在进程里只记一条 `warning`。健康回调抛出：这一次的结果是 `Degraded`，`error` 为 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`phase` 为 `health`），没有健康项。
+- `Ready` 与 `Degraded` 期间，`Health` 每次都求一次健康回调；健康回调报 `Ready`、`Degraded` 或 `Failed` 的照办（迁移按 `lifecycle-transitions.json`，`Failed` 之后不再回来），报其他状态的不改变状态。健康项名不在清单 `contributes.health` 里的丢掉、不发给宿主，同一个名字在进程里只记一条 `warning`。健康回调抛出：这一次的结果是 `Degraded`，`error` 为 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`phase` 为 `health`），没有健康项；状态与回调报了 `Degraded` 一样迁到 `Degraded`，之后的结果照常决定状态。
 - `WatchHealth` 先推一次当前状态，之后状态、健康项或 `error` 变化时推送；可服务期间 SDK 每 10 秒（宿主 `HealthInterval` 的缺省值）重新求一次健康回调。插件进入 `Draining` 时推一次 `Draining`，应答 `Stop` 后结束流。
 
 ### 7.5 停止

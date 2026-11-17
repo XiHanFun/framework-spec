@@ -89,10 +89,6 @@ func MapCallbackStatus(rpc string, code uint32, message string, contextCancelled
 	case code == grpcInvalidArgument && rpc == CallbackInvoke:
 		return CallbackFailure{Code: "KERNEL_VALIDATION_001", Key: "kernel.operation.invalid_payload", Details: map[string]string{"id": operation, "reason": message}}
 	default:
-		phase := operation
-		if rpc == CallbackPublish {
-			phase = "publish"
-		}
-		return CallbackFailure{Code: "PLUGINS_UNEXPECTED_001", Key: "plugins.process.failed", Details: map[string]string{"id": pluginID, "phase": phase, "reason": StatusReason(code, message)}}
+		return CallbackFailure{Code: "PLUGINS_UNEXPECTED_001", Key: "plugins.process.failed", Details: map[string]string{"id": pluginID, "phase": CallbackPhase(rpc, operation), "reason": StatusReason(code, message)}}
 	}
 }

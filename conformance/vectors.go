@@ -158,6 +158,49 @@ type CallbackStatusVectors struct {
 	Cases     []CallbackStatusCase `json:"cases"`
 }
 
+// ProtoError 是线上 Error 的字段（plugin.proto 的 Error）：Details 是 JSON 文本，Inner 为 nil 表示没有内部错误。
+type ProtoError struct {
+	Code       string      `json:"code"`
+	MessageKey string      `json:"message_key"`
+	Text       string      `json:"text"`
+	Details    string      `json:"details"`
+	Inner      *ProtoError `json:"inner,omitempty"`
+}
+
+// DecodedErrorExpectation 是读入后期望的错误：Key 为 nil 表示自由文本错误，Text 为 nil 表示没有文案，
+// Details 按 JSON 值比较（null 表示没有细节），Inner 为 nil 表示没有内部错误。
+type DecodedErrorExpectation struct {
+	Code    string                   `json:"code"`
+	Key     *string                  `json:"key"`
+	Text    *string                  `json:"text"`
+	Details json.RawMessage          `json:"details"`
+	Inner   *DecodedErrorExpectation `json:"inner"`
+}
+
+// ErrorReadingCase 是一次读入：线上的 Error 与读入后期望的错误。
+type ErrorReadingCase struct {
+	Name     string                  `json:"name"`
+	Error    ProtoError              `json:"error"`
+	Expected DecodedErrorExpectation `json:"expected"`
+}
+
+// StatusWithoutErrorCase 是 Status.ok 为假却没有 error 时的结果：Reader 是 host（宿主读插件，阶段为 Phase）或 plugin
+// （插件读宿主，回调的 RPC 与操作 ID；Operation 为 nil 表示 Host.Publish）。
+type StatusWithoutErrorCase struct {
+	Reader    string                  `json:"reader"`
+	Phase     string                  `json:"phase,omitempty"`
+	RPC       string                  `json:"rpc,omitempty"`
+	Operation *string                 `json:"operation,omitempty"`
+	Expected  DecodedErrorExpectation `json:"expected"`
+}
+
+// ErrorReadingVectors 对应 plugin/error-reading.json（invocation.md §3，ADR-0237）：插件 PluginID 的错误读入。
+type ErrorReadingVectors struct {
+	PluginID           string                   `json:"pluginId"`
+	Cases              []ErrorReadingCase       `json:"cases"`
+	StatusWithoutError []StatusWithoutErrorCase `json:"statusWithoutError"`
+}
+
 // ProtocolVersionCase 是一次版本协商：有交集时 Selected 是选定版本，否则 Error 是错误码。
 type ProtocolVersionCase struct {
 	Host     []uint32 `json:"host"`
@@ -503,6 +546,11 @@ func PluginMessages() (PluginMessageVectors, error) {
 // CallbackStatus 读取插件一侧回调失败的映射向量。
 func CallbackStatus() (CallbackStatusVectors, error) {
 	return Load[CallbackStatusVectors]("plugin/callback-status.json")
+}
+
+// ErrorReading 读取读入对方写来的 Error 与 Status 的向量。
+func ErrorReading() (ErrorReadingVectors, error) {
+	return Load[ErrorReadingVectors]("plugin/error-reading.json")
 }
 
 // ErrorCodes 读取错误码格式向量。

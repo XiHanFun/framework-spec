@@ -30,8 +30,9 @@ type errSkip struct{ reason string }
 // Error 实现 error。
 func (e errSkip) Error() string { return e.reason }
 
-// servingStates 是 Start 之后健康应答里可接受的状态。
-var servingStates = []pluginv1.LifecycleState{pluginv1.LifecycleState_LIFECYCLE_STATE_STARTED, pluginv1.LifecycleState_LIFECYCLE_STATE_READY, pluginv1.LifecycleState_LIFECYCLE_STATE_DEGRADED}
+// servingStates 是 Start 之后健康应答里可接受的状态：插件在应答 Start 之前已经按健康回调的结果进入 Ready、Degraded 或 Failed，
+// 回调报其他状态的按 Ready（lifecycle.md §7.3），所以不会再报 Started；Failed 不可服务，不算通过。
+var servingStates = []pluginv1.LifecycleState{pluginv1.LifecycleState_LIFECYCLE_STATE_READY, pluginv1.LifecycleState_LIFECYCLE_STATE_DEGRADED}
 
 // traceParent 是用例调用携带的 W3C traceparent。
 const traceParent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
@@ -145,7 +146,7 @@ func (r *runner) caseSession(ctx context.Context) error {
 	return nil
 }
 
-// caseLifecycle：Configure 与 Start 成功；Health 与 WatchHealth 报可服务状态；Stop 成功后进程在宽限内退出。
+// caseLifecycle：Configure 与 Start 成功；Health 与 WatchHealth 报 Ready 或 Degraded（lifecycle.md §7.3）；Stop 成功后进程在宽限内退出。
 func (r *runner) caseLifecycle(ctx context.Context) error {
 	s, err := r.open(ctx)
 	if err != nil {
@@ -163,7 +164,7 @@ func (r *runner) caseLifecycle(ctx context.Context) error {
 		return fmt.Errorf("health: %w", err)
 	}
 	if !slices.Contains(servingStates, health.State) {
-		return fmt.Errorf("health reported %s after Start; want Started, Ready or Degraded", health.State)
+		return fmt.Errorf("health reported %s after Start; want Ready or Degraded", health.State)
 	}
 	for _, item := range health.Items {
 		if !slices.Contains(r.manifest.Contributes.Health, item.Name) {
@@ -182,7 +183,7 @@ func (r *runner) caseLifecycle(ctx context.Context) error {
 		return fmt.Errorf("WatchHealth must push the current state first: %w", err)
 	}
 	if !slices.Contains(servingStates, first.State) {
-		return fmt.Errorf("WatchHealth pushed %s; want Started, Ready or Degraded", first.State)
+		return fmt.Errorf("WatchHealth pushed %s after Start; want Ready or Degraded", first.State)
 	}
 	cancelWatch()
 
@@ -260,8 +261,7 @@ func (r *runner) caseOrder(ctx context.Context) error {
 	if err := r.expectStartRefused(ctx, client, "a second Start"); err != nil {
 		return err
 	}
-	// Start 应答之前插件已经按健康回调的结果进入 Ready、Degraded 或 Failed；Failed 不可服务，不算通过
-	return r.expectHealth(ctx, client, "after Start", false, pluginv1.LifecycleState_LIFECYCLE_STATE_READY, pluginv1.LifecycleState_LIFECYCLE_STATE_DEGRADED)
+	return r.expectHealth(ctx, client, "after Start", false, servingStates...)
 }
 
 // caseUnknownOperation：未声明的操作以 gRPC Unimplemented 结束，而不是业务失败。

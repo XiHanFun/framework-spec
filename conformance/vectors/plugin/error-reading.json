@@ -1,0 +1,496 @@
+{
+  "$comment": "读入对方写来的 Error（宿主读插件、插件读宿主同一规则，invocation.md §3，参考实现 PluginErrorMapper.FromProto）：error 是线上 Error 的字段（details 是 JSON 文本），expected 是读入后的错误：key 为 null 表示自由文本错误（文案为 text），text 为 null 表示没有文案，details 为 null 表示没有细节（按 JSON 值比较），inner 为 null 表示没有内部错误。错误码不合文法时整个错误换成 plugins.process.failed，phase 一律为 invoke（不论这次是 Invoke、HandleEvent、生命周期还是 Host.Publish），原来的 inner 丢掉。details 为空、只有空白、通不过 RFC-0001 的共同 JSON 读取检查、不是对象，或任何一层有读成双精度会溢出（±∞）的数时当作没有细节；下溢的数读成 0，超出 64 位的整数读成双精度。statusWithoutError 是 Status.ok 为假却没有 error 时的结果：phase 在宿主读插件时是这次的阶段（操作 ID、event、configure、start、stop），插件读宿主时是操作 ID（Host.Invoke）或 publish（Host.Publish）。插件 ID 为 xihan.acme.echo",
+  "pluginId": "xihan.acme.echo",
+  "cases": [
+    {
+      "name": "带键的错误",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "{\"id\":\"orders.create\"}"
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": {
+          "id": "orders.create"
+        },
+        "inner": null
+      }
+    },
+    {
+      "name": "带键的错误不取 text",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "Operation 'orders.create' is not registered.",
+        "details": "{\"id\":\"orders.create\"}"
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": {
+          "id": "orders.create"
+        },
+        "inner": null
+      }
+    },
+    {
+      "name": "自由文本错误",
+      "error": {
+        "code": "ORDERS_VALIDATION_001",
+        "message_key": "",
+        "text": "boom",
+        "details": ""
+      },
+      "expected": {
+        "code": "ORDERS_VALIDATION_001",
+        "key": null,
+        "text": "boom",
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "自由文本错误的 text 为空时取 code",
+      "error": {
+        "code": "ORDERS_VALIDATION_001",
+        "message_key": "",
+        "text": "",
+        "details": ""
+      },
+      "expected": {
+        "code": "ORDERS_VALIDATION_001",
+        "key": null,
+        "text": "ORDERS_VALIDATION_001",
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "键不合文法时成为自由文本错误",
+      "error": {
+        "code": "ORDERS_VALIDATION_001",
+        "message_key": "Not A Key",
+        "text": "boom",
+        "details": ""
+      },
+      "expected": {
+        "code": "ORDERS_VALIDATION_001",
+        "key": null,
+        "text": "boom",
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "键不合文法且 text 为空时取 code",
+      "error": {
+        "code": "ORDERS_VALIDATION_001",
+        "message_key": "orders..bad",
+        "text": "",
+        "details": ""
+      },
+      "expected": {
+        "code": "ORDERS_VALIDATION_001",
+        "key": null,
+        "text": "ORDERS_VALIDATION_001",
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "错误码不合文法",
+      "error": {
+        "code": "bad",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "{\"id\":\"x\"}"
+      },
+      "expected": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "text": null,
+        "details": {
+          "id": "xihan.acme.echo",
+          "phase": "invoke",
+          "reason": "invalid error code 'bad'"
+        },
+        "inner": null
+      }
+    },
+    {
+      "name": "错误码为空",
+      "error": {
+        "code": "",
+        "message_key": "",
+        "text": "",
+        "details": ""
+      },
+      "expected": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "text": null,
+        "details": {
+          "id": "xihan.acme.echo",
+          "phase": "invoke",
+          "reason": "invalid error code ''"
+        },
+        "inner": null
+      }
+    },
+    {
+      "name": "错误码不合文法时丢掉 inner",
+      "error": {
+        "code": "orders_validation_001",
+        "message_key": "",
+        "text": "boom",
+        "details": "",
+        "inner": {
+          "code": "KERNEL_NOTFOUND_001",
+          "message_key": "kernel.operation.unknown",
+          "text": "",
+          "details": "{\"id\":\"x\"}"
+        }
+      },
+      "expected": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "text": null,
+        "details": {
+          "id": "xihan.acme.echo",
+          "phase": "invoke",
+          "reason": "invalid error code 'orders_validation_001'"
+        },
+        "inner": null
+      }
+    },
+    {
+      "name": "details 为空",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": ""
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "details 只有空白",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "  "
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "details 不是 JSON",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "not json"
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "details 不是对象",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "[1]"
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "details 是 null",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "null"
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "details 有重复成员",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "{\"id\":\"a\",\"id\":\"b\"}"
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "details 深处有重复成员",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "{\"id\":\"a\",\"x\":{\"y\":1,\"y\":2}}"
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "details 有孤立的代理项",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "{\"id\":\"\\ud800\"}"
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "details 的数超出双精度",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "{\"id\":\"a\",\"n\":1e400}"
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "details 深处的负数超出双精度",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "{\"id\":\"a\",\"x\":[{\"n\":-1e400}]}"
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "details 的数下溢为零",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "{\"id\":\"a\",\"n\":1e-400}"
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": {
+          "id": "a",
+          "n": 0.0
+        },
+        "inner": null
+      }
+    },
+    {
+      "name": "details 超出 64 位的整数按双精度",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "{\"id\":\"a\",\"n\":100000000000000000000}"
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": {
+          "id": "a",
+          "n": 1e+20
+        },
+        "inner": null
+      }
+    },
+    {
+      "name": "inner 同样读入",
+      "error": {
+        "code": "ORDERS_UNEXPECTED_001",
+        "message_key": "",
+        "text": "outer",
+        "details": "",
+        "inner": {
+          "code": "KERNEL_NOTFOUND_001",
+          "message_key": "kernel.operation.unknown",
+          "text": "ignored",
+          "details": "{\"id\":\"x\"}"
+        }
+      },
+      "expected": {
+        "code": "ORDERS_UNEXPECTED_001",
+        "key": null,
+        "text": "outer",
+        "details": null,
+        "inner": {
+          "code": "KERNEL_NOTFOUND_001",
+          "key": "kernel.operation.unknown",
+          "text": null,
+          "details": {
+            "id": "x"
+          },
+          "inner": null
+        }
+      }
+    },
+    {
+      "name": "inner 的错误码不合文法",
+      "error": {
+        "code": "ORDERS_UNEXPECTED_001",
+        "message_key": "",
+        "text": "outer",
+        "details": "",
+        "inner": {
+          "code": "x",
+          "message_key": "",
+          "text": "",
+          "details": ""
+        }
+      },
+      "expected": {
+        "code": "ORDERS_UNEXPECTED_001",
+        "key": null,
+        "text": "outer",
+        "details": null,
+        "inner": {
+          "code": "PLUGINS_UNEXPECTED_001",
+          "key": "plugins.process.failed",
+          "text": null,
+          "details": {
+            "id": "xihan.acme.echo",
+            "phase": "invoke",
+            "reason": "invalid error code 'x'"
+          },
+          "inner": null
+        }
+      }
+    }
+  ],
+  "statusWithoutError": [
+    {
+      "reader": "host",
+      "phase": "orders.create",
+      "expected": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "text": null,
+        "details": {
+          "id": "xihan.acme.echo",
+          "phase": "orders.create",
+          "reason": "the plugin reported a failure without an error"
+        },
+        "inner": null
+      }
+    },
+    {
+      "reader": "host",
+      "phase": "configure",
+      "expected": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "text": null,
+        "details": {
+          "id": "xihan.acme.echo",
+          "phase": "configure",
+          "reason": "the plugin reported a failure without an error"
+        },
+        "inner": null
+      }
+    },
+    {
+      "reader": "plugin",
+      "rpc": "invoke",
+      "operation": "orders.create",
+      "expected": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "text": null,
+        "details": {
+          "id": "xihan.acme.echo",
+          "phase": "orders.create",
+          "reason": "the host reported a failure without an error"
+        },
+        "inner": null
+      }
+    },
+    {
+      "reader": "plugin",
+      "rpc": "publish",
+      "operation": null,
+      "expected": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "text": null,
+        "details": {
+          "id": "xihan.acme.echo",
+          "phase": "publish",
+          "reason": "the host reported a failure without an error"
+        },
+        "inner": null
+      }
+    }
+  ]
+}

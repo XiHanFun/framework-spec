@@ -21,7 +21,7 @@
 | `XIHAN_PLUGIN_INSTANCE` | 实例 ID |
 | `XIHAN_PLUGIN_LOCALE` | 宿主默认区域（BCP 47） |
 
-插件 SDK 在监听与写握手行之前核对自己的清单与声明（2026-11-18 写明，ADR-0237）：`kind` 是 `plugin`、`isolation` 是 `out-of-process`、没有 `contributes.pipeline`、`primitives` 等于 SDK 支持的原语层大版本、声明的操作都在 `contributes.operations` 里且不重复、订阅的主题合文法且（主题，类型）不重复、健康项名在 `contributes.health` 里、消息目录含 `en-US`。不合即拒绝启动：不监听、不写握手行，在 stderr 记一条 `error` 日志；宿主看到的是进程在握手之前退出（§5）。
+插件 SDK 在监听与写握手行之前核对自己的清单与声明（2026-11-18 写明，ADR-0237）：`kind` 是 `plugin`、`isolation` 是 `out-of-process`、没有 `contributes.pipeline`、`primitives` 等于 SDK 支持的原语层大版本、声明的操作都在 `contributes.operations` 里且不重复、订阅的主题合文法且（主题，类型）不重复、静态声明的健康项名在 `contributes.health` 里（健康项由健康回调在运行期给出的 SDK 在上报时按 `lifecycle.md` §7.4 丢掉未声明的名字）、消息目录含 `en-US`。不合即拒绝启动：不监听、不写握手行，在 stderr 记一条 `error` 日志；宿主看到的是进程在握手之前退出（§5）。
 
 ## 2. 握手行
 
@@ -66,7 +66,7 @@ xihan-plugin/1 <network> <address>
   - 插件按顺序取第一个自己的 gRPC 库能连的端点（`network` 是自己支持的）回调，之后不换。变量缺失、不合法或没有一项能连时，插件照常服务，启动时在 stderr 记一条 `warning`，每次回调都以 `PLUGINS_UNAVAILABLE_001` + `plugins.host.unavailable`（`reason` 为 `no supported callback endpoint`）失败，不发出请求（`invocation.md` §5）。
 - 宿主端点与插件端点都只接受本机连接：
   - Unix 域套接字放在本进程新建的私有目录里：目录名随机、权限 `0700`，已经存在就不用（可能是别人抢先建的、指向别处的链接），套接字文件 `0600`（2026-11-12 修订，ADR-0202；以前宿主把回调套接字直接放在共享的临时目录下）。
-  - 命名管道拒绝远程客户端。宿主的命名管道只允许当前用户；插件的命名管道应只允许当前用户，运行时给不了访问控制表的（Node 的 libuv、不用 unsafe 的 Rust）用系统缺省的安全描述符：其他本机用户只能以只读打开、发不出请求，隔离与 TCP 一样靠令牌，SDK 在文档里写明（2026-11-18 修订，ADR-0237）。
+  - 命名管道：宿主的命名管道只允许当前用户并拒绝远程客户端。插件的命名管道应同样只允许当前用户、拒绝远程客户端；运行时给不了访问控制表或拒绝远程客户端的标志的（Node 的 libuv 两样都给不了，不用 unsafe 的 Rust 只能拒绝远程客户端）用系统缺省的安全描述符：其他用户只能以只读打开、发不出请求，隔离与 TCP 一样靠令牌，SDK 在文档里写明，需要只接受本机连接的改用回环 TCP（2026-11-18 修订，ADR-0237）。
   - TCP 只绑定回环地址，同机的其他用户连得上，隔离只靠令牌。
 
 ## 5. 失败与重试

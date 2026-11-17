@@ -60,7 +60,7 @@
 
 - 各项的消息键与参数见 §8 与 `conformance/vectors/plugin/plugin-messages.json`。`reason` 写成 `<状态名>: <说明>` 的地方，状态名用 gRPC 状态码的 PascalCase 名字（`OK`、`Cancelled`、`Unknown`、`InvalidArgument`、`DeadlineExceeded`、`NotFound`、`AlreadyExists`、`PermissionDenied`、`ResourceExhausted`、`FailedPrecondition`、`Aborted`、`OutOfRange`、`Unimplemented`、`Internal`、`Unavailable`、`DataLoss`、`Unauthenticated`），说明原样取状态的消息（各 gRPC 库的文字不同，不要求一致）。
 - 写出 `Error`（插件写给宿主、宿主写给插件，2026-11-18 写明，ADR-0237；以前有的 SDK 按某个区域把带键的错误渲染成文本）：`code`、`message_key` 原样；带消息键的错误 `text` 留空，由宿主按目录翻译成调用方的语言（RFC-0010）；只有自由文本错误（`Error.Literal`）写 `text`；`details` 是模板参数与细节的 JSON 对象文本，没有时为空；`inner` 同样写出。
-- 读入 `Error`（宿主读插件、插件读宿主同一规则，参考实现 `PluginErrorMapper.FromProto`）：`code` 不合错误码文法时整个错误换成 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`phase` 为 `invoke`，`reason` 为 `invalid error code '<code>'`）；`message_key` 合消息键文法的按键处理，否则成为自由文本错误，文案取 `text`，`text` 为空时取 `code`；`details` 为空、通不过 RFC-0001 的共同 JSON 读取检查或不是对象时当作没有细节；`inner` 同此。`Status.ok` 为假却没有 `error`：`PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`reason` 为 `the plugin reported a failure without an error`，插件读宿主时为 `the host reported a failure without an error`）。
+- 读入 `Error`（宿主读插件、插件读宿主同一规则，参考实现 `PluginErrorMapper.FromProto`，向量 `conformance/vectors/plugin/error-reading.json`）：`code` 不合错误码文法时整个错误换成 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`phase` 一律为 `invoke`，不论是哪个 RPC；`reason` 为 `invalid error code '<code>'`；原来的 `inner` 丢掉）；`message_key` 合消息键文法的按键处理，否则成为自由文本错误，文案取 `text`，`text` 为空时取 `code`；带键的错误不取 `text`；`details` 为空、只有空白、通不过 RFC-0001 的共同 JSON 读取检查、不是对象，或任何一层有读成双精度会溢出（±∞）的数时当作没有细节（下溢的数读成 0，超出 64 位的整数读成双精度）；`inner` 同此。`Status.ok` 为假却没有 `error`：`PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（宿主读插件时 `phase` 为这次的阶段，`reason` 为 `the plugin reported a failure without an error`；插件读宿主时 `phase` 为操作 ID 或 `publish`，`reason` 为 `the host reported a failure without an error`）。
 - 宿主把插件错误原样放进调用结果；协议适配器再按各自载体映射（HTTP Problem Details、gRPC 状态 + `xihan-error-code`、MCP `isError`）。
 
 ## 4. 事件投递（RFC-0009）
@@ -97,12 +97,13 @@
 插件一侧（SDK 的回调客户端，2026-11-18 写明，ADR-0237；以前有的 SDK 在本地核对信封的租户、有的不核对，回调失败的映射也各不相同）：
 
 - 回调端点按 `handshake.md` §4 选；没有可用端点时不发请求，`Host.Invoke` 以 `PLUGINS_UNAVAILABLE_001` + `plugins.host.unavailable`（`reason` 为 `no supported callback endpoint`）失败，`Host.Publish` 的每一项都是这个错误。
-- 发出之前在本地按宿主的顺序核对，与宿主给出同样的错误，不合即不发请求：
+- 发出之前依次核对，不合即不发请求（2026-11-18 写明先后）：先是有没有可用的回调端点（上一条），再按宿主的顺序核对，与宿主给出同样的错误：
   1. 权限：RPC 所需的权限既在清单 `permissions` 里、也在 `Configure` 的 `granted_permissions` 里，否则 `PLUGINS_DENIED_002` + `plugins.callback.denied`（`permission` 为所需的权限）。
   2. 租户：回调上下文的 `xihan.tenant` 必须是插件此刻正在处理的某个调用或投递的租户（同一租户可以同时有多个），否则 `PLUGINS_DENIED_002` + `plugins.callback.tenant_denied`。
   - `Host.Publish` 两项都是整批的结果，每一项都是那个错误。信封的 `xihantenant` 不在本地核对，由宿主逐项判定：宿主在它之前还核对发布器与主题，本地先判它会改变错误的先后。
-- 回调的 `metadata` 取自回调所在的调用上下文：`trace_parent` 是当前 Span 的 traceparent，`deadline` 按 §2 的写法，`baggage` 是上下文里已登记的键，`trace_state` 为空；gRPC 调用的截止时间与 `deadline` 相同。
-- gRPC 状态的映射与宿主一侧（§3）对称（向量 `conformance/vectors/plugin/callback-status.json`）：
+  - 最后，回调上下文的截止时间已过或已被取消时也不发请求，结果与下表相应的一行相同：截止时间已过按 `DeadlineExceeded`，已被取消按「`Cancelled`，回调上下文的取消信号已触发」。
+- 回调的 `metadata` 取自回调所在的调用上下文：`trace_parent` 是这个上下文按 RFC-0003 写出的 traceparent（与其他载体同一取法），`deadline` 按 §2 的写法，`baggage` 是上下文里已登记的键，`trace_state` 为空；gRPC 调用的截止时间与 `deadline` 相同。
+- gRPC 状态的映射与宿主一侧（§3）对称（向量 `conformance/vectors/plugin/callback-status.json`）。gRPC 库自己的叫法先换成标准状态：库按截止时间在本端中止调用时报的状态（如 tonic 以 `Cancelled` 报 `Timeout expired`）按 `DeadlineExceeded`；回调客户端只按下表映射，不另按时钟或令牌改写结果（超时的归因交给插件自己的管道，RFC-0003 规则 1）：
 
 | gRPC 状态 | 错误 |
 | --- | --- |

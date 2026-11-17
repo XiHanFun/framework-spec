@@ -53,6 +53,25 @@ func TestTypedLoadersAreNonEmpty(t *testing.T) {
 			t.Errorf("callback case %s %s is incomplete", c.RPC, c.Status)
 		}
 	}
+	reading, err := conformance.ErrorReading()
+	if err != nil || reading.PluginID == "" || len(reading.Cases) == 0 || len(reading.StatusWithoutError) == 0 {
+		t.Errorf("error reading: %v", err)
+	}
+	names := map[string]bool{}
+	for _, c := range reading.Cases {
+		if c.Name == "" || names[c.Name] || c.Expected.Code == "" || len(c.Expected.Details) == 0 {
+			t.Errorf("error reading case %q must have a unique name, an expected code and details (null for none)", c.Name)
+		}
+		names[c.Name] = true
+	}
+	for _, c := range reading.StatusWithoutError {
+		// 宿主读插件给出阶段，插件读宿主给出回调的 RPC（Host.Invoke 另有操作 ID）
+		host := c.Reader == "host" && c.Phase != "" && c.RPC == ""
+		plugin := c.Reader == "plugin" && c.Phase == "" && (c.RPC == "publish" || (c.RPC == "invoke" && c.Operation != nil && *c.Operation != ""))
+		if (!host && !plugin) || c.Expected.Code == "" {
+			t.Errorf("status without error case %+v is malformed", c)
+		}
+	}
 	versions, err := conformance.ProtocolVersions()
 	if err != nil || len(versions.Cases) == 0 || len(versions.Primitives) == 0 {
 		t.Errorf("protocol versions: %v", err)

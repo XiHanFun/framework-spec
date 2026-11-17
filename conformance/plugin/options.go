@@ -15,7 +15,7 @@ const (
 	CaseRefusal = "refusal"
 	// CaseSession 核对不带、带错或带多个会话令牌值的调用以 Unauthenticated 拒绝（handshake.md §4）。
 	CaseSession = "session"
-	// CaseLifecycle 核对 Configure / Start / Health / WatchHealth / Stop 与宽限内退出。
+	// CaseLifecycle 核对 Configure / Start / Health / WatchHealth（Start 之后报 Ready 或 Degraded）/ Stop 与宽限内退出。
 	CaseLifecycle = "lifecycle"
 	// CaseOrder 核对调用次序不对时以 FailedPrecondition 拒绝、Start 之前的 Health 报本地状态（lifecycle.md §7.1、§7.4）。
 	CaseOrder = "order"
