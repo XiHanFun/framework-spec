@@ -1,0 +1,44 @@
+{
+  "$comment": "宿主回调端点 XIHAN_PLUGIN_HOST_ADDRESS：一个或多个 <network> <address>，按偏好排序、以 ; 分隔，文法 ^(unix|tcp|npipe) <地址>(;(unix|tcp|npipe) <地址>)*\\z；每项的 network 与 address 同握手行（plugin/handshake-lines.json），地址另不得含 ;，任何一项不合法整个值就不合法。selection：插件按顺序取第一个 network 在 supported 里的项；变量缺失（value 为 null）、为空、不合法或没有可用的项时 selected 为 null，回调以 plugins.host.unavailable 失败。见 spec/plugin/handshake.md §4",
+  "valid": [
+    { "value": "unix /run/xihan/host-1f3a/host.sock", "entries": [{ "network": "unix", "address": "/run/xihan/host-1f3a/host.sock" }] },
+    { "value": "npipe \\\\.\\pipe\\xihan-host-1f3a;tcp 127.0.0.1:50123", "entries": [{ "network": "npipe", "address": "\\\\.\\pipe\\xihan-host-1f3a" }, { "network": "tcp", "address": "127.0.0.1:50123" }] },
+    { "value": "unix /tmp/xihan-host-1f3a/host.sock;tcp 127.0.0.1:50123", "entries": [{ "network": "unix", "address": "/tmp/xihan-host-1f3a/host.sock" }, { "network": "tcp", "address": "127.0.0.1:50123" }] },
+    { "value": "tcp [::1]:50123", "entries": [{ "network": "tcp", "address": "[::1]:50123" }] },
+    { "value": "tcp 127.0.0.1:1;tcp 127.0.0.1:2", "entries": [{ "network": "tcp", "address": "127.0.0.1:1" }, { "network": "tcp", "address": "127.0.0.1:2" }] },
+    { "value": "unix /tmp/a/host.sock;unix /tmp/b/host.sock;tcp 127.0.0.1:50123", "entries": [{ "network": "unix", "address": "/tmp/a/host.sock" }, { "network": "unix", "address": "/tmp/b/host.sock" }, { "network": "tcp", "address": "127.0.0.1:50123" }] },
+    { "value": "unix /tmp/张三/host.sock;tcp 127.0.0.1:50123", "entries": [{ "network": "unix", "address": "/tmp/张三/host.sock" }, { "network": "tcp", "address": "127.0.0.1:50123" }] }
+  ],
+  "invalid": [
+    "",
+    "unix",
+    "unix ",
+    "tcp 127.0.0.1:50123;",
+    "unix /tmp/a;",
+    ";unix /tmp/a",
+    "unix /tmp/a;;tcp 127.0.0.1:50123",
+    "unix /tmp/a; tcp 127.0.0.1:50123",
+    "unix /tmp/a ;tcp 127.0.0.1:50123",
+    "unix /tmp/a b",
+    "unix /tmp/a\u00a0b",
+    "tcp 10.0.0.1:50123;unix /tmp/a",
+    "unix /tmp/a;tcp 0.0.0.0:50123",
+    "unix /tmp/a;tcp 127.1:50123",
+    "udp 127.0.0.1:50123",
+    "UNIX /tmp/a",
+    "unix /tmp/a,tcp 127.0.0.1:50123",
+    " unix /tmp/a",
+    "unix /tmp/a\n",
+    "xihan-plugin/1 unix /tmp/a"
+  ],
+  "selection": [
+    { "value": "npipe \\\\.\\pipe\\xihan-host-1f3a;tcp 127.0.0.1:50123", "supported": ["unix", "tcp"], "selected": { "network": "tcp", "address": "127.0.0.1:50123" } },
+    { "value": "npipe \\\\.\\pipe\\xihan-host-1f3a;tcp 127.0.0.1:50123", "supported": ["npipe", "unix", "tcp"], "selected": { "network": "npipe", "address": "\\\\.\\pipe\\xihan-host-1f3a" } },
+    { "value": "unix /tmp/xihan-host-1f3a/host.sock;tcp 127.0.0.1:50123", "supported": ["tcp"], "selected": { "network": "tcp", "address": "127.0.0.1:50123" } },
+    { "value": "unix /tmp/xihan-host-1f3a/host.sock;tcp 127.0.0.1:50123", "supported": ["unix", "tcp"], "selected": { "network": "unix", "address": "/tmp/xihan-host-1f3a/host.sock" } },
+    { "value": "unix /tmp/xihan-host-1f3a/host.sock", "supported": ["tcp"], "selected": null },
+    { "value": "unix /tmp/a;tcp 10.0.0.1:50123", "supported": ["unix", "tcp"], "selected": null },
+    { "value": "", "supported": ["unix", "npipe", "tcp"], "selected": null },
+    { "value": null, "supported": ["unix", "npipe", "tcp"], "selected": null }
+  ]
+}

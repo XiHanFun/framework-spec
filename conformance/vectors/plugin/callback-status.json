@@ -1,0 +1,510 @@
+{
+  "$comment": "插件一侧回调失败的映射（invocation.md §5）：插件 acme.echo 回调 Host.Invoke（操作 orders.create）或 Host.Publish 得到 gRPC 状态 status（statusCode 为数值）与消息 message，contextCancelled 表示回调所在的调用上下文的取消信号是否已触发；结果为 code + key，details 是错误的 details（null 为没有）。Host.Publish 的 RPC 失败时每一项都是这个错误。连接失败按 Unavailable。",
+  "pluginId": "acme.echo",
+  "operation": "orders.create",
+  "cases": [
+    {
+      "rpc": "invoke",
+      "status": "Unauthenticated",
+      "statusCode": 16,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_DENIED_002",
+      "key": "plugins.callback.session_invalid",
+      "details": null
+    },
+    {
+      "rpc": "invoke",
+      "status": "PermissionDenied",
+      "statusCode": 7,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_DENIED_002",
+      "key": "plugins.callback.denied",
+      "details": {
+        "id": "acme.echo",
+        "permission": "capability:kernel.pipeline"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "DeadlineExceeded",
+      "statusCode": 4,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "KERNEL_TIMEOUT_001",
+      "key": "kernel.invocation.deadline_exceeded",
+      "details": null
+    },
+    {
+      "rpc": "invoke",
+      "status": "DeadlineExceeded",
+      "statusCode": 4,
+      "message": "boom",
+      "contextCancelled": true,
+      "code": "KERNEL_TIMEOUT_001",
+      "key": "kernel.invocation.deadline_exceeded",
+      "details": null
+    },
+    {
+      "rpc": "invoke",
+      "status": "Cancelled",
+      "statusCode": 1,
+      "message": "boom",
+      "contextCancelled": true,
+      "code": "KERNEL_CANCELLED_001",
+      "key": "kernel.invocation.cancelled",
+      "details": null
+    },
+    {
+      "rpc": "invoke",
+      "status": "Cancelled",
+      "statusCode": 1,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNAVAILABLE_001",
+      "key": "plugins.host.unavailable",
+      "details": {
+        "id": "acme.echo",
+        "reason": "Cancelled: boom"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "Unavailable",
+      "statusCode": 14,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNAVAILABLE_001",
+      "key": "plugins.host.unavailable",
+      "details": {
+        "id": "acme.echo",
+        "reason": "Unavailable: boom"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "Unavailable",
+      "statusCode": 14,
+      "message": "boom",
+      "contextCancelled": true,
+      "code": "PLUGINS_UNAVAILABLE_001",
+      "key": "plugins.host.unavailable",
+      "details": {
+        "id": "acme.echo",
+        "reason": "Unavailable: boom"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "Unimplemented",
+      "statusCode": 12,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "KERNEL_NOTFOUND_001",
+      "key": "kernel.operation.unknown",
+      "details": {
+        "id": "orders.create"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "InvalidArgument",
+      "statusCode": 3,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "KERNEL_VALIDATION_001",
+      "key": "kernel.operation.invalid_payload",
+      "details": {
+        "id": "orders.create",
+        "reason": "boom"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "Unknown",
+      "statusCode": 2,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "orders.create",
+        "reason": "Unknown: boom"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "NotFound",
+      "statusCode": 5,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "orders.create",
+        "reason": "NotFound: boom"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "AlreadyExists",
+      "statusCode": 6,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "orders.create",
+        "reason": "AlreadyExists: boom"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "ResourceExhausted",
+      "statusCode": 8,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "orders.create",
+        "reason": "ResourceExhausted: boom"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "FailedPrecondition",
+      "statusCode": 9,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "orders.create",
+        "reason": "FailedPrecondition: boom"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "Aborted",
+      "statusCode": 10,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "orders.create",
+        "reason": "Aborted: boom"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "OutOfRange",
+      "statusCode": 11,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "orders.create",
+        "reason": "OutOfRange: boom"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "Internal",
+      "statusCode": 13,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "orders.create",
+        "reason": "Internal: boom"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "DataLoss",
+      "statusCode": 15,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "orders.create",
+        "reason": "DataLoss: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "Unauthenticated",
+      "statusCode": 16,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_DENIED_002",
+      "key": "plugins.callback.session_invalid",
+      "details": null
+    },
+    {
+      "rpc": "publish",
+      "status": "PermissionDenied",
+      "statusCode": 7,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_DENIED_002",
+      "key": "plugins.callback.denied",
+      "details": {
+        "id": "acme.echo",
+        "permission": "capability:messaging.queue"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "DeadlineExceeded",
+      "statusCode": 4,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "KERNEL_TIMEOUT_001",
+      "key": "kernel.invocation.deadline_exceeded",
+      "details": null
+    },
+    {
+      "rpc": "publish",
+      "status": "DeadlineExceeded",
+      "statusCode": 4,
+      "message": "boom",
+      "contextCancelled": true,
+      "code": "KERNEL_TIMEOUT_001",
+      "key": "kernel.invocation.deadline_exceeded",
+      "details": null
+    },
+    {
+      "rpc": "publish",
+      "status": "Cancelled",
+      "statusCode": 1,
+      "message": "boom",
+      "contextCancelled": true,
+      "code": "KERNEL_CANCELLED_001",
+      "key": "kernel.invocation.cancelled",
+      "details": null
+    },
+    {
+      "rpc": "publish",
+      "status": "Cancelled",
+      "statusCode": 1,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNAVAILABLE_001",
+      "key": "plugins.host.unavailable",
+      "details": {
+        "id": "acme.echo",
+        "reason": "Cancelled: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "Unavailable",
+      "statusCode": 14,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNAVAILABLE_001",
+      "key": "plugins.host.unavailable",
+      "details": {
+        "id": "acme.echo",
+        "reason": "Unavailable: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "Unavailable",
+      "statusCode": 14,
+      "message": "boom",
+      "contextCancelled": true,
+      "code": "PLUGINS_UNAVAILABLE_001",
+      "key": "plugins.host.unavailable",
+      "details": {
+        "id": "acme.echo",
+        "reason": "Unavailable: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "Unimplemented",
+      "statusCode": 12,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "publish",
+        "reason": "Unimplemented: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "InvalidArgument",
+      "statusCode": 3,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "publish",
+        "reason": "InvalidArgument: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "Unknown",
+      "statusCode": 2,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "publish",
+        "reason": "Unknown: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "NotFound",
+      "statusCode": 5,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "publish",
+        "reason": "NotFound: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "AlreadyExists",
+      "statusCode": 6,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "publish",
+        "reason": "AlreadyExists: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "ResourceExhausted",
+      "statusCode": 8,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "publish",
+        "reason": "ResourceExhausted: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "FailedPrecondition",
+      "statusCode": 9,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "publish",
+        "reason": "FailedPrecondition: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "Aborted",
+      "statusCode": 10,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "publish",
+        "reason": "Aborted: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "OutOfRange",
+      "statusCode": 11,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "publish",
+        "reason": "OutOfRange: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "Internal",
+      "statusCode": 13,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "publish",
+        "reason": "Internal: boom"
+      }
+    },
+    {
+      "rpc": "publish",
+      "status": "DataLoss",
+      "statusCode": 15,
+      "message": "boom",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "publish",
+        "reason": "DataLoss: boom"
+      }
+    },
+    {
+      "rpc": "invoke",
+      "status": "Internal",
+      "statusCode": 13,
+      "message": "",
+      "contextCancelled": false,
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "details": {
+        "id": "acme.echo",
+        "phase": "orders.create",
+        "reason": "Internal: "
+      }
+    }
+  ]
+}

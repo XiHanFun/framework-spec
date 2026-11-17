@@ -1,0 +1,129 @@
+{
+  "$comment": "SDK 运行时与宿主共用的消息键：码、键、参数（也就是错误的 details 的成员，不另加）、en-US 模板与场合；宿主必须有这些键的目录，SDK 不随握手发送它们。reasons 是写进 reason 参数的固定英文文本（不本地化），花括号里的部分按 when 替换。参数 id 一律是插件的清单 ID。见 spec/plugin/invocation.md §8",
+  "messages": [
+    {
+      "code": "PLUGINS_UNAVAILABLE_001",
+      "key": "plugins.process.unavailable",
+      "arguments": [
+        "id",
+        "state"
+      ],
+      "template": "Plugin '{id}' is not available (state: {state}).",
+      "when": "插件不在可服务状态（Ready、Degraded）时到达的调用与投递；state 是插件此刻的状态名，如 Configured、Draining、Failed（lifecycle.md §7.3）"
+    },
+    {
+      "code": "PLUGINS_UNEXPECTED_001",
+      "key": "plugins.process.failed",
+      "arguments": [
+        "id",
+        "phase",
+        "reason"
+      ],
+      "template": "Plugin '{id}' failed during {phase}: {reason}",
+      "when": "生命周期或健康回调抛出、配置节不是 JSON 对象、对方写来的错误不合法、没有对应的 gRPC 状态；phase 一律小写（configure、start、stop、health、invoke、publish，或回调的操作 ID）"
+    },
+    {
+      "code": "KERNEL_NOTFOUND_001",
+      "key": "plugins.event.unsubscribed",
+      "arguments": [
+        "id",
+        "topic",
+        "type",
+        "mode"
+      ],
+      "template": "Plugin '{id}' has no subscription for topic '{topic}', type '{type}' and mode '{mode}'.",
+      "when": "投递找不到（主题，方式，类型）匹配的订阅；topic、type 取信封，mode 为这次投递的方式，空写 competing（invocation.md §4）"
+    },
+    {
+      "code": "PLUGINS_UNAVAILABLE_001",
+      "key": "plugins.host.unavailable",
+      "arguments": [
+        "id",
+        "reason"
+      ],
+      "template": "Plugin '{id}' cannot reach the host: {reason}",
+      "when": "插件回调连不上宿主（Unavailable、调用方没有取消的 Cancelled、连接失败），或没有可用的回调端点（handshake.md §4、invocation.md §5）"
+    },
+    {
+      "code": "PLUGINS_DENIED_002",
+      "key": "plugins.callback.denied",
+      "arguments": [
+        "id",
+        "permission"
+      ],
+      "template": "Plugin '{id}' may not use permission '{permission}': it must be declared in the manifest and granted by the host.",
+      "when": "回调所需的权限（Host.Invoke 为 capability:kernel.pipeline，Host.Publish 为 capability:messaging.queue）没有在清单声明或没有授予：宿主以 PermissionDenied 拒绝，插件在本地先行核对"
+    },
+    {
+      "code": "PLUGINS_DENIED_002",
+      "key": "plugins.callback.tenant_denied",
+      "arguments": [
+        "id",
+        "tenant"
+      ],
+      "template": "Plugin '{id}' may not act in tenant '{tenant}': a callback can only carry the tenant of a call the host has handed to the plugin.",
+      "when": "回调带了不属于在途调用的租户：Host.Invoke 的 metadata、Host.Publish 的 metadata（整批）与信封的 xihantenant（逐项，只由宿主判定）"
+    },
+    {
+      "code": "PLUGINS_DENIED_002",
+      "key": "plugins.callback.session_invalid",
+      "arguments": [],
+      "template": "The plugin session token is missing or invalid.",
+      "when": "宿主以 Unauthenticated 拒绝了回调的会话令牌"
+    }
+  ],
+  "reasons": [
+    {
+      "key": "plugins.process.failed",
+      "phase": "configure",
+      "reason": "the configuration is not a JSON object",
+      "when": "Configure 的 configuration 不是 JSON 对象（lifecycle.md §7.2）"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "invoke",
+      "reason": "invalid error code '{code}'",
+      "when": "对方写来的错误码不合文法；{code} 换成原样的错误码（invocation.md §3）"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "<阶段>",
+      "reason": "the plugin reported a failure without an error",
+      "when": "宿主读插件：Status.ok 为假却没有 error"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "<阶段>",
+      "reason": "the host reported a failure without an error",
+      "when": "插件读宿主：Status.ok 为假却没有 error"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "publish",
+      "reason": "the host returned {results} results for {envelopes} envelopes",
+      "when": "Host.Publish 的结果数与信封数不同（invocation.md §5）"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "<阶段>",
+      "reason": "{status}: {message}",
+      "when": "没有对应的 gRPC 状态；{status} 是状态码的 PascalCase 名字，{message} 原样取状态的消息"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "configure | start | stop | health",
+      "reason": "{type}",
+      "when": "回调抛出；{type} 是异常的简单类型名，没有异常的语言 panic 时写 panic（lifecycle.md §7.6）"
+    },
+    {
+      "key": "plugins.host.unavailable",
+      "reason": "no supported callback endpoint",
+      "when": "XIHAN_PLUGIN_HOST_ADDRESS 缺失、不合法或没有插件能连的项"
+    },
+    {
+      "key": "plugins.host.unavailable",
+      "reason": "{status}: {message}",
+      "when": "回调的 gRPC 状态是 Unavailable、调用方没有取消的 Cancelled，或连接失败"
+    }
+  ]
+}

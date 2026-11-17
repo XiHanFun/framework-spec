@@ -16,13 +16,14 @@
 | `Stopped` | 进程正常退出 |
 | `Failed` | 发现时被拒、握手 / 配置 / 启动失败、进程异常退出、健康报 `Failed`、`Stop` 超时被终止 |
 
-合法迁移同 `conformance/vectors/primitives/lifecycle-transitions.json`；插件自报的状态只能是 `Started`、`Ready`、`Degraded`、`Draining`、`Failed`，其余由宿主裁决。
+合法迁移同 `conformance/vectors/primitives/lifecycle-transitions.json`；插件自报的状态只能是 `Started`、`Ready`、`Degraded`、`Draining`、`Failed`，其余由宿主裁决；例外是 `Start` 之前的 `Health`，插件照实报 `Declared`、`Resolved` 或 `Configured`（§7.4）。插件一侧的次序、配置、就绪、停止与收尾见 §7。
 
 **发现时被拒**：宿主在启动任何插件代码之前拒绝的插件——清单读不出、不是插件或隔离级别不符、缺 `entry`、清单写了 `contributes.pipeline`（只有 Wasm 插件能贡献中间件，RFC-0017「范围」、RFC-0018；宿主不静默忽略这个字段）（`PLUGINS_VALIDATION_001`），权限未授予（`PLUGINS_DENIED_001`），入口文件不存在（`PLUGINS_NOTFOUND_001`）——不会静默消失：宿主照样以 `Failed` 登记它（带错误、可描述），它是宿主的健康条目 `plugins.<清单 ID>`（清单读不出时没有清单 ID，条目名取 `plugins.<目录名>`），宿主记错误日志，宿主因此进入 `Degraded`（§4）。这些是配置错误，不按 §6 重试：改正后重新加载或重启宿主。按目录发现时如此；宿主在运行期显式加载（`LoadAsync`）时这些失败直接返回给调用方、不登记。
 
 ## 2. 配置与启动
 
 1. `Configure`：`configuration` 是清单 `contributes.config.section` 节的 JSON 对象（宿主配置源经 `IConfiguration` 展开后再序列化；没有声明配置节为 `{}`）；`granted_permissions` 等于清单 `permissions`；`bindings` 只含清单声明的绑定；`work_directory` 是宿主为该插件创建的可写目录（宿主停止时不删除）。配置变更时宿主不重新调用 `Configure`，而是以 `reason: restart` 停止后重新启动进程。
+   - 宿主写出的配置节（参考实现 `PluginJson.SerializeSection`，2026-11-18 写明，ADR-0237）：根总是对象；叶子是 `IConfiguration` 的值，一律写成 JSON 字符串，值为 null 的键写 `null`；子项名恰好是从 `0` 起连续整数的节写成数组，其余写成对象，成员按 `IConfiguration` 列出子项的顺序。插件怎样读见 §7.2。
    - 隔离运行的插件（进程外、Wasm）读宿主配置与绑定要运营方授予（2026-11-12 修订，ADR-0177）：清单的 `contributes.config.section` 要求宿主授予 `config:<配置节>`（与清单逐字相同），`bindings` 的每一项要求授予 `binding:<绑定名>`；没有授予即在发现时以 `PLUGINS_DENIED_001` 拒绝，与清单声明而未授予的权限同一处理，不启动插件代码。配置节里常有密钥、连接串与签名密钥，插件不能自己点名拿到。进程内插件是受信代码，不受此限。
 2. `Start`：返回 `ok` 后宿主才登记代理操作与事件订阅；在此之前到达的调用按 `PLUGINS_UNAVAILABLE_001` 失败。
 3. 每一步都带 `StartTimeout`（默认 30 秒）的截止时间；超时为 `PLUGINS_TIMEOUT_001`，宿主终止进程。
@@ -48,7 +49,7 @@
 ## 5. 停止
 
 1. 宿主调用 `Stop`（`grace_seconds` 默认等于宿主的 `XiHan:Kernel:StopTimeoutSeconds`，`reason` 为 `shutdown` / `unload` / `restart`），插件进入 `Draining`：拒绝新调用（`PLUGINS_UNAVAILABLE_001`）、完成在途调用、释放资源、返回、退出进程。
-2. 宿主在宽限期内等待进程退出；超时先发终止信号：关闭插件的 stdin（`handshake.md` §1 要求插件随之退出），Unix 上同时发 SIGTERM；Windows 没有 SIGTERM，关闭 stdin 就是等价的终止信号。发出信号后再等 5 秒，仍未退出则强制终止整个进程树。两种结局都记为 `Failed`（`PLUGINS_TIMEOUT_001`）：插件没有在宽限内完成 `Stop`。插件应把 SIGTERM 与 stdin 关闭都当作立即收尾退出的请求。
+2. 宿主在宽限期内等待进程退出；超时先发终止信号：关闭插件的 stdin（`handshake.md` §1 要求插件随之退出），Unix 上同时发 SIGTERM；Windows 没有 SIGTERM，关闭 stdin 就是等价的终止信号。发出信号后再等 5 秒，仍未退出则强制终止整个进程树。两种结局都记为 `Failed`（`PLUGINS_TIMEOUT_001`）：插件没有在宽限内完成 `Stop`。插件应把 SIGTERM 与 stdin 关闭都当作立即收尾退出的请求（时限见 §7.7）。插件一侧收到 `Stop` 的做法见 §7.5。
 3. 宿主停止时按与启动相反的顺序停止插件，并等待全部结束再停止特性。
 
 ## 6. 崩溃与重启
@@ -58,3 +59,54 @@
 - 重启策略同样覆盖启动阶段的失败（`handshake.md` §5、本文 §2）：握手（读握手行、`Handshake` 调用与核对）、`Configure`、`Start` 失败都终止进程、记为 `Failed`，宿主进入服务状态后按上面的退避重试，计入 `RestartLimit`；运行期显式加载（`LoadAsync`）的同类失败同样返回给调用方，插件保持 `Failed` 并按策略重试，直到 `UnloadAsync`。发现时被拒（§1）不重试。首次握手就失败的插件重试成功后才有声明可用：宿主把它的代理操作登记进操作登记表（与运行期加载一致），已经发布的协议适配器路由与事件订阅可以不补登记；连同清单声明的权限码一次登记（`invocation.md` §1）；登记不进去（声明的权限码与已登记的重复、与已有操作重名、引用了未登记的权限码或不存在的策略）按发现时被拒处理，一个权限码与代理操作都不留下。懒激活插件在首次调用时启动失败：该次调用失败，下一次调用再尝试启动。
 - 重启后是新的进程、新的会话令牌、重新握手；宿主校验新握手的清单与上次一致，不一致按 `PLUGINS_VALIDATION_004` 失败。
 - 事件订阅在插件不可用期间由宿主的消息代理按其重试与死信策略处理，宿主不缓冲消息。
+
+## 7. 插件一侧（SDK）
+
+插件运行时（各语言 SDK）对宿主调用的处理，2026-11-18 写明（ADR-0237）；以前规范只写了宿主一侧，各 SDK 在这些点上各有做法。错误的消息键与参数见 `invocation.md` §8，`phase` 一律小写。
+
+### 7.1 调用次序
+
+| RPC | 接受的状态 | 之后 |
+| --- | --- | --- |
+| `Handshake` | `Declared` | `Resolved` |
+| `Configure` | `Resolved` | `Configured`，失败即 `Failed`（§7.2） |
+| `Start` | `Configured` | `Started`，再按 §7.3 进入 `Ready`、`Degraded` 或 `Failed` |
+| `Stop` | `Declared`、`Draining`、`Stopped` 之外的任何状态 | §7.5 |
+| `Health`、`WatchHealth` | 任何状态 | 不变（§7.4） |
+| `Invoke`、`InvokeStream`、`HandleEvent` | 任何状态 | 不变；没有就绪时的结果见 `invocation.md` §1、§4 |
+
+不在表里的组合以 gRPC `FailedPrecondition` 拒绝、什么都不做、状态不变：重复 `Handshake`、没握手就 `Configure`、`Configure` 两次、没 `Configure` 就 `Start`、`Start` 两次、没握手就 `Stop`、停止中再 `Stop`。会话令牌先于次序核对（`handshake.md` §4）。
+
+### 7.2 配置
+
+- `configuration` 为空等同 `{}`。文本必须通过 RFC-0001 的共同 JSON 读取检查（`conformance/vectors/primitives/json-text.json`）且是对象，否则不调配置回调，`ConfigureResponse.status` 为 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`phase` 为 `configure`，`reason` 为 `the configuration is not a JSON object`），插件进入 `Failed`。
+- SDK 把配置节原样交给作者，另提供类型化读取：成员名按 ASCII 不区分大小写匹配（与 `IConfiguration` 一致）；字符串叶子读成数字时按 JSON 数字的文法，读成布尔时只认 `true`、`false`（ASCII 不区分大小写），其余照目标类型的常规读法。
+- `granted_permissions`、`bindings`、`work_directory` 原样交给作者；回调前的权限核对以 `granted_permissions` 为准（`invocation.md` §5）。
+- 配置回调返回失败：`status` 带那个错误，插件进入 `Failed`。回调抛出：`PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`phase` 为 `configure`，`reason` 按 §7.6），插件进入 `Failed`。
+
+### 7.3 启动与就绪
+
+启动回调返回成功后插件进入 `Started`；有健康回调时立即求一次（§7.4），按结果进入 `Ready`、`Degraded` 或 `Failed`，没有健康回调即进入 `Ready`；然后才应答 `StartResponse`（`ok`）。所以 `Start` 应答之后的状态是 `Ready`、`Degraded` 或 `Failed`。启动回调返回失败或抛出：规则同 §7.2（`phase` 为 `start`），插件进入 `Failed`。
+
+只有 `Ready` 与 `Degraded` 是可服务的状态：其余状态下到达的调用与投递以 `PLUGINS_UNAVAILABLE_001` + `plugins.process.unavailable` 失败（`state` 是插件此刻的状态名，如 `Configured`、`Draining`、`Failed`）。
+
+### 7.4 健康
+
+- `Health` 与 `WatchHealth` 任何状态都可以调用。`Start` 之前报本地状态（`Declared`、`Resolved` 或 `Configured`），没有健康项、不调健康回调；`Started` 之后照实报，`Draining`、`Stopped`、`Failed` 不再调健康回调。
+- `Ready` 与 `Degraded` 期间，`Health` 每次都求一次健康回调；健康回调报 `Ready`、`Degraded` 或 `Failed` 的照办（迁移按 `lifecycle-transitions.json`，`Failed` 之后不再回来），报其他状态的不改变状态。健康项名不在清单 `contributes.health` 里的丢掉、不发给宿主，同一个名字在进程里只记一条 `warning`。健康回调抛出：这一次的结果是 `Degraded`，`error` 为 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`phase` 为 `health`），没有健康项。
+- `WatchHealth` 先推一次当前状态，之后状态、健康项或 `error` 变化时推送；可服务期间 SDK 每 10 秒（宿主 `HealthInterval` 的缺省值）重新求一次健康回调。插件进入 `Draining` 时推一次 `Draining`，应答 `Stop` 后结束流。
+
+### 7.5 停止
+
+- 启动回调没有成功过（`Resolved`、`Configured`，或在那之前进入 `Failed`）：不调停止回调，应答 `ok`，以退出码 0 退出。宿主在"探测启动"（§3）与配置、启动失败后都会这样停止插件。
+- `Started`、`Ready`、`Degraded`：进入 `Draining`，新到的调用与投递以 `PLUGINS_UNAVAILABLE_001` 拒绝；等在途调用结束，最长到宽限期（`grace_seconds`，`0` 按 5 秒）；宽限到了仍没结束的调用触发它们的取消信号（RFC-0003，只经令牌通知，不强行中止）、不再等。然后调停止回调（`reason` 原样交给作者），应答，进入 `Stopped`，以退出码 0 退出。
+- 启动回调成功过、之后进入 `Failed`（健康回调报 `Failed`）：不迁移状态，在途调用的处理同上，然后调停止回调、应答、退出。
+- 停止回调在进程里最多调一次。它返回失败时 `StopResponse.status` 带那个错误，抛出时为 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`phase` 为 `stop`）；两种情况都照常退出（宿主只记录，§5）。
+
+### 7.6 回调抛出时的 reason
+
+生命周期与健康回调抛出异常时，错误不带异常的文本（文本可能含路径、连接串等，只写进 stderr 日志）：`reason` 是异常的简单类型名，不带包名、命名空间与指针标记（如 `ValueError`、`IllegalStateException`、`TypeError`、`InvalidOperationException`；Go 返回的不是 `Error` 的错误取动态类型名，如 `*fs.PathError` 写 `PathError`）。没有异常的语言里回调以 panic 结束的写 `panic`。事件处理器与操作处理器抛出的按 `invocation.md` §4、RFC-0011 处理，不在此列。
+
+### 7.7 stdin 关闭与 SIGTERM
+
+插件把 stdin 读到结尾（或读出错）与收到 SIGTERM 都当作收尾请求：可服务的插件进入 `Draining`（其他状态不迁移），立即触发全部在途调用的取消信号并等它们结束；启动回调成功过而停止回调还没调过的，调一次停止回调，`reason` 为 `shutdown`。从收到请求起最多 3 秒（短于宿主发出终止信号后再等的 5 秒，§5），到时不论是否完成都以退出码 0 退出；正在处理的 `Stop` 照常进行，但同样受这 3 秒限制。

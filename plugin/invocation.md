@@ -19,7 +19,9 @@
 
 - 一元操作：`Plugin.Invoke`。`payload` 是请求类型的 JSON（空等价于 `{}`）；`InvokeResponse.status.ok` 为真时 `payload` 是响应类型的 JSON，否则 `error` 是业务失败。
 - 流式操作（`streaming: true`）：`Plugin.InvokeStream`。调用方先发 `start`（`InvokeRequest`，`payload` 为请求对象），再发零个或多个 `chunk`（每帧一个完整 JSON 值），最后发 `end`（`ok: true`；`ok: false` 表示中止，被调方应停止处理）；被调方发零个或多个 `chunk`，最后发 `end`。任一方收到不符合顺序的帧（`start` 不是第一帧、`end` 之后还有帧）以 gRPC `InvalidArgument` 结束流。.NET 参考实现在 RFC-0011 定义流式操作契约之前只把流式操作暴露为内部调用，不经协议适配器发布。
+  - 在流式操作契约的 RFC 之前（RFC-0017「非目标」），插件不实现流式调用、也不声明流式操作（`handshake.md` §3 第 4 条），2026-11-18 写明（ADR-0237；以前有的 SDK 直接拒绝、有的读帧、有的实现了流式操作）：`InvokeStream` 核对会话令牌后读第一帧，流在第一帧之前结束或第一帧不是 `start` 时以 gRPC `InvalidArgument` 结束流，第一帧是 `start` 时以 gRPC `Unimplemented` 结束流，不论操作是否声明、插件是否就绪。
 - 调用到达时插件未 `Ready`：懒激活按 `lifecycle.md` 等待，否则 `PLUGINS_UNAVAILABLE_001`。
+- 插件一侧处理 `Invoke` 依次核对（2026-11-18 写明，ADR-0237；以前有的 SDK 先报未就绪）：会话令牌（`handshake.md` §4）；操作在握手声明里，否则 gRPC `Unimplemented`；插件在可服务状态（`lifecycle.md` §7.3），否则 `Status.error` 为 `PLUGINS_UNAVAILABLE_001` + `plugins.process.unavailable`；然后按 §2 还原上下文，经 SDK 的调用器与完整管道执行（RFC-0011），`payload` 为空等同 `{}`。
 
 ## 2. 上下文映射（RFC-0003）
 
@@ -33,6 +35,13 @@
 `baggage` 里的 `xihan.tenant` 是这次调用的租户：Tenant 阶段裁定过时取裁定结果，裁定为无租户时不带；还没有裁定（宿主没有 Tenant 阶段，或调用还没走到它）时原样传递调用携带的值（2026-11-12 修订，ADR-0195）。插件回调与发布能带的租户以它为限（§5）。
 
 插件必须按 `deadline` 与 gRPC 取消停止工作；返回的 `Error` 若是超时或取消，用 `KERNEL_TIMEOUT_001` / `KERNEL_CANCELLED_001`。
+
+接收方还原上下文（插件读宿主的调用与投递、宿主读插件的回调，2026-11-18 写明，ADR-0237；以前各实现对不合法或不一致的值各有取舍）：
+
+- `trace_parent` 按 RFC-0003 的文法取，不合文法即没有父 Span；`trace_state` 不进上下文（RFC-0003 的上下文没有它），回调时写空。
+- `baggage` 只保留已登记的键（`conventions/baggage-keys.md`，按键名过滤），未登记的丢掉；插件一侧另把 `xihan.principal` 原样交给作者（宿主一侧按 §5 覆盖）。
+- `deadline` 按下面的文法读，读不出就当作没有；生效的截止时间取它与 gRPC 调用自身截止时间中较早的一个，两者都没有就没有截止时间。
+- `deadline` 的写法：宿主写 UTC、七位小数、`+00:00` 偏移（.NET 的 `O` 格式，如 `2026-11-18T03:25:00.1234567+00:00`），插件回调时写同样的格式，小数不足七位补零。读法：`^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?([Zz]|[+-][0-9]{2}:[0-9]{2})\z`，且年 `0001`–`9999`、月日按公历（含闰年）、时 `00`–`23`、分 `00`–`59`、秒 `00`–`59`（不认闰秒 `60`）、偏移的时 `00`–`23` 与分 `00`–`59`，换算成 UTC 之后（不计小数）在 `0001-01-01T00:00:00` 到 `9999-12-31T23:59:59` 之间；比实现的时钟精度更细的小数截断（不进位）。向量：`conformance/vectors/plugin/deadlines.json`。
 
 ## 3. 错误映射
 
@@ -49,6 +58,9 @@
 | `InvalidArgument`（帧序或载荷不合法） | `KERNEL_VALIDATION_001` |
 | 其他 | `PLUGINS_UNEXPECTED_001`，细节含状态码与消息 |
 
+- 各项的消息键与参数见 §8 与 `conformance/vectors/plugin/plugin-messages.json`。`reason` 写成 `<状态名>: <说明>` 的地方，状态名用 gRPC 状态码的 PascalCase 名字（`OK`、`Cancelled`、`Unknown`、`InvalidArgument`、`DeadlineExceeded`、`NotFound`、`AlreadyExists`、`PermissionDenied`、`ResourceExhausted`、`FailedPrecondition`、`Aborted`、`OutOfRange`、`Unimplemented`、`Internal`、`Unavailable`、`DataLoss`、`Unauthenticated`），说明原样取状态的消息（各 gRPC 库的文字不同，不要求一致）。
+- 写出 `Error`（插件写给宿主、宿主写给插件，2026-11-18 写明，ADR-0237；以前有的 SDK 按某个区域把带键的错误渲染成文本）：`code`、`message_key` 原样；带消息键的错误 `text` 留空，由宿主按目录翻译成调用方的语言（RFC-0010）；只有自由文本错误（`Error.Literal`）写 `text`；`details` 是模板参数与细节的 JSON 对象文本，没有时为空；`inner` 同样写出。
+- 读入 `Error`（宿主读插件、插件读宿主同一规则，参考实现 `PluginErrorMapper.FromProto`）：`code` 不合错误码文法时整个错误换成 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`phase` 为 `invoke`，`reason` 为 `invalid error code '<code>'`）；`message_key` 合消息键文法的按键处理，否则成为自由文本错误，文案取 `text`，`text` 为空时取 `code`；`details` 为空、通不过 RFC-0001 的共同 JSON 读取检查或不是对象时当作没有细节；`inner` 同此。`Status.ok` 为假却没有 `error`：`PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`reason` 为 `the plugin reported a failure without an error`，插件读宿主时为 `the host reported a failure without an error`）。
 - 宿主把插件错误原样放进调用结果；协议适配器再按各自载体映射（HTTP Problem Details、gRPC 状态 + `xihan-error-code`、MCP `isError`）。
 
 ## 4. 事件投递（RFC-0009）
@@ -57,6 +69,12 @@
 - `HandleEventRequest.mode` 是这次投递的订阅方式（`competing` 或 `broadcast`），宿主总是填写，空同 `competing`。插件按（主题，方式）找处理器，再看类型：只交给以这种方式声明、`message_type` 为空或等于信封 `type` 的订阅。同一主题的不同类型可以各用一种方式（握手第 5 条只禁止同一（主题，类型）对重复），例如（`t`，空）竞争、（`t`，`x`）广播时，类型 `x` 的消息以两种方式各到一次，插件靠 `mode` 把竞争投递交给前者、广播投递交给后者。插件找不到以这种方式声明的订阅时返回 `error`，不改交给另一种方式的处理器。
 - `Envelope` 是 CloudEvents 1.0 属性的平铺；`attempt` 从 1 起。插件返回 `ok` 表示已处理；返回 `error` 由代理按重试与死信策略处理；插件不可用期间的投递同样按该策略处理。
 - 至少一次投递：插件处理器必须幂等（可用 `baggage` 里的 `xihan.idempotency-key` 或信封 `id`）。
+- 插件一侧处理 `HandleEvent` 依次（2026-11-18 写明，ADR-0237；以前找不到订阅时各 SDK 的错误码不同，匹配多个订阅时有的只交给第一个）：
+  1. 会话令牌（`handshake.md` §4）。
+  2. 没有 `envelope`，或 `mode` 不是空、`competing`、`broadcast`：gRPC `InvalidArgument`。
+  3. 按（主题，方式，类型）找订阅，一个也没有：`Status.error` 为 `KERNEL_NOTFOUND_001` + `plugins.event.unsubscribed`（`id` 为清单 ID，`topic`、`type` 取信封，`mode` 为这次投递的方式，空写 `competing`）。
+  4. 插件在可服务状态（`lifecycle.md` §7.3），否则 `PLUGINS_UNAVAILABLE_001` + `plugins.process.unavailable`。
+  5. 按 §2 从 `metadata` 还原上下文；匹配的订阅按握手里的声明顺序依次交给各自的处理器，第一个失败即终止并作为结果（与 RFC-0009「投递」第 2 条的派发器相同）。例如（`t`，空）与（`t`，`x`）都是竞争订阅时，类型 `x` 的一次竞争投递先后交给两者。处理器抛出为 `KERNEL_UNEXPECTED_001` + `kernel.invocation.unhandled_exception`（同 RFC-0011 规则 5）。全部成功为 `ok`。
 
 ## 5. 回调（`Host` 服务）
 
@@ -65,7 +83,8 @@
 租户只能是宿主随调用交给插件的那一个（2026-11-12 修订，ADR-0195；以前 `xihan.tenant` 原样采用，插件身份没有租户声明可比对，插件能在任意启用的租户里调用宿主操作、发布消息）：
 
 - `Host.Invoke` 的元数据带 `xihan.tenant` 时，它必须是宿主此刻交给该插件处理的某个调用（操作、事件或中间件）的租户（§2），否则不执行，`Status.error` 为 `PLUGINS_DENIED_002`。不带时是无租户的调用。
-- `Host.Publish` 的信封带 `xihantenant` 扩展时逐项按同一规则判定，越界的那一项为 `PLUGINS_DENIED_002`，其余照常发布。
+- `Host.Publish` 以 `metadata` 按 §2 建调用上下文（主体同上被覆盖），在这个上下文里发布：发布侧按 RFC-0009 从上下文补齐信封缺的扩展属性（租户、主体、关联 ID、区域、追踪）。`metadata` 带 `xihan.tenant` 时先按同一规则判定，越界即整批不发布，每一项都是 `PLUGINS_DENIED_002` + `plugins.callback.tenant_denied`（2026-11-18 修订，ADR-0237；以前宿主不读 `metadata`，插件在处理某个租户的调用时发布的消息不带租户，与进程内的发布不同）。
+- `Host.Publish` 的信封带 `xihantenant` 扩展时逐项按同一规则判定，越界的那一项为 `PLUGINS_DENIED_002`，其余照常发布。逐项的核对依次是：宿主有没有消息发布器（`plugins.callback.messaging_unavailable`）、主题文法（`MESSAGING_VALIDATION_002`）、`xihantenant`、信封能否转换。
 - 宿主没有在处理该插件的调用时（调用已结束、插件在后台回调），回调不能带租户。
 
 | RPC | 权限 | 语义 |
@@ -73,7 +92,30 @@
 | `Host.Invoke` | `capability:kernel.pipeline` | 以新的调用经宿主完整管道执行操作（含 Authorize：插件主体须被授予操作要求的权限）；未登记的操作 `KERNEL_NOTFOUND_001` |
 | `Host.Publish` | `capability:messaging.queue` | 经宿主消息代理发布，逐项结果；`topic` 为空的信封 `MESSAGING_VALIDATION_002` |
 
-回调所需的权限必须**在清单 `permissions` 里声明并且已被宿主授予**才生效：清单是插件权限的唯一事实源（RFC-0017），宿主授予而清单没有声明的权限不放行回调。未声明或未授予都返回 gRPC `PermissionDenied` + `PLUGINS_DENIED_002`。`net.outbound:` 与 `fs.*:` 权限不经协议表达，由宿主通过操作系统沙箱（若启用）强制。
+回调所需的权限必须**在清单 `permissions` 里声明并且已被宿主授予**才生效：清单是插件权限的唯一事实源（RFC-0017），宿主授予而清单没有声明的权限不放行回调。未声明或未授予都返回 gRPC `PermissionDenied` + `PLUGINS_DENIED_002`。`net.outbound:` 与 `fs.*:` 权限不经协议表达，由宿主通过操作系统沙箱（若启用）强制。宿主一侧依次核对：会话令牌、权限、`metadata` 的租户，然后执行（`Host.Publish` 再逐项核对）。
+
+插件一侧（SDK 的回调客户端，2026-11-18 写明，ADR-0237；以前有的 SDK 在本地核对信封的租户、有的不核对，回调失败的映射也各不相同）：
+
+- 回调端点按 `handshake.md` §4 选；没有可用端点时不发请求，`Host.Invoke` 以 `PLUGINS_UNAVAILABLE_001` + `plugins.host.unavailable`（`reason` 为 `no supported callback endpoint`）失败，`Host.Publish` 的每一项都是这个错误。
+- 发出之前在本地按宿主的顺序核对，与宿主给出同样的错误，不合即不发请求：
+  1. 权限：RPC 所需的权限既在清单 `permissions` 里、也在 `Configure` 的 `granted_permissions` 里，否则 `PLUGINS_DENIED_002` + `plugins.callback.denied`（`permission` 为所需的权限）。
+  2. 租户：回调上下文的 `xihan.tenant` 必须是插件此刻正在处理的某个调用或投递的租户（同一租户可以同时有多个），否则 `PLUGINS_DENIED_002` + `plugins.callback.tenant_denied`。
+  - `Host.Publish` 两项都是整批的结果，每一项都是那个错误。信封的 `xihantenant` 不在本地核对，由宿主逐项判定：宿主在它之前还核对发布器与主题，本地先判它会改变错误的先后。
+- 回调的 `metadata` 取自回调所在的调用上下文：`trace_parent` 是当前 Span 的 traceparent，`deadline` 按 §2 的写法，`baggage` 是上下文里已登记的键，`trace_state` 为空；gRPC 调用的截止时间与 `deadline` 相同。
+- gRPC 状态的映射与宿主一侧（§3）对称（向量 `conformance/vectors/plugin/callback-status.json`）：
+
+| gRPC 状态 | 错误 |
+| --- | --- |
+| `Unauthenticated` | `PLUGINS_DENIED_002` + `plugins.callback.session_invalid` |
+| `PermissionDenied` | `PLUGINS_DENIED_002` + `plugins.callback.denied`（`permission` 为所需的权限） |
+| `DeadlineExceeded` | `KERNEL_TIMEOUT_001` + `kernel.invocation.deadline_exceeded` |
+| `Cancelled`，回调上下文的取消信号已触发 | `KERNEL_CANCELLED_001` + `kernel.invocation.cancelled`（超时的归因交给插件自己管道里的截止时间步骤，RFC-0003） |
+| `Cancelled`，回调上下文的取消信号没有触发；`Unavailable`；连接失败 | `PLUGINS_UNAVAILABLE_001` + `plugins.host.unavailable`（`reason` 为 `<状态名>: <说明>`） |
+| `Unimplemented`，`Host.Invoke` | `KERNEL_NOTFOUND_001` + `kernel.operation.unknown`（`id` 为操作 ID） |
+| `InvalidArgument`，`Host.Invoke` | `KERNEL_VALIDATION_001` + `kernel.operation.invalid_payload`（`id` 为操作 ID，`reason` 为状态的说明） |
+| 其他，含 `Host.Publish` 的 `Unimplemented` 与 `InvalidArgument` | `PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`phase` 为操作 ID 或 `publish`，`reason` 为 `<状态名>: <说明>`） |
+
+- `Host.Publish` 的 RPC 失败时每一项都是同一个错误；宿主返回的结果数与信封数不同时，每一项都是 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`phase` 为 `publish`，`reason` 为 `the host returned <结果数> results for <信封数> envelopes`）。`Status` 里的错误按 §3 的读入规则处理。
 
 ## 6. 日志与诊断
 
@@ -82,4 +124,20 @@
 
 ## 7. 一致性
 
-gRPC 黑盒套件 `XiHan.Framework.Plugins.Conformance`（`PluginProtocolConformance`，任何语言的插件以其构建产物目录继承运行）以本文件、`handshake.md` 与 `lifecycle.md` 为用例来源：握手行与版本协商、无共同版本时拒绝、不带或带错会话令牌的调用以 `Unauthenticated` 拒绝（`handshake.md` §4，ADR-0202）、清单一致性（含清单不写 `contributes.pipeline`）、Configure / Start / Health / WatchHealth / Stop 与宽限内退出、未知操作 `Unimplemented`、声明的操作都返回 `status`、订阅投递确认、stdin 关闭即退出。回调的令牌与权限、崩溃重启由宿主实现的测试覆盖；流式帧序随流式操作契约补充。数据向量见 `conformance/vectors/plugin/`。
+gRPC 黑盒套件 `XiHan.Framework.Plugins.Conformance`（`PluginProtocolConformance`，任何语言的插件以其构建产物目录继承运行）以本文件、`handshake.md` 与 `lifecycle.md` 为用例来源：握手行与版本协商、无共同版本时拒绝、不带或带错会话令牌的调用以 `Unauthenticated` 拒绝（`handshake.md` §4，ADR-0202）、清单一致性（含清单不写 `contributes.pipeline`）、Configure / Start / Health / WatchHealth / Stop 与宽限内退出、未知操作 `Unimplemented`、声明的操作都返回 `status`、订阅投递确认、stdin 关闭即退出，以及插件一侧的规则（2026-11-18 补充，ADR-0237）：调用次序不对以 `FailedPrecondition` 拒绝、`Start` 之前的 `Health` 报本地状态、未就绪时的调用与投递报 `plugins.process.unavailable`（未声明的操作仍先报 `Unimplemented`）、投递找不到订阅报 `plugins.event.unsubscribed`、未知的投递方式 `InvalidArgument`、`InvokeStream` 的第一帧、配置节不是对象时进入 `Failed`、`Start` 之前的 `Stop` 应答后退出、两个会话令牌值也以 `Unauthenticated` 拒绝；每个用例都以多项的 `XIHAN_PLUGIN_HOST_ADDRESS` 启动插件。framework-spec 的黑盒运行器 `xihan-conformance plugin` 有同样的用例。回调的令牌与权限、回调的本地核对与状态映射、崩溃重启由宿主与 SDK 实现的测试覆盖（回放 `callback-status.json`）；流式帧序随流式操作契约补充。数据向量见 `conformance/vectors/plugin/`。
+
+## 8. 运行时的消息键
+
+SDK 运行时与宿主共用下面的消息键（2026-11-18 写明，ADR-0237；以前规范只列了错误码，键与参数只在 .NET 的目录里，各 SDK 的参数与之不一致）。宿主必须有这些键的目录（.NET 在 `Plugins.Protocol`，10 种区域），SDK 不随握手发送它们（`handshake.md` §3 第 6 条）；SDK 自己带同样的目录（参考实现的 10 种区域）供本地渲染。码、键、参数、en-US 模板与固定的 `reason` 文本以向量 `conformance/vectors/plugin/plugin-messages.json` 为准；`reason` 是英文诊断文本，不本地化。
+
+| 键 | 参数 | 错误码 | 场合 |
+| --- | --- | --- | --- |
+| `plugins.process.unavailable` | `id`、`state` | `PLUGINS_UNAVAILABLE_001` | 不在可服务状态时到达的调用与投递（`state` 是状态名） |
+| `plugins.process.failed` | `id`、`phase`、`reason` | `PLUGINS_UNEXPECTED_001` | 回调抛出、配置节不是对象、对方写来的错误不合法、没有对应的 gRPC 状态 |
+| `plugins.event.unsubscribed` | `id`、`topic`、`type`、`mode` | `KERNEL_NOTFOUND_001` | 投递找不到订阅 |
+| `plugins.host.unavailable` | `id`、`reason` | `PLUGINS_UNAVAILABLE_001` | 回调连不上宿主、没有可用的回调端点 |
+| `plugins.callback.denied` | `id`、`permission` | `PLUGINS_DENIED_002` | 回调所需的权限未声明或未授予 |
+| `plugins.callback.tenant_denied` | `id`、`tenant` | `PLUGINS_DENIED_002` | 回调带了不属于在途调用的租户 |
+| `plugins.callback.session_invalid` | 无 | `PLUGINS_DENIED_002` | 宿主拒绝了会话令牌 |
+
+`id` 一律是插件的清单 ID。错误的 `details` 就是这些参数，不另加成员。
