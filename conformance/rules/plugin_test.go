@@ -268,13 +268,10 @@ func TestDetailsFollowTheValueModel(t *testing.T) {
 	if !reflect.DeepEqual(details, want) {
 		t.Errorf("details = %#v, want %#v", details, want)
 	}
-	for _, text := range []string{"", " ", "{} x", `{"a":1e309}`, `{"a":[-1e309]}`, "[]", `"x"`} {
+	for _, text := range []string{"", " ", "{}", " {} ", "{} x", `{"a":1e309}`, `{"a":[-1e309]}`, "[]", `"x"`} {
 		if details := rules.ReadDetails(text); details != nil {
 			t.Errorf("%q must read as no details, got %v", text, details)
 		}
-	}
-	if details := rules.ReadDetails(" {} "); details == nil || len(details) != 0 {
-		t.Errorf("an empty object is an empty set of details, got %#v", details)
 	}
 }
 

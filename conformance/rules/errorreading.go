@@ -100,8 +100,8 @@ func CallbackPhase(rpc, operation string) string {
 	return operation
 }
 
-// ReadDetails 按 invocation.md §3 读 Error.details 的 JSON 文本：为空、只有空白、通不过 RFC-0001 的共同 JSON 读取检查、
-// 不是对象，或任何一层有读成双精度会溢出（±∞）的数时返回 nil，即没有细节；下溢的数读成 0，超出 64 位的整数读成双精度。
+// ReadDetails 按 invocation.md §3 读 Error.details 的 JSON 文本：为空、只有空白、是空对象、通不过 RFC-0001 的共同 JSON
+// 读取检查、不是对象，或任何一层有读成双精度会溢出（±∞）的数时返回 nil，即没有细节；下溢的数读成 0，超出 64 位的整数读成双精度。
 func ReadDetails(text string) map[string]any {
 	// 只有空白的文本在共同读取检查里是语法错误
 	if text == "" || CheckJSONText([]byte(text)) != nil {
@@ -116,6 +116,10 @@ func ReadDetails(text string) map[string]any {
 	}
 	members, isObject := root.(map[string]any)
 	if !isObject {
+		return nil
+	}
+	// 空对象与没有细节相同（invocation.md §3）
+	if len(members) == 0 {
 		return nil
 	}
 	value, ok := detailValue(members)

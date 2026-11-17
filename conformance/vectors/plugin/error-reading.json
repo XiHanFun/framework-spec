@@ -1,5 +1,5 @@
 {
-  "$comment": "读入对方写来的 Error（宿主读插件、插件读宿主同一规则，invocation.md §3，参考实现 PluginErrorMapper.FromProto）：error 是线上 Error 的字段（details 是 JSON 文本），expected 是读入后的错误：key 为 null 表示自由文本错误（文案为 text），text 为 null 表示没有文案，details 为 null 表示没有细节（按 JSON 值比较），inner 为 null 表示没有内部错误。错误码不合文法时整个错误换成 plugins.process.failed，phase 一律为 invoke（不论这次是 Invoke、HandleEvent、生命周期还是 Host.Publish），原来的 inner 丢掉。details 为空、只有空白、通不过 RFC-0001 的共同 JSON 读取检查、不是对象，或任何一层有读成双精度会溢出（±∞）的数时当作没有细节；下溢的数读成 0，超出 64 位的整数读成双精度。statusWithoutError 是 Status.ok 为假却没有 error 时的结果：phase 在宿主读插件时是这次的阶段（操作 ID、event、configure、start、stop），插件读宿主时是操作 ID（Host.Invoke）或 publish（Host.Publish）。插件 ID 为 xihan.acme.echo",
+  "$comment": "读入对方写来的 Error（宿主读插件、插件读宿主同一规则，invocation.md §3，参考实现 PluginErrorMapper.FromProto）：error 是线上 Error 的字段（details 是 JSON 文本），expected 是读入后的错误：key 为 null 表示自由文本错误（文案为 text），text 为 null 表示没有文案，details 为 null 表示没有细节（按 JSON 值比较），inner 为 null 表示没有内部错误。错误码不合文法时整个错误换成 plugins.process.failed，phase 一律为 invoke（不论这次是 Invoke、HandleEvent、生命周期还是 Host.Publish），原来的 inner 丢掉。details 为空、只有空白、是空对象 {}、通不过 RFC-0001 的共同 JSON 读取检查、不是对象，或任何一层有读成双精度会溢出（±∞）的数时当作没有细节；下溢的数读成 0，超出 64 位的整数读成双精度。statusWithoutError 是 Status.ok 为假却没有 error（或整个 status 缺失）时的结果：phase 在宿主读插件时是这次的阶段（操作 ID、event、configure、start、stop），插件读宿主时是操作 ID（Host.Invoke）或 publish（Host.Publish）。插件 ID 为 xihan.acme.echo",
   "pluginId": "xihan.acme.echo",
   "cases": [
     {
@@ -191,6 +191,22 @@
         "message_key": "kernel.operation.unknown",
         "text": "",
         "details": "  "
+      },
+      "expected": {
+        "code": "KERNEL_NOTFOUND_001",
+        "key": "kernel.operation.unknown",
+        "text": null,
+        "details": null,
+        "inner": null
+      }
+    },
+    {
+      "name": "details 是空对象",
+      "error": {
+        "code": "KERNEL_NOTFOUND_001",
+        "message_key": "kernel.operation.unknown",
+        "text": "",
+        "details": "{}"
       },
       "expected": {
         "code": "KERNEL_NOTFOUND_001",
