@@ -1,101 +1,143 @@
-# XiHan Framework Spec
+<div align="center">
 
-XiHan Framework 的语言中立规范：原语语义与线上编码、清单 Schema、调用上下文与传播、管道阶段与排序、进程外插件协议 `xihan.plugin.v1` 与 Wasm 载体、协议映射、应用清单与打包，以及数据驱动的一致性向量和黑盒运行器。
+<h1>XiHan Spec</h1>
 
-| 实现 | 仓库 | 角色 |
-| --- | --- | --- |
-| .NET | [XiHan.Framework](https://github.com/XiHanFun/XiHan.Framework)（`framework/`） | 参考实现，以 submodule 引用本仓库到 `framework/spec` |
-| Go | [framework-sdk-go](https://github.com/XiHanFun/framework-sdk-go) | 第二语言 SDK，以 submodule 引用本仓库到 `spec` |
-| TypeScript | [framework-sdk-typescript](https://github.com/XiHanFun/framework-sdk-typescript) | 占位，规划中（ADR-0004：Go 之后的下一个）；npm 组织 `xihan-framework` 已注册 |
-| Rust | [framework-sdk-rust](https://github.com/XiHanFun/framework-sdk-rust) | 占位，规划中（进程外与 Wasm 插件）；crates.io `xihan-framework` 0.0.1 已占名 |
-| Java | [framework-sdk-java](https://github.com/XiHanFun/framework-sdk-java) | 占位，规划中；Maven Central 命名空间 `com.xihanfun` 已验证 |
-| Python | [framework-sdk-python](https://github.com/XiHanFun/framework-sdk-python) | 占位，规划中；PyPI `xihan-framework` 0.0.1 已占名 |
-| PHP | [framework-sdk-php](https://github.com/XiHanFun/framework-sdk-php) | 占位，规划中；Packagist `xihanfun/xihan-framework` 已提交 |
+<h3>The language-neutral specification shared by XiHan Framework and its SDKs</h3>
 
-各仓库按 `framework-sdk-<语言>` 命名（ADR-0010）；SDK 成熟度：Reference（.NET）、Stable（通过全部向量）、Experimental（部分向量）、Community（社区维护）。
+<p>
+  <a href="https://github.com/XiHanFun/framework-spec/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/XiHanFun/framework-spec/ci.yml?branch=main&style=flat-square&label=CI" /></a>
+  <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/github/license/XiHanFun/framework-spec?style=flat-square&color=green" /></a>
+  <a href="https://github.com/XiHanFun/framework-spec/stargazers"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/XiHanFun/framework-spec?style=flat-square&logo=github&label=Stars&color=1f6feb" /></a>
+</p>
 
-## 目录
+<p>
+  <a href="https://framework.docs.xihanfun.com"><b>Docs</b></a> ·
+  <a href="#contents"><b>Contents</b></a> ·
+  <a href="#conformance"><b>Conformance</b></a> ·
+  <a href="https://github.com/XiHanFun/XiHan.Framework"><b>Reference Implementation</b></a>
+</p>
+
+<p><b>English</b> | <a href="./README_cn.md">简体中文</a></p>
+
+</div>
+
+XiHan Spec is the language-neutral specification of XiHan Framework: primitive semantics and wire encoding, the manifest schema, the invocation context and its propagation, pipeline stages and ordering, the out-of-process plugin protocol `xihan.plugin.v1` and the Wasm carrier, protocol mappings, application manifests and packaging, plus data-driven conformance vectors and a black-box runner. The reference implementation is [XiHan.Framework](https://github.com/XiHanFun/XiHan.Framework) for .NET; SDKs for other languages are listed under [Ecosystem](#ecosystem).
+
+## Contents
 
 ```text
 spec/
-├─ rfcs/           # 提案：先 RFC，再 ADR，再实现
-├─ conventions/    # 规范性：术语表、包 ID、能力 ID、操作 ID、错误码、Baggage 键、批量优先
-├─ manifest/       # 规范性：xihan.manifest.json 的 JSON Schema
-├─ plugin/         # 规范性：插件协议 plugin.proto 与握手、生命周期、调用文本；Wasm 载体 wasm.md
-├─ protocol/       # 规范性：HTTP / gRPC / MCP / CloudEvents / 命令行 映射
-├─ packaging/      # 规范性：应用清单 xihan.app.json 与 xihan pack 的产物映射
-├─ provider/       # 规范性：远程 Provider 的通用规则与各能力的操作集（caching.distributed）
-├─ migration/      # 规范性：xihan migrate 的通用约定（命令、标记、报告格式）与各来源版本的规则集
-└─ conformance/    # 一致性向量（vectors/）与黑盒运行器（Go 模块，见 conformance/README.md）
+├─ rfcs/           # Proposals: RFC first, then ADR, then implementation
+├─ conventions/    # Normative: vocabulary, package IDs, capability IDs, operation IDs, error codes, Baggage keys, batch first
+├─ manifest/       # Normative: JSON Schema for xihan.manifest.json
+├─ plugin/         # Normative: plugin protocol plugin.proto with the handshake, lifecycle and invocation documents; Wasm carrier wasm.md
+├─ protocol/       # Normative: HTTP / gRPC / MCP / CloudEvents / command-line mappings
+├─ packaging/      # Normative: application manifest xihan.app.json and the artifact mapping of xihan pack
+├─ provider/       # Normative: general rules for remote providers and the operation set of each capability (caching.distributed)
+├─ migration/      # Normative: general conventions of xihan migrate (command, markers, report format) and the rule set for each source version
+└─ conformance/    # Conformance vectors (vectors/) and the black-box runner (Go module, see conformance/README.md)
 ```
 
-## 规范性与信息性
+The documents in this repository are written in Chinese.
 
-| 规范性（各语言必须一致） | 信息性（各语言自选） |
+## Normative and Informative
+
+| Normative (must match across languages) | Informative (each language decides) |
 | --- | --- |
-| 原语语义与线上编码 | 内部 API 形态 |
-| 清单 Schema | 包管理与目录布局 |
-| 上下文传播键与载体 | 日志实现 |
-| 管道阶段名与排序规则 | 具体中间件 |
-| 插件协议 | 隔离机制 |
-| 协议映射 | 服务器实现 |
-| 术语表、错误码、能力 ID、操作 ID、包 ID 命名 | 代码风格 |
-| 批量优先：集合入参、原生批量、部分失败语义（`conventions/batch-first.md`） | 批次大小 |
+| Primitive semantics and wire encoding | Internal API shape |
+| Manifest schema | Package management and directory layout |
+| Context propagation keys and carriers | Logging implementation |
+| Pipeline stage names and ordering rules | Concrete middleware |
+| Plugin protocol | Isolation mechanism |
+| Protocol mappings | Server implementation |
+| Vocabulary, error codes, capability IDs, operation IDs, package ID naming | Code style |
+| Batch first: collection inputs, native batching, partial-failure semantics (`conventions/batch-first.md`) | Batch size |
 
-## 一致性
+## Conformance
 
-- `conformance/vectors/`：JSON 向量，按主题分目录（`primitives/`、`plugin/`、`provider/`）。各语言 SDK 的单元测试直接读取这些文件；Go 可以 `go get github.com/xihanfun/framework-spec/conformance` 后经 `conformance.Vectors` 嵌入读取。
-- `conformance/cmd/xihan-conformance`：语言中立的黑盒运行器。`xihan-conformance plugin --dir <插件目录>` 以宿主身份启动任意语言写的进程外插件，按 `plugin/handshake.md`、`lifecycle.md`、`invocation.md` 核对握手行与版本协商、无共同版本时拒绝、清单一致性、Configure / Start / Health / WatchHealth / Stop 与宽限内退出、未知操作 `Unimplemented`、声明的操作都返回 `status`、订阅投递确认、stdin 关闭即退出；`xihan-conformance vectors` 校验向量文件本身。
+| Part | Location | Description |
+| --- | --- | --- |
+| Conformance vectors | `conformance/vectors/` | JSON vectors, one directory per topic (`primitives/`, `manifest/`, `pipeline/`, `operations/`, `plugin/`, `security/`, `provider/`); SDK unit tests in every language read these files directly, and Go code can `go get github.com/xihanfun/framework-spec/conformance` and read them through the embedded `conformance.Vectors` |
+| Black-box runner | `conformance/cmd/xihan-conformance` | Language-neutral; acting as the host, it starts an out-of-process plugin written in any language; the runner itself is written in Go |
 
-## 消费方式
+```bash
+go install github.com/xihanfun/framework-spec/conformance/cmd/xihan-conformance@latest
+```
 
-规范文件按相对路径互相链接，整个仓库可以作为 git submodule 放进实现仓库：
+| Command | Purpose |
+| --- | --- |
+| `xihan-conformance plugin --dir <plugin-dir>` | Checks, per `plugin/handshake.md`, `lifecycle.md` and `invocation.md`: the handshake line and version negotiation, refusal when there is no common version, the session token, manifest consistency, Configure / Start / Health / WatchHealth / Stop and exit within the grace period, `Unimplemented` for unknown operations, a `status` returned by every declared operation, acknowledged subscription delivery, and exit once stdin is closed |
+| `xihan-conformance vectors` | Validates the vector files themselves |
+
+What each vector file contains, the rules package, and the runner's cases and options are described in [conformance/README.md](./conformance/README.md) (in Chinese).
+
+## Consuming the Spec
+
+Spec files link to one another by relative path, so the whole repository can be added to an implementation repository as a git submodule:
 
 ```bash
 git submodule add https://github.com/XiHanFun/framework-spec.git spec
 git submodule update --init
 ```
 
-`plugin/plugin.proto` 用各语言的 protobuf 工具链生成；仓库根的 `buf.yaml` 定义 lint 与破坏性变更检查，`buf.gen.yaml` 为运行器生成 Go 代码。
+XiHan.Framework references it at `framework/spec`, and each SDK at `spec`. Each language generates code from `plugin/plugin.proto` with its own protobuf toolchain; `buf.yaml` at the repository root defines the lint and breaking-change checks, and `buf.gen.yaml` generates the Go code for the runner.
 
-## RFC 流程
+## RFCs
 
-1. 在 `rfcs/` 新建 `NNNN-<slug>.md`，状态 `草案`。
-2. 评审通过后写 ADR（XiHan.Framework 的 `design/adr/`），RFC 状态改为 `已采纳`，正文并入对应规范性目录。
-3. 实现与一致性向量随 RFC 一起合并；没有 RFC 的公开契约变更不合并。
+Public contracts start as RFCs; see [Contributing](#contributing) for the process. Reference implementation paths in the Status column are relative to `framework/src` in XiHan.Framework.
 
-参考实现一栏的路径相对 XiHan.Framework 的 `framework/src`。
-
-| RFC | 标题 | 状态 |
+| RFC | Title | Status |
 | --- | --- | --- |
-| [0001](rfcs/0001-primitives.md) | 原语层 | 已采纳（参考实现 `XiHan.Framework.Primitives`） |
-| [0002](rfcs/0002-manifest.md) | 清单 | 已采纳（参考实现 `Kernel.Capabilities`） |
-| [0003](rfcs/0003-invocation-context.md) | 调用上下文与传播 | 已采纳（载体映射随协议适配器实现） |
-| [0004](rfcs/0004-pipeline-stages.md) | 管道阶段与排序 | 已采纳（参考实现 `Kernel.Pipeline`） |
-| [0005](rfcs/0005-persistence.md) | 领域协议与持久化 | 已采纳（参考实现 `Domain`、`Persistence.Abstractions`，套件 `Persistence.Conformance`） |
-| [0006](rfcs/0006-caching.md) | 缓存、分布式锁与幂等 | 已采纳（参考实现 `Caching.Abstractions`、`Caching.InMemory`、`Caching.Redis`、`Caching.Hybrid`，套件 `Caching.Conformance`） |
-| [0007](rfcs/0007-multitenancy.md) | 多租户 | 已采纳（参考实现 `MultiTenancy.Abstractions`、`MultiTenancy.InMemory`，套件 `MultiTenancy.Conformance`）；Provider `MultiTenancy.Database` |
-| [0008](rfcs/0008-security.md) | 认证与授权 | 已采纳（参考实现 `Security.Abstractions`、`Security.InMemory`、`Security.Jwt`、`Security.OpenIdConnect`，套件 `Security.Conformance`）；Provider `Security.Database`、`Security.Ip2Region`（IP 归属地） |
-| [0009](rfcs/0009-messaging.md) | 消息、CloudEvents 信封与发件箱 | 已采纳（参考实现 `Messaging.Abstractions`、`Messaging.InMemory`、`Messaging.RabbitMQ`、`Messaging.Kafka`、`Messaging.Redis`，套件 `Messaging.Conformance`） |
-| [0010](rfcs/0010-localization.md) | 本地化：默认英文与 10 种内置区域 | 已采纳（参考实现 `Localization.Abstractions`、`Localization.InMemory`）；Provider `Localization.Database`，套件 `Localization.Conformance` |
-| [0011](rfcs/0011-operations.md) | 操作契约与 XGI 消息 | 已采纳（参考实现 `Kernel.Operations`） |
-| [0012](rfcs/0012-objectstorage.md) | 对象存储 | 已采纳（参考实现 `ObjectStorage.Abstractions`、`ObjectStorage.FileSystem`、`ObjectStorage.S3`，套件 `ObjectStorage.Conformance`） |
-| [0013](rfcs/0013-scheduling.md) | 调度与领导选举 | 已采纳（2026-10-26 修订：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发；参考实现 `Scheduling.Abstractions`、`Scheduling.InMemory`、`Scheduling.Database`，套件 `Scheduling.Conformance`） |
-| [0014](rfcs/0014-configuration.md) | 远程配置与密钥 | 已采纳（参考实现 `Configuration.Abstractions`、`Configuration.Nacos`，套件 `Configuration.Conformance`；默认实现是 .NET 原生文件与环境变量，无包） |
-| [0015](rfcs/0015-auditing.md) | 审计 | 已采纳（参考实现 `Auditing.Abstractions`、`Auditing.InMemory`，套件 `Auditing.Conformance`）；Provider `Auditing.Database` |
-| [0016](rfcs/0016-packaging.md) | 应用清单与打包 | 已采纳（参考实现 `Cli` 的 `xihan pack`；规范 `packaging/`） |
-| [0017](rfcs/0017-plugin-protocol.md) | 进程外插件协议 `xihan.plugin.v1` | 已采纳（规范 `plugin/`；参考实现 `Plugins.OutOfProcess`，套件 `Plugins.Conformance`） |
-| [0018](rfcs/0018-wasm-plugins.md) | Wasm 插件 ABI（Experimental）：同一套消息经导出函数 + 线性内存 | 已采纳（规范 `plugin/wasm.md`；参考实现 `Plugins.Wasm`，套件 `Plugins.Conformance`） |
-| [0019](rfcs/0019-remote-providers.md) | 远程 Provider：子系统能力经插件操作提供，首个操作集 `caching.distributed@1` | 已采纳（规范 `provider/`；适配器 `Caching.Remote`，插件 `framework-sdk-go` 的 `caching` 包） |
-| [0020](rfcs/0020-migration.md) | 版本迁移：`xihan migrate <来源版本>` 按规则集做语法级重写，不做运行期兼容桥 | 已采纳（规范 `migration/README.md`；实现 `XiHan.Framework.Cli`） |
-| [0021](rfcs/0021-workflow.md) | 工作流：持久化执行 | 已采纳（2026-10-26 修订：触发式启动、事件网关、外部任务、HTTP 与补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；参考实现 `Workflow.Abstractions`、`Workflow.InMemory`、`Workflow.Database`，套件 `Workflow.Conformance`） |
-| [0022](rfcs/0022-ai.md) | AI：聊天、嵌入、工具与知识 | 已采纳（参考实现 `AI.Abstractions`、`AI.OpenAI`、`AI.VectorData`，套件 `AI.Conformance`） |
-| [0023](rfcs/0023-observability.md) | 可观测性：导出与运行信息 | 已采纳（参考实现 `Observability.Abstractions`、`Observability.Host`、`Observability.OpenTelemetry`；运行信息不启动外部命令，取不到的项见正文） |
+| [0001](./rfcs/0001-primitives.md) | Primitives layer | Adopted (reference implementation `XiHan.Framework.Primitives`) |
+| [0002](./rfcs/0002-manifest.md) | Manifest | Adopted (reference implementation `Kernel.Capabilities`) |
+| [0003](./rfcs/0003-invocation-context.md) | Invocation context and propagation | Adopted (carrier mappings are implemented with the protocol adapters) |
+| [0004](./rfcs/0004-pipeline-stages.md) | Pipeline stages and ordering | Adopted (reference implementation `Kernel.Pipeline`) |
+| [0005](./rfcs/0005-persistence.md) | Domain protocols and persistence | Adopted (reference implementation `Domain`, `Persistence.Abstractions`; suite `Persistence.Conformance`) |
+| [0006](./rfcs/0006-caching.md) | Caching, distributed locks and idempotency | Adopted (reference implementation `Caching.Abstractions`, `Caching.InMemory`, `Caching.Redis`, `Caching.Hybrid`; suite `Caching.Conformance`) |
+| [0007](./rfcs/0007-multitenancy.md) | Multi-tenancy | Adopted (reference implementation `MultiTenancy.Abstractions`, `MultiTenancy.InMemory`; suite `MultiTenancy.Conformance`); provider `MultiTenancy.Database` |
+| [0008](./rfcs/0008-security.md) | Authentication and authorization | Adopted (reference implementation `Security.Abstractions`, `Security.InMemory`, `Security.Jwt`, `Security.OpenIdConnect`; suite `Security.Conformance`); providers `Security.Database`, `Security.Ip2Region` (IP geolocation) |
+| [0009](./rfcs/0009-messaging.md) | Messaging, the CloudEvents envelope and the outbox | Adopted (reference implementation `Messaging.Abstractions`, `Messaging.InMemory`, `Messaging.RabbitMQ`, `Messaging.Kafka`, `Messaging.Redis`; suite `Messaging.Conformance`) |
+| [0010](./rfcs/0010-localization.md) | Localization: English by default and 10 built-in locales | Adopted (reference implementation `Localization.Abstractions`, `Localization.InMemory`); provider `Localization.Database`, suite `Localization.Conformance` |
+| [0011](./rfcs/0011-operations.md) | Operation contracts and XGI messages | Adopted (reference implementation `Kernel.Operations`) |
+| [0012](./rfcs/0012-objectstorage.md) | Object storage | Adopted (reference implementation `ObjectStorage.Abstractions`, `ObjectStorage.FileSystem`, `ObjectStorage.S3`; suite `ObjectStorage.Conformance`) |
+| [0013](./rfcs/0013-scheduling.md) | Scheduling and leader election | Adopted (revised 2026-10-26: job store, dynamic jobs, multiple triggers, misfire, pausing, history, cluster dispatch; reference implementation `Scheduling.Abstractions`, `Scheduling.InMemory`, `Scheduling.Database`; suite `Scheduling.Conformance`) |
+| [0014](./rfcs/0014-configuration.md) | Remote configuration and secrets | Adopted (reference implementation `Configuration.Abstractions`, `Configuration.Nacos`; suite `Configuration.Conformance`; the default implementation is .NET's native files and environment variables, with no package) |
+| [0015](./rfcs/0015-auditing.md) | Auditing | Adopted (reference implementation `Auditing.Abstractions`, `Auditing.InMemory`; suite `Auditing.Conformance`); provider `Auditing.Database` |
+| [0016](./rfcs/0016-packaging.md) | Application manifest and packaging | Adopted (reference implementation `xihan pack` in `Cli`; spec `packaging/`) |
+| [0017](./rfcs/0017-plugin-protocol.md) | Out-of-process plugin protocol `xihan.plugin.v1` | Adopted (spec `plugin/`; reference implementation `Plugins.OutOfProcess`; suite `Plugins.Conformance`) |
+| [0018](./rfcs/0018-wasm-plugins.md) | Wasm plugin ABI (Experimental): the same messages through exported functions + linear memory | Adopted (spec `plugin/wasm.md`; reference implementation `Plugins.Wasm`; suite `Plugins.Conformance`) |
+| [0019](./rfcs/0019-remote-providers.md) | Remote providers: subsystem capabilities provided through plugin operations, with `caching.distributed@1` as the first operation set | Adopted (spec `provider/`; adapter `Caching.Remote`) |
+| [0020](./rfcs/0020-migration.md) | Version migration: `xihan migrate <source-version>` performs syntax-level rewrites by rule set, with no runtime compatibility bridge | Adopted (spec `migration/README.md`; implementation `XiHan.Framework.Cli`) |
+| [0021](./rfcs/0021-workflow.md) | Workflow: durable execution | Adopted (revised 2026-10-26: trigger-based starts, event gateways, external tasks, HTTP and compensation activities, jumps and migration, claim / send back / expedite, reminders and approval thresholds, retention cleanup; reference implementation `Workflow.Abstractions`, `Workflow.InMemory`, `Workflow.Database`; suite `Workflow.Conformance`) |
+| [0022](./rfcs/0022-ai.md) | AI: chat, embeddings, tools and knowledge | Adopted (reference implementation `AI.Abstractions`, `AI.OpenAI`, `AI.VectorData`; suite `AI.Conformance`) |
+| [0023](./rfcs/0023-observability.md) | Observability: export and runtime information | Adopted (reference implementation `Observability.Abstractions`, `Observability.Host`, `Observability.OpenTelemetry`; runtime information does not start external commands, and the items it cannot obtain are listed in the RFC) |
 
-## 版本
+## Versioning
 
-规范以语义化版本打标签（`v1.x.y`）：`v1` 期间只增不改，破坏性变更进 `v2` 并与 `v1` 并存，对应原语层的冻结规则（RFC-0001）。实现仓库以 submodule 指向具体提交或标签。
+The spec is tagged with semantic versions (`v1.x.y`): throughout `v1` it only grows and never changes, and breaking changes go into `v2`, which coexists with `v1`, matching the freeze rule of the primitives layer (RFC-0001). Implementation repositories point their submodule at a specific commit or tag.
 
-## 许可
+## Ecosystem
 
-[MIT](LICENSE)
+| Project | Description |
+| --- | --- |
+| [XiHan.Framework](https://github.com/XiHanFun/XiHan.Framework) | The .NET reference implementation |
+| [framework-sdk-go](https://github.com/XiHanFun/framework-sdk-go) | Go SDK |
+| [framework-sdk-typescript](https://github.com/XiHanFun/framework-sdk-typescript) | TypeScript SDK |
+| [framework-sdk-rust](https://github.com/XiHanFun/framework-sdk-rust) | Rust SDK |
+| [framework-sdk-java](https://github.com/XiHanFun/framework-sdk-java) | Java SDK |
+| [framework-sdk-python](https://github.com/XiHanFun/framework-sdk-python) | Python SDK |
+| [framework-sdk-php](https://github.com/XiHanFun/framework-sdk-php) | PHP SDK |
+
+SDK repositories are named `framework-sdk-<language>` (ADR-0010). SDK maturity levels: Reference (.NET), Stable (passes all vectors), Experimental (passes some vectors), Community (maintained by the community).
+
+## Contributing
+
+[Issues](https://github.com/XiHanFun/framework-spec/issues) and pull requests are welcome. Changes to public contracts go through the RFC process:
+
+1. Create `NNNN-<slug>.md` under `rfcs/` with the status `草案` (draft).
+2. Once the review passes, write an ADR (in `plans/adr/` of XiHan.Framework), change the RFC status to `已采纳` (adopted), and merge its text into the matching normative directory.
+3. The implementation and conformance vectors are merged together with the RFC; public contract changes without an RFC are not merged.
+
+## License
+
+[MIT](./LICENSE) © 2021-Present XiHanFun and contributors.
