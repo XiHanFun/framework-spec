@@ -18,7 +18,11 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `manifest/manifests.json` | 必须读得出的清单与再写出的全文，必须拒绝的清单与逐字的错误（检查顺序、路径、跨字段约束），期望值由 .NET 算出 | RFC-0002 解析规则 2 与「写出」 |
 | `pipeline/ordering.json` | 管道的登记序列、期望的 `Dump` 全文与各种错误报出的时机（期望值由 .NET 算出） | RFC-0004 |
 | `operations/payload-reasons.json` | 载荷的解码结果与不合法时 `reason` 的路径（三个各语言都能声明的请求类型，含必填成员与 `null`，期望值由 .NET 算出） | RFC-0011 规则 2 |
-| `plugin/handshake-lines.json` | 插件握手行的合法与非法样例 | `plugin/handshake.md` |
+| `plugin/handshake-lines.json` | 插件握手行的合法与非法样例：地址的空白字符集（与 .NET 正则的 `\s` 相同）、tcp 回环地址与端口的写法 | `plugin/handshake.md` §2 |
+| `plugin/host-addresses.json` | 宿主回调端点列表 `XIHAN_PLUGIN_HOST_ADDRESS` 的合法与非法写法，以及按插件支持的 network 选第一个可用项 | `plugin/handshake.md` §4 |
+| `plugin/deadlines.json` | `InvocationMetadata.deadline` 的严格读法（UTC 时刻，纳秒精度）、与 gRPC 截止时间取较早者、按 .NET `O` 格式写出 | `plugin/invocation.md` §2 |
+| `plugin/plugin-messages.json` | SDK 运行时与宿主共用的插件消息键：错误码、参数（即 `details` 的成员）、en-US 模板与固定的 `reason` 文本 | `plugin/invocation.md` §8 |
+| `plugin/callback-status.json` | 插件一侧回调失败的映射：RPC、gRPC 状态与调用上下文是否已取消，到错误码、消息键与 `details` | `plugin/invocation.md` §5 |
 | `plugin/protocol-versions.json` | 协议版本协商与原语层版本核对 | `plugin/handshake.md` |
 | `plugin/wasm-exports.json` | Wasm ABI v1 的导出与导入表 | `plugin/wasm.md` |
 | `security/webauthn.json` | WebAuthn 注册与认证的样例响应、存储的凭据与期望结果（成功的凭据与签名计数，失败的错误码与 `reason`） | RFC-0008「WebAuthn」 |
@@ -28,7 +32,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 
 ## 规则（`rules/`）
 
-规范文法与判定的 Go 实现，供运行器使用，也供 SDK 作者对照：错误码、操作 ID、主题、Baggage 键与值、清单 ID、能力 ID 与依赖文本、握手行（含 tcp 回环判定）、版本协商、生命周期迁移、管道阶段、消息键与模板占位符、Result 与 Error 的线上编码（`CanonicalResult` / `CanonicalError` 给出再写出时的规范形式）、JSON 文本的共同读取检查（`CheckJSONText`，与 .NET 独立实现、回放同一份向量）。每条规则都由向量验证（`rules/rules_test.go`、`rules/messages_test.go`）。模板的格式化结果由参考实现 .NET 回放 `message-templates.json` 核对，规则包不另实现一份。
+规范文法与判定的 Go 实现，供运行器使用，也供 SDK 作者对照：错误码、操作 ID、主题、Baggage 键与值、清单 ID、能力 ID 与依赖文本、握手行与端点（`ParseHandshakeLine`、`ParseEndpoint`、`IsLoopbackAddress`，空白字符集 `IsWhitespace`）、宿主回调端点列表（`ParseHostAddresses`、`SelectHostEndpoint`、`FormatHostAddresses`）、截止时间（`ParseDeadline`、`FormatDeadline`、`EffectiveDeadline`）、回调失败的映射（`MapCallbackStatus`、`GRPCStatusName`、`StatusReason`、`CallbackPermission`）、版本协商、生命周期迁移、管道阶段、消息键与模板占位符、Result 与 Error 的线上编码（`CanonicalResult` / `CanonicalError` 给出再写出时的规范形式）、JSON 文本的共同读取检查（`CheckJSONText`，与 .NET 独立实现、回放同一份向量）。每条规则都由向量验证（`rules/rules_test.go`、`rules/messages_test.go`、`rules/plugin_test.go`）；`plugin-messages.json` 另核对模板占位符与参数一致，`callback-status.json` 的 `details` 成员与所用消息键的参数一致。模板的格式化结果由参考实现 .NET 回放 `message-templates.json` 核对，规则包不另实现一份。
 
 ## 黑盒运行器（`cmd/xihan-conformance`）
 
@@ -36,16 +40,22 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 
 | 用例 | 核对内容 |
 | --- | --- |
-| `handshake` | 握手行合法、协商出宿主支持的版本、原语层版本相同、握手清单与目录里的文件一致、操作与订阅都在清单声明范围内、目录至少一种区域 |
+| `handshake` | 握手行合法、协商出宿主支持的版本、原语层版本相同、握手清单与目录里的文件一致且不以 BOM 开头、操作与订阅都在清单声明范围内、目录至少一种区域；插件写的 `primitives` 等于清单的 `primitives`，没有 `streaming: true` 的操作，每个订阅的 `mode` 是 `competing` 或 `broadcast`（不写空）（`handshake.md` §3） |
 | `refusal` | 宿主没有共同版本时以 `FailedPrecondition` 拒绝 |
-| `session` | 不带会话令牌或带错令牌的调用以 `Unauthenticated` 拒绝，带对了照常握手（`handshake.md` §4，ADR-0202） |
+| `session` | 不带会话令牌、带错令牌，或带两个 `xihan-plugin-session` 值（一对一错，两种先后；两个都对）的调用都以 `Unauthenticated` 拒绝，带对了照常握手（`handshake.md` §4，ADR-0202、ADR-0237） |
 | `lifecycle` | `Configure`、`Start` 成功；`Health` 与 `WatchHealth` 报 Started / Ready / Degraded，健康项都已声明；`Stop` 成功且进程在 5 秒宽限内退出 |
+| `order` | 调用次序（`lifecycle.md` §7.1）：握手前的 `Configure` 与 `Stop`、再次 `Handshake`、没 `Configure` 就 `Start`、再次 `Configure`、再次 `Start` 都以 `FailedPrecondition` 拒绝；握手后 `Health` 报 `Resolved`、`Configure` 后报 `Configured`，都没有健康项；`Start` 之后报 `Ready` 或 `Degraded`（`Failed` 不通过，§7.3） |
 | `unknown-operation` | 未声明的操作以 `Unimplemented` 结束 |
 | `declared-operations` | 每个声明的一元操作都返回 `status`：成功时载荷是 JSON，失败时错误码合法 |
+| `unavailable` | `Configure` 之后、`Start` 之前：未声明的操作仍以 `Unimplemented` 结束；每个声明的操作（`--exclude` 的除外）与对第一个订阅的投递都以 `PLUGINS_UNAVAILABLE_001` + `plugins.process.unavailable` 失败，`text` 为空，`details` 为 `{"id":<清单 ID>,"state":"Configured"}`（`invocation.md` §1、§4，`lifecycle.md` §7.3） |
 | `event` | 向第一个声明的订阅投递消息得到确认；没有订阅时跳过 |
+| `unsubscribed` | `Start` 之后向没人订阅的随机主题投递：`mode` 为 `competing` 或空都以 `KERNEL_NOTFOUND_001` + `plugins.event.unsubscribed` 失败，`text` 为空，`details` 为 `{"id","topic","type","mode":"competing"}`；`mode` 为 `bogus` 与没有 `envelope` 都以 `InvalidArgument` 拒绝（`invocation.md` §4） |
+| `stream` | `InvokeStream` 第一帧是 `chunk`、不发帧就关闭发送方向都以 `InvalidArgument` 结束；第一帧是 `start`（未声明的操作，以及第一个声明的操作）以 `Unimplemented` 结束（`invocation.md` §1） |
+| `configuration` | 配置节为 `[]` 与语法错误的 `{"a":` 时各开一个进程：`Configure` 以 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed` 失败，`text` 为空，`details` 为 `{"id","phase":"configure","reason":"the configuration is not a JSON object"}`；之后 `Health` 报 `Failed`，`Stop` 应答 `ok`、进程在宽限内以退出码 0 退出（`lifecycle.md` §7.2、§7.5） |
+| `stop-early` | 握手后直接 `Stop`（`grace_seconds` 为 0）应答 `ok`，进程在 5 秒内以退出码 0 退出（`lifecycle.md` §7.5） |
 | `stdin` | 关闭 stdin 后进程自行退出 |
 
-每个用例单独启动一次插件进程；运行器不提供宿主回调服务，回调相关的权限与令牌由宿主实现的测试覆盖；运行器调用插件时每次都带会话令牌。
+每个用例单独启动一次插件进程；运行器调用插件时每次都带会话令牌，`details` 按 JSON 值比较。运行器给插件的 `XIHAN_PLUGIN_HOST_ADDRESS` 与 .NET 宿主一样是两项的列表、回环 TCP 在最后（Windows 上是 `npipe \\.\pipe\xihan-conformance-<随机>;tcp 127.0.0.1:<端口>`，其他系统是 `unix <临时目录>/xihan-conformance-<随机>/host.sock;tcp 127.0.0.1:<端口>`），每个用例都考到插件解析列表；两项都没人监听：运行器不提供宿主回调服务，回调的令牌、权限、本地核对与状态映射由宿主与 SDK 实现的测试覆盖（回放 `callback-status.json`）。
 
 ```bash
 go install github.com/xihanfun/framework-spec/conformance/cmd/xihan-conformance@latest
@@ -67,7 +77,7 @@ xihan-conformance vectors
 
 退出码：`0` 全部通过（含跳过），`1` 有用例失败，`2` 参数或目录错误。
 
-作为库使用：`plugin.Run(ctx, plugin.Options{Directory: dir})` 返回每个用例的 `Result`；测试 `TestAgainstAPluginDirectory` 在设置了 `XIHAN_CONFORMANCE_PLUGIN_DIR`（和可选的 `XIHAN_CONFORMANCE_EXCLUDE`）时对该目录跑全部用例。
+作为库使用：`plugin.Run(ctx, plugin.Options{Directory: dir})` 返回每个用例的 `Result`；测试 `TestAgainstAPluginDirectory` 在设置了 `XIHAN_CONFORMANCE_PLUGIN_DIR`（和可选的 `XIHAN_CONFORMANCE_EXCLUDE`）时对该目录跑全部用例。运行器自己的测试（`plugin/fake_test.go`）让测试程序扮演插件：合规的假插件必须通过全部用例，按以前各 SDK 的做法应答的假插件必须在新用例上失败。
 
 ## 生成代码
 

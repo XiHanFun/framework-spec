@@ -37,9 +37,10 @@ type launch struct {
 	versions     []uint32
 	primitives   uint32
 	sessionToken string
-	hostEndpoint rules.Endpoint
-	instanceID   string
-	locale       string
+	// hostAddresses 是 XIHAN_PLUGIN_HOST_ADDRESS 的各项，按偏好排序（handshake.md §4）。
+	hostAddresses []rules.Endpoint
+	instanceID    string
+	locale        string
 }
 
 // process 是一个已启动并连上的插件进程。
@@ -71,7 +72,7 @@ func environment(l launch) []string {
 		"XIHAN_PLUGIN_PROTOCOL_VERSIONS="+strings.Join(versions, ","),
 		"XIHAN_PLUGIN_PRIMITIVES="+strconv.FormatUint(uint64(l.primitives), 10),
 		"XIHAN_PLUGIN_SESSION="+l.sessionToken,
-		"XIHAN_PLUGIN_HOST_ADDRESS="+l.hostEndpoint.Network+" "+l.hostEndpoint.Address,
+		"XIHAN_PLUGIN_HOST_ADDRESS="+rules.FormatHostAddresses(l.hostAddresses),
 		"XIHAN_PLUGIN_INSTANCE="+l.instanceID,
 		"XIHAN_PLUGIN_LOCALE="+l.locale,
 	)
@@ -197,6 +198,17 @@ func (p *process) waitExit(timeout time.Duration) bool {
 		return true
 	case <-time.After(timeout):
 		return false
+	}
+}
+
+// exitCode 返回已退出进程的退出码；进程还没退出时为 -1。
+func (p *process) exitCode() int {
+	select {
+	case <-p.exited:
+		// Wait 返回之后 ProcessState 才有值，exited 在那之后关闭
+		return p.cmd.ProcessState.ExitCode()
+	default:
+		return -1
 	}
 }
 

@@ -27,6 +27,32 @@ func TestTypedLoadersAreNonEmpty(t *testing.T) {
 	if err != nil || len(handshake.Valid) == 0 || len(handshake.Invalid) == 0 {
 		t.Errorf("handshake lines: %v", err)
 	}
+	addresses, err := conformance.HostAddresses()
+	if err != nil || len(addresses.Valid) == 0 || len(addresses.Invalid) == 0 || len(addresses.Selection) == 0 {
+		t.Errorf("host addresses: %v", err)
+	}
+	for _, c := range addresses.Valid {
+		if len(c.Entries) == 0 {
+			t.Errorf("host address %q must list its entries", c.Value)
+		}
+	}
+	deadlines, err := conformance.Deadlines()
+	if err != nil || len(deadlines.Valid) == 0 || len(deadlines.Invalid) == 0 || len(deadlines.Effective) == 0 || len(deadlines.Written) == 0 {
+		t.Errorf("deadlines: %v", err)
+	}
+	messages, err := conformance.PluginMessages()
+	if err != nil || len(messages.Messages) == 0 || len(messages.Reasons) == 0 {
+		t.Errorf("plugin messages: %v", err)
+	}
+	callbacks, err := conformance.CallbackStatus()
+	if err != nil || callbacks.PluginID == "" || callbacks.Operation == "" || len(callbacks.Cases) == 0 {
+		t.Errorf("callback status: %v", err)
+	}
+	for _, c := range callbacks.Cases {
+		if (c.RPC != "invoke" && c.RPC != "publish") || c.Status == "" || c.Code == "" || c.Key == "" || len(c.Details) == 0 {
+			t.Errorf("callback case %s %s is incomplete", c.RPC, c.Status)
+		}
+	}
 	versions, err := conformance.ProtocolVersions()
 	if err != nil || len(versions.Cases) == 0 || len(versions.Primitives) == 0 {
 		t.Errorf("protocol versions: %v", err)

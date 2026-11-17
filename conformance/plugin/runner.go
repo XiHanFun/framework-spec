@@ -16,11 +16,12 @@ const Version = "0.1.0"
 
 // runner 持有一次运行的状态。
 type runner struct {
-	opts         Options
-	manifest     Manifest
-	raw          map[string]any
-	hostEndpoint rules.Endpoint
-	token        string
+	opts     Options
+	manifest Manifest
+	raw      map[string]any
+	// hostAddresses 是交给插件的回调端点列表（handshake.md §4），一次运行共用。
+	hostAddresses []rules.Endpoint
+	token         string
 }
 
 // Run 对一个插件目录运行选定的用例，每个用例都单独启动一次插件进程。
@@ -57,15 +58,25 @@ func Run(ctx context.Context, opts Options) ([]Result, error) {
 		selected = opts.Cases
 	}
 
-	r := &runner{opts: opts, manifest: manifest, raw: raw, hostEndpoint: placeholderHostEndpoint(), token: newSessionToken()}
+	hostAddresses, err := newHostAddresses()
+	if err != nil {
+		return nil, fmt.Errorf("plugin: %w", err)
+	}
+	r := &runner{opts: opts, manifest: manifest, raw: raw, hostAddresses: hostAddresses, token: newSessionToken()}
 	cases := map[string]func(context.Context) error{
 		CaseHandshake:          r.caseHandshake,
 		CaseRefusal:            r.caseRefusal,
 		CaseSession:            r.caseSession,
 		CaseLifecycle:          r.caseLifecycle,
+		CaseOrder:              r.caseOrder,
 		CaseUnknownOperation:   r.caseUnknownOperation,
 		CaseDeclaredOperations: r.caseDeclaredOperations,
+		CaseUnavailable:        r.caseUnavailable,
 		CaseEvent:              r.caseEvent,
+		CaseUnsubscribed:       r.caseUnsubscribed,
+		CaseStream:             r.caseStream,
+		CaseConfiguration:      r.caseConfiguration,
+		CaseStopEarly:          r.caseStopEarly,
 		CaseStdin:              r.caseStdin,
 	}
 

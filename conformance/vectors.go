@@ -62,6 +62,102 @@ type HandshakeLineVectors struct {
 	Invalid []string        `json:"invalid"`
 }
 
+// HostEndpoint 是宿主回调端点列表里的一项。
+type HostEndpoint struct {
+	Network string `json:"network"`
+	Address string `json:"address"`
+}
+
+// HostAddressCase 是一个合法的 XIHAN_PLUGIN_HOST_ADDRESS 值及其各项。
+type HostAddressCase struct {
+	Value   string         `json:"value"`
+	Entries []HostEndpoint `json:"entries"`
+}
+
+// HostAddressSelection 是一次回调端点的选择：Value 为 nil 表示变量缺失，Selected 为 nil 表示没有可用的项。
+type HostAddressSelection struct {
+	Value     *string       `json:"value"`
+	Supported []string      `json:"supported"`
+	Selected  *HostEndpoint `json:"selected"`
+}
+
+// HostAddressVectors 对应 plugin/host-addresses.json（handshake.md §4，ADR-0237）。
+type HostAddressVectors struct {
+	Valid     []HostAddressCase      `json:"valid"`
+	Invalid   []string               `json:"invalid"`
+	Selection []HostAddressSelection `json:"selection"`
+}
+
+// DeadlineCase 是一个合法的 deadline 文本及其 UTC 时刻（RFC 3339，九位小数）。
+type DeadlineCase struct {
+	Text string `json:"text"`
+	UTC  string `json:"utc"`
+}
+
+// EffectiveDeadlineCase 是一次生效截止时间的选取：GRPC 为 nil 表示 gRPC 调用没有截止时间，Expected 为 nil 表示没有截止时间。
+type EffectiveDeadlineCase struct {
+	Metadata string  `json:"metadata"`
+	GRPC     *string `json:"grpc"`
+	Expected *string `json:"expected"`
+}
+
+// WrittenDeadline 是一次截止时间的写出：UTC 时刻与写出的文本。
+type WrittenDeadline struct {
+	UTC  string `json:"utc"`
+	Text string `json:"text"`
+}
+
+// DeadlineVectors 对应 plugin/deadlines.json（invocation.md §2，ADR-0237）。
+type DeadlineVectors struct {
+	Valid     []DeadlineCase          `json:"valid"`
+	Invalid   []string                `json:"invalid"`
+	Effective []EffectiveDeadlineCase `json:"effective"`
+	Written   []WrittenDeadline       `json:"written"`
+}
+
+// PluginMessage 是 SDK 运行时与宿主共用的一项插件错误：码、消息键、参数名（也就是 details 的成员）与 en-US 模板。
+type PluginMessage struct {
+	Code      string   `json:"code"`
+	Key       string   `json:"key"`
+	Arguments []string `json:"arguments"`
+	Template  string   `json:"template"`
+	When      string   `json:"when"`
+}
+
+// PluginMessageReason 是写进 reason 参数的固定英文文本；Phase 只用于 plugins.process.failed。
+type PluginMessageReason struct {
+	Key    string `json:"key"`
+	Phase  string `json:"phase,omitempty"`
+	Reason string `json:"reason"`
+	When   string `json:"when"`
+}
+
+// PluginMessageVectors 对应 plugin/plugin-messages.json（invocation.md §8，ADR-0237）。
+type PluginMessageVectors struct {
+	Messages []PluginMessage       `json:"messages"`
+	Reasons  []PluginMessageReason `json:"reasons"`
+}
+
+// CallbackStatusCase 是一次回调失败：RPC 是 invoke 或 publish，Status 与 StatusCode 是 gRPC 状态的名字与数值；
+// 期望的错误是 Code + Key，Details 是错误的 details（JSON 值，null 表示没有）。
+type CallbackStatusCase struct {
+	RPC              string          `json:"rpc"`
+	Status           string          `json:"status"`
+	StatusCode       uint32          `json:"statusCode"`
+	Message          string          `json:"message"`
+	ContextCancelled bool            `json:"contextCancelled"`
+	Code             string          `json:"code"`
+	Key              string          `json:"key"`
+	Details          json.RawMessage `json:"details"`
+}
+
+// CallbackStatusVectors 对应 plugin/callback-status.json（invocation.md §5，ADR-0237）：插件 PluginID 回调 Host.Invoke（操作 Operation）或 Host.Publish。
+type CallbackStatusVectors struct {
+	PluginID  string               `json:"pluginId"`
+	Operation string               `json:"operation"`
+	Cases     []CallbackStatusCase `json:"cases"`
+}
+
 // ProtocolVersionCase 是一次版本协商：有交集时 Selected 是选定版本，否则 Error 是错误码。
 type ProtocolVersionCase struct {
 	Host     []uint32 `json:"host"`
@@ -387,6 +483,26 @@ func ProtocolVersions() (ProtocolVersionVectors, error) {
 // WasmExports 读取 Wasm ABI 导出表向量。
 func WasmExports() (WasmExportVectors, error) {
 	return Load[WasmExportVectors]("plugin/wasm-exports.json")
+}
+
+// HostAddresses 读取宿主回调端点列表的解析与选择向量。
+func HostAddresses() (HostAddressVectors, error) {
+	return Load[HostAddressVectors]("plugin/host-addresses.json")
+}
+
+// Deadlines 读取 InvocationMetadata.deadline 的读法、生效的截止时间与写出向量。
+func Deadlines() (DeadlineVectors, error) {
+	return Load[DeadlineVectors]("plugin/deadlines.json")
+}
+
+// PluginMessages 读取 SDK 运行时与宿主共用的插件消息键向量。
+func PluginMessages() (PluginMessageVectors, error) {
+	return Load[PluginMessageVectors]("plugin/plugin-messages.json")
+}
+
+// CallbackStatus 读取插件一侧回调失败的映射向量。
+func CallbackStatus() (CallbackStatusVectors, error) {
+	return Load[CallbackStatusVectors]("plugin/callback-status.json")
 }
 
 // ErrorCodes 读取错误码格式向量。

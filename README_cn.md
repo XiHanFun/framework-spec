@@ -64,7 +64,7 @@ go install github.com/xihanfun/framework-spec/conformance/cmd/xihan-conformance@
 
 | 命令 | 作用 |
 | --- | --- |
-| `xihan-conformance plugin --dir <插件目录>` | 按 `plugin/handshake.md`、`lifecycle.md`、`invocation.md` 核对握手行与版本协商、无共同版本时拒绝、会话令牌、清单一致性、Configure / Start / Health / WatchHealth / Stop 与宽限内退出、未知操作 `Unimplemented`、声明的操作都返回 `status`、订阅投递确认、stdin 关闭即退出 |
+| `xihan-conformance plugin --dir <插件目录>` | 按 `plugin/handshake.md`、`lifecycle.md`、`invocation.md` 核对握手行与版本协商、无共同版本时拒绝、会话令牌（含两个令牌值）、清单一致性、Configure / Start / Health / WatchHealth / Stop 与宽限内退出、调用次序不对时 `FailedPrecondition`、未知操作 `Unimplemented`、声明的操作都返回 `status`、`Start` 之前的调用与投递报 `plugins.process.unavailable`、订阅投递确认、没人订阅或方式未知的投递报 `plugins.event.unsubscribed` 与 `InvalidArgument`、`InvokeStream` 的第一帧、配置节不是 JSON 对象时进入 `Failed`、`Start` 之前的 `Stop` 应答后退出、stdin 关闭即退出；每个插件都以两项的 `XIHAN_PLUGIN_HOST_ADDRESS` 启动 |
 | `xihan-conformance vectors` | 校验向量文件本身 |
 
 各向量文件的内容、规则包、运行器的用例与选项见 [conformance/README.md](./conformance/README.md)。

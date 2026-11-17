@@ -1,6 +1,6 @@
 {
-  "$comment": "插件一侧回调失败的映射（invocation.md §5）：插件 acme.echo 回调 Host.Invoke（操作 orders.create）或 Host.Publish 得到 gRPC 状态 status（statusCode 为数值）与消息 message，contextCancelled 表示回调所在的调用上下文的取消信号是否已触发；结果为 code + key，details 是错误的 details（null 为没有）。Host.Publish 的 RPC 失败时每一项都是这个错误。连接失败按 Unavailable。",
-  "pluginId": "acme.echo",
+  "$comment": "插件一侧回调失败的映射（invocation.md §5）：插件 xihan.acme.echo 回调 Host.Invoke（操作 orders.create）或 Host.Publish 得到 gRPC 状态 status（statusCode 为数值）与消息 message，contextCancelled 表示回调所在的调用上下文的取消信号是否已触发；结果为 code + key，details 是错误的 details（null 为没有）。Host.Publish 的 RPC 失败时每一项都是这个错误。连接失败按 Unavailable。",
+  "pluginId": "xihan.acme.echo",
   "operation": "orders.create",
   "cases": [
     {
@@ -22,7 +22,7 @@
       "code": "PLUGINS_DENIED_002",
       "key": "plugins.callback.denied",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "permission": "capability:kernel.pipeline"
       }
     },
@@ -65,7 +65,7 @@
       "code": "PLUGINS_UNAVAILABLE_001",
       "key": "plugins.host.unavailable",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "reason": "Cancelled: boom"
       }
     },
@@ -78,7 +78,7 @@
       "code": "PLUGINS_UNAVAILABLE_001",
       "key": "plugins.host.unavailable",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "reason": "Unavailable: boom"
       }
     },
@@ -91,7 +91,7 @@
       "code": "PLUGINS_UNAVAILABLE_001",
       "key": "plugins.host.unavailable",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "reason": "Unavailable: boom"
       }
     },
@@ -129,7 +129,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "orders.create",
         "reason": "Unknown: boom"
       }
@@ -143,7 +143,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "orders.create",
         "reason": "NotFound: boom"
       }
@@ -157,7 +157,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "orders.create",
         "reason": "AlreadyExists: boom"
       }
@@ -171,7 +171,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "orders.create",
         "reason": "ResourceExhausted: boom"
       }
@@ -185,7 +185,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "orders.create",
         "reason": "FailedPrecondition: boom"
       }
@@ -199,7 +199,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "orders.create",
         "reason": "Aborted: boom"
       }
@@ -213,7 +213,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "orders.create",
         "reason": "OutOfRange: boom"
       }
@@ -227,7 +227,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "orders.create",
         "reason": "Internal: boom"
       }
@@ -241,7 +241,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "orders.create",
         "reason": "DataLoss: boom"
       }
@@ -265,7 +265,7 @@
       "code": "PLUGINS_DENIED_002",
       "key": "plugins.callback.denied",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "permission": "capability:messaging.queue"
       }
     },
@@ -308,7 +308,7 @@
       "code": "PLUGINS_UNAVAILABLE_001",
       "key": "plugins.host.unavailable",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "reason": "Cancelled: boom"
       }
     },
@@ -321,7 +321,7 @@
       "code": "PLUGINS_UNAVAILABLE_001",
       "key": "plugins.host.unavailable",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "reason": "Unavailable: boom"
       }
     },
@@ -334,7 +334,7 @@
       "code": "PLUGINS_UNAVAILABLE_001",
       "key": "plugins.host.unavailable",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "reason": "Unavailable: boom"
       }
     },
@@ -347,7 +347,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "publish",
         "reason": "Unimplemented: boom"
       }
@@ -361,7 +361,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "publish",
         "reason": "InvalidArgument: boom"
       }
@@ -375,7 +375,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "publish",
         "reason": "Unknown: boom"
       }
@@ -389,7 +389,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "publish",
         "reason": "NotFound: boom"
       }
@@ -403,7 +403,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "publish",
         "reason": "AlreadyExists: boom"
       }
@@ -417,7 +417,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "publish",
         "reason": "ResourceExhausted: boom"
       }
@@ -431,7 +431,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "publish",
         "reason": "FailedPrecondition: boom"
       }
@@ -445,7 +445,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "publish",
         "reason": "Aborted: boom"
       }
@@ -459,7 +459,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "publish",
         "reason": "OutOfRange: boom"
       }
@@ -473,7 +473,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "publish",
         "reason": "Internal: boom"
       }
@@ -487,7 +487,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "publish",
         "reason": "DataLoss: boom"
       }
@@ -501,7 +501,7 @@
       "code": "PLUGINS_UNEXPECTED_001",
       "key": "plugins.process.failed",
       "details": {
-        "id": "acme.echo",
+        "id": "xihan.acme.echo",
         "phase": "orders.create",
         "reason": "Internal: "
       }

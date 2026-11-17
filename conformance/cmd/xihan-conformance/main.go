@@ -70,7 +70,7 @@ func runPlugin(args []string) int {
 	var samples, excludes, cases multiFlag
 	flags.Var(&samples, "sample", "request JSON for an operation, as op=json (repeatable)")
 	flags.Var(&excludes, "exclude", "operation not to invoke (repeatable)")
-	flags.Var(&cases, "case", "case to run (repeatable); default all")
+	flags.Var(&cases, "case", "case to run (repeatable): "+strings.Join(plugin.AllCases, ", ")+"; default all")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
@@ -156,6 +156,10 @@ func runVectors(args []string) int {
 		load func() error
 	}{
 		{"plugin/handshake-lines.json", func() error { _, err := conformance.HandshakeLines(); return err }},
+		{"plugin/host-addresses.json", func() error { _, err := conformance.HostAddresses(); return err }},
+		{"plugin/deadlines.json", func() error { _, err := conformance.Deadlines(); return err }},
+		{"plugin/plugin-messages.json", func() error { _, err := conformance.PluginMessages(); return err }},
+		{"plugin/callback-status.json", func() error { _, err := conformance.CallbackStatus(); return err }},
 		{"plugin/protocol-versions.json", func() error { _, err := conformance.ProtocolVersions(); return err }},
 		{"plugin/wasm-exports.json", func() error { _, err := conformance.WasmExports(); return err }},
 		{"primitives/error-codes.json", func() error { _, err := conformance.ErrorCodes(); return err }},
@@ -171,6 +175,7 @@ func runVectors(args []string) int {
 		{"pipeline/ordering.json", func() error { _, err := conformance.PipelineOrdering(); return err }},
 		{"operations/payload-reasons.json", func() error { _, err := conformance.PayloadReasons(); return err }},
 		{"provider/caching-distributed.json", func() error { _, err := conformance.CachingDistributed(); return err }},
+		{"security/webauthn.json", func() error { _, err := conformance.WebAuthn(); return err }},
 	}
 	code := 0
 	for _, check := range checks {

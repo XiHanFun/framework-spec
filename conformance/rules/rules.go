@@ -1,10 +1,9 @@
 // Package rules 实现规范里的文法与判定规则（错误码、操作 ID、主题、Baggage 键与值、能力依赖、
-// 握手行、版本协商、生命周期迁移、管道阶段、消息键与模板占位符、Result 与 Error 的线上编码），
+// 握手行与回调端点、截止时间、回调失败的映射、版本协商、生命周期迁移、管道阶段、消息键与模板占位符、Result 与 Error 的线上编码），
 // 供运行器与各语言 SDK 的作者对照；每条规则都由 ../vectors 下的向量验证。
 package rules
 
 import (
-	"net"
 	"regexp"
 	"slices"
 	"strconv"
@@ -19,7 +18,6 @@ var (
 	manifestIDPattern            = regexp.MustCompile(`^xihan\.[a-z][a-z0-9]*\.[a-z][a-z0-9-]*$`)
 	capabilityIDPattern          = regexp.MustCompile(`^[a-z][a-z0-9]*\.[a-z][a-z0-9-]*$`)
 	capabilityRequirementPattern = regexp.MustCompile(`^([a-z][a-z0-9]*\.[a-z][a-z0-9-]*)@(\^?)([1-9][0-9]*)(\??)$`)
-	handshakeLinePattern         = regexp.MustCompile(`^xihan-plugin/1 (unix|tcp|npipe) (\S+)$`)
 )
 
 // RegisteredBaggageKeys 是 conventions/baggage-keys.md 登记的键。
@@ -104,37 +102,6 @@ func ParseCapabilityRequirement(text string) (CapabilityRequirement, bool) {
 		return CapabilityRequirement{}, false
 	}
 	return CapabilityRequirement{ID: match[1], Version: int(version), Optional: match[4] == "?"}, true
-}
-
-// Endpoint 是握手行里的插件端点。
-type Endpoint struct {
-	Network string
-	Address string
-}
-
-// ParseHandshakeLine 解析握手行 xihan-plugin/1 <network> <address>；tcp 只接受回环地址。
-func ParseHandshakeLine(line string) (Endpoint, bool) {
-	match := handshakeLinePattern.FindStringSubmatch(line)
-	if match == nil {
-		return Endpoint{}, false
-	}
-	endpoint := Endpoint{Network: match[1], Address: match[2]}
-	if endpoint.Network == "tcp" && !IsLoopbackAddress(endpoint.Address) {
-		return Endpoint{}, false
-	}
-	return endpoint, true
-}
-
-// IsLoopbackAddress 判断 host:port 是否是回环地址 127.0.0.1 或 [::1]；主机名不算。
-func IsLoopbackAddress(address string) bool {
-	host, port, err := net.SplitHostPort(address)
-	if err != nil || port == "" {
-		return false
-	}
-	if _, err := strconv.Atoi(port); err != nil {
-		return false
-	}
-	return host == "127.0.0.1" || host == "::1"
 }
 
 // NegotiateVersion 选宿主列表里最高的插件也支持的协议版本；没有交集返回假。

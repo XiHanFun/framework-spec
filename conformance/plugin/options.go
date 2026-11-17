@@ -9,26 +9,41 @@ import (
 
 // 用例名；Options.Cases 按这些名字筛选。
 const (
-	// CaseHandshake 核对握手行、版本协商、原语层版本、清单一致性与声明范围。
+	// CaseHandshake 核对握手行、版本协商、原语层版本、清单一致性与声明范围，以及插件写出的 primitives、操作与订阅方式。
 	CaseHandshake = "handshake"
 	// CaseRefusal 核对没有共同协议版本时握手以 FailedPrecondition 拒绝。
 	CaseRefusal = "refusal"
-	// CaseSession 核对不带或带错会话令牌的调用以 Unauthenticated 拒绝（handshake.md §4）。
+	// CaseSession 核对不带、带错或带多个会话令牌值的调用以 Unauthenticated 拒绝（handshake.md §4）。
 	CaseSession = "session"
 	// CaseLifecycle 核对 Configure / Start / Health / WatchHealth / Stop 与宽限内退出。
 	CaseLifecycle = "lifecycle"
+	// CaseOrder 核对调用次序不对时以 FailedPrecondition 拒绝、Start 之前的 Health 报本地状态（lifecycle.md §7.1、§7.4）。
+	CaseOrder = "order"
 	// CaseUnknownOperation 核对未声明的操作以 Unimplemented 结束。
 	CaseUnknownOperation = "unknown-operation"
 	// CaseDeclaredOperations 核对每个声明的一元操作都返回 status。
 	CaseDeclaredOperations = "declared-operations"
+	// CaseUnavailable 核对 Start 之前的调用与投递报 plugins.process.unavailable，未声明的操作仍先报 Unimplemented（invocation.md §1、§4）。
+	CaseUnavailable = "unavailable"
 	// CaseEvent 核对向声明的订阅投递消息得到确认；没有订阅时跳过。
 	CaseEvent = "event"
+	// CaseUnsubscribed 核对投递找不到订阅时报 plugins.event.unsubscribed、不合法的投递以 InvalidArgument 拒绝（invocation.md §4）。
+	CaseUnsubscribed = "unsubscribed"
+	// CaseStream 核对 InvokeStream 按第一帧以 InvalidArgument 或 Unimplemented 结束（invocation.md §1）。
+	CaseStream = "stream"
+	// CaseConfiguration 核对配置节不是 JSON 对象时 Configure 报 plugins.process.failed、插件进入 Failed 并能停止（lifecycle.md §7.2）。
+	CaseConfiguration = "configuration"
+	// CaseStopEarly 核对握手后直接 Stop 应答 ok 且进程以退出码 0 退出（lifecycle.md §7.5）。
+	CaseStopEarly = "stop-early"
 	// CaseStdin 核对 stdin 关闭后进程自行退出。
 	CaseStdin = "stdin"
 )
 
 // AllCases 是全部用例，按执行顺序。
-var AllCases = []string{CaseHandshake, CaseRefusal, CaseSession, CaseLifecycle, CaseUnknownOperation, CaseDeclaredOperations, CaseEvent, CaseStdin}
+var AllCases = []string{
+	CaseHandshake, CaseRefusal, CaseSession, CaseLifecycle, CaseOrder, CaseUnknownOperation, CaseDeclaredOperations, CaseUnavailable,
+	CaseEvent, CaseUnsubscribed, CaseStream, CaseConfiguration, CaseStopEarly, CaseStdin,
+}
 
 // DefaultTimeout 是每一步的默认截止时间。
 const DefaultTimeout = 15 * time.Second

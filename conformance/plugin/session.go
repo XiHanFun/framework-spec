@@ -4,11 +4,15 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/xihanfun/framework-spec/conformance/internal/pluginv1"
 	"github.com/xihanfun/framework-spec/conformance/rules"
@@ -44,35 +48,68 @@ func newSessionToken() string {
 	return base64.RawURLEncoding.EncodeToString(token)
 }
 
-// placeholderHostEndpoint 是占位的宿主回调端点：运行器不提供回调服务，只验证插件侧。
-func placeholderHostEndpoint() rules.Endpoint {
-	if runtime.GOOS == "windows" {
-		return rules.Endpoint{Network: "npipe", Address: `\\.\pipe\xihan-conformance-host`}
+// newHostAddresses 组装运行器交给插件的回调端点列表（handshake.md §4）：与 .NET 宿主一样两项、回环 TCP 在最后，
+// Windows 上是命名管道加回环 TCP，其他系统是 Unix 域套接字加回环 TCP。运行器不提供 Host 服务，两项都没人监听，
+// 只用来让每个用例都考到插件解析列表、回调端点不可用时照常服务。
+func newHostAddresses() ([]rules.Endpoint, error) {
+	ports, err := unusedPorts(2)
+	if err != nil {
+		return nil, err
 	}
-	return rules.Endpoint{Network: "unix", Address: filepath.Join(os.TempDir(), "xihan-conformance-host.sock")}
+	suffix := randomID()[:12]
+	loopback := rules.Endpoint{Network: "tcp", Address: "127.0.0.1:" + strconv.Itoa(ports[0])}
+	if runtime.GOOS == "windows" {
+		return []rules.Endpoint{{Network: "npipe", Address: `\\.\pipe\xihan-conformance-` + suffix}, loopback}, nil
+	}
+	socket := filepath.Join(os.TempDir(), "xihan-conformance-"+suffix, "host.sock")
+	// 临时目录的路径含空白或 ; 时宿主不提供 Unix 域套接字（handshake.md §4）；这里改用第二个回环 TCP 端点，列表仍是两项
+	if strings.ContainsFunc(socket, rules.IsWhitespace) || strings.Contains(socket, ";") {
+		return []rules.Endpoint{{Network: "tcp", Address: "127.0.0.1:" + strconv.Itoa(ports[1])}, loopback}, nil
+	}
+	return []rules.Endpoint{{Network: "unix", Address: socket}, loopback}, nil
+}
+
+// unusedPorts 取 count 个此刻没人监听的回环端口：同时监听端口 0 让系统分配互不相同的端口，再全部关掉。
+func unusedPorts(count int) ([]int, error) {
+	ports := make([]int, 0, count)
+	listeners := make([]net.Listener, 0, count)
+	defer func() {
+		for _, listener := range listeners {
+			_ = listener.Close()
+		}
+	}()
+	for range count {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, fmt.Errorf("pick an unused loopback port: %w", err)
+		}
+		listeners = append(listeners, listener)
+		ports = append(ports, listener.Addr().(*net.TCPAddr).Port)
+	}
+	return ports, nil
 }
 
 // launchProcess 以宿主身份启动插件进程并读握手行。
 func (r *runner) launchProcess(ctx context.Context) (*process, error) {
 	l := launch{
-		versions:     supportedVersions,
-		primitives:   primitivesVersion,
-		sessionToken: r.token,
-		hostEndpoint: r.hostEndpoint,
-		instanceID:   r.manifest.ID + "#conformance",
-		locale:       "en-US",
+		versions:      supportedVersions,
+		primitives:    primitivesVersion,
+		sessionToken:  r.token,
+		hostAddresses: r.hostAddresses,
+		instanceID:    r.manifest.ID + "#conformance",
+		locale:        "en-US",
 	}
 	return start(ctx, r.opts.Directory, r.manifest, l, r.opts.Timeout, r.opts.Stderr)
 }
 
-// handshakeRequest 组装握手请求。
+// handshakeRequest 组装握手请求；host_endpoint 是端点列表的第一项，只供诊断，插件选回调端点以环境变量为准（handshake.md §3）。
 func (r *runner) handshakeRequest(versions []uint32) *pluginv1.HandshakeRequest {
 	return &pluginv1.HandshakeRequest{
 		ProtocolVersions: versions,
 		Primitives:       primitivesVersion,
 		InstanceId:       "conformance",
 		Host:             &pluginv1.HostInfo{FrameworkVersion: "spec", Sdk: "xihan-conformance", SdkVersion: Version, Application: "conformance"},
-		HostEndpoint:     &pluginv1.Endpoint{Network: r.hostEndpoint.Network, Address: r.hostEndpoint.Address},
+		HostEndpoint:     &pluginv1.Endpoint{Network: r.hostAddresses[0].Network, Address: r.hostAddresses[0].Address},
 		DefaultLocale:    "en-US",
 	}
 }
@@ -106,6 +143,10 @@ func (r *runner) validateHandshake(response *pluginv1.HandshakeResponse) error {
 		return fmt.Errorf("primitives version %d does not match the host's %d", response.Primitives, primitivesVersion)
 	}
 
+	// 插件写清单文件的原文、去掉开头的 BOM（handshake.md §3 第 3 条）
+	if strings.HasPrefix(response.Manifest, "\uFEFF") {
+		return errors.New("the manifest in the handshake must not start with a UTF-8 BOM")
+	}
 	declared, declaredRaw, err := parseManifest([]byte(response.Manifest))
 	if err != nil {
 		return fmt.Errorf("the manifest in the handshake is invalid: %w", err)

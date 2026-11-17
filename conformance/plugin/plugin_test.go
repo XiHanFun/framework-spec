@@ -3,11 +3,13 @@ package plugin
 import (
 	"context"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/xihanfun/framework-spec/conformance"
+	"github.com/xihanfun/framework-spec/conformance/rules"
 )
 
 func TestSameManifestIgnoresDefaultsAndEmptyValues(t *testing.T) {
@@ -40,7 +42,11 @@ func TestEnvironmentKeepsOnlyTheWhitelist(t *testing.T) {
 	t.Setenv("DOTNET_CLI_TELEMETRY_OPTOUT", "1")
 	t.Setenv("GOMAXPROCS", "2")
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "/secrets/key.json")
-	env := environment(launch{versions: []uint32{1, 2}, primitives: 1, sessionToken: "token", hostEndpoint: placeholderHostEndpoint(), instanceID: "id", locale: "en-US"})
+	hostAddresses, err := newHostAddresses()
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := environment(launch{versions: []uint32{1, 2}, primitives: 1, sessionToken: "token", hostAddresses: hostAddresses, instanceID: "id", locale: "en-US"})
 	joined := strings.Join(env, "\n")
 	if strings.Contains(joined, "XIHAN_CONFORMANCE_SECRET") {
 		t.Error("unlisted variables must not be inherited")
@@ -58,6 +64,35 @@ func TestEnvironmentKeepsOnlyTheWhitelist(t *testing.T) {
 		if !strings.Contains(joined, expected) {
 			t.Errorf("environment must contain %s", expected)
 		}
+	}
+}
+
+func TestHostAddressesAreAListEndingWithLoopbackTCP(t *testing.T) {
+	hostAddresses, err := newHostAddresses()
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := environment(launch{hostAddresses: hostAddresses})
+	var value string
+	for _, pair := range env {
+		if rest, ok := strings.CutPrefix(pair, "XIHAN_PLUGIN_HOST_ADDRESS="); ok {
+			value = rest
+		}
+	}
+	// 宿主给出两项、回环 TCP 在最后（handshake.md §4），整个值按规范的文法读得出
+	endpoints, ok := rules.ParseHostAddresses(value)
+	if !ok || len(endpoints) != 2 || endpoints[1].Network != "tcp" {
+		t.Fatalf("XIHAN_PLUGIN_HOST_ADDRESS=%q must be a list of two endpoints ending with loopback TCP", value)
+	}
+	want := "unix"
+	if runtime.GOOS == "windows" {
+		want = "npipe"
+	}
+	if endpoints[0].Network != want && endpoints[0].Network != "tcp" {
+		t.Errorf("the first endpoint is %+v, want %s", endpoints[0], want)
+	}
+	if selected, ok := rules.SelectHostEndpoint(value, []string{"tcp"}); !ok || selected != endpoints[1] {
+		t.Errorf("a plugin that only speaks tcp must select %+v, got %+v", endpoints[1], selected)
 	}
 }
 

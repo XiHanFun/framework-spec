@@ -66,7 +66,7 @@ go install github.com/xihanfun/framework-spec/conformance/cmd/xihan-conformance@
 
 | Command | Purpose |
 | --- | --- |
-| `xihan-conformance plugin --dir <plugin-dir>` | Checks, per `plugin/handshake.md`, `lifecycle.md` and `invocation.md`: the handshake line and version negotiation, refusal when there is no common version, the session token, manifest consistency, Configure / Start / Health / WatchHealth / Stop and exit within the grace period, `Unimplemented` for unknown operations, a `status` returned by every declared operation, acknowledged subscription delivery, and exit once stdin is closed |
+| `xihan-conformance plugin --dir <plugin-dir>` | Checks, per `plugin/handshake.md`, `lifecycle.md` and `invocation.md`: the handshake line and version negotiation, refusal when there is no common version, the session token (including two token values), manifest consistency, Configure / Start / Health / WatchHealth / Stop and exit within the grace period, `FailedPrecondition` for calls out of order, `Unimplemented` for unknown operations, a `status` returned by every declared operation, `plugins.process.unavailable` for calls and deliveries before Start, acknowledged subscription delivery, `plugins.event.unsubscribed` and `InvalidArgument` for deliveries nobody subscribes to or with an unknown mode, the first `InvokeStream` frame, `Failed` when the configuration is not a JSON object, exit after a Stop before Start, and exit once stdin is closed; every plugin is started with a two-entry `XIHAN_PLUGIN_HOST_ADDRESS` |
 | `xihan-conformance vectors` | Validates the vector files themselves |
 
 What each vector file contains, the rules package, and the runner's cases and options are described in [conformance/README.md](./conformance/README.md) (in Chinese).
