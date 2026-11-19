@@ -1,6 +1,6 @@
 # RFC-0006 缓存、分布式锁与幂等
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配、两级缓存；2026-11-01 修订：幂等回放操作的响应；2026-11-01 修订：键列表的每页上限越界返回校验错误；2026-11-12 修订：幂等作用域键里主体带长度前缀、外层请求把幂等键交给内层调用；2026-11-14 修订：代数缓存区、组件登记缓存类型、两级缓存回填核对失效） | 日期：2026-10-21 | 对应 ADR：ADR-0064（幂等响应回放）、ADR-0084（键列表分页越界）、ADR-0229（代数缓存区与跨实例失效） | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配、两级缓存；2026-11-01 修订：幂等回放操作的响应；2026-11-01 修订：键列表的每页上限越界返回校验错误；2026-11-12 修订：幂等作用域键里主体带长度前缀、外层请求把幂等键交给内层调用；2026-11-14 修订：代数缓存区、组件登记缓存类型、两级缓存回填核对失效） | 日期：2026-10-21 | 对应 ADR：ADR-0064（幂等响应回放）、ADR-0084（键列表分页越界）、ADR-0229（代数缓存区与跨实例失效） | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance` | 一致性档：`caching`
 
 ## 摘要
 

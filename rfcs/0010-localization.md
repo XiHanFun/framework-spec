@@ -1,6 +1,6 @@
 # RFC-0010 本地化
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域、目录名冲突与区域名错误的报告方式；2026-11-14 修订：数据库翻译的跨实例重新加载；2026-11-16 修订：模板文法、可移植的格式说明符与值的文本形式；同日再修订：浮点的全部写法、说明符的大小写与精度、`Describe` 按名字排序；同日第三次修订：值模型、数组与对象的文本、可移植说明符的文法、区域的数字符号） | 日期：2026-10-21 | 对应 ADR：0038、0070、0233（模板与值的文本形式）、0235、0236 | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/primitives/message-templates.json`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域、目录名冲突与区域名错误的报告方式；2026-11-14 修订：数据库翻译的跨实例重新加载；2026-11-16 修订：模板文法、可移植的格式说明符与值的文本形式；同日再修订：浮点的全部写法、说明符的大小写与精度、`Describe` 按名字排序；同日第三次修订：值模型、数组与对象的文本、可移植说明符的文法、区域的数字符号） | 日期：2026-10-21 | 对应 ADR：0038、0070、0233（模板与值的文本形式）、0235、0236 | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/primitives/message-templates.json` | 一致性档：`core`、`localization`
 
 ## 摘要
 

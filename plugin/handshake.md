@@ -46,7 +46,7 @@ xihan-plugin/1 <network> <address>
 
 连接后宿主调用 `Plugin.Handshake`：
 
-1. 版本协商：插件选宿主 `protocol_versions` 里最高的自己也支持的版本写入 `protocol_version`；没有共同版本时返回 gRPC `FailedPrecondition`。宿主收到不在列表里的版本同样视为失败（`PLUGINS_VALIDATION_003`）。向量：`conformance/vectors/plugin/protocol-versions.json`。
+1. 版本协商：插件选宿主 `protocol_versions` 里最高的自己也支持的版本写入 `protocol_version`；没有共同版本时返回 gRPC `FailedPrecondition`。宿主收到不在列表里的版本同样视为失败（`PLUGINS_VALIDATION_003`）。向量：`conformance/vectors/plugin/protocol-versions.json`。协议版本只在线上不兼容时新增一个整数，与旧版本并存；同一协议版本里的写死走规范的 MINOR，不在握手里协商（RFC-0024「版本」第 4 条）。
 2. 原语层：`primitives` 必须与宿主相同，否则 `PLUGINS_VALIDATION_004`。插件写清单的 `primitives`（§1 已核对它等于 SDK 支持的版本）。
 3. 清单：`manifest` 必须与目录里的文件逐字段一致（`id`、`version`、`primitives`、`kind`、`isolation`、`provides`、`requires`、`contributes`、`activation`、`permissions`），否则 `PLUGINS_VALIDATION_004`。插件写清单文件的原文，去掉开头的 UTF-8 BOM（若有）。
 4. 操作：`operations[].id` 必须都出现在清单 `contributes.operations`；ID 文法与 Schema 规则同 RFC-0011；重复即 `PLUGINS_VALIDATION_004`。宿主把它们登记为代理操作（见 `invocation.md`）。插件只声明一元操作（`streaming: false`），流式操作等流式契约的 RFC（`invocation.md` §1）。

@@ -1,6 +1,6 @@
 # RFC-0007 多租户
 
-> 状态：已采纳（2026-10-26 修订：租户分片；2026-10-27 修订：租户目录的数据库 Provider；2026-11-01 修订：资源名租户段与租户 ID 同一文法、内存实现只为被选中的能力注册；2026-11-04 修订：分片解析失败的 `reason` 只写异常类型；2026-11-12 修订：租户 ID 只用小写、整串匹配；2026-11-14 修订：数据库租户目录的缓存走 `ICache`、分片解析器不再缓存） | 日期：2026-10-21 | 对应 ADR：ADR-0018（分片）、ADR-0026（数据库 Provider）、ADR-0115、ADR-0196（租户 ID 只用小写）、ADR-0229（缓存走 ICache） | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory`、`XiHan.Framework.MultiTenancy.Database` | 一致性：`XiHan.Framework.MultiTenancy.Conformance`
+> 状态：已采纳（2026-10-26 修订：租户分片；2026-10-27 修订：租户目录的数据库 Provider；2026-11-01 修订：资源名租户段与租户 ID 同一文法、内存实现只为被选中的能力注册；2026-11-04 修订：分片解析失败的 `reason` 只写异常类型；2026-11-12 修订：租户 ID 只用小写、整串匹配；2026-11-14 修订：数据库租户目录的缓存走 `ICache`、分片解析器不再缓存） | 日期：2026-10-21 | 对应 ADR：ADR-0018（分片）、ADR-0026（数据库 Provider）、ADR-0115、ADR-0196（租户 ID 只用小写）、ADR-0229（缓存走 ICache） | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory`、`XiHan.Framework.MultiTenancy.Database` | 一致性：`XiHan.Framework.MultiTenancy.Conformance` | 一致性档：`multitenancy`
 
 ## 摘要
 

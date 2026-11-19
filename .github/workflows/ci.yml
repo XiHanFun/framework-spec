@@ -4,9 +4,9 @@ name: CI
 # 错误码登记表与清单 Schema 和正文、向量一致（tools/speccheck，ADR-0242）。
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:

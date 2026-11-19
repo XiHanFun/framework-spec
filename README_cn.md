@@ -35,12 +35,12 @@ spec/
 ├─ packaging/      # 规范性：应用清单 xihan.app.json 与 xihan pack 的产物映射
 ├─ provider/       # 规范性：远程 Provider 的通用规则与各能力的操作集（caching.distributed）
 ├─ migration/      # 规范性：xihan migrate 的通用约定（命令、标记、报告格式）与各来源版本的规则集
-└─ conformance/    # 一致性向量（vectors/）与黑盒运行器（Go 模块，见 conformance/README.md）
+└─ conformance/    # 一致性档表（profiles.json）、向量（vectors/）与黑盒运行器（Go 模块，见 conformance/README.md）
 ```
 
 ## 规范性与信息性
 
-| 规范性（各语言必须一致） | 信息性（各语言自选） |
+| 规范性（认领了所属档的实现必须一致） | 信息性（各语言自选） |
 | --- | --- |
 | 原语语义与线上编码 | 内部 API 形态 |
 | 清单 Schema | 包管理与目录布局 |
@@ -50,6 +50,17 @@ spec/
 | 协议映射 | 服务器实现 |
 | 术语表、错误码、能力 ID、操作 ID、包 ID 命名 | 代码风格 |
 | 批量优先：集合入参、原生批量、部分失败语义（`conventions/batch-first.md`） | 批次大小 |
+
+规范性内容按一致性档划分（RFC-0024），档表是 [`conformance/profiles.json`](./conformance/profiles.json)：实现认领若干档，只对认领的档负责；每个 RFC 的状态行写着它属于哪些档。
+
+| 档 | 内容 |
+| --- | --- |
+| `core` | 所有实现都认领：原语与线上编码、清单读写、调用上下文、管道阶段与排序、消息模板、操作契约与载荷、命名约定 |
+| `plugin` | 用本实现写进程外插件：握手、生命周期、调用与回调的插件一侧，并通过黑盒运行器 |
+| `host` | 宿主：能力求解、进程外插件宿主、协议映射、应用清单与打包、版本迁移 |
+| `wasm` | Wasm 插件 ABI（Experimental） |
+| 子系统档 | 一个子系统 RFC 一档，按能力 ID 前缀命名：`persistence`、`caching`、`multitenancy`、`security`、`messaging`、`localization`、`objectstorage`、`scheduling`、`configuration`、`auditing`、`workflow`、`ai`、`observability` |
+| `provider:<操作集>` | 远程 Provider 的操作集，目前只有 `provider:caching.distributed@1` |
 
 ## 一致性
 
@@ -109,10 +120,18 @@ XiHan.Framework 引用到 `framework/spec`，各语言 SDK 引用到 `spec`。`p
 | [0021](./rfcs/0021-workflow.md) | 工作流：持久化执行 | 已采纳（2026-10-26 修订：触发式启动、事件网关、外部任务、HTTP 与补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；参考实现 `Workflow.Abstractions`、`Workflow.InMemory`、`Workflow.Database`，套件 `Workflow.Conformance`） |
 | [0022](./rfcs/0022-ai.md) | AI：聊天、嵌入、工具与知识 | 已采纳（参考实现 `AI.Abstractions`、`AI.OpenAI`、`AI.VectorData`，套件 `AI.Conformance`） |
 | [0023](./rfcs/0023-observability.md) | 可观测性：导出与运行信息 | 已采纳（参考实现 `Observability.Abstractions`、`Observability.Host`、`Observability.OpenTelemetry`；运行信息不启动外部命令，取不到的项见正文） |
+| [0024](./rfcs/0024-versions-and-profiles.md) | 规范的版本与一致性档 | 已采纳（档表 `conformance/profiles.json`，由 `tools/speccheck` 与 conformance 模块的测试核对） |
 
 ## 版本
 
-规范以语义化版本打标签（`v1.x.y`）：`v1` 期间只增不改，破坏性变更进 `v2` 并与 `v1` 并存，对应原语层的冻结规则（RFC-0001）。实现仓库以 submodule 指向具体提交或标签。
+规范以独立的语义化版本 `vX.Y.Z` 打标签（RFC-0024），Go 的一致性模块在同一提交另打 `conformance/vX.Y.Z`。
+
+- PATCH 不改规范性内容。
+- MINOR 只增，或把以前不作规定的行为写死，且不能让按较早 MINOR 实现的对端互通失败。
+- MAJOR 改已经写明的行为、删除内容或线上不兼容；`v2` 与 `v1` 并存，对应原语层的冻结规则（RFC-0001）。
+- `v1.0.0` 之前打 `v1.0.0-rc.N`，rc 之间允许任何改动；`v1.0.0` 与 XiHan.Framework 的 5.0.0 正式版一起打。
+- 改动记在 [CHANGELOG.md](./CHANGELOG.md)。
+- 规范的日常提交在 `dev`，`main` 由 `dev` 快进，标签打在 `main` 上。实现的日常分支可以指向规范已推送的任意提交；发版时 submodule 必须正好在规范标签上，正式版只钉正式版标签。
 
 ## 生态
 
@@ -126,7 +145,18 @@ XiHan.Framework 引用到 `framework/spec`，各语言 SDK 引用到 `spec`。`p
 | [framework-sdk-python](https://github.com/XiHanFun/framework-sdk-python) | Python SDK |
 | [framework-sdk-php](https://github.com/XiHanFun/framework-sdk-php) | PHP SDK |
 
-SDK 仓库按 `framework-sdk-<语言>` 命名（ADR-0010）。SDK 成熟度：Reference（.NET）、Stable（通过全部向量）、Experimental（部分向量）、Community（社区维护）。
+SDK 仓库按 `framework-sdk-<语言>` 命名（ADR-0010）。成熟度按认领的档判定（RFC-0024）：
+
+- Reference：.NET。
+- Stable：认领的档没有缺口、运行器全部通过，且有钉在规范正式版标签上的发布版。
+- Experimental：有缺口，或还没有这样的发布版。
+- Community：社区维护。
+
+| 实现 | 认领的档 | 缺口 | 成熟度 |
+| --- | --- | --- | --- |
+| XiHan.Framework | `core`、`host`、`wasm`、全部子系统档、`provider:caching.distributed@1`（适配器） | `core` 的 `primitives/wire-encoding.json`：原语层没有 Result 与 Error 的 JSON 编解码 | Reference |
+| framework-sdk-go | `core`、`plugin`、`provider:caching.distributed@1`（插件） | 无 | Experimental（还没有钉在规范标签上的发布版） |
+| TypeScript、Rust、Java、Python、PHP 五个 SDK | `core`、`plugin` | 无 | Experimental（同上） |
 
 ## 参与
 
@@ -135,8 +165,9 @@ SDK 仓库按 `framework-sdk-<语言>` 命名（ADR-0010）。SDK 成熟度：Re
 1. 在 `rfcs/` 新建 `NNNN-<slug>.md`，状态 `草案`。
 2. 评审通过后写 ADR（XiHan.Framework 的 `plans/adr/`），RFC 状态改为 `已采纳`，正文并入对应规范性目录。
 3. 实现与一致性向量随 RFC 一起合并；没有 RFC 的公开契约变更不合并。
+4. 改动规范性内容的提交在 `CHANGELOG.md` 的「未发布」一节记一条，标明 PATCH、MINOR 或 MAJOR 与 ADR（RFC-0024）；新的规范文件与向量要写进档表。
 
-提交前另在 `tools/speccheck` 跑 `go test ./...`：正文、向量与协议里出现的框架错误码都要在 `conventions/error-codes.md` 登记或撤销，清单 Schema 对每个清单向量都要与 RFC-0002 的读取步骤一致。
+提交前另在 `tools/speccheck` 跑 `go test ./...`：正文、向量与协议里出现的框架错误码都要在 `conventions/error-codes.md` 登记或撤销，清单 Schema 对每个清单向量都要与 RFC-0002 的读取步骤一致；档表要覆盖每个规范文件，RFC 状态行写的档要与档表一致。
 
 ## 许可证
 

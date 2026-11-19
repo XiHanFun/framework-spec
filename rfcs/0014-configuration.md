@@ -1,6 +1,6 @@
 # RFC-0014 远程配置与密钥
 
-> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义；2026-11-01 修订：宿主的配置源顺序；2026-11-01 修订：Nacos 凭据随绑定属性覆盖；2026-11-01 修订：选项打印遮蔽凭据；2026-11-01 修订：访问密钥 ID 也遮蔽；2026-11-01 修订：登录用户名也遮蔽；2026-11-02 修订：用户名的遮蔽范围定为不扩到系统账户与驱动消息） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义）、ADR-0075（配置源顺序）、ADR-0082（凭据属性）、ADR-0086（选项打印遮蔽凭据）、ADR-0089（访问密钥 ID 也遮蔽）、ADR-0090（登录用户名也遮蔽）、ADR-0093（用户名遮蔽范围已定） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance`
+> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义；2026-11-01 修订：宿主的配置源顺序；2026-11-01 修订：Nacos 凭据随绑定属性覆盖；2026-11-01 修订：选项打印遮蔽凭据；2026-11-01 修订：访问密钥 ID 也遮蔽；2026-11-01 修订：登录用户名也遮蔽；2026-11-02 修订：用户名的遮蔽范围定为不扩到系统账户与驱动消息） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义）、ADR-0075（配置源顺序）、ADR-0082（凭据属性）、ADR-0086（选项打印遮蔽凭据）、ADR-0089（访问密钥 ID 也遮蔽）、ADR-0090（登录用户名也遮蔽）、ADR-0093（用户名遮蔽范围已定） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance` | 一致性档：`configuration`
 
 ## 摘要
 

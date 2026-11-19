@@ -2,6 +2,10 @@
 
 Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 
+## 一致性档（`profiles.json`）
+
+规范性内容按档划分（RFC-0024）：每个档列出规范文件、必须回放的向量与必须通过的运行器子命令，实现认领若干档、只对认领的档负责。Go 经 `conformance.Profiles()` 读取，`RequiredVectors(档…)` 给出认领这些档必须回放的向量；其他语言读 `spec/conformance/profiles.json`。每个向量文件至少属于一个档（本模块的测试核对），每个规范文件至少属于一个档、RFC 状态行写的档与档表一致（`tools/speccheck` 核对）。
+
 ## 向量（`vectors/`）
 
 | 文件 | 内容 | 规范 |

@@ -35,14 +35,14 @@ spec/
 ├─ packaging/      # Normative: application manifest xihan.app.json and the artifact mapping of xihan pack
 ├─ provider/       # Normative: general rules for remote providers and the operation set of each capability (caching.distributed)
 ├─ migration/      # Normative: general conventions of xihan migrate (command, markers, report format) and the rule set for each source version
-└─ conformance/    # Conformance vectors (vectors/) and the black-box runner (Go module, see conformance/README.md)
+└─ conformance/    # Conformance profiles (profiles.json), vectors (vectors/) and the black-box runner (Go module, see conformance/README.md)
 ```
 
 The documents in this repository are written in Chinese.
 
 ## Normative and Informative
 
-| Normative (must match across languages) | Informative (each language decides) |
+| Normative (must match across implementations that claim the profile) | Informative (each language decides) |
 | --- | --- |
 | Primitive semantics and wire encoding | Internal API shape |
 | Manifest schema | Package management and directory layout |
@@ -52,6 +52,17 @@ The documents in this repository are written in Chinese.
 | Protocol mappings | Server implementation |
 | Vocabulary, error codes, capability IDs, operation IDs, package ID naming | Code style |
 | Batch first: collection inputs, native batching, partial-failure semantics (`conventions/batch-first.md`) | Batch size |
+
+Normative content is divided into conformance profiles (RFC-0024), listed in [`conformance/profiles.json`](./conformance/profiles.json): an implementation claims some of the profiles and answers only for those it claims; the status line of every RFC names the profiles it belongs to.
+
+| Profile | Content |
+| --- | --- |
+| `core` | Claimed by every implementation: primitives and wire encoding, reading and writing manifests, invocation context, pipeline stages and ordering, message templates, operation contracts and payloads, naming conventions |
+| `plugin` | Writing out-of-process plugins with the implementation: the plugin side of the handshake, lifecycle, invocations and callbacks, checked by the black-box runner |
+| `host` | Hosts: capability resolution, the out-of-process plugin host, protocol mappings, application manifests and packaging, version migration |
+| `wasm` | The Wasm plugin ABI (Experimental) |
+| Subsystem profiles | One per subsystem RFC, named after its capability ID prefix: `persistence`, `caching`, `multitenancy`, `security`, `messaging`, `localization`, `objectstorage`, `scheduling`, `configuration`, `auditing`, `workflow`, `ai`, `observability` |
+| `provider:<operation set>` | Operation sets of remote providers; currently only `provider:caching.distributed@1` |
 
 ## Conformance
 
@@ -111,10 +122,18 @@ Public contracts start as RFCs; see [Contributing](#contributing) for the proces
 | [0021](./rfcs/0021-workflow.md) | Workflow: durable execution | Adopted (revised 2026-10-26: trigger-based starts, event gateways, external tasks, HTTP and compensation activities, jumps and migration, claim / send back / expedite, reminders and approval thresholds, retention cleanup; reference implementation `Workflow.Abstractions`, `Workflow.InMemory`, `Workflow.Database`; suite `Workflow.Conformance`) |
 | [0022](./rfcs/0022-ai.md) | AI: chat, embeddings, tools and knowledge | Adopted (reference implementation `AI.Abstractions`, `AI.OpenAI`, `AI.VectorData`; suite `AI.Conformance`) |
 | [0023](./rfcs/0023-observability.md) | Observability: export and runtime information | Adopted (reference implementation `Observability.Abstractions`, `Observability.Host`, `Observability.OpenTelemetry`; runtime information does not start external commands, and the items it cannot obtain are listed in the RFC) |
+| [0024](./rfcs/0024-versions-and-profiles.md) | Spec versions and conformance profiles | Adopted (profile table `conformance/profiles.json`, checked by `tools/speccheck` and the tests of the conformance module) |
 
 ## Versioning
 
-The spec is tagged with semantic versions (`v1.x.y`): throughout `v1` it only grows and never changes, and breaking changes go into `v2`, which coexists with `v1`, matching the freeze rule of the primitives layer (RFC-0001). Implementation repositories point their submodule at a specific commit or tag.
+The spec is tagged with its own semantic versions `vX.Y.Z` (RFC-0024); the Go conformance module gets `conformance/vX.Y.Z` on the same commit.
+
+- PATCH changes no normative content.
+- MINOR only adds, or pins down behavior that was previously unspecified, without breaking interoperation with a peer that implements an earlier MINOR.
+- MAJOR changes behavior that was already specified, removes content or breaks the wire; `v2` coexists with `v1`, matching the freeze rule of the primitives layer (RFC-0001).
+- Before `v1.0.0` the tags are `v1.0.0-rc.N`, and anything may change between release candidates; `v1.0.0` is tagged together with XiHan.Framework 5.0.0.
+- Changes are recorded in [CHANGELOG.md](./CHANGELOG.md).
+- Day-to-day spec commits go to `dev`, `main` is fast-forwarded from `dev`, and tags are put on `main`. Day-to-day branches of implementations may point at any pushed spec commit; a release must point its submodule exactly at a spec tag, and a stable release only at a stable tag.
 
 ## Ecosystem
 
@@ -128,7 +147,18 @@ The spec is tagged with semantic versions (`v1.x.y`): throughout `v1` it only gr
 | [framework-sdk-python](https://github.com/XiHanFun/framework-sdk-python) | Python SDK |
 | [framework-sdk-php](https://github.com/XiHanFun/framework-sdk-php) | PHP SDK |
 
-SDK repositories are named `framework-sdk-<language>` (ADR-0010). SDK maturity levels: Reference (.NET), Stable (passes all vectors), Experimental (passes some vectors), Community (maintained by the community).
+SDK repositories are named `framework-sdk-<language>` (ADR-0010). Maturity is judged by the claimed profiles (RFC-0024):
+
+- Reference: .NET.
+- Stable: no gaps in the claimed profiles, the runner passes, and a release pins a stable spec tag.
+- Experimental: gaps remain, or there is no such release yet.
+- Community: maintained by the community.
+
+| Implementation | Claimed profiles | Gaps | Maturity |
+| --- | --- | --- | --- |
+| XiHan.Framework | `core`, `host`, `wasm`, every subsystem profile, `provider:caching.distributed@1` (adapter) | `primitives/wire-encoding.json` of `core`: the primitives layer has no JSON codec for Result and Error | Reference |
+| framework-sdk-go | `core`, `plugin`, `provider:caching.distributed@1` (plugin) | None | Experimental (no release pins a spec tag yet) |
+| The TypeScript, Rust, Java, Python and PHP SDKs | `core`, `plugin` | None | Experimental (same) |
 
 ## Contributing
 
@@ -137,8 +167,9 @@ SDK repositories are named `framework-sdk-<language>` (ADR-0010). SDK maturity l
 1. Create `NNNN-<slug>.md` under `rfcs/` with the status `草案` (draft).
 2. Once the review passes, write an ADR (in `plans/adr/` of XiHan.Framework), change the RFC status to `已采纳` (adopted), and merge its text into the matching normative directory.
 3. The implementation and conformance vectors are merged together with the RFC; public contract changes without an RFC are not merged.
+4. A commit that changes normative content adds an entry under "Unreleased" in `CHANGELOG.md`, marked PATCH, MINOR or MAJOR with its ADR (RFC-0024); new normative documents and vectors go into the profile table.
 
-Before committing, run `go test ./...` in `tools/speccheck` as well: every framework error code that appears in the text, the vectors or the protocol must be registered or retired in `conventions/error-codes.md`, and the manifest Schema must agree with the reading steps of RFC-0002 on every manifest vector.
+Before committing, run `go test ./...` in `tools/speccheck` as well: every framework error code that appears in the text, the vectors or the protocol must be registered or retired in `conventions/error-codes.md`, and the manifest Schema must agree with the reading steps of RFC-0002 on every manifest vector; the profile table must cover every normative document, and the profiles named on each RFC status line must match it.
 
 ## License
 

@@ -1,6 +1,6 @@
 # RFC-0013 调度与领导选举
 
-> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发），2026-11-01 修订（ADR-0074：调度器启动之前的手动触发同样不可用、一致性套件由用例推进时钟并主动轮询；ADR-0082：运行查询的分页越界返回校验错误；ADR-0091：应用不在服务状态时不持有领导租约、数据库实现的租约释放不经管道），2026-11-02 修订（ADR-0094：领导选举一致性套件加上应用生命周期用例） | 对应 ADR：ADR-0020、ADR-0074、ADR-0082、ADR-0091、ADR-0094 | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance`
+> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发），2026-11-01 修订（ADR-0074：调度器启动之前的手动触发同样不可用、一致性套件由用例推进时钟并主动轮询；ADR-0082：运行查询的分页越界返回校验错误；ADR-0091：应用不在服务状态时不持有领导租约、数据库实现的租约释放不经管道），2026-11-02 修订（ADR-0094：领导选举一致性套件加上应用生命周期用例） | 对应 ADR：ADR-0020、ADR-0074、ADR-0082、ADR-0091、ADR-0094 | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance` | 一致性档：`scheduling`
 
 ## 摘要
 

@@ -1,6 +1,6 @@
 # RFC-0020 版本迁移：`xihan migrate`
 
-> 状态：已采纳 | 日期：2026-10-24 | 参考实现：`XiHan.Framework.Cli`（`migrate` 命令） | 规范：`migration/README.md`
+> 状态：已采纳 | 日期：2026-10-24 | 参考实现：`XiHan.Framework.Cli`（`migrate` 命令） | 规范：`migration/README.md` | 一致性档：`host`
 
 ## 摘要
 

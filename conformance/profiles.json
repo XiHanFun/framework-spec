@@ -1,0 +1,217 @@
+{
+  "$comment": "一致性档（RFC-0024）：规范性内容按档划分，实现认领其中若干档，只对认领的档负责。documents 是该档的规范文件（相对规范仓库根），vectors 是必须回放的向量（相对 conformance/vectors），runner 是必须通过的黑盒运行器子命令。一个文件可以属于多个档；每个规范文件与向量文件至少属于一个档。core 是所有实现都要认领的档。",
+  "profiles": [
+    {
+      "id": "core",
+      "title": "核心：原语与线上编码、清单读写、调用上下文、管道阶段与排序、消息模板、操作契约与载荷、命名约定",
+      "stability": "stable",
+      "documents": [
+        "rfcs/0001-primitives.md",
+        "rfcs/0002-manifest.md",
+        "rfcs/0003-invocation-context.md",
+        "rfcs/0004-pipeline-stages.md",
+        "rfcs/0010-localization.md",
+        "rfcs/0011-operations.md",
+        "rfcs/0024-versions-and-profiles.md",
+        "conventions/baggage-keys.md",
+        "conventions/batch-first.md",
+        "conventions/capability-ids.md",
+        "conventions/error-codes.md",
+        "conventions/operation-ids.md",
+        "conventions/package-ids.md",
+        "conventions/vocabulary.md",
+        "manifest/manifest.schema.json"
+      ],
+      "vectors": [
+        "manifest/manifests.json",
+        "operations/payload-reasons.json",
+        "pipeline/ordering.json",
+        "primitives/baggage-keys.json",
+        "primitives/capability-requirements.json",
+        "primitives/error-codes.json",
+        "primitives/json-text.json",
+        "primitives/kernel-messages.json",
+        "primitives/lifecycle-transitions.json",
+        "primitives/message-templates.json",
+        "primitives/trace-context.json",
+        "primitives/wire-encoding.json"
+      ],
+      "runner": []
+    },
+    {
+      "id": "plugin",
+      "title": "插件一侧：用本实现写进程外插件（握手、生命周期、调用、回调与错误的插件义务）",
+      "stability": "stable",
+      "documents": [
+        "rfcs/0017-plugin-protocol.md",
+        "plugin/handshake.md",
+        "plugin/lifecycle.md",
+        "plugin/invocation.md",
+        "plugin/plugin.proto"
+      ],
+      "vectors": [
+        "plugin/callback-status.json",
+        "plugin/deadlines.json",
+        "plugin/error-reading.json",
+        "plugin/handshake-lines.json",
+        "plugin/host-addresses.json",
+        "plugin/plugin-messages.json",
+        "plugin/protocol-versions.json"
+      ],
+      "runner": ["plugin"]
+    },
+    {
+      "id": "host",
+      "title": "宿主一侧：能力求解、进程外插件宿主、协议映射、应用清单与打包、版本迁移",
+      "stability": "stable",
+      "documents": [
+        "rfcs/0002-manifest.md",
+        "rfcs/0003-invocation-context.md",
+        "rfcs/0016-packaging.md",
+        "rfcs/0017-plugin-protocol.md",
+        "rfcs/0020-migration.md",
+        "plugin/handshake.md",
+        "plugin/lifecycle.md",
+        "plugin/invocation.md",
+        "plugin/plugin.proto",
+        "protocol/cloudevents.md",
+        "protocol/commandline.md",
+        "protocol/grpc.md",
+        "protocol/http.md",
+        "protocol/mcp.md",
+        "packaging/app-manifest.md",
+        "packaging/app.schema.json",
+        "migration/README.md"
+      ],
+      "vectors": [
+        "plugin/deadlines.json",
+        "plugin/error-reading.json",
+        "plugin/handshake-lines.json",
+        "plugin/host-addresses.json",
+        "plugin/plugin-messages.json",
+        "plugin/protocol-versions.json"
+      ],
+      "runner": []
+    },
+    {
+      "id": "wasm",
+      "title": "Wasm 插件 ABI：导出函数与线性内存（宿主与插件两侧）",
+      "stability": "experimental",
+      "documents": ["rfcs/0018-wasm-plugins.md", "plugin/wasm.md"],
+      "vectors": ["plugin/wasm-exports.json"],
+      "runner": []
+    },
+    {
+      "id": "persistence",
+      "title": "子系统：领域协议与持久化",
+      "stability": "stable",
+      "documents": ["rfcs/0005-persistence.md"],
+      "vectors": [],
+      "runner": []
+    },
+    {
+      "id": "caching",
+      "title": "子系统：缓存、分布式锁与幂等",
+      "stability": "stable",
+      "documents": ["rfcs/0006-caching.md"],
+      "vectors": [],
+      "runner": []
+    },
+    {
+      "id": "multitenancy",
+      "title": "子系统：多租户",
+      "stability": "stable",
+      "documents": ["rfcs/0007-multitenancy.md"],
+      "vectors": [],
+      "runner": []
+    },
+    {
+      "id": "security",
+      "title": "子系统：认证与授权",
+      "stability": "stable",
+      "documents": ["rfcs/0008-security.md"],
+      "vectors": ["security/webauthn.json"],
+      "runner": []
+    },
+    {
+      "id": "messaging",
+      "title": "子系统：消息、CloudEvents 信封与发件箱",
+      "stability": "stable",
+      "documents": ["rfcs/0009-messaging.md"],
+      "vectors": [],
+      "runner": []
+    },
+    {
+      "id": "localization",
+      "title": "子系统：消息目录、区域协商与本地化 Provider（模板与消息键在 core）",
+      "stability": "stable",
+      "documents": ["rfcs/0010-localization.md"],
+      "vectors": [],
+      "runner": []
+    },
+    {
+      "id": "objectstorage",
+      "title": "子系统：对象存储",
+      "stability": "stable",
+      "documents": ["rfcs/0012-objectstorage.md"],
+      "vectors": [],
+      "runner": []
+    },
+    {
+      "id": "scheduling",
+      "title": "子系统：调度与领导选举",
+      "stability": "stable",
+      "documents": ["rfcs/0013-scheduling.md"],
+      "vectors": [],
+      "runner": []
+    },
+    {
+      "id": "configuration",
+      "title": "子系统：远程配置与密钥",
+      "stability": "stable",
+      "documents": ["rfcs/0014-configuration.md"],
+      "vectors": [],
+      "runner": []
+    },
+    {
+      "id": "auditing",
+      "title": "子系统：审计",
+      "stability": "stable",
+      "documents": ["rfcs/0015-auditing.md"],
+      "vectors": [],
+      "runner": []
+    },
+    {
+      "id": "workflow",
+      "title": "子系统：工作流持久化执行",
+      "stability": "stable",
+      "documents": ["rfcs/0021-workflow.md"],
+      "vectors": [],
+      "runner": []
+    },
+    {
+      "id": "ai",
+      "title": "子系统：AI 聊天、嵌入、工具与知识",
+      "stability": "stable",
+      "documents": ["rfcs/0022-ai.md"],
+      "vectors": [],
+      "runner": []
+    },
+    {
+      "id": "observability",
+      "title": "子系统：可观测性导出与运行信息",
+      "stability": "stable",
+      "documents": ["rfcs/0023-observability.md"],
+      "vectors": [],
+      "runner": []
+    },
+    {
+      "id": "provider:caching.distributed@1",
+      "title": "远程 Provider 操作集 caching.distributed@1（提供操作集的插件与宿主一侧的适配器）",
+      "stability": "stable",
+      "documents": ["rfcs/0019-remote-providers.md", "provider/README.md", "provider/caching-distributed.md"],
+      "vectors": ["provider/caching-distributed.json"],
+      "runner": []
+    }
+  ]
+}

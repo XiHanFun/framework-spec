@@ -1,6 +1,6 @@
 # RFC-0019 远程 Provider：子系统能力经插件操作提供
 
-> 状态：已采纳 | 日期：2026-10-23 | 对应 ADR：0011 | 参考实现：`XiHan.Framework.Caching.Remote`（适配器）、`framework-sdk-go` 的 `caching` 包与 `examples/cache`（插件） | 一致性：`XiHan.Framework.Caching.Conformance`、`conformance/vectors/provider/`
+> 状态：已采纳 | 日期：2026-10-23 | 对应 ADR：0011 | 参考实现：`XiHan.Framework.Caching.Remote`（适配器）、`framework-sdk-go` 的 `caching` 包与 `examples/cache`（插件） | 一致性：`XiHan.Framework.Caching.Conformance`、`conformance/vectors/provider/` | 一致性档：`provider:caching.distributed@1`
 
 ## 摘要
 

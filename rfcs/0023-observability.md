@@ -1,6 +1,6 @@
 # RFC-0023 可观测性：导出与运行信息
 
-> 状态：已采纳（2026-11-02 修订：运行进程的用户名照常打印） | 日期：2026-10-30 | 对应 ADR：ADR-0056、ADR-0093（用户名不遮蔽） | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry` | 一致性：无套件（读的是所在机器，按平台写用例）
+> 状态：已采纳（2026-11-02 修订：运行进程的用户名照常打印） | 日期：2026-10-30 | 对应 ADR：ADR-0056、ADR-0093（用户名不遮蔽） | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry` | 一致性：无套件（读的是所在机器，按平台写用例） | 一致性档：`observability`
 
 ## 摘要
 

@@ -1,6 +1,6 @@
 # RFC-0015 审计
 
-> 状态：已采纳（2026-10-27 修订：数据库 Provider；2026-10-28 修订：主体与租户取自安全上下文、记录列长；2026-11-01 修订：受保护的操作含只用策略保护的；2026-11-01 修订：按操作排除；2026-11-04 修订：查询失败的 `reason` 只写异常类型） | 日期：2026-10-23 | 对应 ADR：ADR-0028（数据库 Provider）、ADR-0036、ADR-0071（受保护的操作）、ADR-0080（按操作排除）、ADR-0115 | 参考实现：`XiHan.Framework.Auditing.Abstractions`、`XiHan.Framework.Auditing.InMemory`、`XiHan.Framework.Auditing.Database` | 一致性：`XiHan.Framework.Auditing.Conformance`
+> 状态：已采纳（2026-10-27 修订：数据库 Provider；2026-10-28 修订：主体与租户取自安全上下文、记录列长；2026-11-01 修订：受保护的操作含只用策略保护的；2026-11-01 修订：按操作排除；2026-11-04 修订：查询失败的 `reason` 只写异常类型） | 日期：2026-10-23 | 对应 ADR：ADR-0028（数据库 Provider）、ADR-0036、ADR-0071（受保护的操作）、ADR-0080（按操作排除）、ADR-0115 | 参考实现：`XiHan.Framework.Auditing.Abstractions`、`XiHan.Framework.Auditing.InMemory`、`XiHan.Framework.Auditing.Database` | 一致性：`XiHan.Framework.Auditing.Conformance` | 一致性档：`auditing`
 
 ## 摘要
 

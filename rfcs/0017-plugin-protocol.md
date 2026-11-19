@@ -1,6 +1,6 @@
 # RFC-0017 进程外插件协议
 
-> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：清单写了 `contributes.pipeline` 的插件在发现时被拒，不再静默忽略；同日第三次修订：gRPC `Cancelled` 不再按时钟改报超时，交给截止时间中间件归因；2026-11-12 修订：回调与发布只能带宿主随调用交给插件的租户；2026-11-13 修订：`HandleEventRequest` 带这次投递的订阅方式；2026-11-18 修订：宿主提供多个回调端点并至少有一个回环 TCP，插件一侧的次序、配置、就绪、停止、收尾、投递、回调与错误读写写明，运行时消息键进规范，`Host.Publish` 按元数据建上下文） | 日期：2026-10-23 | 对应 ADR：0006、0085、0092、0195、0226、0237 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`（P4-02）；一致性：`XiHan.Framework.Plugins.Conformance`（P4-04） | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md`
+> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：清单写了 `contributes.pipeline` 的插件在发现时被拒，不再静默忽略；同日第三次修订：gRPC `Cancelled` 不再按时钟改报超时，交给截止时间中间件归因；2026-11-12 修订：回调与发布只能带宿主随调用交给插件的租户；2026-11-13 修订：`HandleEventRequest` 带这次投递的订阅方式；2026-11-18 修订：宿主提供多个回调端点并至少有一个回环 TCP，插件一侧的次序、配置、就绪、停止、收尾、投递、回调与错误读写写明，运行时消息键进规范，`Host.Publish` 按元数据建上下文） | 日期：2026-10-23 | 对应 ADR：0006、0085、0092、0195、0226、0237 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`（P4-02）；一致性：`XiHan.Framework.Plugins.Conformance`（P4-04） | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md` | 一致性档：`plugin`、`host`
 
 ## 摘要
 
