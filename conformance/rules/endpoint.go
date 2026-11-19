@@ -17,7 +17,7 @@ type Endpoint struct {
 	Address string
 }
 
-// IsWhitespace 判断字符是不是握手行与回调端点所说的空白（handshake.md §2）：U+0009–U+000D、U+0020、U+0085、U+00A0、
+// IsWhitespace 判断字符是不是规范所说的空白（RFC-0001「空白字符」，握手行、回调端点与 Error 的文案都用它）：U+0009–U+000D、U+0020、U+0085、U+00A0、
 // U+1680、U+2000–U+200A、U+2028、U+2029、U+202F、U+205F、U+3000。
 //
 // 这个集合等于 .NET 正则的 \s 与 Unicode 的 White_Space 属性；RE2 的 \s 只认 ASCII 空白，不能直接用。

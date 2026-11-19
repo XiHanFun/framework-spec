@@ -163,6 +163,17 @@
     ],
     "invalid": [
       {
+        "name": "失败的 error.message 只有空白",
+        "kind": "unit",
+        "json": {
+          "ok": false,
+          "error": {
+            "code": "KERNEL_UNEXPECTED_001",
+            "message": " \t"
+          }
+        }
+      },
+      {
         "name": "无值结果带 value（空对象）",
         "kind": "unit",
         "json": {
@@ -281,6 +292,27 @@
   },
   "errors": {
     "valid": [
+      {
+        "name": "message 两端的空白原样保留",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": " boom\t"
+        }
+      },
+      {
+        "name": "message 只有 U+001C–U+001F（不是空白，Python 的 isspace 与 Java 的 isWhitespace 会误认）",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "\u001c\u001d\u001e\u001f"
+        }
+      },
+      {
+        "name": "message 只有零宽空格、蒙古文元音分隔符与 U+FEFF（都不是空白）",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "\u200b\u180e\ufeff"
+        }
+      },
       {
         "name": "带键、细节与内部错误",
         "json": {
@@ -435,6 +467,41 @@
         "json": {
           "code": "KERNEL_UNEXPECTED_001",
           "message": ""
+        }
+      },
+      {
+        "name": "message 只有一个空格",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": " "
+        }
+      },
+      {
+        "name": "message 只有空白：25 个空白字符各一个",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "\t\n\u000b\u000c\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000"
+        }
+      },
+      {
+        "name": "message 只有不换行空格（Java 的 isWhitespace 不认）",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "\u00a0"
+        }
+      },
+      {
+        "name": "message 只有下一行符 U+0085（ECMAScript 的 \\s 不认）",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "\u0085"
+        }
+      },
+      {
+        "name": "message 只有全角空格",
+        "json": {
+          "code": "KERNEL_UNEXPECTED_001",
+          "message": "\u3000"
         }
       },
       {

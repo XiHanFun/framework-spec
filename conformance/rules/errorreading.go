@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"strconv"
+	"strings"
 )
 
 // 读入 Status 的两种读者（invocation.md §3）。
@@ -62,7 +63,8 @@ func ReadProtoError(proto ProtoError, pluginID string) DecodedError {
 		return decoded
 	}
 	decoded.Text = proto.Text
-	if decoded.Text == "" {
+	// text 为空或只有空白（RFC-0001「空白字符」，ADR-0245）时文案取错误码，Error 的文案不能只有空白
+	if strings.TrimFunc(decoded.Text, IsWhitespace) == "" {
 		decoded.Text = proto.Code
 	}
 	return decoded

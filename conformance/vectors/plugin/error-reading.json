@@ -71,6 +71,22 @@
       }
     },
     {
+      "name": "自由文本错误的 text 只有空白时取 code",
+      "error": {
+        "code": "ORDERS_VALIDATION_001",
+        "message_key": "",
+        "text": " \t\u3000\u00a0",
+        "details": ""
+      },
+      "expected": {
+        "code": "ORDERS_VALIDATION_001",
+        "key": null,
+        "text": "ORDERS_VALIDATION_001",
+        "details": null,
+        "inner": null
+      }
+    },
+    {
       "name": "键不合文法时成为自由文本错误",
       "error": {
         "code": "ORDERS_VALIDATION_001",

@@ -1,6 +1,6 @@
 # RFC-0001 原语层
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配；2026-11-19 修订：.NET 的 Result 与 Error 线上编码在内核的 `ResultJson`） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236、0244（.NET 的线上编码） | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配；2026-11-19 修订：.NET 的 Result 与 Error 线上编码在内核的 `ResultJson`；同日再修订：`Error` 的文案不能只有空白，空白字符写死） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236、0244（.NET 的线上编码） | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
 
 ## 摘要
 
@@ -67,7 +67,7 @@ public readonly record struct Result<T>
 - 失败：`error` 必填，不能带 `value`；成功不能带 `error`。
 - `Error` 写出时成员顺序是 `code`、`message`、`messageKey`、`details`、`inner`：
   - `code` 必填，符合错误码文法。
-  - `message` 必填，是非空字符串。
+  - `message` 必填，是字符串，至少含一个「空白字符」之外的字符：空串与只有空白都不合法（2026-11-19 写明，ADR-0245；以前只说非空，.NET 拒绝只有空白、其他语言照收）。
   - `messageKey` 只在有键时写（Literal 没有键），写了就必须符合消息键文法。
   - `details` 为空时不写，写了就必须是 JSON 对象。
   - 没有内部错误时不写 `inner`，写了就必须是 `Error`。
@@ -93,6 +93,20 @@ XiHan 读取的 JSON 文本（Result 与 Error 的线上编码、操作载荷、
 ### 文法的匹配
 
 规范里的正则文法（消息键、错误码、Baggage 键、清单与能力 ID、操作 ID、`traceparent` 等）都按整串匹配，结尾的换行不例外（2026-11-16 写明，ADR-0236）。.NET、Python、PHP 与 Java 的 `$` 在末尾的换行前也算匹配，以前 .NET 接受 `xihan.tenant\n` 这样的键：.NET 的正则以 `\z` 结尾，Python 用 `re.fullmatch`，PHP 加 `D` 修饰符，Java 用 `matches()`。各文法向量都带结尾换行的反例。
+
+### 空白字符
+
+规范里说「空白」都指这 25 个码位（2026-11-19 写明，ADR-0245）：U+0009–U+000D、U+0020、U+0085、U+00A0、U+1680、U+2000–U+200A、U+2028、U+2029、U+202F、U+205F、U+3000。它等于 Unicode 的 White_Space 属性，也等于 .NET 的 `char.IsWhiteSpace` 与正则 `\s`。
+
+各语言按这张表判断，不用内建的判断，因为它们各不相同：
+
+- Java 的 `Character.isWhitespace` 不含 U+0085、U+00A0、U+2007、U+202F，另含 U+001C–U+001F。
+- Python 的 `str.isspace` 另含 U+001C–U+001F。
+- ECMAScript 的 `\s` 不含 U+0085，另含 U+FEFF。
+- PHP 的 `ctype_space` 只认 ASCII。
+- RE2（Go）的 `\s` 只认 ASCII。
+
+用到它的地方：`Error` 的文案（「Result」与「Error 与 ErrorCode」）、插件握手行与回调端点（`plugin/handshake.md` §2）、读入插件错误的 `text`（`plugin/invocation.md` §3）。
 
 ### Error 与 ErrorCode
 
@@ -141,6 +155,7 @@ public static class ErrorCode
 
 - `Code` 必须符合 `<领域大写>_<KIND>_<NNN>`；工厂方法校验 KIND 段与方法名一致。
 - `Message` 面向人，不参与程序判断；`Details` 只允许 JSON 可表示的值。
+- 自由文本（`Literal` 的 `text`、`WithText` 的参数）不能为空，也不能只有空白（「空白字符」），否则是参数非法（2026-11-19 写明，ADR-0245）。带键的错误不需要自由文本：`Message` 是按键渲染的文案，或键与参数的描述。
 - `MessageKey` 文法 `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`，最长 128 个字符（`MessageTemplate.MaxKeyLength`，2026-11-16 写明，ADR-0233）（首段与后段同形，操作 ID 的资源段把连字符换成下划线后可直接作首段，如 `tenant_members.list.description`），文案在语言文件里（RFC-0010）；`message` 线上字段是发送端已解析的文案，`messageKey` 让接收端可再翻译。
 
 ### Maybe
@@ -381,7 +396,7 @@ public static class Redaction
 
 - 写出用 `Write(Result)`、`Write<T>(Result<T>, JsonTypeInfo<T>)`、`WriteMaybe<T>(Result<Maybe<T>>, JsonTypeInfo<T>)` 与 `WriteError(Error)`，读取用 `Read`、`Read<T>`、`ReadMaybe<T>` 与 `ReadError`。无值成功对应非泛型 `Result`，值类型为 `Maybe<T>` 的结果走 `*Maybe` 这一对方法；值经调用方给的源生成元数据读写，不用反射。
 - 读取返回结果的结果。外层失败表示编码不合法，码是 `PRIMITIVES_VALIDATION_001`，与各 SDK 抛出的码相同；消息键是 `kernel.wire.invalid_json`（没过「JSON 文本」的检查）或 `kernel.wire.invalid`（不合「Result」一节的规则），参数 `reason` 是出错的路径，如 `$.value`、`$.error.inner.code`。外层成功时，内层才是对方在线上说的成功或失败。
-- 带 `messageKey` 的错误读成带键的 `Error`，`Text` 取 `message`；没有键的读成 `Error.Literal`。`message` 只有空白时 .NET 读成不合法，因为 `Error` 的文案不能是空白；其他语言照「Result」一节只拒绝空串。
+- 带 `messageKey` 的错误读成带键的 `Error`，`Text` 取 `message`；没有键的读成 `Error.Literal`。`message` 为空或只有空白（「空白字符」）时读成不合法，与「Result」一节一致。
 - 值里数字的写法由 `JsonTypeInfo<T>` 决定。System.Text.Json 把整数值的 `double` 写成 `2`，无类型的对端会按值模型读成整数；要按值模型原样往返任意 JSON，值的类型用 `JsonElement`。错误细节总是按值模型读写。
 
 其他语言的 SDK 可以把编码放在原语包里，这属于各语言自选的内部形态；编码本身以「Result」一节的规则与向量为准。

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 )
 
 // Result 的值类型（RFC-0001「Result」）：有值、无值、值是 Maybe。
@@ -93,8 +94,9 @@ func CanonicalError(data []byte) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if message == "" {
-		return nil, fmt.Errorf("error 'message' must not be empty")
+	// 空串与只有空白（RFC-0001「空白字符」，ADR-0245）都不合法：Error 的文案至少要有一个空白之外的字符
+	if strings.TrimFunc(message, IsWhitespace) == "" {
+		return nil, fmt.Errorf("error 'message' must not be empty or whitespace")
 	}
 	canonical["message"] = message
 	if text, has := members["messageKey"]; has {
