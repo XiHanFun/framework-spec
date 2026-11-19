@@ -154,7 +154,7 @@ SDK 仓库按 `framework-sdk-<语言>` 命名（ADR-0010）。成熟度按认领
 
 | 实现 | 认领的档 | 缺口 | 成熟度 |
 | --- | --- | --- | --- |
-| XiHan.Framework | `core`、`host`、`wasm`、全部子系统档、`provider:caching.distributed@1`（适配器） | `core` 的 `primitives/wire-encoding.json`：原语层没有 Result 与 Error 的 JSON 编解码 | Reference |
+| XiHan.Framework | `core`、`host`、`wasm`、全部子系统档、`provider:caching.distributed@1`（适配器） | 无 | Reference |
 | framework-sdk-go | `core`、`plugin`、`provider:caching.distributed@1`（插件） | 无 | Experimental（还没有钉在规范标签上的发布版） |
 | TypeScript、Rust、Java、Python、PHP 五个 SDK | `core`、`plugin` | 无 | Experimental（同上） |
 

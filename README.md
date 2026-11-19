@@ -156,7 +156,7 @@ SDK repositories are named `framework-sdk-<language>` (ADR-0010). Maturity is ju
 
 | Implementation | Claimed profiles | Gaps | Maturity |
 | --- | --- | --- | --- |
-| XiHan.Framework | `core`, `host`, `wasm`, every subsystem profile, `provider:caching.distributed@1` (adapter) | `primitives/wire-encoding.json` of `core`: the primitives layer has no JSON codec for Result and Error | Reference |
+| XiHan.Framework | `core`, `host`, `wasm`, every subsystem profile, `provider:caching.distributed@1` (adapter) | None | Reference |
 | framework-sdk-go | `core`, `plugin`, `provider:caching.distributed@1` (plugin) | None | Experimental (no release pins a spec tag yet) |
 | The TypeScript, Rust, Java, Python and PHP SDKs | `core`, `plugin` | None | Experimental (same) |
 

@@ -1,6 +1,6 @@
 # RFC-0001 原语层
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236 | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配；2026-11-19 修订：.NET 的 Result 与 Error 线上编码在内核的 `ResultJson`） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236、0244（.NET 的线上编码） | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
 
 ## 摘要
 
@@ -377,7 +377,14 @@ public static class Redaction
 | PipelineStage | 十一阶段的名称与顺序 |
 | 清单 | Schema、ID 格式、依赖文本语法 |
 
-.NET 的线上 JSON 编码由协议适配器与源生成器实现，原语层不含序列化代码（保持零行为与零反射）。其他语言的 SDK 可以把编码放在原语包里，这属于各语言自选的内部形态；编码本身以「Result」一节的规则与向量为准。
+.NET 的原语层不含序列化代码（保持零行为、零依赖与零反射）。Result 与 Error 的线上编码在内核的 `XiHan.Framework.Kernel.Json.ResultJson`（2026-11-19 修订，ADR-0244；在此之前 .NET 没有这套编码，参考实现在 `core` 里缺 `wire-encoding.json` 这个向量）：
+
+- 写出用 `Write(Result)`、`Write<T>(Result<T>, JsonTypeInfo<T>)`、`WriteMaybe<T>(Result<Maybe<T>>, JsonTypeInfo<T>)` 与 `WriteError(Error)`，读取用 `Read`、`Read<T>`、`ReadMaybe<T>` 与 `ReadError`。无值成功对应非泛型 `Result`，值类型为 `Maybe<T>` 的结果走 `*Maybe` 这一对方法；值经调用方给的源生成元数据读写，不用反射。
+- 读取返回结果的结果。外层失败表示编码不合法，码是 `PRIMITIVES_VALIDATION_001`，与各 SDK 抛出的码相同；消息键是 `kernel.wire.invalid_json`（没过「JSON 文本」的检查）或 `kernel.wire.invalid`（不合「Result」一节的规则），参数 `reason` 是出错的路径，如 `$.value`、`$.error.inner.code`。外层成功时，内层才是对方在线上说的成功或失败。
+- 带 `messageKey` 的错误读成带键的 `Error`，`Text` 取 `message`；没有键的读成 `Error.Literal`。`message` 只有空白时 .NET 读成不合法，因为 `Error` 的文案不能是空白；其他语言照「Result」一节只拒绝空串。
+- 值里数字的写法由 `JsonTypeInfo<T>` 决定。System.Text.Json 把整数值的 `double` 写成 `2`，无类型的对端会按值模型读成整数；要按值模型原样往返任意 JSON，值的类型用 `JsonElement`。错误细节总是按值模型读写。
+
+其他语言的 SDK 可以把编码放在原语包里，这属于各语言自选的内部形态；编码本身以「Result」一节的规则与向量为准。
 
 ## 冻结规则
 
