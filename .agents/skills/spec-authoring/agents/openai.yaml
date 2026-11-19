@@ -1,0 +1,7 @@
+interface:
+  display_name: "XiHan Spec 规范修订"
+  short_description: "修订 RFC、规范性文档、Schema 与协议并登记变更"
+  default_prompt: "使用 $xihan-spec-authoring 起草或修订一处规范并补齐登记。"
+
+policy:
+  allow_implicit_invocation: true

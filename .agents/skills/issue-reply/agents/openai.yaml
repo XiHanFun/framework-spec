@@ -1,0 +1,7 @@
+interface:
+  display_name: "XiHan Spec Issue 回复"
+  short_description: "调查规范、向量与运行器问题并给出有证据的回复"
+  default_prompt: "使用 $xihan-spec-issue-reply 调查并回复指定的 GitHub Issue。"
+
+policy:
+  allow_implicit_invocation: true

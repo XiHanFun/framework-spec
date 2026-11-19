@@ -1,0 +1,7 @@
+interface:
+  display_name: "XiHan Spec 变更记录"
+  short_description: "从提交与 RFC 修订整理 CHANGELOG 的规范性变化"
+  default_prompt: "使用 $xihan-spec-changelog-collect 核对并整理 CHANGELOG 的未发布一节。"
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,7 @@
+interface:
+  display_name: "XiHan Spec 门禁验证"
+  short_description: "运行协议、向量、运行器与登记表的全部门禁"
+  default_prompt: "使用 $xihan-spec-testing-release 跑完规范仓库的门禁并汇报结果。"
+
+policy:
+  allow_implicit_invocation: true

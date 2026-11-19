@@ -1,0 +1,7 @@
+interface:
+  display_name: "XiHan Spec 版本发布"
+  short_description: "定版 CHANGELOG 并打规范与一致性模块的标签"
+  default_prompt: "使用 $xihan-spec-version-release 准备并核对一次规范标签。"
+
+policy:
+  allow_implicit_invocation: true
