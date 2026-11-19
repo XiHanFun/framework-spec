@@ -138,6 +138,8 @@ SDK repositories are named `framework-sdk-<language>` (ADR-0010). SDK maturity l
 2. Once the review passes, write an ADR (in `plans/adr/` of XiHan.Framework), change the RFC status to `已采纳` (adopted), and merge its text into the matching normative directory.
 3. The implementation and conformance vectors are merged together with the RFC; public contract changes without an RFC are not merged.
 
+Before committing, run `go test ./...` in `tools/speccheck` as well: every framework error code that appears in the text, the vectors or the protocol must be registered or retired in `conventions/error-codes.md`, and the manifest Schema must agree with the reading steps of RFC-0002 on every manifest vector.
+
 ## License
 
 [MIT](./LICENSE) © 2021-Present XiHanFun and contributors.

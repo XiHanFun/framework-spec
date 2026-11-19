@@ -1,6 +1,7 @@
 name: CI
 
-# 规范仓库的门禁：协议 lint 与破坏性变更检查、生成物与源一致、向量可解析、运行器通过测试。
+# 规范仓库的门禁：协议 lint 与破坏性变更检查、生成物与源一致、向量可解析、运行器通过测试、
+# 错误码登记表与清单 Schema 和正文、向量一致（tools/speccheck，ADR-0242）。
 on:
   push:
     branches: [main]
@@ -30,7 +31,9 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: conformance/go.mod
-          cache-dependency-path: conformance/go.sum
+          cache-dependency-path: |
+            conformance/go.sum
+            tools/speccheck/go.sum
 
       - name: 安装 buf 与生成器
         run: |
@@ -44,14 +47,24 @@ jobs:
       - name: 协议格式
         run: buf format --diff --exit-code
 
-      - name: 破坏性变更（相对 main）
+      - name: 破坏性变更（PR 相对目标分支）
         if: github.event_name == 'pull_request'
         run: buf breaking --against ".git#branch=origin/${{ github.base_ref }}"
+
+      # 规范的提交直接推到 main，只在 PR 上查等于从不查；推送时与推送前的那个提交比
+      - name: 破坏性变更（推送相对推送前）
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        run: buf breaking --against ".git#ref=${{ github.event.before }}"
 
       - name: 生成物与源一致
         run: |
           buf generate
-          git diff --exit-code -- conformance/internal
+          # git diff 看不到新生成的未跟踪文件，用 status 一并查
+          if [ -n "$(git status --porcelain -- conformance/internal)" ]; then
+            git status --short -- conformance/internal
+            git diff -- conformance/internal
+            exit 1
+          fi
 
       - name: 格式与静态检查
         working-directory: conformance
@@ -62,6 +75,13 @@ jobs:
       - name: 测试（向量、规则、运行器）
         working-directory: conformance
         run: go test -race ./...
+
+      - name: 登记表与清单 Schema
+        working-directory: tools/speccheck
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test ./...
 
       - name: 构建运行器
         working-directory: conformance

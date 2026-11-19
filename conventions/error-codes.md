@@ -15,6 +15,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 2. 错误码进入 `Error.Code`，HTTP 适配器把它放进 RFC 9457 Problem Details 的 `type` 或扩展字段，gRPC 放进 trailing metadata，插件协议放进 `Status.error.code`（`spec/plugin/plugin.proto`）。
 3. 消息面向人，错误码面向程序；客户端只应依赖错误码。
 4. 文案不写在代码里：错误携带消息键（`<领域>Messages` 常量）与参数（`Error.Details`），文案在所属包的 `Localization/<区域>.json`（10 种区域各一个文件，RFC-0010）；一个错误码可以对应多个消息键。
+5. 规范正文、向量与协议文件里出现的框架错误码（错误码域在术语表里）必须在「已登记」或「已撤销」里；撤销的序号不复用，也不再出现在「已登记」里。规范仓库的 `tools/speccheck` 在 CI 里核对这一条（ADR-0242）。
 
 ## 已登记的框架错误码
 
@@ -27,6 +28,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `KERNEL_CAPABILITY_003` | 能力解析失败：版本约束冲突 |
 | `KERNEL_CAPABILITY_004` | 同一能力有多个候选且未指定 |
 | `KERNEL_CAPABILITY_005` | 清单 ID 重复 |
+| `KERNEL_CAPABILITY_006` | 清单读取失败：文件不存在、不是 JSON、为 `null`、形状不符 Schema 或跨字段约束不满足（RFC-0002 解析规则 2，消息键 `kernel.manifest.*` 与 `primitives.manifest.*`） |
 | `KERNEL_PIPELINE_001` | 中间件顺序约束成环 |
 | `KERNEL_PIPELINE_002` | 阶段名未知 |
 | `KERNEL_PIPELINE_003` | 中间件重复注册，或顺序约束引用了未注册或跨阶段的中间件；运行期改动（RFC-0004）：成组登记混了别的归属或把约束挂到组外、按归属撤回会留下指向被撤回中间件的约束、应用构建之后单项改动或按类型登记 |
@@ -258,3 +260,12 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `CLI_VALIDATION_006` | `setup` 要合并的编码助手配置不是合法的 JSON 对象；不改动任何文件 |
 | `CLI_VALIDATION_007` | `pack`：进 ConfigMap 的配置文件里有带值的凭据键（参数 `file`、`keys`，只列键的路径、不带值）；不写任何文件（ADR-0222） |
 | `CLI_CONFLICT_001` | `setup --check`：配置或技能未就绪 |
+
+## 已撤销的错误码
+
+撤销的错误码不再由任何路径产生，序号不复用；正文提到它们只为说明撤销。
+
+| 错误码 | 撤销 |
+| --- | --- |
+| `LOCALIZATION_VALIDATION_001` | 区域名不合法：没有任何路径会产生，API 与选项里的区域名不合法抛 `ArgumentException`，外部输入里的忽略（RFC-0010，ADR-0070） |
+| `MESSAGING_UNAVAILABLE_003` | 内存代理的主题数达到上限：`MaxTopics` 选项删除（RFC-0009，ADR-0082） |

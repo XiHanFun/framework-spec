@@ -136,6 +136,8 @@ SDK 仓库按 `framework-sdk-<语言>` 命名（ADR-0010）。SDK 成熟度：Re
 2. 评审通过后写 ADR（XiHan.Framework 的 `plans/adr/`），RFC 状态改为 `已采纳`，正文并入对应规范性目录。
 3. 实现与一致性向量随 RFC 一起合并；没有 RFC 的公开契约变更不合并。
 
+提交前另在 `tools/speccheck` 跑 `go test ./...`：正文、向量与协议里出现的框架错误码都要在 `conventions/error-codes.md` 登记或撤销，清单 Schema 对每个清单向量都要与 RFC-0002 的读取步骤一致。
+
 ## 许可证
 
 [MIT](./LICENSE) © 2021-Present XiHanFun and contributors。
