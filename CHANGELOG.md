@@ -2,7 +2,7 @@
 
 按 RFC-0024「版本」：PATCH 不改规范性内容；MINOR 只增或写死以前不作规定的行为；MAJOR 改已经写明的行为、删除或线上不兼容。`v1.0.0` 之前的 rc 之间允许任何改动。每条注明对应的 XiHan.Framework ADR。
 
-## 未发布
+## v1.0.0-rc.2（2026-11-20）
 
 - MAJOR（`v1.0.0` 之前允许）：RFC-0005「索引声明」：`[EntityIndex]` 可以用 `Name` 显式命名（字母开头、只含 ASCII 字母数字与 `_`），没给照旧按规则推出；SqlSugar 的 `InitTables` 在建表前核对一起建表的实体之间索引不重名；SqlSugar 在 MySQL（8.0.13 起）与 Oracle 上以每列 `CASE WHEN` 的函数索引建软删除实体的部分唯一索引，这两种库以前启动失败，EF Core 在这两种库上仍不支持（ADR-0249）。
 
