@@ -23,8 +23,9 @@ stdio 传输（命令行宿主的 `mcp` 命令：客户端启动服务端进程�
 
 ## 操作映射（RFC-0011）
 
-- tool 名按 `conventions/operation-ids.md` 推导：`{resource}_{verb}`；显式覆盖写在 `XiHan:Protocols:Mcp:Tools:<操作 ID>`。文法 `^[A-Za-z0-9_-]{1,64}$`；不合法或两个操作同名即启动失败（`PROTOCOLS_VALIDATION_004` / `PROTOCOLS_CONFLICT_001`）。
+- tool 名按 `conventions/operation-ids.md` 推导：`{resource}_{verb}`；显式覆盖写在 `XiHan:Protocols:Mcp:Tools:<操作 ID>`。文法 `^[A-Za-z0-9_-]{1,64}$`；服务端建立时已登记的操作不合法或两个同名即启动失败（`PROTOCOLS_VALIDATION_004` / `PROTOCOLS_CONFLICT_001`），此后登记的经 `EnforceAdditions` 核对，不合法或与已有的、同一组里的同名即整组不登记，返回同一错误码（2026-11-23 修订，ADR-0251）。
 - 发布范围：`Expose` 含 `Mcp` 且非 `Stability.Internal` 的操作。
+- tool 表跟随登记表（2026-11-23 修订，ADR-0251；以前在服务端建立时取快照）：`tools/list` 与 `tools/call` 按处理这条消息时的登记表，此后登记的操作（插件运行期加载）立即是 tool，撤回的随之不是（`tools/call` 得 `PROTOCOLS_NOTFOUND_002`）。服务端不推送 `notifications/tools/list_changed`：Streamable HTTP 不开 SSE 流，没有推送的通道，`listChanged` 仍为 `false`；客户端要看到变化就重新 `tools/list`。
 - `tools/list`（不分页）：
   - `inputSchema` = 操作的请求 Schema（`OperationSchema.Request`，`type` 须为 `object`，否则 `{"type":"object"}`）；
   - `outputSchema` = 响应 Schema，仅当其 `type` 为 `object`；
