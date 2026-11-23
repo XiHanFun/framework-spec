@@ -15,7 +15,7 @@ description: 在 XiHan Spec 仓库跑门禁、核对协议生成物、构建运�
 buf lint
 buf format --diff --exit-code
 buf generate && test -z "$(git status --porcelain -- conformance/internal)"
-(cd conformance && test -z "$(gofmt -l .)" && go vet ./... && go test -race ./...)
+(cd conformance && test -z "$(gofmt -l .)" && go vet ./... && GOOS=windows go vet ./... && go test -race ./...)
 (cd tools/speccheck && test -z "$(gofmt -l .)" && go vet ./... && go test ./...)
 (cd conformance && go build -o bin/xihan-conformance ./cmd/xihan-conformance && bin/xihan-conformance vectors)
 ```

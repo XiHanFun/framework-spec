@@ -13,7 +13,7 @@
 | 破坏性变更（PR） | `buf breaking --against ".git#branch=origin/<目标分支>"` | 线上不兼容只能新增协议版本并存（RFC-0024） |
 | 破坏性变更（推送） | `buf breaking --against ".git#ref=<推送前的提交>"`，新建分支时跳过 | 同上 |
 | 生成物与源一致 | `buf generate` 后 `git status --porcelain -- conformance/internal` 为空 | 重新生成并提交 |
-| 格式与静态检查 | `conformance/`：`test -z "$(gofmt -l .)"`、`go vet ./...` | `gofmt -w .` |
+| 格式与静态检查 | `conformance/`：`test -z "$(gofmt -l .)"`、`go vet ./...`、`GOOS=windows go vet ./...` | `gofmt -w .` |
 | 测试 | `conformance/`：`go test -race ./...`（向量、规则、档表、运行器与假插件） | 修规则、向量或运行器，不删用例 |
 | 登记表与清单 Schema | `tools/speccheck/`：`gofmt`、`go vet`、`go test ./...` | 见下文 |
 | 构建运行器 | `conformance/`：`go build -o bin/xihan-conformance ./cmd/xihan-conformance` | 修编译错误 |

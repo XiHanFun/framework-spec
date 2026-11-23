@@ -1,7 +1,6 @@
 package rules_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"reflect"
 	"slices"
@@ -151,13 +150,13 @@ func TestWireEncodingFollowsTheVectors(t *testing.T) {
 			if len(expected) == 0 {
 				expected = c.JSON
 			}
-			want, err := decodeExact(expected)
+			want, err := rules.Exact(expected)
 			if err != nil {
 				t.Fatalf("%s: canonical: %v", c.Name, err)
 			}
 			// 规范形式按 JSON 值比较：先过一遍编码，消掉 Go 类型与 JSON 解码结果之间的差别；数字按原文比较，超出双精度的整数也要相等
 			text, _ := json.Marshal(canonical)
-			got, _ := decodeExact(text)
+			got, _ := rules.Exact(text)
 			if !reflect.DeepEqual(got, want) {
 				t.Errorf("%s: canonical = %s, want %s", c.Name, text, expected)
 			}
@@ -249,15 +248,6 @@ func TestJSONTextFollowsTheVectors(t *testing.T) {
 			t.Errorf("%s: unknown expectation %q", c.Name, c.Expect)
 		}
 	}
-}
-
-// decodeExact 把 JSON 解码成可比较的值，数字保留原文
-func decodeExact(data []byte) (any, error) {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-	var value any
-	err := decoder.Decode(&value)
-	return value, err
 }
 
 func TestNewVectorFilesAreWellFormed(t *testing.T) {

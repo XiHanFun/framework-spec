@@ -13,7 +13,7 @@ import (
 )
 
 func TestWhitespaceIsTheUnicodeWhiteSpaceProperty(t *testing.T) {
-	// handshake.md §2 列出的集合就是 Unicode 的 White_Space，Go 的 unicode.IsSpace 按同一属性判定
+	// RFC-0001「空白字符」列出的 25 个码位就是 Unicode 的 White_Space，Go 的 unicode.IsSpace 按同一属性判定
 	for r := rune(0); r <= unicode.MaxRune; r++ {
 		if rules.IsWhitespace(r) != unicode.IsSpace(r) {
 			t.Errorf("U+%04X: IsWhitespace = %v, unicode.IsSpace = %v", r, rules.IsWhitespace(r), unicode.IsSpace(r))

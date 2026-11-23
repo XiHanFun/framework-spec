@@ -39,11 +39,8 @@ const (
 	CaseStdin = "stdin"
 )
 
-// AllCases 是全部用例，按执行顺序。
-var AllCases = []string{
-	CaseHandshake, CaseRefusal, CaseSession, CaseLifecycle, CaseOrder, CaseUnknownOperation, CaseDeclaredOperations, CaseUnavailable,
-	CaseEvent, CaseUnsubscribed, CaseStream, CaseConfiguration, CaseStopEarly, CaseStdin,
-}
+// AllCases 是全部用例，按执行顺序；取自用例表 caseTable。
+var AllCases = caseNames()
 
 // DefaultTimeout 是每一步的默认截止时间。
 const DefaultTimeout = 15 * time.Second

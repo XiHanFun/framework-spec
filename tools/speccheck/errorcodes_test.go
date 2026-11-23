@@ -50,33 +50,10 @@ func readRegistry(t *testing.T, root string) registry {
 	return r
 }
 
-// readErrorDomains 取术语表第四列的错误码域（conventions/vocabulary.md）；「—」表示没有。
-func readErrorDomains(t *testing.T, root string) map[string]bool {
-	t.Helper()
-	domains := map[string]bool{}
-	for _, line := range strings.Split(string(readFile(t, root, "conventions/vocabulary.md")), "\n") {
-		if !strings.HasPrefix(line, "| `") {
-			continue
-		}
-		cells := strings.Split(line, "|")
-		if len(cells) < 6 {
-			continue
-		}
-		domain := strings.Trim(strings.TrimSpace(cells[4]), "`")
-		if domain != "" && domain != "—" {
-			domains[domain] = true
-		}
-	}
-	if len(domains) < 20 {
-		t.Fatalf("only %d error code domains were read from conventions/vocabulary.md; the table probably failed to parse", len(domains))
-	}
-	return domains
-}
-
 func TestRegistryIsConsistent(t *testing.T) {
 	root := repoRoot(t)
 	r := readRegistry(t, root)
-	domains := readErrorDomains(t, root)
+	domains := readVocabulary(t, root).errorDomains
 	if len(r.registered) < 100 {
 		t.Fatalf("only %d registered error codes were read; the table probably failed to parse", len(r.registered))
 	}
@@ -104,7 +81,7 @@ func TestRegistryIsConsistent(t *testing.T) {
 func TestEveryFrameworkCodeIsRegistered(t *testing.T) {
 	root := repoRoot(t)
 	r := readRegistry(t, root)
-	domains := readErrorDomains(t, root)
+	domains := readVocabulary(t, root).errorDomains
 	var failures []string
 	scanned := 0
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {

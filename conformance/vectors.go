@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"reflect"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -503,104 +505,167 @@ type WebAuthnError struct {
 	Algorithm *int64 `json:"algorithm,omitempty"`
 }
 
+// TypedVector 是向量文件表的一项：一个向量文件与它的类型化读取。
+type TypedVector struct {
+	// Name 是文件名，相对 vectors/，与 Names 的写法相同。
+	Name string
+	// Load 按文件的类型读取并解析，返回的值与对应的类型化入口（如 HandshakeLines）给出的相同。
+	Load func() (any, error)
+	// kind 是文件内容的类型，类型化入口按它在表里找文件。
+	kind reflect.Type
+}
+
+// vectorFile 把一个向量文件写成表里的一项，T 是文件内容的类型。
+func vectorFile[T any](name string) TypedVector {
+	return TypedVector{
+		Name: name,
+		Load: func() (any, error) { return Load[T](name) },
+		kind: reflect.TypeFor[T](),
+	}
+}
+
+// typedVectors 是向量文件表：每个向量文件一项，按 Names 的顺序。文件名只写在这里，类型化入口与 TypedVectors
+// （vectors 子命令与测试用它）都从这张表取；新增向量文件在这里加一行，再加一个类型化入口。
+var typedVectors = []TypedVector{
+	vectorFile[ManifestVectors]("manifest/manifests.json"),
+	vectorFile[PayloadReasonVectors]("operations/payload-reasons.json"),
+	vectorFile[PipelineOrderingVectors]("pipeline/ordering.json"),
+	vectorFile[CallbackStatusVectors]("plugin/callback-status.json"),
+	vectorFile[DeadlineVectors]("plugin/deadlines.json"),
+	vectorFile[ErrorReadingVectors]("plugin/error-reading.json"),
+	vectorFile[HandshakeLineVectors]("plugin/handshake-lines.json"),
+	vectorFile[HostAddressVectors]("plugin/host-addresses.json"),
+	vectorFile[PluginMessageVectors]("plugin/plugin-messages.json"),
+	vectorFile[ProtocolVersionVectors]("plugin/protocol-versions.json"),
+	vectorFile[WasmExportVectors]("plugin/wasm-exports.json"),
+	vectorFile[BaggageKeyVectors]("primitives/baggage-keys.json"),
+	vectorFile[CapabilityRequirementVectors]("primitives/capability-requirements.json"),
+	vectorFile[ErrorCodeVectors]("primitives/error-codes.json"),
+	vectorFile[JSONTextVectors]("primitives/json-text.json"),
+	vectorFile[KernelMessageVectors]("primitives/kernel-messages.json"),
+	vectorFile[LifecycleTransitionVectors]("primitives/lifecycle-transitions.json"),
+	vectorFile[MessageTemplateVectors]("primitives/message-templates.json"),
+	vectorFile[TraceContextVectors]("primitives/trace-context.json"),
+	vectorFile[WireEncodingVectors]("primitives/wire-encoding.json"),
+	vectorFile[CachingDistributedVectors]("provider/caching-distributed.json"),
+	vectorFile[WebAuthnVectors]("security/webauthn.json"),
+}
+
+// TypedVectors 返回向量文件表：每个向量文件一项，按 Names 的顺序。
+func TypedVectors() []TypedVector {
+	return slices.Clone(typedVectors)
+}
+
+// typed 按内容的类型在向量文件表里找到文件并读取；表里没有这个类型时报错。
+func typed[T any]() (T, error) {
+	kind := reflect.TypeFor[T]()
+	for _, file := range typedVectors {
+		if file.kind == kind {
+			return Load[T](file.Name)
+		}
+	}
+	var vector T
+	return vector, fmt.Errorf("conformance: no vector file is registered for %s", kind)
+}
+
 // WebAuthn 读取 WebAuthn 注册与认证的样例。
 func WebAuthn() (WebAuthnVectors, error) {
-	return Load[WebAuthnVectors]("security/webauthn.json")
+	return typed[WebAuthnVectors]()
 }
 
 // CachingDistributed 读取 caching.distributed 远程 Provider 的操作集向量。
 func CachingDistributed() (CachingDistributedVectors, error) {
-	return Load[CachingDistributedVectors]("provider/caching-distributed.json")
+	return typed[CachingDistributedVectors]()
 }
 
 // HandshakeLines 读取握手行向量。
 func HandshakeLines() (HandshakeLineVectors, error) {
-	return Load[HandshakeLineVectors]("plugin/handshake-lines.json")
+	return typed[HandshakeLineVectors]()
 }
 
 // ProtocolVersions 读取版本协商向量。
 func ProtocolVersions() (ProtocolVersionVectors, error) {
-	return Load[ProtocolVersionVectors]("plugin/protocol-versions.json")
+	return typed[ProtocolVersionVectors]()
 }
 
 // WasmExports 读取 Wasm ABI 导出表向量。
 func WasmExports() (WasmExportVectors, error) {
-	return Load[WasmExportVectors]("plugin/wasm-exports.json")
+	return typed[WasmExportVectors]()
 }
 
 // HostAddresses 读取宿主回调端点列表的解析与选择向量。
 func HostAddresses() (HostAddressVectors, error) {
-	return Load[HostAddressVectors]("plugin/host-addresses.json")
+	return typed[HostAddressVectors]()
 }
 
 // Deadlines 读取 InvocationMetadata.deadline 的读法、生效的截止时间与写出向量。
 func Deadlines() (DeadlineVectors, error) {
-	return Load[DeadlineVectors]("plugin/deadlines.json")
+	return typed[DeadlineVectors]()
 }
 
 // PluginMessages 读取 SDK 运行时与宿主共用的插件消息键向量。
 func PluginMessages() (PluginMessageVectors, error) {
-	return Load[PluginMessageVectors]("plugin/plugin-messages.json")
+	return typed[PluginMessageVectors]()
 }
 
 // CallbackStatus 读取插件一侧回调失败的映射向量。
 func CallbackStatus() (CallbackStatusVectors, error) {
-	return Load[CallbackStatusVectors]("plugin/callback-status.json")
+	return typed[CallbackStatusVectors]()
 }
 
 // ErrorReading 读取读入对方写来的 Error 与 Status 的向量。
 func ErrorReading() (ErrorReadingVectors, error) {
-	return Load[ErrorReadingVectors]("plugin/error-reading.json")
+	return typed[ErrorReadingVectors]()
 }
 
 // ErrorCodes 读取错误码格式向量。
 func ErrorCodes() (ErrorCodeVectors, error) {
-	return Load[ErrorCodeVectors]("primitives/error-codes.json")
+	return typed[ErrorCodeVectors]()
 }
 
 // BaggageKeys 读取 Baggage 键向量。
 func BaggageKeys() (BaggageKeyVectors, error) {
-	return Load[BaggageKeyVectors]("primitives/baggage-keys.json")
+	return typed[BaggageKeyVectors]()
 }
 
 // CapabilityRequirements 读取能力依赖文本向量。
 func CapabilityRequirements() (CapabilityRequirementVectors, error) {
-	return Load[CapabilityRequirementVectors]("primitives/capability-requirements.json")
+	return typed[CapabilityRequirementVectors]()
 }
 
 // LifecycleTransitions 读取生命周期迁移向量。
 func LifecycleTransitions() (LifecycleTransitionVectors, error) {
-	return Load[LifecycleTransitionVectors]("primitives/lifecycle-transitions.json")
+	return typed[LifecycleTransitionVectors]()
 }
 
 // WireEncoding 读取 Result 与 Error 的线上编码向量。
 func WireEncoding() (WireEncodingVectors, error) {
-	return Load[WireEncodingVectors]("primitives/wire-encoding.json")
+	return typed[WireEncodingVectors]()
 }
 
 // MessageTemplates 读取消息键文法、模板格式化与 Describe 向量。
 func MessageTemplates() (MessageTemplateVectors, error) {
-	return Load[MessageTemplateVectors]("primitives/message-templates.json")
+	return typed[MessageTemplateVectors]()
 }
 
 // KernelMessages 读取 SDK 与宿主共用的内核错误向量。
 func KernelMessages() (KernelMessageVectors, error) {
-	return Load[KernelMessageVectors]("primitives/kernel-messages.json")
+	return typed[KernelMessageVectors]()
 }
 
 // TraceContext 读取 traceparent 的解析与写出向量。
 func TraceContext() (TraceContextVectors, error) {
-	return Load[TraceContextVectors]("primitives/trace-context.json")
+	return typed[TraceContextVectors]()
 }
 
 // Manifests 读取清单读取的向量。
 func Manifests() (ManifestVectors, error) {
-	return Load[ManifestVectors]("manifest/manifests.json")
+	return typed[ManifestVectors]()
 }
 
 // PipelineOrdering 读取管道排序、打印与报错时机的向量。
 func PipelineOrdering() (PipelineOrderingVectors, error) {
-	return Load[PipelineOrderingVectors]("pipeline/ordering.json")
+	return typed[PipelineOrderingVectors]()
 }
 
 // JSONTextCase 是共同 JSON 读取检查的一条样例：Text 是原文（按 UTF-8 编码），Hex 是原始字节。
@@ -627,10 +692,10 @@ type JSONTextVectors struct {
 
 // JSONText 读取共同 JSON 读取检查的向量。
 func JSONText() (JSONTextVectors, error) {
-	return Load[JSONTextVectors]("primitives/json-text.json")
+	return typed[JSONTextVectors]()
 }
 
 // PayloadReasons 读取载荷错误路径的向量。
 func PayloadReasons() (PayloadReasonVectors, error) {
-	return Load[PayloadReasonVectors]("operations/payload-reasons.json")
+	return typed[PayloadReasonVectors]()
 }

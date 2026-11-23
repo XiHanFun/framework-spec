@@ -21,10 +21,10 @@ description: 新增或修改 XiHan Spec 的一致性向量、规则包 conforman
 
 - 期望值由 .NET 参考实现算出，不手算，不取某个 SDK 的输出；.NET 与规范不一致时停下来报告，不改向量迁就。
 - 向量文件顶部 `$comment` 写清字段含义、规范出处、ADR，以及「期望值由 .NET 参考实现算出」（如是）。
-- 新向量文件：写进档表至少一档；有类型化入口时在 `vectors.go` 加入口并在 `vectors_test.go` 核对非空；规则包回放它；`conformance/README.md` 的向量表加一行。
+- 新向量文件：写进档表至少一档；有类型化入口时在 `vectors.go` 的 `typedVectors` 表加一行并加入口，在 `vectors_test.go` 的核对表里核对非空（`TestTypedVectorsCoverEveryVectorFile` 要求表覆盖全部向量文件）；规则包回放它；`conformance/README.md` 的向量表加一行。
 - 向量里出现的框架错误码必须已登记；清单向量必须与 Schema 一致（`tools/speccheck` 核对）。
 - 加用例、改期望值、加向量文件或运行器用例都要记 `CHANGELOG.md`（级别见 spec-authoring）。
-- 运行器新用例：`options.go` 加常量与 `AllCases`，`runner.go` 登记，`cases.go` 实现；`fake_test.go` 里合规假插件必须通过，`legacy` 假插件必须在新用例上失败；`conformance/README.md` 的用例表加一行。各 SDK 的测试从运行器 `help` 输出的 `cases:` 行读用例全集。
+- 运行器新用例：`options.go` 加常量，`runner.go` 的 `caseTable` 登记（`AllCases` 由它导出，`TestCaseTableCoversEveryCase` 要求常量、表与实现一一对上），`cases.go` 实现；`fake_test.go` 里合规假插件必须通过，`legacy` 假插件必须在新用例上失败；`conformance/README.md` 的用例表加一行。各 SDK 的测试从运行器 `help` 输出的 `cases:` 行读用例全集。
 - 每个实现都有「认领的档 + 缺口」的向量覆盖测试，新增向量文件会让认领该档的实现失败：向用户列出受影响的仓库。
 
 ## 完成条件

@@ -3,6 +3,7 @@ package speccheck_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -30,4 +31,37 @@ func readFile(t *testing.T, root, relative string) []byte {
 		t.Fatal(err)
 	}
 	return data
+}
+
+// vocabulary 是术语表（conventions/vocabulary.md）里门禁用到的两列。
+type vocabulary struct {
+	// capabilityPrefixes 是第二列的能力 ID 前缀：子系统档的档名取自它。
+	capabilityPrefixes map[string]bool
+	// errorDomains 是第四列的错误码域：域在其中的错误码归登记表管。
+	errorDomains map[string]bool
+}
+
+// readVocabulary 解析术语表：每个领域词一行，某一列写「—」表示没有。
+func readVocabulary(t *testing.T, root string) vocabulary {
+	t.Helper()
+	v := vocabulary{capabilityPrefixes: map[string]bool{}, errorDomains: map[string]bool{}}
+	for _, line := range strings.Split(string(readFile(t, root, "conventions/vocabulary.md")), "\n") {
+		if !strings.HasPrefix(line, "| `") {
+			continue
+		}
+		// 行以竖线开头，cells[0] 是空串：领域词在 cells[1]，能力 ID 前缀在 cells[2]，错误码域在 cells[4]
+		cells := strings.Split(line, "|")
+		if len(cells) < 6 {
+			continue
+		}
+		for column, values := range map[int]map[string]bool{2: v.capabilityPrefixes, 4: v.errorDomains} {
+			if value := strings.Trim(strings.TrimSpace(cells[column]), "`"); value != "" && value != "—" {
+				values[value] = true
+			}
+		}
+	}
+	if len(v.errorDomains) < 20 {
+		t.Fatalf("only %d error code domains were read from conventions/vocabulary.md; the table probably failed to parse", len(v.errorDomains))
+	}
+	return v
 }

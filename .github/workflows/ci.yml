@@ -72,6 +72,11 @@ jobs:
           test -z "$(gofmt -l .)"
           go vet ./...
 
+      # 作业只在 Linux 上跑，带 windows 构建标签的文件（命名管道的拨号）不换目标系统就查不到
+      - name: 静态检查（Windows 目标）
+        working-directory: conformance
+        run: GOOS=windows go vet ./...
+
       - name: 测试（向量、规则、运行器）
         working-directory: conformance
         run: go test -race ./...
@@ -86,3 +91,7 @@ jobs:
       - name: 构建运行器
         working-directory: conformance
         run: go build -o bin/xihan-conformance ./cmd/xihan-conformance
+
+      - name: 校验向量文件
+        working-directory: conformance
+        run: ./bin/xihan-conformance vectors

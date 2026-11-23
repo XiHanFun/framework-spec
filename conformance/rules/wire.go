@@ -203,6 +203,9 @@ func requiredString(members map[string]json.RawMessage, name string) (string, er
 
 // HasNoDuplicateMembers 核对 JSON 文本里每个对象的成员名都不重复（RFC-0001「Result」、RFC-0002 解析规则 2）；
 // encoding/json 解码时后出现的同名成员会悄悄覆盖前一个，所以要在词法上单独查。
+//
+// Deprecated: 改用 CheckJSONText：它是 RFC-0001「JSON 文本」的共同读取检查，同时核对语法、给出第一处重复成员的路径，
+// 规则包自己读线上编码时也只用它。本函数只为已有的调用方保留。
 func HasNoDuplicateMembers(data []byte) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	// 每层一个集合：对象层记成员名，数组层为 nil

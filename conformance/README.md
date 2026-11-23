@@ -33,7 +33,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `security/webauthn.json` | WebAuthn 注册与认证的样例响应、存储的凭据与期望结果（成功的凭据与签名计数，失败的错误码与 `reason`） | RFC-0008「WebAuthn」 |
 | `provider/caching-distributed.json` | `caching.distributed@1` 远程 Provider 的操作 ID（含批量）、请求 / 响应样例、非法键与选项 | `provider/caching-distributed.md` |
 
-各语言 SDK 的单元测试直接读取这些文件。Go 里 `go get github.com/xihanfun/framework-spec/conformance` 后经内嵌文件系统 `conformance.Vectors` 或类型化入口（`conformance.HandshakeLines()` 等）读取，不需要 submodule。
+各语言 SDK 的单元测试直接读取这些文件。Go 里 `go get github.com/xihanfun/framework-spec/conformance` 后经内嵌文件系统 `conformance.Vectors` 或类型化入口（`conformance.HandshakeLines()` 等）读取，不需要 submodule。`conformance.TypedVectors()` 给出向量文件表：每个向量文件一项，带它的类型化读取；`xihan-conformance vectors` 照这张表逐个解析，本模块的测试核对表与内嵌的文件一一对应。
 
 ## 规则（`rules/`）
 
@@ -81,6 +81,8 @@ xihan-conformance vectors
 | `--quiet` | 不转发插件的 stderr |
 
 退出码：`0` 全部通过（含跳过），`1` 有用例失败，`2` 参数或目录错误。
+
+`xihan-conformance version` 打印运行器的版本，握手时作为宿主 SDK 版本上报的也是它（`plugin.Version`）：取自构建信息里本模块的版本，不带前缀 `v`，`go install …@<版本>` 装的就是那个版本；在仓库里直接构建或测试时取不到，是 `devel`。
 
 作为库使用：`plugin.Run(ctx, plugin.Options{Directory: dir})` 返回每个用例的 `Result`；测试 `TestAgainstAPluginDirectory` 在设置了 `XIHAN_CONFORMANCE_PLUGIN_DIR`（和可选的 `XIHAN_CONFORMANCE_EXCLUDE`）时对该目录跑全部用例。运行器自己的测试（`plugin/fake_test.go`）让测试程序扮演插件：合规的假插件必须通过全部用例，按以前各 SDK 的做法应答的假插件必须在新用例上失败。
 

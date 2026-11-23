@@ -47,6 +47,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestRunnerPassesARulesAbidingPlugin(t *testing.T) {
+	// 两个假插件测试可以并行：各自一个插件目录、一次 Run（自己的会话令牌、回调端点与系统分配的监听端口）。
+	// 唯一共用的是运行器按清单 ID 建的工作目录，运行器只对它 MkdirAll，假插件不读写它
+	t.Parallel()
 	results, log := runAgainstFake(t, "")
 	if len(results) != len(AllCases) {
 		t.Fatalf("ran %d cases, want %d", len(results), len(AllCases))
@@ -62,6 +65,7 @@ func TestRunnerPassesARulesAbidingPlugin(t *testing.T) {
 }
 
 func TestRunnerReportsAPluginThatBreaksTheRules(t *testing.T) {
+	t.Parallel()
 	results, log := runAgainstFake(t, "legacy")
 	// legacy 只违反插件一侧的新规则，原有的用例照常通过
 	failing := map[string]bool{

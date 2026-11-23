@@ -151,36 +151,10 @@ func runVectors(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	checks := []struct {
-		name string
-		load func() error
-	}{
-		{"plugin/handshake-lines.json", func() error { _, err := conformance.HandshakeLines(); return err }},
-		{"plugin/host-addresses.json", func() error { _, err := conformance.HostAddresses(); return err }},
-		{"plugin/deadlines.json", func() error { _, err := conformance.Deadlines(); return err }},
-		{"plugin/plugin-messages.json", func() error { _, err := conformance.PluginMessages(); return err }},
-		{"plugin/callback-status.json", func() error { _, err := conformance.CallbackStatus(); return err }},
-		{"plugin/error-reading.json", func() error { _, err := conformance.ErrorReading(); return err }},
-		{"plugin/protocol-versions.json", func() error { _, err := conformance.ProtocolVersions(); return err }},
-		{"plugin/wasm-exports.json", func() error { _, err := conformance.WasmExports(); return err }},
-		{"primitives/error-codes.json", func() error { _, err := conformance.ErrorCodes(); return err }},
-		{"primitives/baggage-keys.json", func() error { _, err := conformance.BaggageKeys(); return err }},
-		{"primitives/capability-requirements.json", func() error { _, err := conformance.CapabilityRequirements(); return err }},
-		{"primitives/lifecycle-transitions.json", func() error { _, err := conformance.LifecycleTransitions(); return err }},
-		{"primitives/wire-encoding.json", func() error { _, err := conformance.WireEncoding(); return err }},
-		{"primitives/message-templates.json", func() error { _, err := conformance.MessageTemplates(); return err }},
-		{"primitives/kernel-messages.json", func() error { _, err := conformance.KernelMessages(); return err }},
-		{"primitives/trace-context.json", func() error { _, err := conformance.TraceContext(); return err }},
-		{"primitives/json-text.json", func() error { _, err := conformance.JSONText(); return err }},
-		{"manifest/manifests.json", func() error { _, err := conformance.Manifests(); return err }},
-		{"pipeline/ordering.json", func() error { _, err := conformance.PipelineOrdering(); return err }},
-		{"operations/payload-reasons.json", func() error { _, err := conformance.PayloadReasons(); return err }},
-		{"provider/caching-distributed.json", func() error { _, err := conformance.CachingDistributed(); return err }},
-		{"security/webauthn.json", func() error { _, err := conformance.WebAuthn(); return err }},
-	}
 	code := 0
-	for _, check := range checks {
-		if err := check.load(); err != nil {
+	// 向量文件表给出每个文件的类型；表与内嵌文件一一对应由 conformance 模块的测试守住
+	for _, vector := range conformance.TypedVectors() {
+		if _, err := vector.Load(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			code = 1
 		}

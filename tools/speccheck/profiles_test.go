@@ -11,7 +11,8 @@ import (
 	"testing"
 )
 
-// profileTable 是 conformance/profiles.json 里本测试用到的部分。
+// profileTable 是 conformance/profiles.json 里本测试用到的部分。它与 conformance.ProfileTable 读同一个文件，
+// 但本模块不依赖 conformance 模块（go.mod 里只有 Schema 校验库），所以只在这里声明用到的两个字段，不引用那个类型。
 type profileTable struct {
 	Profiles []struct {
 		ID        string   `json:"id"`
@@ -42,26 +43,6 @@ func readProfiles(t *testing.T, root string) profileTable {
 		t.Fatal("conformance/profiles.json defines no profile")
 	}
 	return table
-}
-
-// readCapabilityPrefixes 取术语表第二列的能力 ID 前缀（conventions/vocabulary.md）。
-func readCapabilityPrefixes(t *testing.T, root string) map[string]bool {
-	t.Helper()
-	prefixes := map[string]bool{}
-	for _, line := range strings.Split(string(readFile(t, root, "conventions/vocabulary.md")), "\n") {
-		if !strings.HasPrefix(line, "| `") {
-			continue
-		}
-		cells := strings.Split(line, "|")
-		if len(cells) < 6 {
-			continue
-		}
-		prefix := strings.Trim(strings.TrimSpace(cells[2]), "`")
-		if prefix != "" && prefix != "—" {
-			prefixes[prefix] = true
-		}
-	}
-	return prefixes
 }
 
 func TestEveryNormativeDocumentBelongsToAProfile(t *testing.T) {
@@ -108,7 +89,7 @@ func TestEveryNormativeDocumentBelongsToAProfile(t *testing.T) {
 func TestProfileIdsComeFromTheVocabulary(t *testing.T) {
 	root := repoRoot(t)
 	table := readProfiles(t, root)
-	prefixes := readCapabilityPrefixes(t, root)
+	prefixes := readVocabulary(t, root).capabilityPrefixes
 
 	for _, p := range table.Profiles {
 		switch {

@@ -75,7 +75,7 @@ XiHan Spec 是 XiHan Framework 的语言中立规范：RFC、规范性文档（�
 | 协议格式 | `buf format --diff --exit-code`（就地修正用 `buf format -w`） |
 | 破坏性变更 | `buf breaking --against ".git#branch=origin/dev"`（CI：PR 相对目标分支，推送相对推送前的提交） |
 | 生成协议代码 | `buf generate`，之后 `git status --porcelain -- conformance/internal` 必须为空 |
-| 格式与静态检查 | `conformance/`：`test -z "$(gofmt -l .)" && go vet ./...` |
+| 格式与静态检查 | `conformance/`：`test -z "$(gofmt -l .)" && go vet ./... && GOOS=windows go vet ./...`（后一条盖住只在 Windows 上编译的文件） |
 | 向量、规则与运行器测试 | `conformance/`：`go test -race ./...` |
 | 登记表、Schema 与档表 | `tools/speccheck/`：`test -z "$(gofmt -l .)" && go vet ./... && go test ./...` |
 | 构建运行器 | `conformance/`：`go build -o bin/xihan-conformance ./cmd/xihan-conformance` |
