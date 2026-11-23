@@ -1,6 +1,6 @@
 # RFC-0009 消息、CloudEvents 信封与发件箱
 
-> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题；2026-11-03 修订：发件箱把代理抛出与返回失败一样计入尝试、重试逐条发布、一轮遇到抛出即停止发布；2026-11-04 修订：框架异常的消息不拼代理的异常文字；2026-11-10 修订：Redis Streams Provider；2026-11-12 修订：投递覆盖租户分片库；2026-11-13 修订：插件投递带订阅方式） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题）、ADR-0108（发件箱计入代理抛出）、ADR-0115、ADR-0130（Redis Streams Provider）、ADR-0211（投递覆盖分片库）、ADR-0226（插件投递带订阅方式） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka`、`XiHan.Framework.Messaging.Redis` | 一致性：`XiHan.Framework.Messaging.Conformance` | 一致性档：`messaging`
+> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题；2026-11-03 修订：发件箱把代理抛出与返回失败一样计入尝试、重试逐条发布、一轮遇到抛出即停止发布；2026-11-04 修订：框架异常的消息不拼代理的异常文字；2026-11-10 修订：Redis Streams Provider；2026-11-12 修订：投递覆盖租户分片库；2026-11-13 修订：插件投递带订阅方式；2026-11-24 修订：一次投递尝试的了结方式、停止打断的投递不计尝试、排空期间不原位重试） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题）、ADR-0108（发件箱计入代理抛出）、ADR-0115、ADR-0130（Redis Streams Provider）、ADR-0211（投递覆盖分片库）、ADR-0226（插件投递带订阅方式）、ADR-0261（投递尝试收成一处） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka`、`XiHan.Framework.Messaging.Redis` | 一致性：`XiHan.Framework.Messaging.Conformance` | 一致性档：`messaging`
 
 ## 摘要
 
@@ -46,9 +46,12 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 
 1. 应用用 `AddMessageHandler<THandler>(topic, mode)` 订阅，`mode` 缺省为竞争消费（见「订阅方式」）；处理器是作用域服务。订阅只在装配时登记：消息运行时与派发器取用订阅表之后它是只读的，再登记抛出 `InvalidOperationException`，交出的订阅与处理器列表是只读视图（2026-11-11 修订，ADR-0155）。
 2. 代理为每个订阅（主题加订阅方式）消费，把投递交给派发器；投递带订阅方式（`MessageDelivery.Mode`）。派发器为每条消息开新作用域、构造调用上下文（Baggage 与追踪来自扩展属性）、经完整管道依次执行该主题、该方式的处理器，第一个失败即调用结果。
-3. 处理器返回失败或抛异常都算投递失败。代理重试到 `MaxAttempts`（默认 3，含首次），之后竞争订阅进入死信，广播订阅丢弃并记日志。重试的顺序由代理决定（内存实现排到队尾）。
+3. 处理器返回失败或抛异常都算投递失败。代理重试到 `MaxAttempts`（默认 3，含首次），之后竞争订阅进入死信，广播订阅丢弃并记日志。重试的顺序由代理决定（内存实现排到队尾）。一次投递尝试的判定只有一种写法（.NET：`MessageDeliveryAttempt.RunAsync`，给出确认、重投、进死信、丢弃或放弃五种了结方式之一），代理只把它翻译成自己的确认、重投与死信动作（2026-11-24 修订，ADR-0261）：
+   - 派发抛出的异常记为 `MESSAGING_UNEXPECTED_001`：`reason` 只写异常类型的全名，框架异常写它的错误码、原错误作内部错误；完整异常进日志，不进错误（ADR-0115）。
+   - 被停止打断的投递不是失败：代理的停止信号已经发出时，派发抛出取消、返回失败（管道把处理器的取消写成 `KERNEL_CANCELLED_001` 返回）或抛出别的异常，这次都不计入尝试上限，不重试、不进死信、不丢弃，也不了结原消息，留给代理重新投递。取消只认停止信号，不认错误码；停止信号没有发出时的取消异常（处理器自己的超时）照常是一次失败。处理器已经返回成功的照常了结。
+   - 被放弃的投递再到达时的尝试号由代理决定：内存代理与 RabbitMQ 是原来的，Kafka 重启后从 1 起，Redis 的回收让投递次数加一。
 4. 派发不写幂等键：重试必须重新执行处理器；去重由处理器按 `id` + `source` 自理，或在 P3 由操作契约提供消息级去重。
-5. 代理在应用进入服务状态之前不派发。
+5. 代理在应用进入服务状态之前不派发，每次尝试之前都判断：原位重试的代理（Kafka、Redis）在应用排空期间不接着重试，等到停止信号后按第 3 条放弃（2026-11-24 修订，ADR-0261；此前原位重试不再判断，排空期间的重试被管道以 `KERNEL_HOSTING_004` 拒绝，尝试次数用完后进死信）。
 6. 发布是批量优先的（`conventions/batch-first.md`）：`IMessagePublisher` 与 `IMessageBroker` 提供 `PublishManyAsync(topic, envelopes)`，逐项结果与入参顺序一一对应，单条是它的特例。主题不合法时每一项都是 `MESSAGING_VALIDATION_001`；同一主题内保持入参顺序；重复 `id` 照发，去重是消费端的事。Provider 用代理的原生批量（RabbitMQ 在同一通道上连续发布并一次等待确认，Redis 在一个 `MULTI` / `EXEC` 事务里连续 `XADD`），内存实现一次入队。空集合不触代理。
 7. 发布成功表示代理已收下：远程代理的发布等到代理的确认（RabbitMQ 的发布确认、Kafka 的投递报告、Redis 对 `XADD` 的应答）才返回成功，没有得到确认的发布不报告成功。重试与死信的重新发布同样等确认，确认了才了结原消息（确认或提交位点），否则原消息留给代理再投递，不丢消息。
 
@@ -68,8 +71,8 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 - 流只由订阅方建立：订阅方启动时以 `MKSTREAM` 建组，并在同一段 Lua 里建自己的消费者，组从 `$` 开始。订阅方第一次启动之前发布的消息不投递；之后订阅方离线期间的消息留在流里。
 - 发布 `XADD <key> NOMKSTREAM MAXLEN ~ <MaxLength>`，Redis 应答了条目 ID 才是成功。键不存在即没有订阅者：与内存代理一致，消息丢弃，发布照常成功（批量逐项成功），代理记一条 Debug 级别的日志。批量发布在一个 `MULTI` / `EXEC` 事务里，整批写入或整批不写入。连接或超时异常整批抛出 `MESSAGING_UNAVAILABLE_001`。
 - 每个订阅一个消费循环，`XREADGROUP ... >` 每次最多取 `BatchSize`（默认 10）条，单线程依次派发。没取到就等 `PollIntervalSeconds`（默认 0.2）再取：客户端的多路复用连接不支持 `BLOCK`。成功就 `XACK`。
-- 失败在原位立即重试到 `MaxAttempts`，每次重试前把条目 `XCLAIM` 给自己（最小空闲 0）：投递次数记在消费组的待确认列表里，尝试号就是它，实例崩溃后由接手的实例接着计数。到了上限先 `XADD` 到死信流 `<KeyPrefix><topic><DeadLetterSuffix>`（`MKSTREAM`，同样 `MAXLEN ~`，另带字段 `attempt` 与 `error`），写入应答后才 `XACK` 原条目；写入失败时不确认，留给回收。无法解码的条目不重试，原样进死信流。停止期间的失败（含被取消的处理器）不重试、不进死信，条目留给回收。
-- 回收：每个消费循环每过 `min(ClaimIdleTimeSeconds, 10)` 秒维护一次，用 `XAUTOCLAIM` 把组里空闲超过 `ClaimIdleTimeSeconds`（默认 60）的条目认领给自己并按投递次数继续投递，超过 `MaxAttempts` 的直接进死信。`ClaimIdleTimeSeconds` 必须大于一批条目的最长处理时间，否则还在处理的条目会被别的实例认领、重复处理。
+- 失败在原位立即重试到 `MaxAttempts`，每次重试前把条目 `XCLAIM` 给自己（最小空闲 0）：投递次数记在消费组的待确认列表里，尝试号就是它，实例崩溃后由接手的实例接着计数。到了上限先 `XADD` 到死信流 `<KeyPrefix><topic><DeadLetterSuffix>`（`MKSTREAM`，同样 `MAXLEN ~`，另带字段 `attempt` 与 `error`），写入应答后才 `XACK` 原条目；写入失败时不确认，留给回收。无法解码的条目不重试，原样进死信流。停止期间的失败按「投递」第 3 条放弃，条目留给回收。
+- 回收：每个消费循环每过 `min(ClaimIdleTimeSeconds, 10)` 秒维护一次，用 `XAUTOCLAIM` 把组里空闲超过 `ClaimIdleTimeSeconds`（默认 60）的条目认领给自己并按投递次数继续投递，超过 `MaxAttempts` 的直接进死信，不等应用进入服务状态。`ClaimIdleTimeSeconds` 必须大于一批条目的最长处理时间，否则还在处理的条目会被别的实例认领、重复处理。
 - 容量：`MAXLEN ~` 是每条流的上限。维护时按全部组的下限（有待确认条目时取最早一条，否则取最后投递的 ID）`XTRIM MINID ~`，去掉已被全部组确认的条目，流里只留积压。消费者落后超过 `MaxLength` 时最旧的条目在投递前被裁掉，这些消息丢失。
 - 实例标识每次启动不同，消费者与广播组会随重启增多，所以要清理：
   - 停止时，竞争订阅没有待确认条目就删除自己的消费者，广播订阅删除自己的组。

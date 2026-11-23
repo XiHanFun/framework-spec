@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- MAJOR（`v1.0.0` 之前允许）：RFC-0009「投递」：被代理的停止信号打断的投递不算一次失败（不计尝试、不重试、不进死信、不了结原消息），取消只认停止信号；原位重试的代理（Kafka、Redis）每次尝试前都等应用进入服务状态，排空期间不再接着重试；派发抛出的异常记为 `MESSAGING_UNEXPECTED_001`、`reason` 只写异常类型全名或框架错误码；Redis 回收到的已超上限条目不等服务状态直接进死信。一次投递尝试的判定只有一种写法（.NET：`MessageDeliveryAttempt.RunAsync`）（ADR-0261）。只影响 .NET 的消息代理，线上与各 SDK 不变。
 - MINOR：RFC-0005 新增「管道外的工作单元」：单例存储、后台循环与健康探针在新服务作用域里开工作单元时的开始与收尾只有一种写法（.NET：`UnitOfWorkScope.RunAsync`）——成功提交、失败或抛出回滚；回滚与释放作用域自身的失败只记警告，不盖掉已经确定的结果或异常；只有令牌已取消的取消异常算取消；映射成错误时不带异常的消息文本；绑定租户分片在解析工作单元之前做（ADR-0259）。以前只写了用哪些选项，收尾不作规定。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0014 密钥库的批量读取 `GetAsync(names[])` 返回与入参同序、等长的 `Result<SecretValue>` 列表，删除带键的结果记录 `SecretLookup`（ADR-0257）；只影响 .NET 的密钥库 Provider 与调用方，线上与各 SDK 不变。
 - PATCH：一致性模块与运行器的整理，不改任何期望值：`conformance.TypedVectors()` 给出向量文件表，类型化入口、`xihan-conformance vectors` 与测试共用；运行器的用例收成一张用例表；`plugin.Version` 不再是常量 `0.1.0`，改为取构建信息里一致性模块的版本（握手上报与 `xihan-conformance version` 都用它，取不到时是 `devel`），把它当常量用的代码要改；`rules.HasNoDuplicateMembers` 标为弃用，改用 `rules.CheckJSONText`（ADR-0258）。
