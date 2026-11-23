@@ -51,7 +51,7 @@ xihan-plugin/1 <network> <address>
 3. 清单：`manifest` 必须与目录里的文件逐字段一致（`id`、`version`、`primitives`、`kind`、`isolation`、`provides`、`requires`、`contributes`、`activation`、`permissions`），否则 `PLUGINS_VALIDATION_004`。插件写清单文件的原文，去掉开头的 UTF-8 BOM（若有）。
 4. 操作：`operations[].id` 必须都出现在清单 `contributes.operations`；ID 文法与 Schema 规则同 RFC-0011；重复即 `PLUGINS_VALIDATION_004`。宿主把它们登记为代理操作（见 `invocation.md`）。插件只声明一元操作（`streaming: false`），流式操作等流式契约的 RFC（`invocation.md` §1）。
 5. 订阅：`subscriptions[].topic` 必须符合主题文法；`mode` 为空、`competing` 或 `broadcast`（RFC-0009「订阅方式」），其他值即 `PLUGINS_VALIDATION_004`；重复的（主题，类型）对即 `PLUGINS_VALIDATION_004`，同一对不能以两种方式各声明一次。插件按声明的顺序写订阅，`mode` 总是写 `competing` 或 `broadcast`，不写空（2026-11-18 写明，ADR-0237）。
-6. 目录：`catalogs` 合并进宿主的本地化器（目录名重复时宿主已有的优先并记警告）；至少应含 `en-US`。插件只发自己的目录：SDK 运行时自己的消息键（`invocation.md` §8）由宿主提供，SDK 不随握手发送（2026-11-18 写明，ADR-0237；以前有的 SDK 另发一份，与宿主的同名键重复）。
+6. 目录：`catalogs` 以插件的清单 ID 为归属登记进宿主的本地化器（RFC-0010「归属目录」），与代理操作一起登记、随卸载撤回（`invocation.md` §1）。同名目录照 RFC-0010 的规则核对：区域与键取并集，同一键同一区域的模板不同即冲突（`LOCALIZATION_CONFLICT_001`），插件整组登记失败；不同名目录里的同一键，宿主已有的优先（2026-11-23 修订，ADR-0252；以前只有配置阶段发现的插件接进本地化器、卸载不撤回，这里写的「目录名重复时宿主已有的优先并记警告」与实现不符）。至少应含 `en-US`。插件只发自己的目录：SDK 运行时自己的消息键（`invocation.md` §8）由宿主提供，SDK 不随握手发送（2026-11-18 写明，ADR-0237；以前有的 SDK 另发一份，与宿主的同名键重复）。
 
 握手成功后插件状态为 `Resolved`；宿主接着 `Configure` 与 `Start`（`lifecycle.md`）。整个握手阶段的 gRPC 调用都带 `HandshakeTimeout` 的截止时间。`HandshakeRequest.host_endpoint` 是 `XIHAN_PLUGIN_HOST_ADDRESS` 的第一项，只供诊断；插件选回调端点以环境变量为准（§4）。
 

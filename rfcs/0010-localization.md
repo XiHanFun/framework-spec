@@ -1,6 +1,6 @@
 # RFC-0010 本地化
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域、目录名冲突与区域名错误的报告方式；2026-11-14 修订：数据库翻译的跨实例重新加载；2026-11-16 修订：模板文法、可移植的格式说明符与值的文本形式；同日再修订：浮点的全部写法、说明符的大小写与精度、`Describe` 按名字排序；同日第三次修订：值模型、数组与对象的文本、可移植说明符的文法、区域的数字符号） | 日期：2026-10-21 | 对应 ADR：0038、0070、0233（模板与值的文本形式）、0235、0236 | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/primitives/message-templates.json` | 一致性档：`core`、`localization`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域、目录名冲突与区域名错误的报告方式；2026-11-14 修订：数据库翻译的跨实例重新加载；2026-11-16 修订：模板文法、可移植的格式说明符与值的文本形式；同日再修订：浮点的全部写法、说明符的大小写与精度、`Describe` 按名字排序；同日第三次修订：值模型、数组与对象的文本、可移植说明符的文法、区域的数字符号；2026-11-23 修订：按归属登记与撤回的目录） | 日期：2026-10-21 | 对应 ADR：0038、0070、0233（模板与值的文本形式）、0235、0236、0252（归属目录） | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/primitives/message-templates.json` | 一致性档：`core`、`localization`
 
 ## 摘要
 
@@ -41,6 +41,10 @@ Segment    = [a-z][a-z0-9_]*
 - 10 种内置区域每种一个文件，键集完全一致，各区域模板的占位符与 `en-US` 一致（架构测试 `LocalizationTests`）。
 - 模板语法：`{name}` 按名字、`{0}` 按位置，可带 `:format` 格式说明符（`{amount:N2}`、`{when:yyyy-MM-dd}`），按命中区域的文化格式化；`{{`、`}}` 转义。逐字的规则见下节「模板」。
 - `MessageCatalog.FromEmbeddedResources(name, typeof(AnyTypeInThatAssembly))` 装载一个程序集的全部语言文件。`AddMessageCatalog` 把同名目录合并为一份，留在先注册的位置：内容相同（如多个 Provider 都带同一个抽象包的目录）时什么都不变；互为补充（如插件握手带来两种语言、宿主包带全部十种）时区域与键取并集；同一键同一区域的模板不同则抛出携带 `LOCALIZATION_CONFLICT_001` 的 `FrameworkException`，应用启动失败。任何一份都不会被静默丢弃。原语层与内核的目录由 `Localization.InMemory` 代为注册；子系统目录由其 Provider 在 `Configure` 里注册；`Plugins.InProcess` 与应用的目录由应用注册。
+- 归属目录（2026-11-23 修订，ADR-0252；以前目录只能在配置阶段注册，运行期加载的插件没有目录，卸载也撤不回）：本地化器从 `MessageCatalogRegistry` 读目录，它是容器里的单例，`AddMessageCatalog` 一并登记。它先放上面注册的目录，再放按归属登记的：`AddMessageCatalog(owner, catalog)` 在配置阶段登记，`Add(owner, catalogs)` 在运行期登记一组，`RemoveOwnedBy(owner)` 撤回一个归属的全部目录。插件宿主以插件的清单 ID 为归属，加载时登记、卸载时撤回（`plugin/invocation.md` §1）。
+  - 按归属登记的目录不与同名目录合并成一份，但照同样的规则核对：与已有的同名目录或同一组里的同名目录在同一键同一区域的模板不同，`Add` 整组不登记，抛出携带 `LOCALIZATION_CONFLICT_001` 的 `FrameworkException`；配置阶段登记的在建立登记表时核对，同样抛出、应用启动失败。
+  - 同一归属已有目录时再 `Add` 是编程错误（`InvalidOperationException`），要先撤回。空的一组什么都不登记。
+  - 查找顺序：先注册的目录，再按归属登记的、按登记顺序；同一键先找到的优先，插件的目录不覆盖宿主已有的键。撤回之后，只在这个归属的目录里有的键解析不到，退回键与参数的描述。
 
 ## 模板
 

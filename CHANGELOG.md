@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- MAJOR（`v1.0.0` 之前允许）：插件的消息目录按归属登记与撤回（ADR-0252）。RFC-0010 新增「归属目录」：本地化器从 `MessageCatalogRegistry` 读目录，`AddMessageCatalog(owner, catalog)` 在配置阶段、`Add(owner, catalogs)` 在运行期按归属登记，`RemoveOwnedBy(owner)` 撤回，同名目录照原规则核对冲突。`plugin/invocation.md` §1、`plugin/handshake.md` §3、`plugin/lifecycle.md`、`plugin/wasm.md`：握手的消息目录以清单 ID 为归属，与代理操作、权限码一次登记、全进或全不进，运行期加载的插件也有目录（以前只有配置阶段发现的才有），卸载随之撤回（以前不撤回，再加载时目录变了要重启宿主）；握手一节原先写的「目录名重复时宿主已有的优先并记警告」改为照 RFC-0010 核对冲突。
 - MAJOR（`v1.0.0` 之前允许）：协议适配器跟随操作登记表（ADR-0251）。RFC-0011 新增 `OperationRegistry.GetChangeToken()`（登记表的内容每变一次触发一次）与 `EnforceAdditions(check)`（新增的一组与已登记的放在一起核对）。`protocol/http.md`：`MapXiHanOperations()` 的端点随登记表增减，运行期登记的操作立即有路由、撤回即没有路由（以前在映射时取快照，撤回后的路由答复 `KERNEL_NOTFOUND_001`），此后登记的路由冲突整组被拒（`PROTOCOLS_CONFLICT_002`）；OpenAPI 文档在登记表或分组来源变了之后重新生成，新增 `IOpenApiGroupSource` 提供运行期的分组，分组文档的地址按请求时的分组答复。`protocol/mcp.md`：tool 表按处理消息时的登记表，此后登记的 tool 名不合法或重复整组被拒，`listChanged` 仍为 `false`。`plugin/invocation.md` §1、`plugin/lifecycle.md`：运行期加载的代理操作有 HTTP 路由、进文档、是 tool，卸载随之撤回；gRPC 方法与 AI 工具目录仍只在启动时建成。
 
 ## v1.0.0-rc.2（2026-11-20）

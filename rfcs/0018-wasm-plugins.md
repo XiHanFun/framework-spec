@@ -113,7 +113,7 @@ enum MiddlewareAction {
 ### 7. 发现与宿主配置
 
 - 插件目录含 `xihan.manifest.json` 与 `.wasm`；宿主按 `XiHan:Plugins:Wasm:Directories` 发现，`Grants:<清单 ID>` 授予权限，`Mounts:<清单 ID>:<客体路径>` 映射文件系统；握手核对规则与 `handshake.md` §3 相同（清单一致、操作在 `contributes.operations`、健康项在 `contributes.health`、中间件在 `contributes.pipeline`）。
-- 发现在配置阶段同步完成（与进程外插件一致），代理操作连同清单声明的权限码（`plugin/invocation.md` §1）、消息目录、订阅与中间件据此登记。运行期 `LoadAsync` 也可以加载贡献中间件的插件：中间件经 `PipelineBuilder.UseOwned` 与代理操作、权限码一次成组登记、立即核对次序约束，全进或全不进（RFC-0004「运行期改动」，ADR-0088）。
+- 发现在配置阶段同步完成（与进程外插件一致），代理操作连同清单声明的权限码（`plugin/invocation.md` §1）、以清单 ID 为归属的消息目录（RFC-0010「归属目录」）、订阅与中间件据此登记。运行期 `LoadAsync` 也可以加载贡献中间件的插件：中间件经 `PipelineBuilder.UseOwned` 与代理操作、权限码一次成组登记、立即核对次序约束，全进或全不进（RFC-0004「运行期改动」，ADR-0088）。
 - 卸载（`UnloadAsync`）按归属撤回插件贡献的中间件、登记的代理操作与权限码，之后可直接再加载（`plugin/invocation.md` §1，ADR-0085、ADR-0088）：撤回之后开始的调用不再经过它的中间件；撤回之前已进入管道的调用按进入时的管道走完，插件停止后它的钩子失败即关闭；别的中间件以次序约束引用了它的中间件时卸载被拒（`KERNEL_PIPELINE_003`）（`plugin/wasm.md` §6）。
 
 ## 错误码
