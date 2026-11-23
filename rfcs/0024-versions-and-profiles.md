@@ -63,11 +63,11 @@
 ## 与 .NET 的映射
 
 - `FrameworkInfo.SpecVersion` 是大版本 `"1"`。
-- XiHan.Framework 的发布工作流核对 `framework/spec` 正好在规范标签上，随首个规范标签一起加上。
+- XiHan.Framework 的发布工作流（`release.yml`）核对 `framework/spec` 正好在规范标签上：预览版可以钉 rc 标签，正式版只钉正式版标签。
 - 架构测试 `SpecVectorCoverageTests` 按认领的档核对向量。
 
 ## 非目标与未决
 
 - 握手不携带插件实现的规范 MINOR。`SdkInfo` 已带 SDK 名与版本，诊断够用；需要时作为可选字段以 MINOR 加入。
 - 不为规范的每个 MINOR 开维护分支：日常提交在 `dev`，`main` 由 `dev` 快进，标签打在 `main` 上。
-- 以下按本 RFC 随后落地：七个实现的向量全集测试从豁免表改为读档表；发布工作流核对规范标签；首个标签 `v1.0.0-rc.1`。
+- 本 RFC 提出时留待落地的三件事都已完成：七个实现的向量覆盖测试按档表核对（认领的档加缺口，不再用豁免表）；七个仓库的发布工作流核对规范标签；规范从 `v1.0.0-rc.1` 起打标签，各版本的内容见 `CHANGELOG.md`。

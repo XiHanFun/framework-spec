@@ -45,9 +45,9 @@
    - 写出见下文「写出」。宿主核对插件握手里的清单按字段比较，不比较文本。
 3. 求解：按能力 ID 与版本范围求解；同一能力多个候选时，`XiHan:Providers:<能力ID>` 指定 → 唯一的 `role: provider` 候选 → 唯一的 `role: default` 候选 → 否则失败并列出候选（`KERNEL_CAPABILITY_004`）。没有被任何人依赖的能力按同一规则选出提供者。
 4. 选中结果回填到节点：每个节点知道自己被选中提供哪些能力（`SelectedCapabilities`），只为被选中的能力注册服务与中间件；声明了能力却一个都没被选中的节点（被顶替的 default）不装配、不启动，图里标为 `shadowed`。特性另有与能力选择无关的服务（如对象存储的命名实例 Provider，RFC-0012）时实现 `IShadowAwareFeature`：被顶替时内核在同一位置改调它的 `ConfigureShadowed`，只登记那些服务——不注册能力契约，不贡献中间件、操作与权限码，不校验必需绑定，也不启动。节点还知道每项选中是不是被要求的（`IsRequestedFor`，2026-11-01 修订，ADR-0082）：有清单依赖这项能力（必需或可选，且解析到了提供者），或 `XiHan:Providers:<能力ID>` / 代码的 `UseProvider` 指定了提供者，就是被要求的；没人依赖、也没人指定，只按上一条末句选出的，是兜底选出。兜底选出照样算选中（`SelectedCapabilities`、图谱不变），特性可以据此只为被要求的能力承担跨能力的一致性约束（如 RFC-0012 缺省存储的同一存储规则）。
-4. 排序：拓扑排序；循环报 `KERNEL_CAPABILITY_002`，缺失报 `KERNEL_CAPABILITY_001`，版本冲突报 `KERNEL_CAPABILITY_003`，报错必须列出冲突双方。
-5. 可选依赖缺失不阻止启动，对应特性进入 `Degraded`。
-6. 输出已解析图；`xihan graph` 与启动日志打印同一份。
+5. 排序：拓扑排序；循环报 `KERNEL_CAPABILITY_002`，缺失报 `KERNEL_CAPABILITY_001`，版本冲突报 `KERNEL_CAPABILITY_003`，报错必须列出冲突双方。
+6. 可选依赖缺失不阻止启动，对应特性进入 `Degraded`。
+7. 输出已解析图；`xihan graph` 与启动日志打印同一份。
 
 ## 写出
 

@@ -8,14 +8,14 @@
 
 ## 清单
 
-字段与约束见 `spec/packaging/app-manifest.md`；JSON Schema 见 `spec/packaging/app.schema.json`。要点：
+字段、默认值与约束以 `spec/packaging/app-manifest.md`「字段」为准，各字段在产物里的对应以同一文件的「映射」为准，JSON Schema 见 `spec/packaging/app.schema.json`。这里只留那两张表之外的说明：
 
-- `name` 是 DNS 标签（`^[a-z][a-z0-9-]{0,62}$`），同时作为镜像仓库名、k8s 资源名与 Compose 项目名的默认值。
-- `bindings` 的类型限定为 `connection:relational`、`cache:distributed`、`queue`、`blob`、`stream`、`configuration:remote`，与清单 `bindings` 的资源类型一致（RFC-0002）。每个绑定对应一个 k8s Secret（按 Service Binding 规范挂到 `SERVICE_BINDING_ROOT`）、一个 Compose 依赖服务与一个 Aspire 资源。框架 Provider 声明的绑定都落在这六种类型里：持久化（EF Core、SqlSugar）`connection:relational`（绑定名 `db`），`Caching.Redis` `cache:distributed`（`cache`），`Messaging.RabbitMQ` `queue`（`queue`），`Messaging.Redis` `cache:distributed`（`queue`），`ObjectStorage.S3` `blob`（`objectstorage`），`Messaging.Kafka` `stream`（`stream`），`Configuration.Nacos` `configuration:remote`（`nacos`）。类型决定依赖服务与主值的形式，绑定名表示资源在应用里的角色：`Messaging.Redis` 与 `Messaging.RabbitMQ` 都读消息队列的绑定 `queue`，前者的资源是一个 Redis 服务，所以类型是 `cache:distributed`；它不读缓存的 `cache`，消息与缓存要用同一台 Redis 时让两个绑定指向它（ADR-0130）。清单里的绑定名要与 Provider 读取的绑定名相同，Provider 才取得到注入的值。
-- `shutdown.graceSeconds` 同时写进 `XiHan:Kernel:StopTimeoutSeconds` 与 `terminationGracePeriodSeconds`（后者多 5 秒，让内核先完成 Draining 再被 kubelet 终止）。
-- `probes` 映射为 startup / readiness / liveness 探针，路径固定为宿主的 `/health/startup`、`/health/ready`、`/health/live`。
-- `config` 把列出的文件做成 ConfigMap 挂到 `mountPath`，并设环境变量 `XIHAN_CONFIG_PATH`；宿主按该目录装载并监听文件（P3-12 实现）。目录里的文件是部署侧的文件配置，紧接 `appsettings.{环境}.json` 插入，位置见下文「挂载的配置目录」。
-- `leader.lease` 为调度器的 Lease 名：生成 ServiceAccount 与只含 `coordination.k8s.io/leases` 的 Role，并设 `XiHan:Scheduling:Kubernetes:Lease`（`Scheduling.Kubernetes` 随 P3-12 提供）。
+- `name` 是 DNS 标签，同时作为镜像仓库名、k8s 资源名与 Compose 项目名的默认值。
+- `bindings` 的类型限定为六种（词表见 `app-manifest.md`「字段」），与清单 `bindings` 的资源类型一致（RFC-0002）。每个绑定对应一个 k8s Secret（按 Service Binding 规范挂到 `SERVICE_BINDING_ROOT`）、一个 Compose 依赖服务与一个 Aspire 资源。框架 Provider 声明的绑定都落在这六种类型里：持久化（EF Core、SqlSugar）`connection:relational`（绑定名 `db`），`Caching.Redis` `cache:distributed`（`cache`），`Messaging.RabbitMQ` `queue`（`queue`），`Messaging.Redis` `cache:distributed`（`queue`），`ObjectStorage.S3` `blob`（`objectstorage`），`Messaging.Kafka` `stream`（`stream`），`Configuration.Nacos` `configuration:remote`（`nacos`）。类型决定依赖服务与主值的形式，绑定名表示资源在应用里的角色：`Messaging.Redis` 与 `Messaging.RabbitMQ` 都读消息队列的绑定 `queue`，前者的资源是一个 Redis 服务，所以类型是 `cache:distributed`；它不读缓存的 `cache`，消息与缓存要用同一台 Redis 时让两个绑定指向它（ADR-0130）。清单里的绑定名要与 Provider 读取的绑定名相同，Provider 才取得到注入的值。
+- `shutdown.graceSeconds`：`terminationGracePeriodSeconds` 比它多 5 秒，让内核先完成 Draining 再被 kubelet 终止。
+- `probes` 的 startup / readiness / liveness 探针路径固定为宿主的 `/health/startup`、`/health/ready`、`/health/live`。
+- `config`：宿主按 `XIHAN_CONFIG_PATH` 指向的目录装载并监听文件。目录里的文件是部署侧的文件配置，紧接 `appsettings.{环境}.json` 插入，位置见下文「挂载的配置目录」。
+- `leader.lease` 是调度器的 Lease 名：生成的 Role 只含 `coordination.k8s.io/leases`，`XiHan:Scheduling:Kubernetes:Lease` 由 `Scheduling.Kubernetes` 读取。
 
 ## 资源绑定与配置节
 

@@ -4,7 +4,7 @@
 
 ## 1. 操作
 
-资源名 `cache-entries`；五个操作与 RFC-0006 的存储契约一一对应。请求与响应都是 JSON 对象。
+资源名 `cache-entries`；下表的操作与 RFC-0006 的存储契约一一对应。请求与响应都是 JSON 对象。
 
 | 操作 | 请求字段 | 响应字段 |
 | --- | --- | --- |
@@ -56,7 +56,7 @@
   "kind": "plugin",
   "isolation": "out-of-process",
   "contributes": {
-    "operations": [ "cache-entries.get", "cache-entries.set", "cache-entries.try-add", "cache-entries.remove", "cache-entries.try-remove" ]
+    "operations": [ "cache-entries.get", "cache-entries.set", "cache-entries.try-add", "cache-entries.remove", "cache-entries.try-remove", "cache-entries.try-refresh", "cache-entries.get-many", "cache-entries.set-many", "cache-entries.remove-many" ]
   }
 }
 ```

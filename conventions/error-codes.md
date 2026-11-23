@@ -46,7 +46,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `KERNEL_UNEXPECTED_001` | 调用期间发生未处理异常 |
 | `KERNEL_SECURITY_001` | 权限码重复：特性重复登记，或插件清单声明的权限码与已登记的重复（宿主特性定义的或另一个插件声明的；插件整体登记失败，ADR-0080） |
 | `KERNEL_SECURITY_002` | 权限注册表已满 |
-| `KERNEL_NOTFOUND_001` | 操作未登记（含插件卸载时按归属撤回了的代理操作，ADR-0085） |
+| `KERNEL_NOTFOUND_001` | 操作未登记（含插件卸载时按归属撤回了的代理操作，ADR-0085）；插件协议里同此：对方没有声明或没有实现的操作（宿主一侧把 gRPC `Unimplemented`、插件一侧把回调 `Host.Invoke` 的 `Unimplemented` 都映射成它，Wasm 的 `xihan_invoke` 对未声明的操作直接返回它），以及事件投递找不到以这种方式声明的订阅（消息键 `plugins.event.unsubscribed`；`plugin/invocation.md` §3、§4、§5，`plugin/wasm.md` §3） |
 | `KERNEL_VALIDATION_001` | 操作载荷不合法（非 JSON、null 或类型不匹配） |
 | `KERNEL_VALIDATION_002` | 类型化调用的请求或响应类型与登记不符 |
 | `KERNEL_VALIDATION_003` | 请求不满足操作契约的 JSON Schema（类型、必填、枚举、范围、长度、模式、元素数）；Validate 阶段拒绝，不进 Handle |
@@ -61,11 +61,11 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PLUGINS_NOTFOUND_001` | 插件清单文件、程序集或入口类型不存在 |
 | `PLUGINS_DENIED_001` | 插件声明的权限未被宿主授予 |
 | `PLUGINS_CONFLICT_001` | 同一清单 ID 的插件已加载 |
-| `PLUGINS_UNEXPECTED_001` | 插件加载、配置、启动或停止时发生未处理异常 |
+| `PLUGINS_UNEXPECTED_001` | 插件加载、配置、启动或停止时发生未处理异常（进程外插件一侧的生命周期与健康回调抛出同此，`plugin/lifecycle.md` §7）；进程外另有：下发的配置节不是 JSON 对象，对方写来的错误不合法（错误码不合文法、`ok` 为假却没有 `error`），gRPC 状态没有对应的映射，`Host.Publish` 的结果数与信封数不同（消息键 `plugins.process.failed`；`plugin/invocation.md` §3、§5、§8） |
 | `PLUGINS_VALIDATION_003` | 进程外：握手行不合法，或协议版本没有交集 |
-| `PLUGINS_VALIDATION_004` | 进程外：握手响应与清单不一致（原语层版本、清单字段、未声明或重复的操作 / 健康项 / 订阅） |
-| `PLUGINS_DENIED_002` | 插件回调被拒：会话令牌无效（进程外），或所需权限未在清单声明、未被宿主授予（进程外与 Wasm） |
-| `PLUGINS_UNAVAILABLE_001` | 进程外：插件进程未就绪、正在停止、已退出或不可达 |
+| `PLUGINS_VALIDATION_004` | 握手响应与清单不一致（原语层版本、清单字段、未声明或重复的操作 / 健康项 / 订阅）；进程外与 Wasm 相同，Wasm 另含声明了流式操作（`plugin/wasm.md` §3） |
+| `PLUGINS_DENIED_002` | 插件回调被拒：会话令牌无效（进程外），所需权限未在清单声明、未被宿主授予，或回调与发布带了不属于在途调用的租户（进程外与 Wasm；`plugin/invocation.md` §5，`plugin/wasm.md` §4，ADR-0195） |
+| `PLUGINS_UNAVAILABLE_001` | 插件不可用。进程外：插件进程未就绪、正在停止、已退出或不可达（宿主一侧的判定，以及插件不在可服务状态时自己的应答，`plugin/lifecycle.md` §7.3）；插件回调时连不上宿主或没有可用的回调端点（消息键 `plugins.host.unavailable`，`plugin/invocation.md` §5）。Wasm：中间件陷阱、超时或返回 0 时调用失败即关闭，插件停止后仍在途的调用与钩子同此（`plugin/wasm.md` §6，RFC-0004「运行期改动」） |
 | `PLUGINS_TIMEOUT_001` | 进程外：握手、配置、启动或停止超时 |
 | `PLUGINS_UNEXPECTED_002` | 进程外：插件进程异常退出；Wasm：陷阱或导出函数返回 0 |
 | `PLUGINS_VALIDATION_005` | Wasm：模块不合法（不是 reactor、ABI 版本不支持、缺少必需导出或签名不符、导入了宿主不提供的函数） |

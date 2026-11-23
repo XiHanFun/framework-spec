@@ -1,6 +1,6 @@
 # RFC-0017 进程外插件协议
 
-> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：清单写了 `contributes.pipeline` 的插件在发现时被拒，不再静默忽略；同日第三次修订：gRPC `Cancelled` 不再按时钟改报超时，交给截止时间中间件归因；2026-11-12 修订：回调与发布只能带宿主随调用交给插件的租户；2026-11-13 修订：`HandleEventRequest` 带这次投递的订阅方式；2026-11-18 修订：宿主提供多个回调端点并至少有一个回环 TCP，插件一侧的次序、配置、就绪、停止、收尾、投递、回调与错误读写写明，运行时消息键进规范，`Host.Publish` 按元数据建上下文） | 日期：2026-10-23 | 对应 ADR：0006、0085、0092、0195、0226、0237 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`（P4-02）；一致性：`XiHan.Framework.Plugins.Conformance`（P4-04） | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md` | 一致性档：`plugin`、`host`
+> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：清单写了 `contributes.pipeline` 的插件在发现时被拒，不再静默忽略；同日第三次修订：gRPC `Cancelled` 不再按时钟改报超时，交给截止时间中间件归因；2026-11-12 修订：回调与发布只能带宿主随调用交给插件的租户；2026-11-13 修订：`HandleEventRequest` 带这次投递的订阅方式；2026-11-18 修订：宿主提供多个回调端点并至少有一个回环 TCP，插件一侧的次序、配置、就绪、停止、收尾、投递、回调与错误读写写明，运行时消息键进规范，`Host.Publish` 按元数据建上下文） | 日期：2026-10-23 | 对应 ADR：0006、0085、0092、0195、0226、0237 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`；一致性：`XiHan.Framework.Plugins.Conformance` | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md` | 一致性档：`plugin`、`host`
 
 ## 摘要
 
@@ -8,7 +8,7 @@
 
 ## 范围
 
-- 隔离级别 `out-of-process`（RFC-0002 清单的 `isolation`）；`in-process` 已由 `Plugins.InProcess` 提供，`wasm` 为 Experimental，不在本文。
+- 隔离级别 `out-of-process`（RFC-0002 清单的 `isolation`）；`in-process` 已由 `Plugins.InProcess` 提供，`wasm` 为 Experimental，不在本文（RFC-0018）。
 - 插件可贡献操作与事件处理器；不可贡献中间件（中间件在宿主进程内，跨进程调用的延迟与失败语义不适合管道阶段）。只有 Wasm 插件能贡献中间件（RFC-0018）：清单写了 `contributes.pipeline`（非空）的进程外插件在发现时被拒，`PLUGINS_VALIDATION_001`，按 `lifecycle.md` §1 的发现时被拒处理（不启动进程、以 `Failed` 登记、是健康条目、记错误日志），宿主照常启动；运行期 `LoadAsync` 把同一错误返回给调用方、不登记。宿主不静默忽略这个字段。
 - 任意语言：只需 protobuf、gRPC 与 JSON。
 
@@ -36,23 +36,17 @@
 
 ## 错误码
 
-| 错误码 | 含义 |
-| --- | --- |
-| `PLUGINS_VALIDATION_001` | 发现时被拒：清单读不出、不是进程外插件、缺 `entry`，或清单写了 `contributes.pipeline`（进程外插件不能贡献中间件） |
-| `PLUGINS_VALIDATION_003` | 握手行不合法，或协议版本没有交集 |
-| `PLUGINS_VALIDATION_004` | 握手响应与清单不一致：原语层版本不符、清单字段不同、操作或健康项未在清单声明、声明重复 |
-| `PLUGINS_DENIED_002` | 插件回调的会话令牌无效，或所需权限未在清单声明、未被授予 |
-| `PLUGINS_UNAVAILABLE_001` | 插件进程未就绪、正在停止、已退出或不可达；插件回调时连不上宿主或没有可用的回调端点 |
-| `PLUGINS_UNEXPECTED_001` | 对方写来的错误不合法、没有对应的 gRPC 状态、插件的生命周期或健康回调抛出、配置节不是 JSON 对象 |
-| `PLUGINS_TIMEOUT_001` | 握手、配置、启动或停止超时 |
-| `PLUGINS_UNEXPECTED_002` | 插件进程异常退出 |
+见 `conventions/error-codes.md` 中 `PLUGINS_*`，含义以登记表为准。
+
+- 本协议用到 `PLUGINS_VALIDATION_001`、`PLUGINS_VALIDATION_003`、`PLUGINS_VALIDATION_004`、`PLUGINS_DENIED_002`、`PLUGINS_UNAVAILABLE_001`、`PLUGINS_UNEXPECTED_001`、`PLUGINS_UNEXPECTED_002` 与 `PLUGINS_TIMEOUT_001`；各自在什么情形产生见 `handshake.md`、`lifecycle.md` 与 `invocation.md`。
+- gRPC 状态与错误码的映射见 `invocation.md` §3（宿主一侧）与 §5（插件一侧的回调），运行时的消息键与参数见 `invocation.md` §8。
 
 ## 一致性
 
 - 数据向量：`conformance/vectors/plugin/handshake-lines.json`（握手行文法）、`protocol-versions.json`（版本协商）、`host-addresses.json`（回调端点列表与选择）、`deadlines.json`（`deadline` 的读法与生效的截止时间）、`plugin-messages.json`（运行时的消息键）、`callback-status.json`（插件一侧回调失败的映射）、`error-reading.json`（读入对方写来的 `Error`）。
-- gRPC 黑盒套件（P4-04）：`XiHan.Framework.Plugins.Conformance` 的 `PluginProtocolConformance`，以本 RFC 的三份规范性文本为用例来源，对任何语言的插件实现做一致性测试；远程 Provider 的套件随各子系统的 Conformance 包。
+- gRPC 黑盒套件：`XiHan.Framework.Plugins.Conformance` 的 `PluginProtocolConformance`，以本 RFC 的三份规范性文本为用例来源，对任何语言的插件实现做一致性测试；远程 Provider 的套件随各子系统的 Conformance 包。
 
-## 与 .NET 的映射（P4-02）
+## 与 .NET 的映射
 
 - `Plugins.OutOfProcess`（Ring 5）：`OutOfProcessPluginsFeature`（能力 `plugins.out-of-process@1`，配置 `XiHan:Plugins:OutOfProcess`）在配置阶段发现并握手、登记代理操作（`OperationDescriptor` 直通 JSON，`ExecuteAsync` 发 `Invoke`）连同清单声明的权限码（`plugin/invocation.md` §1，ADR-0080）、以清单 ID 为归属的消息目录（RFC-0010「归属目录」，ADR-0252）与事件订阅（`AddMessageHandler`）；`OutOfProcessPluginHost : IPluginHost, IHealthContributor` 负责进程管理、握手核对、健康、重启退避、回调服务器与运行期加载卸载；卸载按归属（清单 ID）撤回插件登记的代理操作、权限码与消息目录，之后可直接再加载（`plugin/invocation.md` §1，ADR-0085）。宿主回调端点在 Windows 上是命名管道加回环 TCP、其他系统是 Unix 域套接字加回环 TCP（`handshake.md` §4，ADR-0237）。
 - 内核新增 `IHealthContributor` / `ContributorStatus`，`HealthSnapshot.Contributions` 与 `App.State` 采集它们：条目 Degraded / Failed 只把 Ready 压成 Degraded（`lifecycle.md` §4 的"宿主进入 Degraded 但不退出"由此实现）。
@@ -63,4 +57,4 @@
 
 - 流式操作在 .NET 侧的契约类型（`IOperation` 的流式形态）另起 RFC；本协议先定义帧格式。
 - 插件热重载、空闲停止、插件市场、资源配额（CPU / 内存）由宿主沙箱与后续 RFC 处理。
-- Wasm 插件的 ABI 不在本文；`Plugins.Wasm` 以 Experimental 发布时另写 RFC。
+- Wasm 插件的 ABI 不在本文，见 RFC-0018 与 `plugin/wasm.md`。

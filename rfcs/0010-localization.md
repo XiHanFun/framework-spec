@@ -39,7 +39,7 @@ Segment    = [a-z][a-z0-9_]*
 
 - 位置 `Localization/<区域>.json`，内容是键 → 模板的平面对象；以 `<EmbeddedResource Include="Localization/*.json" LogicalName="Localization/%(Filename)%(Extension)" />` 嵌入。
 - 10 种内置区域每种一个文件，键集完全一致，各区域模板的占位符与 `en-US` 一致（架构测试 `LocalizationTests`）。
-- 模板语法：`{name}` 按名字、`{0}` 按位置，可带 `:format` 格式说明符（`{amount:N2}`、`{when:yyyy-MM-dd}`），按命中区域的文化格式化；`{{`、`}}` 转义。逐字的规则见下节「模板」。
+- 模板语法：`{name}` 按名字、`{0}` 按位置，可带 `:format` 格式说明符；只认可移植的 `D`、`F`、`N`、`X`（如 `{amount:N2}`、`{count:D5}`），其余（如 `{when:yyyy-MM-dd}`）按无格式写出，命中的区域只决定小数点与分组符；`{{`、`}}` 转义。逐字的规则见下节「模板」。
 - `MessageCatalog.FromEmbeddedResources(name, typeof(AnyTypeInThatAssembly))` 装载一个程序集的全部语言文件。`AddMessageCatalog` 把同名目录合并为一份，留在先注册的位置：内容相同（如多个 Provider 都带同一个抽象包的目录）时什么都不变；互为补充（如插件握手带来两种语言、宿主包带全部十种）时区域与键取并集；同一键同一区域的模板不同则抛出携带 `LOCALIZATION_CONFLICT_001` 的 `FrameworkException`，应用启动失败。任何一份都不会被静默丢弃。原语层与内核的目录由 `Localization.InMemory` 代为注册；子系统目录由其 Provider 在 `Configure` 里注册；`Plugins.InProcess` 与应用的目录由应用注册。
 - 归属目录（2026-11-23 修订，ADR-0252；以前目录只能在配置阶段注册，运行期加载的插件没有目录，卸载也撤不回）：本地化器从 `MessageCatalogRegistry` 读目录，它是容器里的单例，`AddMessageCatalog` 一并登记。它先放上面注册的目录，再放按归属登记的：`AddMessageCatalog(owner, catalog)` 在配置阶段登记，`Add(owner, catalogs)` 在运行期登记一组，`RemoveOwnedBy(owner)` 撤回一个归属的全部目录。插件宿主以插件的清单 ID 为归属，加载时登记、卸载时撤回（`plugin/invocation.md` §1）。
   - 按归属登记的目录不与同名目录合并成一份，但照同样的规则核对：与已有的同名目录或同一组里的同名目录在同一键同一区域的模板不同，`Add` 整组不登记，抛出携带 `LOCALIZATION_CONFLICT_001` 的 `FrameworkException`；配置阶段登记的在建立登记表时核对，同样抛出、应用启动失败。
