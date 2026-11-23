@@ -2,6 +2,14 @@
 
 按 RFC-0024「版本」：PATCH 不改规范性内容；MINOR 只增或写死以前不作规定的行为；MAJOR 改已经写明的行为、删除或线上不兼容。`v1.0.0` 之前的 rc 之间允许任何改动。每条注明对应的 XiHan.Framework ADR。
 
+## 未发布
+
+- MAJOR（`v1.0.0` 之前允许）：RFC-0014 密钥库的批量读取 `GetAsync(names[])` 返回与入参同序、等长的 `Result<SecretValue>` 列表，删除带键的结果记录 `SecretLookup`（ADR-0257）；只影响 .NET 的密钥库 Provider 与调用方，线上与各 SDK 不变。
+- PATCH：一致性模块与运行器的整理，不改任何期望值：`conformance.TypedVectors()` 给出向量文件表，类型化入口、`xihan-conformance vectors` 与测试共用；运行器的用例收成一张用例表；`plugin.Version` 不再是常量 `0.1.0`，改为取构建信息里一致性模块的版本（握手上报与 `xihan-conformance version` 都用它，取不到时是 `devel`），把它当常量用的代码要改；`rules.HasNoDuplicateMembers` 标为弃用，改用 `rules.CheckJSONText`（ADR-0258）。
+- PATCH：重复书写的规则只留一处，其余改为引用：RFC-0018「设计」§1–§6 缩成概览，规则以 `plugin/wasm.md` 为准（RFC 正文漏改的「中间件不能改写 `xihan.tenant`」随之对齐）；RFC-0019「通用模式」与操作集表以 `provider/README.md`、`provider/caching-distributed.md` 为准；RFC-0016「清单」不再重抄 `packaging/app-manifest.md` 的字段约束；`plugin/handshake.md` §2 的空白码位引用 RFC-0001「空白字符」（ADR-0258）。
+- PATCH：错误码登记表补全 `KERNEL_NOTFOUND_001`、`PLUGINS_UNEXPECTED_001`、`PLUGINS_VALIDATION_004`、`PLUGINS_DENIED_002`、`PLUGINS_UNAVAILABLE_001` 的含义，都是正文已经写明的用法；RFC-0017 与 RFC-0018 的错误码表改为引用登记表（ADR-0258）。
+- PATCH：修正过时与不准确的段落：RFC-0010 的格式说明符示例（只认 `D`、`F`、`N`、`X`）；RFC-0015 排除前缀的正则补上 `\.`；RFC-0002 解析规则里重复的「4.」顺次改为 5–7；RFC-0001 的向量清单补 `json-text.json`；`caching.distributed@1` 的操作数不再写「五个」，清单示例列全（RFC-0006、RFC-0019、`provider/caching-distributed.md`）；RFC-0019 写准操作集文件的命名；RFC-0017 的非目标指向 RFC-0018；RFC-0024 里「随后落地」的三件事改成现状；正文去掉里程碑代号与 wasmtime、RustFS 的版本号（ADR-0258）。
+
 ## v1.0.0-rc.3（2026-11-23）
 
 - MAJOR（`v1.0.0` 之前允许）：插件的消息目录按归属登记与撤回（ADR-0252）。RFC-0010 新增「归属目录」：本地化器从 `MessageCatalogRegistry` 读目录，`AddMessageCatalog(owner, catalog)` 在配置阶段、`Add(owner, catalogs)` 在运行期按归属登记，`RemoveOwnedBy(owner)` 撤回，同名目录照原规则核对冲突。`plugin/invocation.md` §1、`plugin/handshake.md` §3、`plugin/lifecycle.md`、`plugin/wasm.md`：握手的消息目录以清单 ID 为归属，与代理操作、权限码一次登记、全进或全不进，运行期加载的插件也有目录（以前只有配置阶段发现的才有），卸载随之撤回（以前不撤回，再加载时目录变了要重启宿主）；握手一节原先写的「目录名重复时宿主已有的优先并记警告」改为照 RFC-0010 核对冲突。

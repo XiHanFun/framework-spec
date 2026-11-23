@@ -1,6 +1,6 @@
 # RFC-0014 远程配置与密钥
 
-> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义；2026-11-01 修订：宿主的配置源顺序；2026-11-01 修订：Nacos 凭据随绑定属性覆盖；2026-11-01 修订：选项打印遮蔽凭据；2026-11-01 修订：访问密钥 ID 也遮蔽；2026-11-01 修订：登录用户名也遮蔽；2026-11-02 修订：用户名的遮蔽范围定为不扩到系统账户与驱动消息） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义）、ADR-0075（配置源顺序）、ADR-0082（凭据属性）、ADR-0086（选项打印遮蔽凭据）、ADR-0089（访问密钥 ID 也遮蔽）、ADR-0090（登录用户名也遮蔽）、ADR-0093（用户名遮蔽范围已定） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance` | 一致性档：`configuration`
+> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义；2026-11-01 修订：宿主的配置源顺序；2026-11-01 修订：Nacos 凭据随绑定属性覆盖；2026-11-01 修订：选项打印遮蔽凭据；2026-11-01 修订：访问密钥 ID 也遮蔽；2026-11-01 修订：登录用户名也遮蔽；2026-11-02 修订：用户名的遮蔽范围定为不扩到系统账户与驱动消息；2026-11-24 修订：密钥库批量读取返回同序的结果列表） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义）、ADR-0075（配置源顺序）、ADR-0082（凭据属性）、ADR-0086（选项打印遮蔽凭据）、ADR-0089（访问密钥 ID 也遮蔽）、ADR-0090（登录用户名也遮蔽）、ADR-0093（用户名遮蔽范围已定）、ADR-0257（密钥库批量读取的返回形态） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance` | 一致性档：`configuration`
 
 ## 摘要
 
@@ -38,7 +38,7 @@
 ## 密钥
 
 - 名字 `SecretName`：`^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$`，不含 `..`、`//`，不以 `/` 结尾。
-- `GetAsync(names[])` 批量逐项返回 `SecretLookup(Name, Result<SecretValue>)`，顺序与入参一致，重复项各自作答，空集合返回空；不存在 → `CONFIGURATION_NOTFOUND_002`，无权限 → `CONFIGURATION_DENIED_001`，不可达 → `CONFIGURATION_UNAVAILABLE_002`。
+- `GetAsync(names[])` 批量返回逐项结果 `Result<SecretValue>` 的列表，与入参同序、等长，重复项各自作答，空集合返回空（2026-11-24 修订，ADR-0257；以前逐项返回带键的记录 `SecretLookup(Name, Result<SecretValue>)`，与 `conventions/batch-first.md` 规则 4 不符）；不存在 → `CONFIGURATION_NOTFOUND_002`，无权限 → `CONFIGURATION_DENIED_001`，不可达 → `CONFIGURATION_UNAVAILABLE_002`。
 - `SecretValue.ToString()` 固定返回遮蔽文本，防止进入日志。
 - 适配器 `AddXiHanSecrets(store, options)`：`Mappings` 把配置键映射到密钥名（构造选项时复制成只读副本，键不区分大小写地不重复，密钥名不能是 `default`），构建时一次批量读取。失败分两类：逐项失败（不存在、无权限等）每项回调一次 `OnError`；整体失败——超时（原因 `load timeout`）、密钥库抛出任何异常（原因取异常消息）、返回的条数与请求不一致——是一个 `CONFIGURATION_UNAVAILABLE_002`，回调一次。首次读取有失败时，`Optional` 为假则随后抛出 `FrameworkException`（逐项失败列出失败的配置键，整体失败带密钥库抛出的异常作为内部异常），为真则跳过失败的项（整体失败时该源为空）。不论首次读取成败，`RefreshInterval` 非空时都周期性重读（计时用 `Clock`，同上）：逐项失败的项保留旧值，整体失败（含条数不一致）回调 `OnError` 并保留全部旧值；重读到的值有变化才触发重载，同样的内容不触发（订阅者不会因轮询反复重绑）。
 
