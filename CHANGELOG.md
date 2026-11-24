@@ -4,6 +4,13 @@
 
 ## 未发布
 
+- MAJOR（`v1.0.0` 之前允许）：RFC-0021「表达式」：数字的文本只取决于数值（不带结尾的零）；`now()` 与 `date()` 的结果是与截止时间同一写法的字符串，时间文本只认文法；数组与对象的文本是成员按名字排序的紧凑 JSON；二元运算符与函数先求值全部操作数再核对；结果放不下是新消息键 `workflow.expression.number_out_of_range`；模板渲染出的文本不超过 4194304；错误里带出的文本一律最多 200 个码元；成员名一律按序数比较（ADR-0287）。
+- MINOR：RFC-0021「表达式」逐条写明词法、文法、每个运算符与内置函数的语义、数字文本与数字的范围（96 位整数、0 到 28 位小数、一半取偶）、模板的渲染、上限（长度按 UTF-16 码元计）与错误；`workflow` 档新增向量 `expression-syntax.json`、`expression-operators.json`、`expression-functions.json`、`expression-templates.json`、`expression-limits.json`，期望值由 .NET 算出；一致性模块新增对应的类型化入口与 `rules` 里的上限、名单、`WorkflowExpressionLength`、`EchoWorkflowExpression`、`IsWorkflowNumberText`、`IsWorkflowTimeText`（ADR-0287）。
+- MINOR：RFC-0023「平台读取路径」逐条写明 Linux 与 Windows 各项的取法（`/proc/stat` 的空闲含 `iowait`、总计取前八列，`/proc/meminfo` 乘以 1024、缓存是 `Buffers` + `Cached`，`/proc/uptime` 按十进制小数读，挂载表、处理器、显卡与 `pci.ids`），`host-usage.json` 新增 `linux` 一节，规则包新增 `hostlinux.go`（ADR-0286）。
+- MINOR：RFC-0010 写明取文案先按区域、再按目录，`catalog-resolution.json` 补三条能区分两种读法的用例（ADR-0286）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0013 的 cron 只按空格与制表符分段、别的空白出现即不合法，搜索上限改按下一次的墙上时间判定（相差不超过 1830 天）；同时写明名字的大小写、单个值带步长、步长与年份的范围、`L-n` 的上限（MINOR），`cron-expressions.json` 补 110 条用例（ADR-0286）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0014 的 Nacos 文档展平后重复的键（含只差大小写的）与空的键不合法；同时逐条写明 Json 与 Properties 两种格式的读法（MINOR），`remote-documents.json` 补 54 条用例（ADR-0286）。
+- MINOR：RFC-0022 写明提示词模板的渲染规则与缺少参数时的错误、工具名的文法与超长时去掉前缀结尾的 `_`、固定窗口分块按码位计并去掉每块首尾的空白，`tool-names.json`、`knowledge-chunks.json`、`prompt-templates.json` 补用例并新增成员（ADR-0286）。
 - PATCH：RFC-0008「授权」里授权要求的写法由 `AuthorizationRequirement(policy, resource?)` 改成 `AuthorizationRequirement { Policy, Resource? }`（ADR-0288：.NET 的 `SecurityContext`、`TenantContext`、`PermissionGrant`、`AuthorizationRequirement` 改成初始化器形状）；规则不变。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0009「投递」第 3 条（ADR-0284）：被放弃的投递再到达时的尝试号不得因为这次放弃而超过上限，靠代理一侧的计数得出尝试号的代理在放弃时把这一次退掉，来不及退的照旧计入；Redis 由「回收让投递次数加一」改为「仍是原来的尝试号」，停止时读到或认领到却没派发的条目同样退回。「一致性」的套件加「最后一次尝试上被停止打断」的用例。只影响 .NET 的消息代理，线上与各 SDK 不变。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0009「信封」的读取收紧（ADR-0283）：文档先过 RFC-0001「JSON 文本」的共同检查，任何一层重复的成员不合法（含 `data` 内部）；`time` 与截止时间的文本同一条文法（RFC-0003 规则 8 的读法），读出 UTC 时刻，不合文法即信封不合法；`data` 与 `data_base64` 互斥；文档带 `data_base64` 而不写 `datacontenttype` 时内容类型是 `application/octet-stream`；扩展属性的值是字符串、数字或布尔（数字与布尔保留 JSON 原文，`null` 视为没有，对象与数组不合法）；写出的文档必须读得回来。以前这些不作规定或只写「读不成时刻」，.NET 用通用的日期解析（没有偏移的按本机时区读）、重复成员取最后一个。`protocol/cloudevents.md` 的 `ce-time` 用同一条文法。`messaging/cloudevents-envelopes.json` 新增 39 条；`rules.DecodeCloudEvent` 先过 `CheckJSONText`、`time` 用 `ParseDeadline`。只有 .NET 认领 `messaging` 档（六个 SDK 都不读结构化信封）。
