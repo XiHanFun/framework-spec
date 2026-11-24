@@ -2,7 +2,9 @@ package rules_test
 
 import (
 	"encoding/json"
+	"regexp"
 	"slices"
+	"strconv"
 	"testing"
 	"unicode/utf16"
 
@@ -263,5 +265,78 @@ func TestProviderCacheKeysFollowTheKeyGrammar(t *testing.T) {
 	}
 	if checked == 0 {
 		t.Fatal("no sample key was checked")
+	}
+}
+
+// activationPath 匹配清单错误里指向某个激活事件的路径。
+var activationPath = regexp.MustCompile(`^\$\.activation\[([0-9]+)\]$`)
+
+func TestActivationEventsFollowTheManifestVectors(t *testing.T) {
+	vectors, err := conformance.Manifests()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 清单里的激活事件：成员缺失或不是字符串数组时为 nil（那些用例考的是别的规则）
+	events := func(c conformance.ManifestCase) []string {
+		var manifest struct {
+			Activation []string `json:"activation"`
+		}
+		if len(c.Manifest) == 0 || json.Unmarshal(c.Manifest, &manifest) != nil {
+			return nil
+		}
+		return manifest.Activation
+	}
+
+	accepted, underscore := 0, false
+	for _, c := range vectors.Valid {
+		for _, event := range events(c) {
+			accepted++
+			if !rules.IsActivationEvent(event) {
+				t.Errorf("%s: %q must be an activation event", c.Name, event)
+			}
+			underscore = underscore || event == "onEvent:order_events.*"
+		}
+	}
+
+	rejected := 0
+	for _, c := range vectors.Invalid {
+		if c.Error == nil || c.Error.MessageKey != "kernel.manifest.invalid" {
+			continue
+		}
+		m := activationPath.FindStringSubmatch(c.Error.Arguments["reason"])
+		if m == nil {
+			continue
+		}
+		index, _ := strconv.Atoi(m[1])
+		list := events(c)
+		if index >= len(list) {
+			t.Errorf("%s: the error points at activation[%d], but the manifest has %d events", c.Name, index, len(list))
+			continue
+		}
+		// 第一处问题在这一项：它前面的都合文法，它自己不合
+		for _, event := range list[:index] {
+			if !rules.IsActivationEvent(event) {
+				t.Errorf("%s: %q precedes the rejected event, so it must be an activation event", c.Name, event)
+			}
+		}
+		rejected++
+		if rules.IsActivationEvent(list[index]) {
+			t.Errorf("%s: %q must not be an activation event", c.Name, list[index])
+		}
+	}
+
+	// 防止向量换了写法后这里一条都没核对还照样通过；带下划线的 onEvent 是 ADR-0276 放宽的那一条
+	if accepted == 0 || rejected < 4 || !underscore {
+		t.Fatalf("checked %d accepted and %d rejected activation events (underscore case found: %v)", accepted, rejected, underscore)
+	}
+	for _, event := range []string{"onStartup", "onOperation:*", "onEvent:*", "onEvent:a_b"} {
+		if !rules.IsActivationEvent(event) {
+			t.Errorf("%q must be an activation event", event)
+		}
+	}
+	for _, event := range []string{"", "onStartup:x", "onOperation:a_b", "onEvent:", "onEvent:a b", "onEvent:a_b\n"} {
+		if rules.IsActivationEvent(event) {
+			t.Errorf("%q must not be an activation event", event)
+		}
 	}
 }

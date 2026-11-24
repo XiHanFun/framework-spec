@@ -1,5 +1,5 @@
 {
-  "$comment": "清单的读取与写出（RFC-0002 解析规则 2 与「写出」，ADR-0233、ADR-0235、ADR-0236），期望值由 .NET 参考实现算出。valid 的每份必须读得出，written 是读出后再写出的全文（逐字相等，换行是 LF，末尾不换行）。invalid 的每份必须被拒绝，error 是期望的错误：code、messageKey 与 arguments 逐字相等。manifest 是清单的 JSON 值（按紧凑写法交给读取，成员顺序照写），text 是原文，用于 JSON 值表达不了的写法。reason 只给人看",
+  "$comment": "清单的读取与写出（RFC-0002 解析规则 2 与「写出」，ADR-0233、ADR-0235、ADR-0236），期望值由 .NET 参考实现算出。valid 的每份必须读得出，written 是读出后再写出的全文（逐字相等，换行是 LF，末尾不换行）。invalid 的每份必须被拒绝，error 是期望的错误：code、messageKey 与 arguments 逐字相等。manifest 是清单的 JSON 值（按紧凑写法交给读取，成员顺序照写），text 是原文，用于 JSON 值表达不了的写法。reason 只给人看。「激活事件的主题带下划线」一条（ADR-0276）的 written 由 .NET 对连字符的写法算出后把模式换回下划线：ADR-0276 落地之前的 .NET 不接受这份清单",
   "valid": [
     {
       "name": "最小的能力清单",
@@ -153,6 +153,21 @@
         }
       },
       "written": "{\n  \"$schema\": \"https://spec.xihanfun.com/manifest/v1.json\",\n  \"id\": \"xihan.orders.core\",\n  \"version\": \"1.0.0\",\n  \"primitives\": \"1\",\n  \"stability\": \"stable\",\n  \"kind\": \"capability\",\n  \"role\": \"provider\",\n  \"provides\": [],\n  \"requires\": [],\n  \"bindings\": [],\n  \"contributes\": {\n    \"pipeline\": [],\n    \"operations\": [\n      \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.create\"\n    ],\n    \"permissions\": [],\n    \"health\": []\n  },\n  \"activation\": [\n    \"onStartup\"\n  ],\n  \"permissions\": []\n}"
+    },
+    {
+      "name": "激活事件的主题带下划线",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "activation": [
+          "onOperation:orders.*",
+          "onEvent:order_events.*"
+        ]
+      },
+      "written": "{\n  \"$schema\": \"https://spec.xihanfun.com/manifest/v1.json\",\n  \"id\": \"xihan.orders.core\",\n  \"version\": \"1.0.0\",\n  \"primitives\": \"1\",\n  \"stability\": \"stable\",\n  \"kind\": \"capability\",\n  \"role\": \"provider\",\n  \"provides\": [],\n  \"requires\": [],\n  \"bindings\": [],\n  \"contributes\": {\n    \"pipeline\": [],\n    \"operations\": [],\n    \"permissions\": [],\n    \"health\": []\n  },\n  \"activation\": [\n    \"onOperation:orders.*\",\n    \"onEvent:order_events.*\"\n  ],\n  \"permissions\": []\n}"
     }
   ],
   "invalid": [
@@ -1464,6 +1479,69 @@
         "messageKey": "kernel.manifest.invalid",
         "arguments": {
           "reason": "$.contributes.operations[1]"
+        }
+      }
+    },
+    {
+      "name": "onOperation 的模式带下划线",
+      "reason": "只有 onEvent 的模式可以带下划线，操作 ID 没有这个字符",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "activation": [
+          "onOperation:order_lines.*"
+        ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.activation[0]"
+        }
+      }
+    },
+    {
+      "name": "onEvent 的主题有大写",
+      "reason": "主题只有小写字母、数字、点、下划线与连字符",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "activation": [
+          "onEvent:Order_Placed"
+        ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.activation[0]"
+        }
+      }
+    },
+    {
+      "name": "onEvent 没有模式",
+      "reason": "冒号后至少一个字符",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "activation": [
+          "onEvent:"
+        ]
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.activation[0]"
         }
       }
     }

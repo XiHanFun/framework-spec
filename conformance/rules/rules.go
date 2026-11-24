@@ -17,6 +17,7 @@ var (
 	baggageKeyPattern            = regexp.MustCompile(`^xihan\.[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
 	manifestIDPattern            = regexp.MustCompile(`^xihan\.[a-z][a-z0-9]*\.[a-z][a-z0-9-]*$`)
 	capabilityIDPattern          = regexp.MustCompile(`^[a-z][a-z0-9]*\.[a-z][a-z0-9-]*$`)
+	activationEventPattern       = regexp.MustCompile(`^(onStartup|onOperation:[a-z0-9.*-]+|onEvent:[a-z0-9._*-]+)$`)
 	capabilityRequirementPattern = regexp.MustCompile(`^([a-z][a-z0-9]*\.[a-z][a-z0-9-]*)@(\^?)([1-9][0-9]*)(\??)$`)
 )
 
@@ -84,6 +85,11 @@ func IsRegisteredBaggageKey(key string) bool { return slices.Contains(Registered
 
 // IsManifestID 判断清单 ID 是否符合 xihan.<领域>.<名称>。
 func IsManifestID(id string) bool { return manifestIDPattern.MatchString(id) }
+
+// IsActivationEvent 判断清单的激活事件是否合文法（RFC-0002 解析规则 2 第 3 步，plugin/lifecycle.md §3）：
+// onStartup、onOperation:<模式> 或 onEvent:<模式>；onOperation: 的模式是操作 ID 的字符加 *，
+// onEvent: 的模式是主题的字符加 *，所以只有它可以带下划线（ADR-0276）。
+func IsActivationEvent(event string) bool { return activationEventPattern.MatchString(event) }
 
 // IsCapabilityID 判断能力 ID 是否符合 <领域>.<能力>。
 func IsCapabilityID(id string) bool { return capabilityIDPattern.MatchString(id) }

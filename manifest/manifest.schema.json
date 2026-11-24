@@ -27,8 +27,9 @@
     "activation": {
       "type": "array",
       "minItems": 1,
-      "items": { "type": "string", "pattern": "^(onStartup|onOperation:[a-z0-9.*-]+|onEvent:[a-z0-9.*-]+)$" },
-      "default": ["onStartup"]
+      "items": { "type": "string", "pattern": "^(onStartup|onOperation:[a-z0-9.*-]+|onEvent:[a-z0-9._*-]+)$" },
+      "default": ["onStartup"],
+      "description": "激活事件（plugin/lifecycle.md §3）：onOperation: 的模式用操作 ID 的字符加 *，onEvent: 的模式用主题的字符（含下划线，RFC-0009）加 *"
     },
     "permissions": {
       "type": "array",
