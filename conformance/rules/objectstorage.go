@@ -5,29 +5,31 @@ import (
 	"slices"
 	"strings"
 	"unicode"
-	"unicode/utf16"
 )
 
 var (
 	containerNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$`)
 	// blobShortNamePattern 是对象元数据名与命名存储实例名共用的文法。
 	blobShortNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
-	// blobContentTypePattern 的两段是 HTTP 的 token 字符；字符集里有反引号，所以不用原始字符串。
-	blobContentTypePattern = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+/[!#$%&'*+.^_`|~0-9A-Za-z-]+(?: *;[\\x20-\\x7E]*)?$")
+	// blobContentTypePattern 的两段是 HTTP 的 token 字符；字符集里有反引号，所以不用原始字符串。每个 ; 两侧可以有空格，
+	// 之后必须有参数：不含 ; 的可打印 ASCII 与空格，以非空格字符开头（\x3B 是 ;，两个字符类都绕开它）。
+	blobContentTypePattern = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+/[!#$%&'*+.^_`|~0-9A-Za-z-]+(?: *; *[\\x21-\\x3A\\x3C-\\x7E][\\x20-\\x3A\\x3C-\\x7E]*)*$")
 )
 
 // 对象存储的标识与上限（RFC-0012「标识」「范围读取、分片上传与预签名」）。
 const (
-	// MaxBlobKeyLength 是对象键的最大长度。
-	MaxBlobKeyLength = 1024
+	// MaxBlobKeyBytes 是对象键与查询前缀按 UTF-8 编码后的最大字节数（ADR-0282；以前叫 MaxBlobKeyLength，没有说单位）。
+	MaxBlobKeyBytes = 1024
 	// BlobKeySeparator 是对象键的分段符。
 	BlobKeySeparator = "/"
 	// BlobKeyReservedSegment 是保留前缀：首段是它的键留给框架自己的对象。
 	BlobKeyReservedSegment = ".xihan"
 	// MaxBlobMetadataBytes 是一个对象的元数据名与值合计的最大 UTF-8 字节数。
 	MaxBlobMetadataBytes = 2048
-	// MaxBlobContentTypeLength 是内容类型的最大长度。
+	// MaxBlobContentTypeLength 是内容类型的最大长度；内容类型只有 ASCII，字符数即字节数。
 	MaxBlobContentTypeLength = 255
+	// MaxBlobDownloadFileNameBytes 是预签名下载地址上保存的文件名按 UTF-8 编码后的最大字节数（ADR-0282）。
+	MaxBlobDownloadFileNameBytes = 255
 	// DefaultBlobContentType 是写入时不给内容类型的缺省值。
 	DefaultBlobContentType = "application/octet-stream"
 	// MaxBlobPartNumber 是分片编号的上限，编号从 1 起。
@@ -48,18 +50,11 @@ func IsReservedBlobKey(key string) bool {
 	return ok && (rest == "" || strings.HasPrefix(rest, BlobKeySeparator))
 }
 
-// IsBlobKey 判断对象键是否合文法（RFC-0012「标识」）：以 / 分段的路径，1 到 1024 个字符，每段非空、不是 . 或 ..，
-// 不含空白、控制字符与反斜线，也不在保留前缀之下。
+// IsBlobKey 判断对象键是否合文法（RFC-0012「标识」）：以 / 分段的路径，按 UTF-8 编码后 1 到 MaxBlobKeyBytes 字节，
+// 每段非空、不是 . 或 ..，不含空白、控制字符与反斜线，也不在保留前缀之下。
 func IsBlobKey(key string) bool {
-	// 正文的「字符」没有说单位，这里照参考实现按 UTF-16 码元计；向量在上限两侧只用 ASCII
-	if key == "" || len(utf16.Encode([]rune(key))) > MaxBlobKeyLength || IsReservedBlobKey(key) {
+	if key == "" || !IsBlobKeyPrefix(key) || IsReservedBlobKey(key) {
 		return false
-	}
-	for _, char := range key {
-		// 空白按 RFC-0001「空白字符」的 25 个码位，控制字符是 Unicode 的 Cc 类
-		if IsWhitespace(char) || unicode.IsControl(char) || char == '\\' {
-			return false
-		}
 	}
 	// 每段非空且不是 . 或 ..：键会映射到路径与 URL，这些段会逃逸或产生歧义
 	for segment := range strings.SplitSeq(key, BlobKeySeparator) {
@@ -68,6 +63,41 @@ func IsBlobKey(key string) bool {
 		}
 	}
 	return true
+}
+
+// IsBlobKeyPrefix 判断查询前缀是否合法（RFC-0012「标识」）：字符约束与字节上限同键，但可以为空、可以以 / 结尾，
+// 对各段不作要求，也不受保留前缀限制（以保留段开头的前缀列举总是空的）。
+func IsBlobKeyPrefix(prefix string) bool {
+	// Go 的字符串就是 UTF-8 字节序列，len 给出的正是规范要的字节数；按 UTF-16 码元计（.NET 的 string.Length、
+	// Java 与 JavaScript 的 length）会把含非 ASCII 字符的超长键放过去，而 S3 的键上限正是 1024 个 UTF-8 字节
+	if len(prefix) > MaxBlobKeyBytes {
+		return false
+	}
+	for _, char := range prefix {
+		// 空白按 RFC-0001「空白字符」的 25 个码位，控制字符是 Unicode 的 Cc 类
+		if IsWhitespace(char) || unicode.IsControl(char) || char == '\\' {
+			return false
+		}
+	}
+	return true
+}
+
+// IsBlobDownloadFileName 判断预签名下载地址上保存的文件名是否合法（RFC-0012「范围读取、分片上传与预签名」）：
+// 不为空、不全是空白、不含控制字符，按 UTF-8 编码后不超过 MaxBlobDownloadFileNameBytes 字节。
+func IsBlobDownloadFileName(name string) bool {
+	if len(name) > MaxBlobDownloadFileNameBytes {
+		return false
+	}
+	blank := true
+	for _, char := range name {
+		// 它会进签名的规范串与 Content-Disposition 头：换行能挪动限定项或拆出别的头
+		if unicode.IsControl(char) {
+			return false
+		}
+		blank = blank && IsWhitespace(char)
+	}
+	// 空串也在这里拒绝：没有一个不是空白的字符
+	return !blank
 }
 
 // IsBlobMetadataName 判断自定义元数据名是否合文法（RFC-0012「标识」）：1 到 64 个字符的小写字母、数字与连字符，字母或数字开头。
@@ -88,7 +118,8 @@ func IsBlobMetadata(metadata map[string]string) bool {
 }
 
 // IsBlobContentType 判断对象的内容类型是否合文法（RFC-0012「标识」）：媒体类型 type/subtype，两段都是 HTTP 的 token 字符，
-// 可跟 ; 起头的参数（可打印的 ASCII 与空格），整体 1 到 255 个字符。
+// 可跟若干个 ; 起头的参数：每个 ; 两侧可以有空格，之后必须有参数（不含 ; 的可打印 ASCII 与空格，以非空格字符开头，
+// 不解析引号），整体 1 到 255 个字符。
 func IsBlobContentType(contentType string) bool {
 	return contentType != "" && len(contentType) <= MaxBlobContentTypeLength && blobContentTypePattern.MatchString(contentType)
 }

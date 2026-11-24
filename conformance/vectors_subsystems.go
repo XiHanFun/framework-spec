@@ -240,21 +240,56 @@ type ContainerNameVectors struct {
 	Invalid   []string `json:"invalid"`
 }
 
-// BlobKeyCase 是一条对象键的样例。
+// BlobKeyCase 是一条对象键的样例：Key 是原文，UTF8Bytes 是它的 UTF-8 字节数，
+// UTF16Units 是 UTF-16 码元数（不参与判定，只标出按码元计会判错的用例）。
 type BlobKeyCase struct {
-	Name string `json:"name"`
-	Key  string `json:"key"`
+	Name       string `json:"name"`
+	Key        string `json:"key"`
+	UTF8Bytes  int    `json:"utf8Bytes"`
+	UTF16Units int    `json:"utf16Units"`
 }
 
-// BlobKeyVectors 对应 objectstorage/blob-keys.json（RFC-0012「标识」，ADR-0277）：Valid 必须接受，
-// Invalid 与 Reserved 必须拒绝，Reserved 另外要被认作保留前缀下的键。
+// BlobKeyPrefixCase 是一条查询前缀的样例，两个计数同 BlobKeyCase。
+type BlobKeyPrefixCase struct {
+	Name       string `json:"name"`
+	Prefix     string `json:"prefix"`
+	UTF8Bytes  int    `json:"utf8Bytes"`
+	UTF16Units int    `json:"utf16Units"`
+}
+
+// BlobKeyPrefixSet 是必须接受与必须拒绝的查询前缀。
+type BlobKeyPrefixSet struct {
+	Valid   []BlobKeyPrefixCase `json:"valid"`
+	Invalid []BlobKeyPrefixCase `json:"invalid"`
+}
+
+// BlobKeyVectors 对应 objectstorage/blob-keys.json（RFC-0012「标识」，ADR-0277、ADR-0282）：MaxBytes 是键与查询前缀
+// 按 UTF-8 编码后的最大字节数；Valid 必须接受，Invalid 与 Reserved 必须拒绝，Reserved 另外要被认作保留前缀下的键；
+// Prefixes 是查询前缀。
 type BlobKeyVectors struct {
-	MaxLength       int           `json:"maxLength"`
-	Separator       string        `json:"separator"`
-	ReservedSegment string        `json:"reservedSegment"`
-	Valid           []BlobKeyCase `json:"valid"`
-	Invalid         []BlobKeyCase `json:"invalid"`
-	Reserved        []BlobKeyCase `json:"reserved"`
+	MaxBytes        int              `json:"maxBytes"`
+	Separator       string           `json:"separator"`
+	ReservedSegment string           `json:"reservedSegment"`
+	Valid           []BlobKeyCase    `json:"valid"`
+	Invalid         []BlobKeyCase    `json:"invalid"`
+	Reserved        []BlobKeyCase    `json:"reserved"`
+	Prefixes        BlobKeyPrefixSet `json:"prefixes"`
+}
+
+// DownloadFileNameCase 是一条保存的文件名的样例：Text 是原文，两个计数同 BlobKeyCase。
+type DownloadFileNameCase struct {
+	Name       string `json:"name"`
+	Text       string `json:"text"`
+	UTF8Bytes  int    `json:"utf8Bytes"`
+	UTF16Units int    `json:"utf16Units"`
+}
+
+// DownloadFileNameVectors 对应 objectstorage/download-file-names.json（RFC-0012「范围读取、分片上传与预签名」，ADR-0282）：
+// MaxBytes 是文件名按 UTF-8 编码后的最大字节数，Valid 必须接受，Invalid 必须拒绝。
+type DownloadFileNameVectors struct {
+	MaxBytes int                    `json:"maxBytes"`
+	Valid    []DownloadFileNameCase `json:"valid"`
+	Invalid  []DownloadFileNameCase `json:"invalid"`
 }
 
 // NameGrammarVectors 是一条名字文法的长度上限与合法、不合法样例。
@@ -285,7 +320,7 @@ type BlobMetadataVectors struct {
 	Sets     BlobMetadataSets   `json:"sets"`
 }
 
-// BlobContentTypeVectors 对应 objectstorage/blob-content-types.json（RFC-0012「标识」，ADR-0277）。
+// BlobContentTypeVectors 对应 objectstorage/blob-content-types.json（RFC-0012「标识」，ADR-0277、ADR-0282）。
 type BlobContentTypeVectors struct {
 	MaxLength int      `json:"maxLength"`
 	Default   string   `json:"default"`
@@ -365,9 +400,14 @@ func ContainerNames() (ContainerNameVectors, error) {
 	return typed[ContainerNameVectors]()
 }
 
-// BlobKeys 读取对象键文法与保留前缀的向量。
+// BlobKeys 读取对象键与查询前缀的文法、保留前缀的向量。
 func BlobKeys() (BlobKeyVectors, error) {
 	return typed[BlobKeyVectors]()
+}
+
+// DownloadFileNames 读取预签名下载地址上保存的文件名的向量。
+func DownloadFileNames() (DownloadFileNameVectors, error) {
+	return typed[DownloadFileNameVectors]()
 }
 
 // BlobMetadata 读取对象自定义元数据的向量。

@@ -1,6 +1,7 @@
 package rules_test
 
 import (
+	"slices"
 	"testing"
 	"unicode/utf16"
 
@@ -48,38 +49,105 @@ func TestContainerNamesFollowTheVectors(t *testing.T) {
 	}
 }
 
+// lengthCoverage 记下一组样例盖住了长度上限的哪几处：正好到上限的合法样例、超出 1 字节的不合法样例，
+// 以及码元数不超而字节数超过的不合法样例（只按 UTF-16 码元计的实现会放过它）。
+type lengthCoverage struct {
+	atLimit, overByOne, overOnlyInBytes bool
+}
+
+// checkLengths 核对向量给一条样例标的两个计数属实（字节数是规范的判据，码元数只用来标出按码元计会判错的用例），并记下它盖住的边界。
+func (c *lengthCoverage) checkLengths(t *testing.T, group, name, text string, utf8Bytes, utf16Units, max int, valid bool) {
+	t.Helper()
+	if bytes := len(text); bytes != utf8Bytes {
+		t.Errorf("%s %q: utf8Bytes = %d, but the text is %d bytes", group, name, utf8Bytes, bytes)
+	}
+	if units := len(utf16.Encode([]rune(text))); units != utf16Units {
+		t.Errorf("%s %q: utf16Units = %d, but the text is %d code units", group, name, utf16Units, units)
+	}
+	c.atLimit = c.atLimit || (valid && utf8Bytes == max)
+	c.overByOne = c.overByOne || (!valid && utf8Bytes == max+1)
+	c.overOnlyInBytes = c.overOnlyInBytes || (!valid && utf8Bytes > max && utf16Units <= max)
+}
+
+// requireAll 要求三处边界都有样例：少了哪一处，改单位的那一类就没有被向量盯住。
+func (c *lengthCoverage) requireAll(t *testing.T, what string, max int) {
+	t.Helper()
+	if !c.atLimit || !c.overByOne || !c.overOnlyInBytes {
+		t.Errorf("the %s vector must keep a text of exactly %d bytes (found: %v), one of %d bytes (found: %v) and one over the limit only when counted in bytes (found: %v)",
+			what, max, c.atLimit, max+1, c.overByOne, c.overOnlyInBytes)
+	}
+}
+
 func TestBlobKeysFollowTheVectors(t *testing.T) {
 	vectors, err := conformance.BlobKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if vectors.MaxLength != rules.MaxBlobKeyLength || vectors.Separator != rules.BlobKeySeparator || vectors.ReservedSegment != rules.BlobKeyReservedSegment {
-		t.Fatalf("maxLength, separator and reserved segment = %d, %q, %q; want %d, %q, %q", vectors.MaxLength, vectors.Separator, vectors.ReservedSegment,
-			rules.MaxBlobKeyLength, rules.BlobKeySeparator, rules.BlobKeyReservedSegment)
+	if vectors.MaxBytes != rules.MaxBlobKeyBytes || vectors.Separator != rules.BlobKeySeparator || vectors.ReservedSegment != rules.BlobKeyReservedSegment {
+		t.Fatalf("maxBytes, separator and reserved segment = %d, %q, %q; want %d, %q, %q", vectors.MaxBytes, vectors.Separator, vectors.ReservedSegment,
+			rules.MaxBlobKeyBytes, rules.BlobKeySeparator, rules.BlobKeyReservedSegment)
 	}
-	atLimit, overLimit := false, false
+	var keys, prefixes lengthCoverage
 	for _, c := range vectors.Valid {
+		keys.checkLengths(t, "valid", c.Name, c.Key, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, true)
 		if !rules.IsBlobKey(c.Key) || rules.IsReservedBlobKey(c.Key) {
 			t.Errorf("%s: %q must be a valid key outside the reserved prefix", c.Name, c.Key)
 		}
-		atLimit = atLimit || len(c.Key) == vectors.MaxLength
 	}
 	for _, c := range vectors.Invalid {
+		keys.checkLengths(t, "invalid", c.Name, c.Key, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, false)
 		if rules.IsBlobKey(c.Key) || rules.IsReservedBlobKey(c.Key) {
 			t.Errorf("%s: %q must be an invalid key that is not under the reserved prefix", c.Name, c.Key)
 		}
-		// 上限两侧的键只用 ASCII：字节数、码元数与字符数相同，不依赖长度的单位
-		units := len(utf16.Encode([]rune(c.Key)))
-		overLimit = overLimit || (len(c.Key) == vectors.MaxLength+1 && units == len(c.Key))
 	}
 	for _, c := range vectors.Reserved {
+		// 保留前缀下的键不参与长度边界的覆盖：它们因保留而不合法，与长度无关
+		new(lengthCoverage).checkLengths(t, "reserved", c.Name, c.Key, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, false)
 		if rules.IsBlobKey(c.Key) || !rules.IsReservedBlobKey(c.Key) {
 			t.Errorf("%s: %q must be rejected as a key under the reserved prefix", c.Name, c.Key)
 		}
 	}
-	if !atLimit || !overLimit {
-		t.Errorf("the vector must keep an ASCII key of exactly %d characters (found: %v) and one of %d (found: %v)", vectors.MaxLength, atLimit, vectors.MaxLength+1, overLimit)
+	for _, c := range vectors.Prefixes.Valid {
+		prefixes.checkLengths(t, "prefixes.valid", c.Name, c.Prefix, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, true)
+		if !rules.IsBlobKeyPrefix(c.Prefix) {
+			t.Errorf("%s: %q must be a valid prefix", c.Name, c.Prefix)
+		}
 	}
+	for _, c := range vectors.Prefixes.Invalid {
+		prefixes.checkLengths(t, "prefixes.invalid", c.Name, c.Prefix, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, false)
+		if rules.IsBlobKeyPrefix(c.Prefix) {
+			t.Errorf("%s: %q must be an invalid prefix", c.Name, c.Prefix)
+		}
+	}
+	keys.requireAll(t, "blob key", vectors.MaxBytes)
+	prefixes.requireAll(t, "blob key prefix", vectors.MaxBytes)
+	if !rules.IsBlobKeyPrefix("") || rules.IsBlobKey("") {
+		t.Error("the empty text is a valid prefix but not a valid key")
+	}
+}
+
+func TestDownloadFileNamesFollowTheVectors(t *testing.T) {
+	vectors, err := conformance.DownloadFileNames()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vectors.MaxBytes != rules.MaxBlobDownloadFileNameBytes {
+		t.Fatalf("maxBytes = %d, want %d", vectors.MaxBytes, rules.MaxBlobDownloadFileNameBytes)
+	}
+	var names lengthCoverage
+	for _, c := range vectors.Valid {
+		names.checkLengths(t, "valid", c.Name, c.Text, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, true)
+		if !rules.IsBlobDownloadFileName(c.Text) {
+			t.Errorf("%s: %q must be a valid download file name", c.Name, c.Text)
+		}
+	}
+	for _, c := range vectors.Invalid {
+		names.checkLengths(t, "invalid", c.Name, c.Text, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, false)
+		if rules.IsBlobDownloadFileName(c.Text) {
+			t.Errorf("%s: %q must be an invalid download file name", c.Name, c.Text)
+		}
+	}
+	names.requireAll(t, "download file name", vectors.MaxBytes)
 }
 
 func TestBlobMetadataFollowsTheVectors(t *testing.T) {
@@ -129,6 +197,25 @@ func TestBlobContentTypesFollowTheVectors(t *testing.T) {
 	replayGrammar(t, "content type", vectors.MaxLength, vectors.Valid, vectors.Invalid, rules.IsBlobContentType)
 	if !rules.IsBlobContentType(vectors.Default) {
 		t.Errorf("the default content type %q must be valid", vectors.Default)
+	}
+	// ADR-0282 收紧与写明的几类写法各要有样例盯住：; 两侧的空格要收，; 之后没有参数的要拒
+	for _, required := range []struct {
+		text  string
+		valid bool
+	}{
+		{"text/plain ; charset=utf-8", true},
+		{"text/plain;", false},
+		{"text/plain; ", false},
+		{"text/plain; charset=utf-8;", false},
+		{"text/plain;;charset=utf-8", false},
+	} {
+		group := vectors.Invalid
+		if required.valid {
+			group = vectors.Valid
+		}
+		if !slices.Contains(group, required.text) {
+			t.Errorf("the content type vector must keep %q (valid: %v)", required.text, required.valid)
+		}
 	}
 }
 

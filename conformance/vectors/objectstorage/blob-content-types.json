@@ -1,5 +1,5 @@
 {
-  "$comment": "对象内容类型的文法（RFC-0012「标识」，ADR-0214、ADR-0277）：媒体类型 type/subtype，两段都是 HTTP 的 token 字符（字母、数字与 !#$%&'*+-.^_`|~），可跟 ; 起头的参数，参数部分只含可打印的 ASCII 与空格（U+0020–U+007E），整体 1 到 maxLength 个字符；按整串匹配。default 是写入时不给内容类型的缺省值。valid 必须接受，invalid 必须拒绝（宿主代收的上传带着不合文法的 Content-Type 是 OBJECTSTORAGE_VALIDATION_006）；valid 的末项正好 255 个字符，invalid 的末两项是 256 与 512 个字符、别处都合文法。媒体类型与 ; 之间的空白、只有一个 ; 而没有参数的写法正文没有写，不在这张表里。期望值由 .NET 参考实现（BlobPutOptions.IsValidContentType）算出。",
+  "$comment": "对象内容类型的文法（RFC-0012「标识」，ADR-0214、ADR-0277、ADR-0282）：媒体类型 type/subtype，两段都是 HTTP 的 token 字符（字母、数字与 !#$%&'*+-.^_`|~），可跟若干个 ; 起头的参数；每个 ; 两侧可以有空格（RFC 9110 的 OWS \";\" OWS，只取空格，不收制表符），; 之后必须有参数：参数是不含 ; 的可打印 ASCII 与空格（U+0020–U+007E），以非空格字符开头，内部不再细分、不解析引号（引号里的 ; 同样算分隔）。整体 1 到 maxLength 个字符（只有 ASCII，字符数即字节数）；按整串匹配。default 是写入时不给内容类型的缺省值。valid 必须接受，invalid 必须拒绝（宿主代收的上传带着不合文法的 Content-Type 是 OBJECTSTORAGE_VALIDATION_006）；valid 的末项正好 255 个字符，invalid 的末两项是 256 与 512 个字符、别处都合文法。期望值由 .NET 参考实现（BlobPutOptions.IsValidContentType）算出；ADR-0282 之前它收下 ; 之后没有参数的写法（text/plain;、text/plain; 、结尾多出的 ;、连续的 ;）。",
   "maxLength": 255,
   "default": "application/octet-stream",
   "valid": [
@@ -15,6 +15,14 @@
     "a/b",
     "Text/HTML",
     "x!#$%&'*+.^_`|~0-9/y!#$%&'*+.^_`|~0-9",
+    "text/plain;charset=utf-8;format=flowed",
+    "text/plain ;charset=utf-8",
+    "text/plain ; charset=utf-8",
+    "text/plain  ;  charset=utf-8",
+    "text/plain; charset=utf-8 ; format=flowed",
+    "text/plain; charset=utf-8 ",
+    "text/plain; flowed",
+    "multipart/mixed; boundary=\"a;b\"",
     "application/x-ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt"
   ],
   "invalid": [
@@ -37,6 +45,17 @@
     "text/plain,text/html",
     "text/@plain",
     "text/\"plain\"",
+    "text/plain;",
+    "text/plain; ",
+    "text/plain ;",
+    "text/plain ; ",
+    "text/plain; charset=utf-8;",
+    "text/plain; charset=utf-8; ",
+    "text/plain;;charset=utf-8",
+    "text/plain; ;charset=utf-8",
+    "text/plain; boundary=\";;\"",
+    "text/plain\t;charset=utf-8",
+    "text/plain ",
     "application/x-tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
     "application/x-tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt"
   ]

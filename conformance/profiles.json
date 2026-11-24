@@ -182,6 +182,7 @@
         "objectstorage/blob-metadata.json",
         "objectstorage/blob-ranges.json",
         "objectstorage/container-names.json",
+        "objectstorage/download-file-names.json",
         "objectstorage/multipart-parts.json",
         "objectstorage/store-definitions.json"
       ],

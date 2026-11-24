@@ -133,7 +133,8 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 	},
 	"objectstorage/blob-keys.json": func(t *testing.T) any {
 		keys, err := conformance.BlobKeys()
-		if err != nil || keys.MaxLength != 1024 || keys.Separator == "" || keys.ReservedSegment == "" || len(keys.Valid) == 0 || len(keys.Invalid) == 0 || len(keys.Reserved) == 0 {
+		if err != nil || keys.MaxBytes != 1024 || keys.Separator == "" || keys.ReservedSegment == "" || len(keys.Valid) == 0 || len(keys.Invalid) == 0 || len(keys.Reserved) == 0 ||
+			len(keys.Prefixes.Valid) == 0 || len(keys.Prefixes.Invalid) == 0 {
 			t.Errorf("blob keys: %v", err)
 		}
 		for group, cases := range map[string][]conformance.BlobKeyCase{"blob keys valid": keys.Valid, "blob keys invalid": keys.Invalid, "blob keys reserved": keys.Reserved} {
@@ -143,7 +144,28 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 			}
 			uniqueNames(t, group, names)
 		}
+		for group, cases := range map[string][]conformance.BlobKeyPrefixCase{"blob key prefixes valid": keys.Prefixes.Valid, "blob key prefixes invalid": keys.Prefixes.Invalid} {
+			var names []string
+			for _, c := range cases {
+				names = append(names, c.Name)
+			}
+			uniqueNames(t, group, names)
+		}
 		return keys
+	},
+	"objectstorage/download-file-names.json": func(t *testing.T) any {
+		names, err := conformance.DownloadFileNames()
+		if err != nil || names.MaxBytes != 255 || len(names.Valid) == 0 || len(names.Invalid) == 0 {
+			t.Errorf("download file names: %v", err)
+		}
+		for group, cases := range map[string][]conformance.DownloadFileNameCase{"download file names valid": names.Valid, "download file names invalid": names.Invalid} {
+			var caseNames []string
+			for _, c := range cases {
+				caseNames = append(caseNames, c.Name)
+			}
+			uniqueNames(t, group, caseNames)
+		}
+		return names
 	},
 	"objectstorage/blob-metadata.json": func(t *testing.T) any {
 		metadata, err := conformance.BlobMetadata()

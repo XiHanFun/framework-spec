@@ -1,172 +1,420 @@
 {
-  "$comment": "对象键的文法与保留前缀（RFC-0012「标识」，ADR-0090、ADR-0277）：键是以 separator 分段的路径，1 到 maxLength 个字符；每段非空、不是 . 或 ..；不含空白（RFC-0001「空白字符」的 25 个码位）、控制字符（Unicode 的 Cc 类：U+0000–U+001F、U+007F–U+009F）与反斜线；区分大小写。首段是 reservedSegment 的键（它本身与它下面的键，区分大小写）留给框架自己的对象，不在键文法之内。valid 必须接受；invalid 与 reserved 都必须拒绝，reserved 另外要被认作保留前缀下的键（列举时跳过），invalid 的都不是。长度的两条边界只用 ASCII：正文的「字符」没有说单位，含非 ASCII 字符的键正好卡在上限时怎么算不在这张表里。期望值由 .NET 参考实现（BlobKey.IsValid、BlobKey.IsReserved）算出。",
-  "maxLength": 1024,
+  "$comment": "对象键与查询前缀的文法、保留前缀（RFC-0012「标识」，ADR-0090、ADR-0277、ADR-0282）：键是以 separator 分段的路径，按 UTF-8 编码后 1 到 maxBytes 字节；每段非空、不是 . 或 ..；不含空白（RFC-0001「空白字符」的 25 个码位）、控制字符（Unicode 的 Cc 类：U+0000–U+001F、U+007F–U+009F）与反斜线；区分大小写。首段是 reservedSegment 的键（它本身与它下面的键，区分大小写）留给框架自己的对象，不在键文法之内。valid 必须接受；invalid 与 reserved 都必须拒绝，reserved 另外要被认作保留前缀下的键（列举时跳过），invalid 的都不是。prefixes 是查询前缀：字符约束与字节上限同键，但可以为空、可以以分隔符结尾，对各段不作要求，也不受保留前缀限制；valid 必须接受，invalid 必须拒绝。每条的 key 或 prefix 是原文，utf8Bytes 是它的 UTF-8 字节数，utf16Units 是 UTF-16 码元数——后者不参与判定，只为标出按码元计会判错的用例（ADR-0282 之前 .NET 按码元计，名字里写着「按码元计」的用例它判为合法）。期望值由 .NET 参考实现（BlobKey.IsValid、BlobKey.IsReserved、BlobKey.IsValidPrefix）算出，两个计数由 Go 一致性模块的测试核对。",
+  "maxBytes": 1024,
   "separator": "/",
   "reservedSegment": ".xihan",
   "valid": [
     {
       "name": "一段",
-      "key": "report.pdf"
+      "key": "report.pdf",
+      "utf8Bytes": 10,
+      "utf16Units": 10
     },
     {
       "name": "多段",
-      "key": "tenants/acme/2026/11/report.pdf"
+      "key": "tenants/acme/2026/11/report.pdf",
+      "utf8Bytes": 31,
+      "utf16Units": 31
     },
     {
       "name": "一个字符",
-      "key": "a"
+      "key": "a",
+      "utf8Bytes": 1,
+      "utf16Units": 1
     },
     {
       "name": "区分大小写的两个键之一",
-      "key": "Reports/Q4.PDF"
+      "key": "Reports/Q4.PDF",
+      "utf8Bytes": 14,
+      "utf16Units": 14
     },
     {
       "name": "非 ASCII 字符",
-      "key": "合同/2026/报告.pdf"
+      "key": "合同/2026/报告.pdf",
+      "utf8Bytes": 22,
+      "utf16Units": 14
     },
     {
       "name": "标点",
-      "key": "a_b-c.d+e=f,g;h:i@j!k~l'm(n)o[p]{q}"
+      "key": "a_b-c.d+e=f,g;h:i@j!k~l'm(n)o[p]{q}",
+      "utf8Bytes": 35,
+      "utf16Units": 35
     },
     {
       "name": "以点开头的段",
-      "key": ".hidden/.gitkeep"
+      "key": ".hidden/.gitkeep",
+      "utf8Bytes": 16,
+      "utf16Units": 16
     },
     {
       "name": "三个点不是 . 或 ..",
-      "key": ".../file"
+      "key": ".../file",
+      "utf8Bytes": 8,
+      "utf16Units": 8
     },
     {
       "name": "段里带着 ..",
-      "key": "a..b/c..d"
+      "key": "a..b/c..d",
+      "utf8Bytes": 9,
+      "utf16Units": 9
     },
     {
       "name": "首段只是以 .xihan 开头",
-      "key": ".xihanx/a"
+      "key": ".xihanx/a",
+      "utf8Bytes": 9,
+      "utf16Units": 9
     },
     {
       "name": "首段大小写不同于保留前缀",
-      "key": ".XiHan/a"
+      "key": ".XiHan/a",
+      "utf8Bytes": 8,
+      "utf16Units": 8
     },
     {
       "name": "保留前缀不在首段",
-      "key": "a/.xihan/b"
+      "key": "a/.xihan/b",
+      "utf8Bytes": 10,
+      "utf16Units": 10
     },
     {
       "name": "零宽空格 U+200B 不是空白",
-      "key": "a\u200bb"
+      "key": "a\u200bb",
+      "utf8Bytes": 5,
+      "utf16Units": 3
     },
     {
       "name": "字节序标记 U+FEFF 不是空白",
-      "key": "a\ufeffb"
+      "key": "a\ufeffb",
+      "utf8Bytes": 5,
+      "utf16Units": 3
     },
     {
-      "name": "正好 1024 个字符",
-      "key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk/x.bin"
+      "name": "ASCII 1024 字节，正好到上限",
+      "key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk/x.bin",
+      "utf8Bytes": 1024,
+      "utf16Units": 1024
+    },
+    {
+      "name": "两字节字符 512 个，1024 字节",
+      "key": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+      "utf8Bytes": 1024,
+      "utf16Units": 512
+    },
+    {
+      "name": "三字节字符 341 个加一个 ASCII，1024 字节",
+      "key": "键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键a",
+      "utf8Bytes": 1024,
+      "utf16Units": 342
+    },
+    {
+      "name": "四字节字符 256 个，1024 字节（512 个 UTF-16 码元）",
+      "key": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+      "utf8Bytes": 1024,
+      "utf16Units": 512
+    },
+    {
+      "name": "多段的三字节字符，1024 字节",
+      "key": "键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键/键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键/键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键/键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键a",
+      "utf8Bytes": 1024,
+      "utf16Units": 344
     }
   ],
   "invalid": [
     {
       "name": "空",
-      "key": ""
+      "key": "",
+      "utf8Bytes": 0,
+      "utf16Units": 0
     },
     {
       "name": "以分隔符开头",
-      "key": "/a"
+      "key": "/a",
+      "utf8Bytes": 2,
+      "utf16Units": 2
     },
     {
       "name": "以分隔符结尾",
-      "key": "a/"
+      "key": "a/",
+      "utf8Bytes": 2,
+      "utf16Units": 2
     },
     {
       "name": "空段",
-      "key": "a//b"
+      "key": "a//b",
+      "utf8Bytes": 4,
+      "utf16Units": 4
     },
     {
       "name": "只有分隔符",
-      "key": "/"
+      "key": "/",
+      "utf8Bytes": 1,
+      "utf16Units": 1
     },
     {
       "name": "段是 .",
-      "key": "a/./b"
+      "key": "a/./b",
+      "utf8Bytes": 5,
+      "utf16Units": 5
     },
     {
       "name": "段是 ..",
-      "key": "a/../b"
+      "key": "a/../b",
+      "utf8Bytes": 6,
+      "utf16Units": 6
     },
     {
       "name": "整个键是 .",
-      "key": "."
+      "key": ".",
+      "utf8Bytes": 1,
+      "utf16Units": 1
     },
     {
       "name": "整个键是 ..",
-      "key": ".."
+      "key": "..",
+      "utf8Bytes": 2,
+      "utf16Units": 2
     },
     {
       "name": "末段是 ..",
-      "key": "a/.."
+      "key": "a/..",
+      "utf8Bytes": 4,
+      "utf16Units": 4
     },
     {
       "name": "空格",
-      "key": "my file.txt"
+      "key": "my file.txt",
+      "utf8Bytes": 11,
+      "utf16Units": 11
     },
     {
       "name": "制表符",
-      "key": "a\tb"
+      "key": "a\tb",
+      "utf8Bytes": 3,
+      "utf16Units": 3
     },
     {
       "name": "换行",
-      "key": "a\nb"
+      "key": "a\nb",
+      "utf8Bytes": 3,
+      "utf16Units": 3
     },
     {
       "name": "结尾的换行",
-      "key": "a/b\n"
+      "key": "a/b\n",
+      "utf8Bytes": 4,
+      "utf16Units": 4
     },
     {
       "name": "不换行空格 U+00A0",
-      "key": "a\u00a0b"
+      "key": "a\u00a0b",
+      "utf8Bytes": 4,
+      "utf16Units": 3
     },
     {
       "name": "表意空格 U+3000",
-      "key": "a\u3000b"
+      "key": "a\u3000b",
+      "utf8Bytes": 5,
+      "utf16Units": 3
     },
     {
       "name": "行分隔符 U+2028",
-      "key": "a\u2028b"
+      "key": "a\u2028b",
+      "utf8Bytes": 5,
+      "utf16Units": 3
     },
     {
       "name": "空字符 U+0000",
-      "key": "a\u0000b"
+      "key": "a\u0000b",
+      "utf8Bytes": 3,
+      "utf16Units": 3
     },
     {
       "name": "删除符 U+007F",
-      "key": "a\u007fb"
+      "key": "a\u007fb",
+      "utf8Bytes": 3,
+      "utf16Units": 3
     },
     {
       "name": "C1 控制字符 U+009F",
-      "key": "a\u009fb"
+      "key": "a\u009fb",
+      "utf8Bytes": 4,
+      "utf16Units": 3
     },
     {
       "name": "反斜线",
-      "key": "a\\b"
+      "key": "a\\b",
+      "utf8Bytes": 3,
+      "utf16Units": 3
     },
     {
-      "name": "1025 个字符",
-      "key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk/x.bin"
+      "name": "ASCII 1025 字节",
+      "key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk/x.bin",
+      "utf8Bytes": 1025,
+      "utf16Units": 1025
+    },
+    {
+      "name": "两字节字符 513 个，1026 字节（513 个 UTF-16 码元，按码元计不超）",
+      "key": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+      "utf8Bytes": 1026,
+      "utf16Units": 513
+    },
+    {
+      "name": "三字节字符 341 个加两个 ASCII，1025 字节（343 个 UTF-16 码元，按码元计不超）",
+      "key": "键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键ab",
+      "utf8Bytes": 1025,
+      "utf16Units": 343
+    },
+    {
+      "name": "四字节字符 256 个加一个 ASCII，1025 字节（513 个 UTF-16 码元，按码元计不超）",
+      "key": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀a",
+      "utf8Bytes": 1025,
+      "utf16Units": 513
+    },
+    {
+      "name": "三字节字符 1024 个，3072 字节（1024 个 UTF-16 码元，按码元计正好到上限）",
+      "key": "键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键",
+      "utf8Bytes": 3072,
+      "utf16Units": 1024
     }
   ],
   "reserved": [
     {
       "name": "保留前缀本身",
-      "key": ".xihan"
+      "key": ".xihan",
+      "utf8Bytes": 6,
+      "utf16Units": 6
     },
     {
       "name": "保留前缀下的键",
-      "key": ".xihan/probe"
+      "key": ".xihan/probe",
+      "utf8Bytes": 12,
+      "utf16Units": 12
     },
     {
       "name": "保留前缀下的多段键",
-      "key": ".xihan/conditional-writes/probe-1"
+      "key": ".xihan/conditional-writes/probe-1",
+      "utf8Bytes": 33,
+      "utf16Units": 33
     }
-  ]
+  ],
+  "prefixes": {
+    "valid": [
+      {
+        "name": "空前缀：列举全部",
+        "prefix": "",
+        "utf8Bytes": 0,
+        "utf16Units": 0
+      },
+      {
+        "name": "以分隔符结尾",
+        "prefix": "tenants/acme/",
+        "utf8Bytes": 13,
+        "utf16Units": 13
+      },
+      {
+        "name": "停在一段中间",
+        "prefix": "tenants/ac",
+        "utf8Bytes": 10,
+        "utf16Units": 10
+      },
+      {
+        "name": "非 ASCII 字符",
+        "prefix": "合同/2026/",
+        "utf8Bytes": 12,
+        "utf16Units": 8
+      },
+      {
+        "name": "空段：只是筛选不到东西",
+        "prefix": "a//b",
+        "utf8Bytes": 4,
+        "utf16Units": 4
+      },
+      {
+        "name": "以分隔符开头",
+        "prefix": "/a",
+        "utf8Bytes": 2,
+        "utf16Units": 2
+      },
+      {
+        "name": "段是 . 或 ..",
+        "prefix": "a/../b/./",
+        "utf8Bytes": 9,
+        "utf16Units": 9
+      },
+      {
+        "name": "保留前缀下的前缀：前缀不受保留前缀限制",
+        "prefix": ".xihan/",
+        "utf8Bytes": 7,
+        "utf16Units": 7
+      },
+      {
+        "name": "ASCII 1024 字节，正好到上限",
+        "prefix": "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "utf8Bytes": 1024,
+        "utf16Units": 1024
+      },
+      {
+        "name": "三字节字符 341 个加一个分隔符，1024 字节",
+        "prefix": "键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键/",
+        "utf8Bytes": 1024,
+        "utf16Units": 342
+      }
+    ],
+    "invalid": [
+      {
+        "name": "空格",
+        "prefix": "my file",
+        "utf8Bytes": 7,
+        "utf16Units": 7
+      },
+      {
+        "name": "制表符",
+        "prefix": "a\tb",
+        "utf8Bytes": 3,
+        "utf16Units": 3
+      },
+      {
+        "name": "不换行空格 U+00A0",
+        "prefix": "a\u00a0b",
+        "utf8Bytes": 4,
+        "utf16Units": 3
+      },
+      {
+        "name": "空字符 U+0000",
+        "prefix": "a\u0000b",
+        "utf8Bytes": 3,
+        "utf16Units": 3
+      },
+      {
+        "name": "C1 控制字符 U+009F",
+        "prefix": "a\u009fb",
+        "utf8Bytes": 4,
+        "utf16Units": 3
+      },
+      {
+        "name": "反斜线",
+        "prefix": "a\\b",
+        "utf8Bytes": 3,
+        "utf16Units": 3
+      },
+      {
+        "name": "ASCII 1025 字节",
+        "prefix": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "utf8Bytes": 1025,
+        "utf16Units": 1025
+      },
+      {
+        "name": "三字节字符 341 个加两个 ASCII，1025 字节（343 个 UTF-16 码元，按码元计不超）",
+        "prefix": "键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键/a",
+        "utf8Bytes": 1025,
+        "utf16Units": 343
+      },
+      {
+        "name": "三字节字符 1024 个，3072 字节（1024 个 UTF-16 码元，按码元计正好到上限）",
+        "prefix": "键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键",
+        "utf8Bytes": 3072,
+        "utf16Units": 1024
+      }
+    ]
+  }
 }

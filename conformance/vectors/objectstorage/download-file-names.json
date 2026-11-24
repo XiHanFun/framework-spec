@@ -1,0 +1,176 @@
+{
+  "$comment": "预签名下载地址上保存的文件名（RFC-0012「范围读取、分片上传与预签名」，ADR-0219、ADR-0282）：不为空、不全是空白（RFC-0001「空白字符」的 25 个码位）、不含控制字符（Unicode 的 Cc 类：U+0000–U+001F、U+007F–U+009F）、按 UTF-8 编码后不超过 maxBytes 字节；空格、标点与非 ASCII 字符照常可用，首尾的空格不裁剪。valid 必须接受，invalid 必须拒绝（构造预签名请求时）。每条的 text 是原文，utf8Bytes 是它的 UTF-8 字节数，utf16Units 是 UTF-16 码元数——后者不参与判定，只为标出按码元计会判错的用例（ADR-0282 之前 .NET 按码元计，名字里写着「按码元计」的用例它判为合法）。期望值由 .NET 参考实现（BlobUrlRequest.ForDownload）算出，两个计数由 Go 一致性模块的测试核对。",
+  "maxBytes": 255,
+  "valid": [
+    {
+      "name": "普通的文件名",
+      "text": "report.pdf",
+      "utf8Bytes": 10,
+      "utf16Units": 10
+    },
+    {
+      "name": "一个字符",
+      "text": "a",
+      "utf8Bytes": 1,
+      "utf16Units": 1
+    },
+    {
+      "name": "中间带空格",
+      "text": "annual report 2026.pdf",
+      "utf8Bytes": 22,
+      "utf16Units": 22
+    },
+    {
+      "name": "首尾带空格",
+      "text": " report.pdf ",
+      "utf8Bytes": 12,
+      "utf16Units": 12
+    },
+    {
+      "name": "非 ASCII 字符",
+      "text": "报告 2026.pdf",
+      "utf8Bytes": 15,
+      "utf16Units": 11
+    },
+    {
+      "name": "引号、分号与反斜线",
+      "text": "a\"b;c\\d.txt",
+      "utf8Bytes": 11,
+      "utf16Units": 11
+    },
+    {
+      "name": "路径分隔符",
+      "text": "2026/11/report.pdf",
+      "utf8Bytes": 18,
+      "utf16Units": 18
+    },
+    {
+      "name": "零宽空格 U+200B 不是空白也不是控制字符",
+      "text": "a\u200bb.pdf",
+      "utf8Bytes": 9,
+      "utf16Units": 7
+    },
+    {
+      "name": "ASCII 255 字节，正好到上限",
+      "text": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn.pdf",
+      "utf8Bytes": 255,
+      "utf16Units": 255
+    },
+    {
+      "name": "两字节字符 127 个加一个 ASCII，255 字节",
+      "text": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééa",
+      "utf8Bytes": 255,
+      "utf16Units": 128
+    },
+    {
+      "name": "三字节字符 85 个，255 字节",
+      "text": "名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名",
+      "utf8Bytes": 255,
+      "utf16Units": 85
+    },
+    {
+      "name": "四字节字符 63 个加三个 ASCII，255 字节（129 个 UTF-16 码元）",
+      "text": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀abc",
+      "utf8Bytes": 255,
+      "utf16Units": 129
+    }
+  ],
+  "invalid": [
+    {
+      "name": "空串",
+      "text": "",
+      "utf8Bytes": 0,
+      "utf16Units": 0
+    },
+    {
+      "name": "只有空格",
+      "text": "   ",
+      "utf8Bytes": 3,
+      "utf16Units": 3
+    },
+    {
+      "name": "只有表意空格 U+3000",
+      "text": "\u3000",
+      "utf8Bytes": 3,
+      "utf16Units": 1
+    },
+    {
+      "name": "只有不换行空格 U+00A0",
+      "text": "\u00a0\u00a0",
+      "utf8Bytes": 4,
+      "utf16Units": 2
+    },
+    {
+      "name": "回车换行：能拆出别的响应头",
+      "text": "a.pdf\r\nSet-Cookie: x=1",
+      "utf8Bytes": 22,
+      "utf16Units": 22
+    },
+    {
+      "name": "结尾的换行",
+      "text": "a.pdf\n",
+      "utf8Bytes": 6,
+      "utf16Units": 6
+    },
+    {
+      "name": "制表符",
+      "text": "a\tb.pdf",
+      "utf8Bytes": 7,
+      "utf16Units": 7
+    },
+    {
+      "name": "空字符 U+0000",
+      "text": "a\u0000.pdf",
+      "utf8Bytes": 6,
+      "utf16Units": 6
+    },
+    {
+      "name": "删除符 U+007F",
+      "text": "a\u007f.pdf",
+      "utf8Bytes": 6,
+      "utf16Units": 6
+    },
+    {
+      "name": "下一行 U+0085（既是空白也是控制字符）",
+      "text": "a\u0085b.pdf",
+      "utf8Bytes": 8,
+      "utf16Units": 7
+    },
+    {
+      "name": "C1 控制字符 U+009F",
+      "text": "a\u009f.pdf",
+      "utf8Bytes": 7,
+      "utf16Units": 6
+    },
+    {
+      "name": "ASCII 256 字节",
+      "text": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn.pdf",
+      "utf8Bytes": 256,
+      "utf16Units": 256
+    },
+    {
+      "name": "两字节字符 128 个，256 字节（128 个 UTF-16 码元，按码元计不超）",
+      "text": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+      "utf8Bytes": 256,
+      "utf16Units": 128
+    },
+    {
+      "name": "三字节字符 85 个加一个 ASCII，256 字节（86 个 UTF-16 码元，按码元计不超）",
+      "text": "名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名a",
+      "utf8Bytes": 256,
+      "utf16Units": 86
+    },
+    {
+      "name": "四字节字符 64 个，256 字节（128 个 UTF-16 码元，按码元计不超）",
+      "text": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+      "utf8Bytes": 256,
+      "utf16Units": 128
+    },
+    {
+      "name": "三字节字符 255 个，765 字节（255 个 UTF-16 码元，按码元计正好到上限）",
+      "text": "名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名",
+      "utf8Bytes": 765,
+      "utf16Units": 255
+    }
+  ]
+}

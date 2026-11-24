@@ -702,6 +702,7 @@ var typedVectors = []TypedVector{
 	vectorFile[BlobMetadataVectors]("objectstorage/blob-metadata.json"),
 	vectorFile[BlobRangeVectors]("objectstorage/blob-ranges.json"),
 	vectorFile[ContainerNameVectors]("objectstorage/container-names.json"),
+	vectorFile[DownloadFileNameVectors]("objectstorage/download-file-names.json"),
 	vectorFile[MultipartPartVectors]("objectstorage/multipart-parts.json"),
 	vectorFile[BlobStoreDefinitionVectors]("objectstorage/store-definitions.json"),
 	vectorFile[HostUsageVectors]("observability/host-usage.json"),
