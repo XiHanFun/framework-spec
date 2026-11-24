@@ -28,6 +28,7 @@ gRPC 元数据就是 HTTP/2 头，复用 HTTP 载体的映射（`protocol/http.m
 
 - 线上没有的隐式存在字段按 proto3 默认值补进解码后的 JSON：布尔与数值写零值、`repeated` 写 `[]`、`map` 写 `{}`（契约 Schema 的 `required` 因此在 gRPC 上成立）；字符串、字节与任意 JSON 不补（空串对 date-time、uuid、枚举这类带格式的字符串不是合法值），`optional` 与嵌套消息缺席即缺席；描述里没有的字段号跳过；重复出现的单值字段取最后一个。
 - `.proto`（proto3）由同一份消息描述生成，`GET /operations.proto`（`MapXiHanProto()`）发布；同名消息在不同操作里形状不同即启动失败（`PROTOCOLS_CONFLICT_003`）。
+- 稳定性是 `Deprecated` 的操作，`.proto` 里对应的 `rpc` 带 protobuf 标准的方法选项 `option deprecated = true;`（`google.protobuf.MethodOptions.deprecated`），其余级别不写这个选项（2026-11-24 增补，ADR-0280；以前 `.proto` 里看不出弃用，由它生成的客户端不会给方法加弃用标记）。实现另外发布方法描述（`MethodDescriptorProto`、gRPC 反射）时，同一个选项也要带上。只改描述：弃用的方法照常绑定、照常调用，状态与尾部元数据不变。
 
 ## 状态与错误
 
