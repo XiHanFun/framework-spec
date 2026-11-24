@@ -1,6 +1,6 @@
 # RFC-0013 调度与领导选举
 
-> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发），2026-11-01 修订（ADR-0074：调度器启动之前的手动触发同样不可用、一致性套件由用例推进时钟并主动轮询；ADR-0082：运行查询的分页越界返回校验错误；ADR-0091：应用不在服务状态时不持有领导租约、数据库实现的租约释放不经管道），2026-11-02 修订（ADR-0094：领导选举一致性套件加上应用生命周期用例），2026-11-24 修订（ADR-0277：一致性向量；ADR-0270：调度器与存储的查询方法改名，补上动词 `List` / `Find`） | 对应 ADR：ADR-0020、ADR-0074、ADR-0082、ADR-0091、ADR-0094、ADR-0270（查询方法改名）、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance`，向量 `conformance/vectors/scheduling/` | 一致性档：`scheduling`
+> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发），2026-11-01 修订（ADR-0074：调度器启动之前的手动触发同样不可用、一致性套件由用例推进时钟并主动轮询；ADR-0082：运行查询的分页越界返回校验错误；ADR-0091：应用不在服务状态时不持有领导租约、数据库实现的租约释放不经管道），2026-11-02 修订（ADR-0094：领导选举一致性套件加上应用生命周期用例），2026-11-24 修订（ADR-0277：一致性向量；ADR-0270：调度器与存储的查询方法改名，补上动词 `List` / `Find`；ADR-0286：cron 的分段、取值、步长、年份、`L-n` 与搜索上限逐条写明，段的两侧不再收别的空白，搜索上限按下一次的墙上时间判定） | 对应 ADR：ADR-0020、ADR-0074、ADR-0082、ADR-0091、ADR-0094、ADR-0270（查询方法改名）、ADR-0277（一致性向量）、ADR-0286（cron 的细则） | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance`，向量 `conformance/vectors/scheduling/` | 一致性档：`scheduling`
 
 ## 摘要
 
@@ -22,7 +22,16 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 - 触发器定义 `JobTriggerDefinition`：`Name`、`Schedule`、`Data`（覆盖作业 `Data` 的同名键）、`Priority`（默认 5，到期的触发器多于可运行名额时大者先）、`MisfirePolicy`、`Description`。
 - 作业类型登记：`services.AddJobType<TJob>()`（键 = 类型全名）或 `AddJobType<TJob>(key)`；`services.AddJob<TJob>(definition)` / `AddJob<TJob>(name, schedule)` 同时登记类型与作业（启动时写入存储，来源 `Code`）。同名重复 `AddJob` 是编程错误；运行时 `ScheduleAsync` 同名即替换。`JobTypeRegistry.Keys` 按序数列出已登记的类型键，管理界面据此列出运行时新建作业可选的类型（ADR-0053）。
 - 计划 `JobSchedule`：`Manual`（只手动触发）、`Every(interval, repeatCount?)`（上一次完成后再等一个间隔，固定延迟；`RepeatCount` 为总运行次数，空为无限）、`FromCron(expression, timeZoneId?)`（cron，默认 UTC；时区按 `TimeZoneInfo` ID）、`Once(at)`（一次）；任何计划可带 `StartAt`（之前不运行）、`EndAt`（之后转为 `Complete`）与 `Calendar`（排除日历名）。`ToString()` / `Parse` 为文本往返（`manual`、`every 00:10:00 x5`、`cron 0 0 9 * * MON-FRI tz=Asia/Shanghai`、`once 2026-…`，可附 `start=`、`end=`、`calendar=`），存储以文本持久化。
-- cron `CronExpression`：5 段（`m h dom mon dow`，秒 = 0）或 6 段（`s m h dom mon dow`），可选第 7 段年份；`*`、`?`、列表、范围、步长、月与星期名、`L`、`L-n`、`W`、`LW`、`nL`、`n#k`；星期 0/7 = 周日、1 = 周一（Unix 约定，不是 Quartz 的 1 = 周日）；日与星期同时限定取并集；`Next(after)` 按 UTC，`Next(after, timeZone)` 按该时区墙上时间，夏令时跳过的时刻不运行、重复的时刻只运行第一次；搜索上限 5 年。
+- cron `CronExpression`：5 段（`m h dom mon dow`，秒 = 0）或 6 段（`s m h dom mon dow`），可选第 7 段年份；`*`、`?`、列表、范围、步长、月与星期名、`L`、`L-n`、`W`、`LW`、`nL`、`n#k`；星期 0/7 = 周日、1 = 周一（Unix 约定，不是 Quartz 的 1 = 周日）；日与星期同时限定取并集；`Next(after)` 按 UTC，`Next(after, timeZone)` 按该时区墙上时间，夏令时跳过的时刻不运行、重复的时刻只运行第一次；搜索上限 5 年（1830 天）。文法与推算的细则（2026-11-24 写明，ADR-0286；以前只有上面这一句，名字的大小写、分隔符、单个值带步长、年份与 `L-n` 的范围、搜索上限的边界都只在 .NET 的代码里）：
+  1. 分段：表达式按空格（U+0020）与制表符（U+0009）分段，连着的几个算一个分隔，两端的不计；段数是 5、6 或 7。别的空白（换行、不换行空格等）不是分隔符，出现在表达式里就落在某一段中，那一段不合法（2026-11-24 修订，ADR-0286；以前 .NET 把各段两侧的任何空白都裁掉，结尾带换行、空格之间夹着不换行空格的表达式照收）。
+  2. 取值：秒、分 0–59，时 0–23，日 1–31，月 1–12，星期 0–7，年 1970–2099。数字是 ASCII 的十进制数字，可以有前导 0，不带符号。月可写 `JAN`–`DEC`，星期可写 `SUN`–`SAT`（0–6）；名字与下面的 `L`、`W` 都不区分 ASCII 字母的大小写，不认全称，也不认 ASCII 以外的字母。
+  3. 一段是 `*`，或逗号分隔的若干项，项不能为空；日与星期的整段还可以是 `?`，等于 `*`（`?` 不能写在别的段上，也不能写在列表里或带步长）。普通的项：`a`（一个值）、`a-b`（范围，a 不大于 b，不回绕：`FRI-MON`、`NOV-FEB` 不合法）、`*/n`（整段每 n）、`a/n`（从 a 取到这一段的最大值每 n）、`a-b/n`。步长 n 是 1 到 2147483647 的整数：取起点、起点 + n、起点 + 2n……直到超过终点，n 比跨度大时只有起点。
+  4. 星期：7 与 0 都是周日。范围与步长在 0–7 里数，数完把 7 归到 0：`1/2` 是 1、3、5、7，即周一、周三、周五与周日；`5-7` 是周五到周日。
+  5. 年：7 段写法的第 7 段。写 `*` 也只是 1970 到 2099，2099 年之后没有下一次；5 段与 6 段写法不限年份。
+  6. 日的特殊项：`L`（当月最后一天）、`L-n`（最后一天往前 n 天，n 是 0 到 30，当月没有那一天就不运行）、`nW`（离 n 日最近的工作日，n 是 1 到 31，不跨月：n 日是周六取前一天，1 日是周六取 3 日；是周日取后一天，月末是周日取前两天；当月没有 n 日不运行）、`LW`（离最后一天最近的工作日，同样不跨月）。星期的特殊项：`wL`（当月最后一个周 w）、`w#k`（当月第 k 个周 w，k 是 1 到 5，没有第 k 个的月份不运行），w 是 0–7 的数字或名字。特殊项可以与普通项混在一个列表里，自己不带范围与步长（`1-5W`、`5L/2`、`L-3/2` 不合法）；星期上单独的 `L` 不合法。
+  7. 日与星期：整段正好是 `*` 或 `?` 才算不限定，`*/1`、`*,5` 都算限定。两段都限定时取并集，只限定一段时只看它，都不限定时每天都算。
+  8. 推算：下一次是严格晚于 `after` 的第一个匹配时刻，精确到秒。按时区推算时把 `after` 换成该时区的墙上时间、去掉秒以下，从下一秒起找墙上时间匹配的时刻；夏令时开始时被跳过的墙上时间不运行，结束时重复的墙上时间只运行第一次出现的那次。
+  9. 搜索上限：下一次的墙上时间与 `after` 的墙上时间（去掉秒以下）相差不超过 1830 天（5 × 366 天），超过即没有下一次（2026-11-24 修订，ADR-0286；以前只写「搜索上限 5 年」，.NET 只在按年、月、日跳之前核对上限，跳到的那一天越过上限也照样返回，实际多收最多一个月）。
 - 日历 `IJobCalendar.IsExcluded(at)`：`services.AddJobCalendar(name, calendar)` 按名登记；内置 `HolidayCalendar`（日期集合）、`WeeklyCalendar`（星期集合）、`DailyCalendar`（每日时段）、`CronCalendar`（匹配 cron 的时刻）、`CompositeCalendar`（任一排除即排除）。推算下一次运行时跳过被排除的时刻（`Every` 的下一次也顺延到首个未排除时刻）。未登记的日历名 → `SCHEDULING_VALIDATION_001`。
 - misfire：触发器的到期时刻落后当前时刻超过 `MisfireThreshold`（默认 60 秒；进程停机、暂停期间、节点失联都会造成）时按 `MisfirePolicy`：`RunOnce`（默认，立即运行一次，再从现在推算下一次）、`Skip`（不补，从现在推算下一次）、`RunAll`（按原计划逐次补齐，每个轮询周期补一次直至追平）。
 - 重试（ADR-0060）：`JobRetryPolicy`：`MaxRetries`（1–100，失败后最多再运行几次）、`Delay`（第一次重试前的等待，大于零）、`Backoff`（`Fixed` 每次都等 `Delay`；`Exponential` 第 n 次重试等 `Delay × 2^(n-1)`）、`MaxDelay`（指数退避的上限，空为不设）；等待时间与上限都在 30 天以内，指数退避算出的等待超过 30 天按 30 天。
@@ -105,11 +114,11 @@ Provider 必须继承 `JobSchedulerConformance`（触发与状态、间隔与 cr
 | 文件 | 内容 |
 | --- | --- |
 | `job-names.json` | 作业名、触发器名与领导选举资源名的文法，含 128 个字符的上限两侧 |
-| `cron-expressions.json` | cron 表达式与从起点依次推算的触发时刻：各种写法、时区、夏令时的跳过与重复、搜索上限之内没有匹配的；必须拒绝的表达式 |
+| `cron-expressions.json` | cron 表达式与从起点依次推算的触发时刻：各种写法（含名字的大小写、分隔符、单个值带步长、步长与年份的上限两侧、`L-n`）、时区、夏令时的跳过与重复、搜索上限的两侧；必须拒绝的表达式 |
 | `retry-delays.json` | 重试前的等待（固定间隔、指数退避、上限与 30 天）与重试策略的取值范围 |
 | `event-topics.json` | 调度发布的 9 个事件主题与信封的 `source` |
 
-向量不收的：cron 里月名与星期名的小写、段之间的制表符与多个空格、单个值带步长（`10/15`）、年份段的取值范围、`L-n` 里 n 的上限（正文没有写；.NET 分别是不区分大小写、照收、从该值取到段的最大值、1970–2099、30）；计划的文本形式（`every 00:10:00 x5` 等，正文只给了例子，没有给出间隔与时刻的写法）；misfire、抢占名额、运行数据的逐层覆盖与日历（要有存储与时钟，由 `JobSchedulerConformance` 等核对）。
+cron 的细则已经写明并收进向量（2026-11-24，ADR-0286；ADR-0277 补向量时这些正文没有写，没有收）。向量不收的：计划的文本形式（`every 00:10:00 x5` 等，正文只给了例子，没有给出间隔与时刻的写法）；misfire、抢占名额、运行数据的逐层覆盖与日历（要有存储与时钟，由 `JobSchedulerConformance` 等核对）。
 
 ## 错误码
 

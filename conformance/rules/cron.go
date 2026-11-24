@@ -1,18 +1,21 @@
 package rules
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// cron 年份段的取值范围与搜索上限（RFC-0013「作业与触发器」：搜索上限 5 年）。
+// cron 年份段的取值范围、步长的上限与搜索上限（RFC-0013「作业与触发器」的 cron）。
 const (
 	// cronMinYear 是年份段能写的最小年份。
 	cronMinYear = 1970
 	// cronMaxYear 是年份段能写的最大年份。
 	cronMaxYear = 2099
-	// cronSearchLimit 是推算下一次触发时向后搜索的上限。
+	// cronMaxStep 是步长的上限。
+	cronMaxStep = math.MaxInt32
+	// cronSearchLimit 是推算下一次触发时向后搜索的上限：下一次的墙上时间与起点（去掉秒以下）相差不超过 1830 天。
 	cronSearchLimit = 5 * 366 * 24 * time.Hour
 )
 
@@ -69,7 +72,7 @@ func IsCronExpression(expression string) bool {
 	return ok
 }
 
-// ParseCron 解析 cron 表达式；不合文法返回假。
+// ParseCron 解析 cron 表达式；不合文法返回假。各段以空格与制表符分隔，别的空白不是分隔符。
 func ParseCron(expression string) (*CronExpression, bool) {
 	fields := strings.FieldsFunc(expression, func(char rune) bool { return char == ' ' || char == '\t' })
 	if len(fields) < 5 || len(fields) > 7 {
@@ -121,7 +124,7 @@ func parseCronItem(item string, field cronField, set []bool) bool {
 	body, stepText, hasStep := strings.Cut(item, "/")
 	if hasStep {
 		value, ok := parseCronNumber(stepText)
-		if !ok || value < 1 {
+		if !ok || value < 1 || value > cronMaxStep {
 			return false
 		}
 		step = value
@@ -161,20 +164,31 @@ func parseCronRange(text string, field cronField, hasStep bool) (start, end int,
 	return start, end, true
 }
 
-// parseCronValue 解析一个值：范围内的数字，或这个段的名字（不区分大小写）。
+// parseCronValue 解析一个值：范围内的数字，或这个段的名字（不区分 ASCII 字母的大小写）。
 func parseCronValue(text string, field cronField) (int, bool) {
 	if value, ok := parseCronNumber(text); ok {
 		return value, value >= field.min && value <= field.max
 	}
 	for index, name := range field.names {
-		if strings.EqualFold(text, name) {
+		if cronUpper(text) == name {
 			return field.min + index, true
 		}
 	}
 	return 0, false
 }
 
-// parseCronNumber 解析只由 ASCII 数字组成的非负整数；符号、小数点与空白都不认。
+// cronUpper 把 ASCII 小写字母换成大写，别的字符不动：名字与 L、W 只认 ASCII 字母，
+// 不随 Unicode 的大小写折叠把长 s（U+017F）之类的字符认成 S。
+func cronUpper(text string) string {
+	return strings.Map(func(char rune) rune {
+		if char >= 'a' && char <= 'z' {
+			return char - 'a' + 'A'
+		}
+		return char
+	}, text)
+}
+
+// parseCronNumber 解析只由 ASCII 数字组成的非负整数（可以有前导 0）；符号、小数点与空白都不认。
 func parseCronNumber(text string) (int, bool) {
 	if text == "" {
 		return 0, false
@@ -195,7 +209,7 @@ func (c *CronExpression) parseMonthDays(text string) bool {
 	}
 	c.monthDaysRestricted = true
 	for item := range strings.SplitSeq(text, ",") {
-		upper := strings.ToUpper(item)
+		upper := cronUpper(item)
 		switch {
 		case upper == "L":
 			c.lastDayOffsets[0] = true
@@ -239,7 +253,7 @@ func (c *CronExpression) parseWeekdays(text string) bool {
 			c.nthWeekdays[(ordinal-1)*7+weekday%7] = true
 			continue
 		}
-		if len(item) > 1 && strings.HasSuffix(strings.ToUpper(item), "L") {
+		if len(item) > 1 && strings.HasSuffix(cronUpper(item), "L") {
 			weekday, ok := parseCronValue(item[:len(item)-1], cronDayOfWeekField)
 			if !ok {
 				return false
@@ -257,7 +271,7 @@ func (c *CronExpression) parseWeekdays(text string) bool {
 }
 
 // Next 给出严格晚于 after 的下一次触发时刻（UTC）：按 location 的墙上时间匹配；夏令时开始时被跳过的墙上时间不运行，
-// 结束时重复的墙上时间只运行第一次；搜索上限之内没有匹配的时刻返回假。
+// 结束时重复的墙上时间只运行第一次；下一次的墙上时间与起点（去掉秒以下）相差超过搜索上限（1830 天）返回假。
 func (c *CronExpression) Next(after time.Time, location *time.Location) (time.Time, bool) {
 	// 游标是墙上时间，借 UTC 的 time.Time 做不带时区的日历运算；从 after 的下一个整秒开始
 	local := after.In(location)
@@ -315,6 +329,10 @@ func (c *CronExpression) Next(after time.Time, location *time.Location) (time.Ti
 			continue
 		}
 		cursor = time.Date(year, time.Month(month), day, hour, minute, second, 0, time.UTC)
+		// 上限按候选的墙上时间判定：游标按年、月、日跳着走，跳到的那一天可能已经越过上限
+		if !cursor.Before(limit) {
+			return time.Time{}, false
+		}
 
 		// 被跳过的墙上时间不存在；after 落在重复时刻的第二次出现时，第一次出现并不晚于 after
 		instant, exists := resolveWallTime(cursor, location)
