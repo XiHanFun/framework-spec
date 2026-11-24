@@ -1,0 +1,164 @@
+{
+  "$comment": "远程配置文档的展平与版本（RFC-0014「远程配置」与「Nacos Provider」，ADR-0277）：Provider 把自己的格式展平成 IConfiguration 的键形式（A:B:C），键不区分大小写。cases 的每项：format 是文档格式，content 是远端的文档原文，values 是展平后的键到值（null 是保留下来的空值），version 是这份文档的版本——Nacos Provider 的版本是内容按 UTF-8 编码的 MD5（小写十六进制），与 Nacos 监听接口的约定一致，换成别的摘要监听永远报告变化。Json：对象按 : 展平，数组按下标，null 保留为空值，字符串原样，整数取原文。Properties：每行 键=值，键里的 . 换成 :，# 与 ! 起头的行是注释，空行跳过。invalid 是不合声明格式的文档，取文档以 code 失败。布尔与小数的文本形式、JSON 里的注释与尾逗号、顶层不是对象的 JSON、只差大小写的重复键、Properties 里用 : 作分隔符、键值两侧的空白与续行正文没有写，不在这张表里。期望值由 .NET 参考实现（Configuration.Nacos 的 NacosDocumentParser 与版本的算法）算出；提供 Nacos 远程配置客户端的实现回放它。",
+  "code": "CONFIGURATION_VALIDATION_001",
+  "cases": [
+    {
+      "name": "JSON：对象按冒号展平",
+      "format": "Json",
+      "content": "{\"Logging\":{\"Level\":\"Information\"},\"Name\":\"orders\"}",
+      "version": "4b6e87c4f857c0d26e578172c08bc462",
+      "values": {
+        "Logging:Level": "Information",
+        "Name": "orders"
+      }
+    },
+    {
+      "name": "JSON：多层嵌套",
+      "format": "Json",
+      "content": "{\"A\":{\"B\":{\"C\":\"deep\"}}}",
+      "version": "6d257a6260267f157ac0680eb341857e",
+      "values": {
+        "A:B:C": "deep"
+      }
+    },
+    {
+      "name": "JSON：数组按下标",
+      "format": "Json",
+      "content": "{\"Hosts\":[\"a.example.com\",\"b.example.com\"]}",
+      "version": "9585f099437fe47dba9b729a75d8f9cd",
+      "values": {
+        "Hosts:0": "a.example.com",
+        "Hosts:1": "b.example.com"
+      }
+    },
+    {
+      "name": "JSON：对象的数组",
+      "format": "Json",
+      "content": "{\"Endpoints\":[{\"Name\":\"a\",\"Port\":\"80\"},{\"Name\":\"b\",\"Port\":\"443\"}]}",
+      "version": "88c571c270eef585a4cc903059fa9b1b",
+      "values": {
+        "Endpoints:0:Name": "a",
+        "Endpoints:0:Port": "80",
+        "Endpoints:1:Name": "b",
+        "Endpoints:1:Port": "443"
+      }
+    },
+    {
+      "name": "JSON：null 保留为空值",
+      "format": "Json",
+      "content": "{\"Optional\":null,\"Name\":\"orders\"}",
+      "version": "864bbfe1060f7658f6e4952b716a3664",
+      "values": {
+        "Name": "orders",
+        "Optional": null
+      }
+    },
+    {
+      "name": "JSON：整数按原文",
+      "format": "Json",
+      "content": "{\"Port\":8080,\"Retries\":0}",
+      "version": "3f8a4a42673f3ea0a65485465c28a0b9",
+      "values": {
+        "Port": "8080",
+        "Retries": "0"
+      }
+    },
+    {
+      "name": "JSON：空字符串",
+      "format": "Json",
+      "content": "{\"Suffix\":\"\"}",
+      "version": "c72dfca59fa2b1fe9852c4c2e1ef10fd",
+      "values": {
+        "Suffix": ""
+      }
+    },
+    {
+      "name": "JSON：带空白与换行",
+      "format": "Json",
+      "content": "{\n  \"Feature\": {\n    \"Enabled\": \"true\"\n  }\n}\n",
+      "version": "0dbc82c559e6d603252fe44edd53bfdb",
+      "values": {
+        "Feature:Enabled": "true"
+      }
+    },
+    {
+      "name": "JSON：非 ASCII 的值，版本按 UTF-8 字节算",
+      "format": "Json",
+      "content": "{\"Title\":\"订单服务\"}",
+      "version": "29f0ad805a5c2229d27741fabd442b79",
+      "values": {
+        "Title": "订单服务"
+      }
+    },
+    {
+      "name": "JSON：空对象没有键",
+      "format": "Json",
+      "content": "{}",
+      "version": "99914b932bd37a50b983c5e7c90ae93b",
+      "values": {}
+    },
+    {
+      "name": "Properties：点换成冒号",
+      "format": "Properties",
+      "content": "logging.level=Information\nname=orders\n",
+      "version": "79acaf7327feea8174cd240dacfb3c2e",
+      "values": {
+        "logging:level": "Information",
+        "name": "orders"
+      }
+    },
+    {
+      "name": "Properties：# 与 ! 起头的行是注释",
+      "format": "Properties",
+      "content": "# database\n! legacy\ndb.host=localhost\ndb.port=5432\n",
+      "version": "8f9f7dfbaba73bda1cc3d601c9a70e2d",
+      "values": {
+        "db:host": "localhost",
+        "db:port": "5432"
+      }
+    },
+    {
+      "name": "Properties：空行跳过",
+      "format": "Properties",
+      "content": "a.b=1\n\n\nc=2\n",
+      "version": "402c99c22bab8037de07fa079149a508",
+      "values": {
+        "a:b": "1",
+        "c": "2"
+      }
+    },
+    {
+      "name": "Properties：值里的等号留在值里",
+      "format": "Properties",
+      "content": "query=a=1&b=2\n",
+      "version": "d9729e121779428c4e974fe6583e69e7",
+      "values": {
+        "query": "a=1&b=2"
+      }
+    },
+    {
+      "name": "Properties：没有键值",
+      "format": "Properties",
+      "content": "# only a comment\n",
+      "version": "1b73b4ec12155c28402a77ecaf25465c",
+      "values": {}
+    }
+  ],
+  "invalid": [
+    {
+      "name": "JSON：语法不合法",
+      "format": "Json",
+      "content": "{\"Name\":"
+    },
+    {
+      "name": "JSON：不是 JSON",
+      "format": "Json",
+      "content": "name=orders"
+    },
+    {
+      "name": "JSON：空文本",
+      "format": "Json",
+      "content": ""
+    }
+  ]
+}

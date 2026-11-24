@@ -200,7 +200,10 @@
       "title": "子系统：远程配置与密钥",
       "stability": "stable",
       "documents": ["rfcs/0014-configuration.md"],
-      "vectors": [],
+      "vectors": [
+        "configuration/remote-documents.json",
+        "configuration/secret-names.json"
+      ],
       "runner": []
     },
     {

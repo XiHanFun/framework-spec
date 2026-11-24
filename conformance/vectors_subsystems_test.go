@@ -328,4 +328,34 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 		uniqueNames(t, "catalog resolution", names)
 		return resolution
 	},
+	"configuration/secret-names.json": func(t *testing.T) any {
+		names, err := conformance.SecretNames()
+		if err != nil || names.MaxLength != 256 || len(names.Valid) == 0 || len(names.Invalid) == 0 {
+			t.Errorf("secret names: %v", err)
+		}
+		return names
+	},
+	"configuration/remote-documents.json": func(t *testing.T) any {
+		documents, err := conformance.RemoteConfigurationDocuments()
+		if err != nil || documents.Code == "" || len(documents.Cases) == 0 || len(documents.Invalid) == 0 {
+			t.Errorf("remote documents: %v", err)
+		}
+		var names []string
+		formats := map[string]bool{}
+		for _, c := range documents.Cases {
+			names = append(names, c.Name)
+			formats[c.Format] = true
+			if c.Version == "" || c.Values == nil {
+				t.Errorf("remote document case %q must carry its version and values (an empty object for none)", c.Name)
+			}
+		}
+		for _, c := range documents.Invalid {
+			names = append(names, c.Name)
+		}
+		if !formats["Json"] || !formats["Properties"] {
+			t.Error("remote documents must keep cases in both formats")
+		}
+		uniqueNames(t, "remote documents", names)
+		return documents
+	},
 }

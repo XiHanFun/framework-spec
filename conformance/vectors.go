@@ -572,6 +572,8 @@ func vectorFile[T any](name string) TypedVector {
 // （vectors 子命令与测试用它）都从这张表取；新增向量文件在这里加一行，再加一个类型化入口。
 var typedVectors = []TypedVector{
 	vectorFile[CacheKeyVectors]("caching/cache-keys.json"),
+	vectorFile[RemoteDocumentVectors]("configuration/remote-documents.json"),
+	vectorFile[SecretNameVectors]("configuration/secret-names.json"),
 	vectorFile[HTTPDeadlineVectors]("context/http-deadline.json"),
 	vectorFile[CatalogResolutionVectors]("localization/catalog-resolution.json"),
 	vectorFile[LocaleNameVectors]("localization/locale-names.json"),

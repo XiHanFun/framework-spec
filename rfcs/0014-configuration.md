@@ -1,6 +1,6 @@
 # RFC-0014 远程配置与密钥
 
-> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义；2026-11-01 修订：宿主的配置源顺序；2026-11-01 修订：Nacos 凭据随绑定属性覆盖；2026-11-01 修订：选项打印遮蔽凭据；2026-11-01 修订：访问密钥 ID 也遮蔽；2026-11-01 修订：登录用户名也遮蔽；2026-11-02 修订：用户名的遮蔽范围定为不扩到系统账户与驱动消息；2026-11-24 修订：密钥库批量读取返回同序的结果列表） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义）、ADR-0075（配置源顺序）、ADR-0082（凭据属性）、ADR-0086（选项打印遮蔽凭据）、ADR-0089（访问密钥 ID 也遮蔽）、ADR-0090（登录用户名也遮蔽）、ADR-0093（用户名遮蔽范围已定）、ADR-0257（密钥库批量读取的返回形态） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance` | 一致性档：`configuration`
+> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义；2026-11-01 修订：宿主的配置源顺序；2026-11-01 修订：Nacos 凭据随绑定属性覆盖；2026-11-01 修订：选项打印遮蔽凭据；2026-11-01 修订：访问密钥 ID 也遮蔽；2026-11-01 修订：登录用户名也遮蔽；2026-11-02 修订：用户名的遮蔽范围定为不扩到系统账户与驱动消息；2026-11-24 修订：密钥库批量读取返回同序的结果列表；同日再修订：一致性向量） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义）、ADR-0075（配置源顺序）、ADR-0082（凭据属性）、ADR-0086（选项打印遮蔽凭据）、ADR-0089（访问密钥 ID 也遮蔽）、ADR-0090（登录用户名也遮蔽）、ADR-0093（用户名遮蔽范围已定）、ADR-0257（密钥库批量读取的返回形态）、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance`，向量 `conformance/vectors/configuration/` | 一致性档：`configuration`
 
 ## 摘要
 
@@ -65,6 +65,15 @@
 ## 一致性
 
 Provider 继承 `RemoteConfigurationClientConformance` 或 `SecretStoreConformance`，实现夹具（客户端或密钥库加写入钩子）并通过全部用例。
+
+向量（档 `configuration`，`conformance/vectors/configuration/`；2026-11-24，ADR-0277，以前这个档没有向量）：
+
+| 文件 | 内容 |
+| --- | --- |
+| `secret-names.json` | 密钥名文法的合法与不合法样例，含 256 个字符的上限两侧 |
+| `remote-documents.json` | 远程配置文档展平成配置键值（「Nacos Provider」的两种格式）与 Nacos 的内容版本；不合声明格式的文档 |
+
+向量不收的：JSON 里布尔与小数的文本形式、注释与尾逗号、顶层不是对象的文档、只差大小写的重复键；properties 里用 `:` 作分隔符、键值两侧的空白与续行（正文没有写；.NET 把布尔写成 `True` / `False`，照收注释与尾逗号，认 `:` 作分隔符并裁掉两侧的空白）；「选项里的凭据」是 .NET 记录的打印约定，由参考实现的架构测试核对；配置源的顺序、适配器的加载、轮询与失败处理（有状态，由 `RemoteConfigurationClientConformance` 与 `SecretStoreConformance` 核对）。
 
 ## 错误码
 

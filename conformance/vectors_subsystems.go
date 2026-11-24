@@ -569,3 +569,44 @@ func LocaleNegotiation() (LocaleNegotiationVectors, error) {
 func CatalogResolution() (CatalogResolutionVectors, error) {
 	return typed[CatalogResolutionVectors]()
 }
+
+// SecretNameVectors 对应 configuration/secret-names.json（RFC-0014「密钥」，ADR-0277）。
+type SecretNameVectors struct {
+	MaxLength int      `json:"maxLength"`
+	Valid     []string `json:"valid"`
+	Invalid   []string `json:"invalid"`
+}
+
+// RemoteDocumentCase 是一份远程配置文档：Format 是 Json 或 Properties，Content 是原文，
+// Version 是它的版本，Values 是展平后的键到值（nil 是保留下来的空值）。
+type RemoteDocumentCase struct {
+	Name    string             `json:"name"`
+	Format  string             `json:"format"`
+	Content string             `json:"content"`
+	Version string             `json:"version"`
+	Values  map[string]*string `json:"values"`
+}
+
+// RemoteDocumentRejection 是一份不合声明格式的文档。
+type RemoteDocumentRejection struct {
+	Name    string `json:"name"`
+	Format  string `json:"format"`
+	Content string `json:"content"`
+}
+
+// RemoteDocumentVectors 对应 configuration/remote-documents.json（RFC-0014「远程配置」「Nacos Provider」，ADR-0277）：Code 是文档不合格式时的错误码。
+type RemoteDocumentVectors struct {
+	Code    string                    `json:"code"`
+	Cases   []RemoteDocumentCase      `json:"cases"`
+	Invalid []RemoteDocumentRejection `json:"invalid"`
+}
+
+// SecretNames 读取密钥名文法的向量。
+func SecretNames() (SecretNameVectors, error) {
+	return typed[SecretNameVectors]()
+}
+
+// RemoteConfigurationDocuments 读取远程配置文档的展平与版本的向量。
+func RemoteConfigurationDocuments() (RemoteDocumentVectors, error) {
+	return typed[RemoteDocumentVectors]()
+}
