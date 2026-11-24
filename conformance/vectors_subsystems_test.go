@@ -507,4 +507,75 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 		uniqueNames(t, "host usage", names)
 		return usage
 	},
+	"ai/ai-names.json": func(t *testing.T) any {
+		names, err := conformance.AINames()
+		if err != nil || names.MaxLength != 64 || len(names.Valid) == 0 || len(names.Invalid) == 0 {
+			t.Errorf("ai names: %v", err)
+		}
+		return names
+	},
+	"ai/tool-names.json": func(t *testing.T) any {
+		tools, err := conformance.AIToolNames()
+		if err != nil || tools.MaxLength != 64 || len(tools.Cases) == 0 {
+			t.Errorf("ai tool names: %v", err)
+		}
+		var names []string
+		for _, c := range tools.Cases {
+			names = append(names, c.Name)
+			if c.Operation == "" || c.Tool == "" || c.DescriptionKey == "" {
+				t.Errorf("ai tool name case %q is incomplete", c.Name)
+			}
+		}
+		uniqueNames(t, "ai tool names", names)
+		return tools
+	},
+	"ai/knowledge-chunks.json": func(t *testing.T) any {
+		knowledge, err := conformance.KnowledgeChunks()
+		if err != nil || knowledge.Defaults.Collection == "" || knowledge.Defaults.ChunkSize < 1 || knowledge.MaxTop != 1000 || knowledge.MaxDocumentIDs != 1000 || knowledge.Code == "" ||
+			len(knowledge.Chunks) == 0 || len(knowledge.RecordIDs) == 0 || len(knowledge.DefaultCollections) == 0 {
+			t.Errorf("knowledge chunks: %v", err)
+		}
+		var names []string
+		for _, c := range knowledge.Chunks {
+			names = append(names, "chunks "+c.Name)
+			if c.MaxChunkSize < 1 || c.Overlap < 0 || c.Chunks == nil {
+				t.Errorf("knowledge chunk case %q must have a window, an overlap and its chunks (an empty array for none)", c.Name)
+			}
+		}
+		for _, c := range knowledge.DefaultCollections {
+			names = append(names, "collections "+c.Name)
+		}
+		uniqueNames(t, "knowledge chunks", names)
+		return knowledge
+	},
+	"ai/provider-defaults.json": func(t *testing.T) any {
+		defaults, err := conformance.AIProviderDefaults()
+		if err != nil || defaults.Code == "" || defaults.ChatMessageKey == "" || defaults.EmbeddingMessageKey == "" || len(defaults.Cases) == 0 {
+			t.Errorf("ai provider defaults: %v", err)
+		}
+		var names []string
+		for _, c := range defaults.Cases {
+			names = append(names, c.Name)
+			if c.Providers == nil {
+				t.Errorf("ai provider default case %q must list its providers (an empty array for none)", c.Name)
+			}
+		}
+		uniqueNames(t, "ai provider defaults", names)
+		return defaults
+	},
+	"ai/prompt-templates.json": func(t *testing.T) any {
+		prompts, err := conformance.AIPromptTemplates()
+		if err != nil || len(prompts.Cases) == 0 {
+			t.Errorf("ai prompt templates: %v", err)
+		}
+		var names []string
+		for _, c := range prompts.Cases {
+			names = append(names, c.Name)
+			if c.Template == "" || c.Arguments == nil {
+				t.Errorf("ai prompt case %q must have a template and its arguments (an empty object for none)", c.Name)
+			}
+		}
+		uniqueNames(t, "ai prompt templates", names)
+		return prompts
+	},
 }

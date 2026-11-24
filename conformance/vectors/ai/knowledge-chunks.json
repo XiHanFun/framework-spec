@@ -1,0 +1,225 @@
+{
+  "$comment": "知识库的分块、记录 ID 与默认集合（RFC-0022「知识库」，ADR-0210、ADR-0277）。defaults 是知识库选项的缺省值；maxTop 是检索条数的上限，maxDocumentIds 是文档过滤里文档 ID 的个数上限。chunks：内置的固定窗口分块——text 是文本，maxChunkSize 是窗口的字符数（不小于 1），overlap 是相邻两块重叠的字符数（不小于 0，裁到 0 到 maxChunkSize − 1 之间）；先把换行统一成 LF（CRLF 与单独的 CR 都换成 LF），再按窗口滑动，全是空白的块丢弃；chunks 是切出的块。用例的块首尾都不是空白，字符都在基本多文种平面之内：块首尾的空白要不要去掉、平面以外的字符怎么计正文没有写（见 RFC-0022「一致性」）。recordIds：记录 ID 是文档 ID 加 # 加块序号（十进制，从 0 起）。defaultCollections：请求没有指明集合时用的集合——不带租户的调用（tenant 为 null）用配置的 collection，带租户的调用用 collection 加 . 加租户 ID；拼出的名字不合 AI 名字的文法（ai/ai-names.json，超过 64 个字符）时 defaultCollection 为 null，调用以 code 失败、要显式指明集合。期望值由 .NET 参考实现（FixedWindowChunkingStrategy、KnowledgeRecord.IdOf、KnowledgeOptions.DefaultCollectionFor）算出。",
+  "defaults": {
+    "collection": "knowledge",
+    "dimensions": 1536,
+    "chunkSize": 1000,
+    "chunkOverlap": 100,
+    "top": 5
+  },
+  "maxTop": 1000,
+  "maxDocumentIds": 1000,
+  "code": "AI_VALIDATION_001",
+  "chunks": [
+    {
+      "name": "比窗口短：一块",
+      "text": "hello",
+      "maxChunkSize": 10,
+      "overlap": 0,
+      "chunks": [
+        "hello"
+      ]
+    },
+    {
+      "name": "正好一个窗口",
+      "text": "abcdefgh",
+      "maxChunkSize": 8,
+      "overlap": 0,
+      "chunks": [
+        "abcdefgh"
+      ]
+    },
+    {
+      "name": "没有重叠",
+      "text": "abcdefghij",
+      "maxChunkSize": 4,
+      "overlap": 0,
+      "chunks": [
+        "abcd",
+        "efgh",
+        "ij"
+      ]
+    },
+    {
+      "name": "重叠 1 个字符",
+      "text": "abcdefghij",
+      "maxChunkSize": 4,
+      "overlap": 1,
+      "chunks": [
+        "abcd",
+        "defg",
+        "ghij"
+      ]
+    },
+    {
+      "name": "重叠 2 个字符",
+      "text": "abcdefghij",
+      "maxChunkSize": 4,
+      "overlap": 2,
+      "chunks": [
+        "abcd",
+        "cdef",
+        "efgh",
+        "ghij"
+      ]
+    },
+    {
+      "name": "重叠等于窗口：裁到窗口减一",
+      "text": "abcdef",
+      "maxChunkSize": 3,
+      "overlap": 3,
+      "chunks": [
+        "abc",
+        "bcd",
+        "cde",
+        "def"
+      ]
+    },
+    {
+      "name": "重叠比窗口大：裁到窗口减一",
+      "text": "abcdef",
+      "maxChunkSize": 3,
+      "overlap": 100,
+      "chunks": [
+        "abc",
+        "bcd",
+        "cde",
+        "def"
+      ]
+    },
+    {
+      "name": "窗口为 1",
+      "text": "abc",
+      "maxChunkSize": 1,
+      "overlap": 0,
+      "chunks": [
+        "a",
+        "b",
+        "c"
+      ]
+    },
+    {
+      "name": "CRLF 统一成 LF",
+      "text": "ab\r\ncd",
+      "maxChunkSize": 100,
+      "overlap": 0,
+      "chunks": [
+        "ab\ncd"
+      ]
+    },
+    {
+      "name": "单独的 CR 统一成 LF",
+      "text": "ab\rcd",
+      "maxChunkSize": 100,
+      "overlap": 0,
+      "chunks": [
+        "ab\ncd"
+      ]
+    },
+    {
+      "name": "窗口按统一换行之后的字符计",
+      "text": "ab\r\ncd",
+      "maxChunkSize": 3,
+      "overlap": 0,
+      "chunks": [
+        "ab",
+        "cd"
+      ]
+    },
+    {
+      "name": "空白块丢弃",
+      "text": "abcd    efgh",
+      "maxChunkSize": 4,
+      "overlap": 0,
+      "chunks": [
+        "abcd",
+        "efgh"
+      ]
+    },
+    {
+      "name": "全是空白：没有块",
+      "text": "  \n\t ",
+      "maxChunkSize": 4,
+      "overlap": 0,
+      "chunks": []
+    },
+    {
+      "name": "空文本：没有块",
+      "text": "",
+      "maxChunkSize": 4,
+      "overlap": 0,
+      "chunks": []
+    },
+    {
+      "name": "汉字按字符计",
+      "text": "知识库检索增强",
+      "maxChunkSize": 3,
+      "overlap": 0,
+      "chunks": [
+        "知识库",
+        "检索增",
+        "强"
+      ]
+    }
+  ],
+  "recordIds": [
+    {
+      "documentId": "doc-1",
+      "chunkIndex": 0,
+      "id": "doc-1#0"
+    },
+    {
+      "documentId": "doc-1",
+      "chunkIndex": 12,
+      "id": "doc-1#12"
+    },
+    {
+      "documentId": "handbook/2026",
+      "chunkIndex": 3,
+      "id": "handbook/2026#3"
+    },
+    {
+      "documentId": "手册",
+      "chunkIndex": 1,
+      "id": "手册#1"
+    }
+  ],
+  "defaultCollections": [
+    {
+      "name": "不带租户的调用用配置的集合",
+      "collection": "knowledge",
+      "tenant": null,
+      "defaultCollection": "knowledge"
+    },
+    {
+      "name": "带租户的调用：集合加点加租户 ID",
+      "collection": "knowledge",
+      "tenant": "acme",
+      "defaultCollection": "knowledge.acme"
+    },
+    {
+      "name": "租户 ID 里的字符原样保留",
+      "collection": "kb",
+      "tenant": "acme-corp_1.cn",
+      "defaultCollection": "kb.acme-corp_1.cn"
+    },
+    {
+      "name": "拼出来正好 64 个字符",
+      "collection": "knowledge",
+      "tenant": "tttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+      "defaultCollection": "knowledge.tttttttttttttttttttttttttttttttttttttttttttttttttttttt"
+    },
+    {
+      "name": "拼出来 65 个字符：不合名字的文法，要显式指明集合",
+      "collection": "knowledge",
+      "tenant": "ttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+      "defaultCollection": null
+    },
+    {
+      "name": "64 个字符的租户 ID 总是超长",
+      "collection": "knowledge",
+      "tenant": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+      "defaultCollection": null
+    }
+  ]
+}

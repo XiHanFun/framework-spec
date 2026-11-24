@@ -1,0 +1,90 @@
+{
+  "$comment": "框架自带的 Provider 目录给出的默认名（RFC-0022「Provider 目录」的「默认名」，ADR-0110、ADR-0277）。cases 的每项：providers 是配置里 XiHan:AI:Providers 下的名字，defaultProvider 与 defaultEmbeddingProvider 是配置的两个默认（null 表示没写）；chat 是目录的默认聊天 Provider 名，embedding 是默认嵌入 Provider 名，null 表示没有默认（这时不给名字的解析是 code，消息键聊天 chatMessageKey、嵌入 embeddingMessageKey）。默认聊天 Provider 是配置的 DefaultProvider，没写且只配了一个 Provider 时是它，否则没有；默认嵌入 Provider 是配置的 DefaultEmbeddingProvider，没写时同默认聊天 Provider。默认名不保证在已配置的 Provider 里，按它解析时与别的未配置的名字一样是 code。期望值由 .NET 参考实现（AIOptions.ResolveDefaultProvider、AIOptions.ResolveDefaultEmbeddingProvider）算出。",
+  "code": "AI_NOTFOUND_001",
+  "chatMessageKey": "ai.provider.default_missing",
+  "embeddingMessageKey": "ai.provider.embedding_default_missing",
+  "cases": [
+    {
+      "name": "写了默认聊天 Provider",
+      "providers": [
+        "openai",
+        "local"
+      ],
+      "defaultProvider": "openai",
+      "defaultEmbeddingProvider": null,
+      "chat": "openai",
+      "embedding": "openai"
+    },
+    {
+      "name": "两个默认都写了",
+      "providers": [
+        "openai",
+        "local"
+      ],
+      "defaultProvider": "openai",
+      "defaultEmbeddingProvider": "local",
+      "chat": "openai",
+      "embedding": "local"
+    },
+    {
+      "name": "没写默认、只配了一个 Provider：就是它",
+      "providers": [
+        "openai"
+      ],
+      "defaultProvider": null,
+      "defaultEmbeddingProvider": null,
+      "chat": "openai",
+      "embedding": "openai"
+    },
+    {
+      "name": "没写默认、配了两个：没有默认",
+      "providers": [
+        "openai",
+        "local"
+      ],
+      "defaultProvider": null,
+      "defaultEmbeddingProvider": null,
+      "chat": null,
+      "embedding": null
+    },
+    {
+      "name": "没写默认、一个都没配：没有默认",
+      "providers": [],
+      "defaultProvider": null,
+      "defaultEmbeddingProvider": null,
+      "chat": null,
+      "embedding": null
+    },
+    {
+      "name": "只写了嵌入的默认、配了两个：聊天没有默认",
+      "providers": [
+        "openai",
+        "local"
+      ],
+      "defaultProvider": null,
+      "defaultEmbeddingProvider": "local",
+      "chat": null,
+      "embedding": "local"
+    },
+    {
+      "name": "只写了嵌入的默认、只配了一个：聊天是那一个",
+      "providers": [
+        "openai"
+      ],
+      "defaultProvider": null,
+      "defaultEmbeddingProvider": "embedder",
+      "chat": "openai",
+      "embedding": "embedder"
+    },
+    {
+      "name": "默认名不保证在已配置的 Provider 里",
+      "providers": [
+        "openai"
+      ],
+      "defaultProvider": "missing",
+      "defaultEmbeddingProvider": null,
+      "chat": "missing",
+      "embedding": "missing"
+    }
+  ]
+}

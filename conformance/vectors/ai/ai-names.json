@@ -1,0 +1,38 @@
+{
+  "$comment": "AI 子系统里名字的文法（RFC-0022「Provider 目录」，ADR-0277）：^[a-z0-9][a-z0-9._-]{0,63}$，小写字母或数字开头，之后是小写字母、数字、.、_、-，最长 maxLength 个字符；Provider 名、提示词名与知识库的集合名都用它；按整串匹配，结尾的换行不例外。valid 必须接受，invalid 必须拒绝（写在配置里的是启动失败）；valid 的末项正好 64 个字符，invalid 的末两项是 65 与 128 个字符、别处都合文法。期望值由 .NET 参考实现（AIIdentifiers.IsValidName）算出。",
+  "maxLength": 64,
+  "valid": [
+    "openai",
+    "azure-openai",
+    "gpt-4o.mini",
+    "local_llm",
+    "a",
+    "0",
+    "1st",
+    "knowledge",
+    "knowledge.acme",
+    "summarize.v2",
+    "a..b",
+    "a-",
+    "p012345678901234567890123456789012345678901234567890123456789abc"
+  ],
+  "invalid": [
+    "",
+    "OpenAI",
+    "openAI",
+    ".openai",
+    "-openai",
+    "_openai",
+    "open ai",
+    " openai",
+    "openai ",
+    "openai\n",
+    "open/ai",
+    "open:ai",
+    "open@ai",
+    "模型",
+    "modèle",
+    "p012345678901234567890123456789012345678901234567890123456789abcd",
+    "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp"
+  ]
+}

@@ -909,3 +909,125 @@ type HostUsageVectors struct {
 func HostUsage() (HostUsageVectors, error) {
 	return typed[HostUsageVectors]()
 }
+
+// AINameVectors 对应 ai/ai-names.json（RFC-0022「Provider 目录」，ADR-0277）。
+type AINameVectors struct {
+	MaxLength int      `json:"maxLength"`
+	Valid     []string `json:"valid"`
+	Invalid   []string `json:"invalid"`
+}
+
+// AIToolNameCase 是一个操作 ID、由它推出的工具名与描述的消息键。
+type AIToolNameCase struct {
+	Name           string `json:"name"`
+	Operation      string `json:"operation"`
+	Tool           string `json:"tool"`
+	DescriptionKey string `json:"descriptionKey"`
+}
+
+// AIToolNameVectors 对应 ai/tool-names.json（RFC-0022「工具」，ADR-0277）。
+type AIToolNameVectors struct {
+	MaxLength int              `json:"maxLength"`
+	Cases     []AIToolNameCase `json:"cases"`
+}
+
+// KnowledgeDefaults 是知识库选项的缺省值。
+type KnowledgeDefaults struct {
+	Collection   string `json:"collection"`
+	Dimensions   int    `json:"dimensions"`
+	ChunkSize    int    `json:"chunkSize"`
+	ChunkOverlap int    `json:"chunkOverlap"`
+	Top          int    `json:"top"`
+}
+
+// KnowledgeChunkCase 是一段文本按固定窗口切出的块。
+type KnowledgeChunkCase struct {
+	Name         string   `json:"name"`
+	Text         string   `json:"text"`
+	MaxChunkSize int      `json:"maxChunkSize"`
+	Overlap      int      `json:"overlap"`
+	Chunks       []string `json:"chunks"`
+}
+
+// KnowledgeRecordIDCase 是文档 ID、块序号与记录 ID。
+type KnowledgeRecordIDCase struct {
+	DocumentID string `json:"documentId"`
+	ChunkIndex int    `json:"chunkIndex"`
+	ID         string `json:"id"`
+}
+
+// KnowledgeCollectionCase 是配置的集合、调用的租户（nil 表示不带租户）与默认集合：DefaultCollection 为 nil 表示拼出的名字不合文法。
+type KnowledgeCollectionCase struct {
+	Name              string  `json:"name"`
+	Collection        string  `json:"collection"`
+	Tenant            *string `json:"tenant"`
+	DefaultCollection *string `json:"defaultCollection"`
+}
+
+// KnowledgeChunkVectors 对应 ai/knowledge-chunks.json（RFC-0022「知识库」，ADR-0277）：Code 是默认集合的名字不合文法时的错误码。
+type KnowledgeChunkVectors struct {
+	Defaults           KnowledgeDefaults         `json:"defaults"`
+	MaxTop             int                       `json:"maxTop"`
+	MaxDocumentIDs     int                       `json:"maxDocumentIds"`
+	Code               string                    `json:"code"`
+	Chunks             []KnowledgeChunkCase      `json:"chunks"`
+	RecordIDs          []KnowledgeRecordIDCase   `json:"recordIds"`
+	DefaultCollections []KnowledgeCollectionCase `json:"defaultCollections"`
+}
+
+// AIProviderDefaultCase 是配置的 Provider 名与两个默认，以及目录给出的默认聊天、默认嵌入 Provider 名（nil 表示没有）。
+type AIProviderDefaultCase struct {
+	Name                     string   `json:"name"`
+	Providers                []string `json:"providers"`
+	DefaultProvider          *string  `json:"defaultProvider"`
+	DefaultEmbeddingProvider *string  `json:"defaultEmbeddingProvider"`
+	Chat                     *string  `json:"chat"`
+	Embedding                *string  `json:"embedding"`
+}
+
+// AIProviderDefaultVectors 对应 ai/provider-defaults.json（RFC-0022「Provider 目录」的「默认名」，ADR-0277）：
+// Code 与两个消息键是没有默认而又不给名字时的错误。
+type AIProviderDefaultVectors struct {
+	Code                string                  `json:"code"`
+	ChatMessageKey      string                  `json:"chatMessageKey"`
+	EmbeddingMessageKey string                  `json:"embeddingMessageKey"`
+	Cases               []AIProviderDefaultCase `json:"cases"`
+}
+
+// AIPromptCase 是一个提示词模板、参数与渲染出的文本。
+type AIPromptCase struct {
+	Name      string            `json:"name"`
+	Template  string            `json:"template"`
+	Arguments map[string]string `json:"arguments"`
+	Text      string            `json:"text"`
+}
+
+// AIPromptTemplateVectors 对应 ai/prompt-templates.json（RFC-0022「聊天」的提示词，ADR-0277）。
+type AIPromptTemplateVectors struct {
+	Cases []AIPromptCase `json:"cases"`
+}
+
+// AINames 读取 AI 子系统名字文法的向量。
+func AINames() (AINameVectors, error) {
+	return typed[AINameVectors]()
+}
+
+// AIToolNames 读取操作工具名的向量。
+func AIToolNames() (AIToolNameVectors, error) {
+	return typed[AIToolNameVectors]()
+}
+
+// KnowledgeChunks 读取知识库分块、记录 ID 与默认集合的向量。
+func KnowledgeChunks() (KnowledgeChunkVectors, error) {
+	return typed[KnowledgeChunkVectors]()
+}
+
+// AIProviderDefaults 读取默认 Provider 名的向量。
+func AIProviderDefaults() (AIProviderDefaultVectors, error) {
+	return typed[AIProviderDefaultVectors]()
+}
+
+// AIPromptTemplates 读取提示词模板渲染的向量。
+func AIPromptTemplates() (AIPromptTemplateVectors, error) {
+	return typed[AIPromptTemplateVectors]()
+}

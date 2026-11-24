@@ -1,0 +1,54 @@
+{
+  "$comment": "操作作为 AI 工具时的名字（RFC-0022「工具」，ADR-0277）：缺省的工具名由操作 ID 推出——<resource>_<verb>，- 与 . 换成 _；超过 maxLength 个字符时截成前 55 个字符加 _ 加全名（没有截之前的名字，按 UTF-8）SHA-256 的前 8 位小写十六进制，任何操作 ID 都推得出不超过 64 个字符且稳定的名字。cases 的每项：operation 是操作 ID，tool 是推出的工具名，descriptionKey 是工具描述在消息目录里的键（操作 ID 里的 - 换成 _，再加 .description）。前 55 个字符正好以 _ 结尾的操作 ID 不在这张表里：正文没有写这时要不要去掉它（见 RFC-0022「一致性」）。期望值由 .NET 参考实现（AIToolNameConvention.Derive、AIToolNameConvention.DescriptionKeyOf）算出，并与正文的规则逐条对过。",
+  "maxLength": 64,
+  "cases": [
+    {
+      "name": "资源与动词以下划线连接",
+      "operation": "orders.create",
+      "tool": "orders_create",
+      "descriptionKey": "orders.create.description"
+    },
+    {
+      "name": "连字符换成下划线",
+      "operation": "order-lines.try-add",
+      "tool": "order_lines_try_add",
+      "descriptionKey": "order_lines.try_add.description"
+    },
+    {
+      "name": "一个字母的资源与动词",
+      "operation": "a.b",
+      "tool": "a_b",
+      "descriptionKey": "a.b.description"
+    },
+    {
+      "name": "带数字",
+      "operation": "orders2.get-v3",
+      "tool": "orders2_get_v3",
+      "descriptionKey": "orders2.get_v3.description"
+    },
+    {
+      "name": "正好 64 个字符：不截",
+      "operation": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr.list",
+      "tool": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr_list",
+      "descriptionKey": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr.list.description"
+    },
+    {
+      "name": "65 个字符：截成前 55 个字符加下划线加全名 SHA-256 的前 8 位十六进制",
+      "operation": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr.list",
+      "tool": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr_dc1cf78c",
+      "descriptionKey": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr.list.description"
+    },
+    {
+      "name": "很长的操作 ID",
+      "operation": "order-fulfillment-shipping-label-reconciliation-batches.regenerate-and-notify",
+      "tool": "order_fulfillment_shipping_label_reconciliation_batches_22f358fa",
+      "descriptionKey": "order_fulfillment_shipping_label_reconciliation_batches.regenerate_and_notify.description"
+    },
+    {
+      "name": "128 个字符的操作 ID",
+      "operation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.create",
+      "tool": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_107b122f",
+      "descriptionKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.create.description"
+    }
+  ]
+}

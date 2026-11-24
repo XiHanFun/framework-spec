@@ -1,0 +1,77 @@
+{
+  "$comment": "提示词模板的渲染（RFC-0022「聊天」的提示词，ADR-0277）：占位符是 {name}，按名字取参数的值写进去；{{ 与 }} 转义成字面量的 { 与 }；参数的值原样写出，不再当模板解析；多给的参数不用。cases 的每项：template 是模板，arguments 是名字到值的参数（值都是字符串），text 是渲染出的文本。缺少参数时渲染失败，错误码与消息键、占位符名字两侧的空白、没有闭合的 {、非字符串的值怎样写成文本正文没有写，不在这张表里。期望值由 .NET 参考实现（AIPromptTemplate.Render）算出。",
+  "cases": [
+    {
+      "name": "没有占位符",
+      "template": "Summarize the text.",
+      "arguments": {},
+      "text": "Summarize the text."
+    },
+    {
+      "name": "一个占位符",
+      "template": "Hello {name}!",
+      "arguments": {
+        "name": "Ada"
+      },
+      "text": "Hello Ada!"
+    },
+    {
+      "name": "几个占位符",
+      "template": "Context:\n{context}\n\nQuestion: {question}",
+      "arguments": {
+        "context": "[1] Source: handbook\nRefunds take 5 days.",
+        "question": "How long?"
+      },
+      "text": "Context:\n[1] Source: handbook\nRefunds take 5 days.\n\nQuestion: How long?"
+    },
+    {
+      "name": "同一个占位符出现两次",
+      "template": "{a} and {a}",
+      "arguments": {
+        "a": "x"
+      },
+      "text": "x and x"
+    },
+    {
+      "name": "{{ 与 }} 转义成字面量",
+      "template": "Reply as JSON: {{\"answer\": \"{answer}\"}}",
+      "arguments": {
+        "answer": "42"
+      },
+      "text": "Reply as JSON: {\"answer\": \"42\"}"
+    },
+    {
+      "name": "参数的值里的花括号原样写出",
+      "template": "{value}",
+      "arguments": {
+        "value": "{not} a {{placeholder}}"
+      },
+      "text": "{not} a {{placeholder}}"
+    },
+    {
+      "name": "多给的参数不用",
+      "template": "Hi {name}",
+      "arguments": {
+        "name": "Ada",
+        "unused": "x"
+      },
+      "text": "Hi Ada"
+    },
+    {
+      "name": "非 ASCII",
+      "template": "你好，{name}！",
+      "arguments": {
+        "name": "小明"
+      },
+      "text": "你好，小明！"
+    },
+    {
+      "name": "值为空串",
+      "template": "[{note}]",
+      "arguments": {
+        "note": ""
+      },
+      "text": "[]"
+    }
+  ]
+}
