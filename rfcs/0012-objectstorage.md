@@ -71,7 +71,7 @@
 - 客户端的设置（2026-11-24 增补，ADR-0281；以前临时凭据、超时、重试与代理只能靠应用向容器注册自己的 `IAmazonS3`，命名实例无从设置）：配置节与命名实例的设置里都有，公开面不出现 SDK 的类型；都不写时建出的客户端与以前相同。
   - `SessionToken`：临时凭据的会话令牌。必须与 `AccessKey`、`SecretKey` 同时给出，缺任何一项是配置错误（不拿着令牌退回凭据链）；绑定属性 `sessionToken` 覆盖它。
   - `RequestTimeoutSeconds`：单次 HTTP 请求的超时，每次尝试各算各的；正数，不超过 86400（24 小时，`S3ObjectStorageOptions.MaxRequestTimeout`）。不写时不另设时限（SDK 对 S3 的缺省，约 24.8 天）。超时照上面的映射是 `OBJECTSTORAGE_UNAVAILABLE_001`。
-  - `MaxAttempts`：一次操作最多发出的请求数，含首次；1 到 10（`S3ObjectStorageOptions.MaxAttemptsLimit`），1 即不重试。不写时取 SDK 的缺省（标准重试模式，共 3 次）。
+  - `MaxAttempts`：一次操作最多发出的请求数，含首次；1 到 10（`S3ObjectStorageOptions.MaxAttemptsLimit`），1 即不重试。SDK 判定连接池里的连接已被对端关闭后重发的请求不计入（那是连接池的补救，不是对端失败后的重试）。不写时取 SDK 的缺省（标准重试模式，共 3 次）。
   - `ProxyHost`、`ProxyPort`、`ProxyUserName`、`ProxyPassword`：经 HTTP 代理访问服务。主机是主机名或 IP 字面量，不带协议、端口、路径与用户信息，带区域标识的 IPv6 地址（`fe80::1%eth0`）也不收；端口 1 到 65535；两项必须同时给出。用户名与口令可选，必须同时给出，且只能与主机、端口一起给。只给了一部分是配置错误。
   - 配置错误的处置同 `HealthBucket`：缺省实例装配失败（`ArgumentException`），命名实例 → `OBJECTSTORAGE_VALIDATION_003`。消息里只写键名与数值，不带会话令牌、代理主机、用户名与口令的值。
   - `SessionToken`、`ProxyUserName`、`ProxyPassword` 是凭据，打印选项时遮蔽（RFC-0014「选项里的凭据」）。

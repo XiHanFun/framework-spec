@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- PATCH：RFC-0012「S3 Provider」的 `MaxAttempts` 写明不计 SDK 判定连接池里的连接已被对端关闭后重发的请求（ADR-0281）；规则不变。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0021「表达式」：数字的文本只取决于数值（不带结尾的零）；`now()` 与 `date()` 的结果是与截止时间同一写法的字符串，时间文本只认文法；数组与对象的文本是成员按名字排序的紧凑 JSON；二元运算符与函数先求值全部操作数再核对；结果放不下是新消息键 `workflow.expression.number_out_of_range`；模板渲染出的文本不超过 4194304；错误里带出的文本一律最多 200 个码元；成员名一律按序数比较（ADR-0287）。
 - MINOR：RFC-0021「表达式」逐条写明词法、文法、每个运算符与内置函数的语义、数字文本与数字的范围（96 位整数、0 到 28 位小数、一半取偶）、模板的渲染、上限（长度按 UTF-16 码元计）与错误；`workflow` 档新增向量 `expression-syntax.json`、`expression-operators.json`、`expression-functions.json`、`expression-templates.json`、`expression-limits.json`，期望值由 .NET 算出；一致性模块新增对应的类型化入口与 `rules` 里的上限、名单、`WorkflowExpressionLength`、`EchoWorkflowExpression`、`IsWorkflowNumberText`、`IsWorkflowTimeText`（ADR-0287）。
 - MINOR：RFC-0023「平台读取路径」逐条写明 Linux 与 Windows 各项的取法（`/proc/stat` 的空闲含 `iowait`、总计取前八列，`/proc/meminfo` 乘以 1024、缓存是 `Buffers` + `Cached`，`/proc/uptime` 按十进制小数读，挂载表、处理器、显卡与 `pci.ids`），`host-usage.json` 新增 `linux` 一节，规则包新增 `hostlinux.go`（ADR-0286）。
