@@ -1,6 +1,6 @@
 # RFC-0010 本地化
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域、目录名冲突与区域名错误的报告方式；2026-11-14 修订：数据库翻译的跨实例重新加载；2026-11-16 修订：模板文法、可移植的格式说明符与值的文本形式；同日再修订：浮点的全部写法、说明符的大小写与精度、`Describe` 按名字排序；同日第三次修订：值模型、数组与对象的文本、可移植说明符的文法、区域的数字符号；2026-11-23 修订：按归属登记与撤回的目录；2026-11-24 修订：`localization` 档的一致性向量） | 日期：2026-10-21 | 对应 ADR：0038、0070、0233（模板与值的文本形式）、0235、0236、0252（归属目录）、0277（`localization` 档的向量） | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/primitives/message-templates.json`（档 `core`）、`conformance/vectors/localization/`（档 `localization`） | 一致性档：`core`、`localization`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域、目录名冲突与区域名错误的报告方式；2026-11-14 修订：数据库翻译的跨实例重新加载；2026-11-16 修订：模板文法、可移植的格式说明符与值的文本形式；同日再修订：浮点的全部写法、说明符的大小写与精度、`Describe` 按名字排序；同日第三次修订：值模型、数组与对象的文本、可移植说明符的文法、区域的数字符号；2026-11-23 修订：按归属登记与撤回的目录；2026-11-24 修订：`localization` 档的一致性向量；同日再修订：查找先按区域、再按目录写明） | 日期：2026-10-21 | 对应 ADR：0038、0070、0233（模板与值的文本形式）、0235、0236、0252（归属目录）、0277（`localization` 档的向量）、0286（查找先按区域、再按目录） | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/primitives/message-templates.json`（档 `core`）、`conformance/vectors/localization/`（档 `localization`） | 一致性档：`core`、`localization`
 
 ## 摘要
 
@@ -44,7 +44,7 @@ Segment    = [a-z][a-z0-9_]*
 - 归属目录（2026-11-23 修订，ADR-0252；以前目录只能在配置阶段注册，运行期加载的插件没有目录，卸载也撤不回）：本地化器从 `MessageCatalogRegistry` 读目录，它是容器里的单例，`AddMessageCatalog` 一并登记。它先放上面注册的目录，再放按归属登记的：`AddMessageCatalog(owner, catalog)` 在配置阶段登记，`Add(owner, catalogs)` 在运行期登记一组，`RemoveOwnedBy(owner)` 撤回一个归属的全部目录。插件宿主以插件的清单 ID 为归属，加载时登记、卸载时撤回（`plugin/invocation.md` §1）。
   - 按归属登记的目录不与同名目录合并成一份，但照同样的规则核对：与已有的同名目录或同一组里的同名目录在同一键同一区域的模板不同，`Add` 整组不登记，抛出携带 `LOCALIZATION_CONFLICT_001` 的 `FrameworkException`；配置阶段登记的在建立登记表时核对，同样抛出、应用启动失败。
   - 同一归属已有目录时再 `Add` 是编程错误（`InvalidOperationException`），要先撤回。空的一组什么都不登记。
-  - 查找顺序：先注册的目录，再按归属登记的、按登记顺序；同一键先找到的优先，插件的目录不覆盖宿主已有的键。撤回之后，只在这个归属的目录里有的键解析不到，退回键与参数的描述。
+  - 目录的查找顺序：先注册的目录，再按归属登记的、按登记顺序；同一键同一区域先找到的优先，插件的目录不覆盖宿主在同一区域已有的模板。宿主在某个区域没有这个键而插件有时，按那个区域取文案用的是插件的（查找先按区域、再按目录，见「解析」）。撤回之后，只在这个归属的目录里有的键解析不到，退回键与参数的描述。
 
 ## 模板
 
@@ -111,7 +111,7 @@ Segment    = [a-z][a-z0-9_]*
 - `MessageScope`（原语层）：环境作用域（解析器 + 区域），`AsyncLocal` 传播。内核在 `App.InvokeAsync` 入口把 Baggage `xihan.locale` 经解析器的 `Negotiate` 协商后安装一个作用域，调用链里 `key.L()` 与 `context.Localize`、Problem Details、gRPC 与 MCP 的失败文案用的是同一个协商后的区域：Baggage 里的区域不在启用列表时，即使有它的语言文件也不用；`Localization.InMemory` 启动时用默认区域设置进程默认。
 - `key.L()`、`key.L(("id", id))`、`key.L(count, amount)`（原语层扩展方法）：按 `MessageScope.Current` 解析，调用链里是调用方语言，其他地方是默认语言；没有作用域或找不到键时返回 `MessageTemplate.Describe(key, arguments)`，即 `kernel.feature.start_failed (id=…, reason=…)`。
 - `IMessageLocalizer`（Ring 2）：显式区域的入口，只有 `Options`、`Find(key, locale)` 与 `Resolve(key, locale, arguments)` 三个成员，`Resolve` 给出文案与实际命中的区域。按上下文区域取、翻译错误、退回描述这些形式是扩展方法（`MessageLocalizerExtensions`），由 `Resolve` 推出，各实现行为一致（2026-11-11 修订，ADR-0146）；`context.Localize(key, arguments)` 扩展方法按上下文区域解析。
-- 回退链：请求区域 → 启用列表里同语言的区域 → 默认区域 → `en-US`；同一键先注册的目录优先。
+- 回退链：请求区域 → 启用列表里同语言的区域 → 默认区域 → `en-US`。查找先按区域、再按目录（2026-11-24 写明，ADR-0286；以前只写「同一键先注册的目录优先」，读得出两种次序，.NET 一直是先按区域）：沿回退链逐个区域找，每个区域里按目录的查找顺序（「语言文件」）问每个目录，第一个有这个键的就是结果，实际命中的区域是这一级的区域。后注册的目录有请求区域的模板时，优先于先注册的目录里回退区域的模板；同一区域里才是先注册的目录优先。数据库翻译同此：每个区域里先看库里的翻译，再看目录。
 - 数据库翻译（`Localization.Database`）：查找是同步的，翻译装在进程内的有界快照里，库里的翻译优先于目录。`ICache` 里放翻译版本戳 `localization:translations:version`：`MessageTranslationStore` 写入提交后（作用域释放时）经 `MessageTranslationLoader.PublishChangeAsync` 换版本戳，并唤醒本实例立即重新加载；每个实例按 `ChangeCheckIntervalSeconds`（缺省 1，0 关闭）核对版本戳，变了就重新加载；`RefreshIntervalSeconds`（缺省 300，0 关闭）的周期刷新兜住直接改表与版本戳丢失。重新加载彼此串行。读版本戳遇到缓存后端故障时跳过这次核对；写入后换版本戳失败只记错误日志，本实例照常重新加载。清单依赖 `persistence.relational@1` 与 `caching.local@1`（2026-11-14 修订，ADR-0229；以前只按周期刷新，写入的实例自己也要显式重新加载）。
 
 ## 错误
@@ -138,9 +138,9 @@ Segment    = [a-z][a-z0-9_]*
 | --- | --- |
 | `locale-names.json` | 区域名的文法、规范形式与语言子标签，内置的 10 种区域 |
 | `locale-negotiation.json` | 区域的协商（「协商与宿主」）与取文案的回退链（「解析」） |
-| `catalog-resolution.json` | 目录的合并与冲突（「语言文件」）、按回退链的查找与实际命中的区域 |
+| `catalog-resolution.json` | 目录的合并与冲突（「语言文件」）、按回退链的查找与实际命中的区域，含区域优先于目录次序的用例 |
 
-向量不收的：文字与地区之外的子标签的规范形式；`Accept-Language` 的权重怎么解析（正文只说「按权重取候选」）；请求区域不合文法时的回退链；后注册的目录有请求区域、先注册的目录只有回退区域时谁优先（.NET 先按区域、再按目录）；按归属登记的目录与数据库翻译（有状态，由 `Localization.Conformance` 核对）。
+向量不收的：文字与地区之外的子标签的规范形式；`Accept-Language` 的权重怎么解析（正文只说「按权重取候选」）；请求区域不合文法时的回退链；按归属登记的目录与数据库翻译（有状态，由 `Localization.Conformance` 核对）。
 
 ## 错误码
 

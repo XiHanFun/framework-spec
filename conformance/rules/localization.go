@@ -125,7 +125,8 @@ func MergeMessageCatalogs(catalogs []MessageCatalog) ([]MessageCatalog, bool) {
 	return merged, true
 }
 
-// FindMessage 按回退链在目录里找一个键的模板，返回模板与实际命中的区域；哪一级都没有返回假。同一键先注册的目录优先。
+// FindMessage 按回退链在目录里找一个键的模板，返回模板与实际命中的区域；哪一级都没有返回假。先按区域、再按目录：
+// 后注册的目录有靠前的区域时，优先于先注册的目录里靠后的区域；同一区域里先注册的目录优先。
 func FindMessage(catalogs []MessageCatalog, chain []string, key string) (template, locale string, found bool) {
 	for _, candidate := range chain {
 		for _, catalog := range catalogs {

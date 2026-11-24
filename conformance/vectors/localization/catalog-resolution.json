@@ -1,5 +1,5 @@
 {
-  "$comment": "消息目录的合并与文案的查找（RFC-0010「语言文件」「解析」，ADR-0277）。每项的 catalogs 是按次序注册的目录：name 是目录名，messages 是区域到「键 → 模板」的对象；启用列表是内置的 10 种区域，default 是默认区域（不写即 en-US）。同名的目录合并成一份：内容相同什么都不变，互为补充时区域与键取并集；同一键同一区域的模板不同即冲突——conflict 为真的项注册必须以 code 失败（应用启动失败），任何一份都不会被静默丢弃。不同名的目录不合并，同一键同一区域先注册的优先。requests 是合并之后的查找：按 localization/locale-negotiation.json 的回退链依次找，expected 是文案与实际命中的区域，null 表示哪一级都没有这个键（调用方退回键与参数的描述）。模板都不带占位符，格式化见 primitives/message-templates.json。后注册的目录有请求区域、先注册的目录只有回退区域时谁优先，正文没有写，不在这张表里。期望值由 .NET 参考实现（AddMessageCatalog、InMemoryMessageLocalizer.Resolve）算出。",
+  "$comment": "消息目录的合并与文案的查找（RFC-0010「语言文件」「解析」，ADR-0277、ADR-0286）。每项的 catalogs 是按次序注册的目录：name 是目录名，messages 是区域到「键 → 模板」的对象；启用列表是内置的 10 种区域，default 是默认区域（不写即 en-US）。同名的目录合并成一份：内容相同什么都不变，互为补充时区域与键取并集；同一键同一区域的模板不同即冲突——conflict 为真的项注册必须以 code 失败（应用启动失败），任何一份都不会被静默丢弃。不同名的目录不合并，同一键同一区域先注册的优先。requests 是合并之后的查找：按 localization/locale-negotiation.json 的回退链依次找，expected 是文案与实际命中的区域，null 表示哪一级都没有这个键（调用方退回键与参数的描述）。模板都不带占位符，格式化见 primitives/message-templates.json。查找先按区域、再按目录：沿回退链逐个区域找，每个区域里按目录注册的次序问每个目录，第一个有这个键的就是结果——所以后注册的目录有请求区域的模板时，优先于先注册的目录里回退区域的模板，同一区域里才是先注册的目录优先（2026-11-24 写明，ADR-0286；以前只写「同一键先注册的目录优先」，这一类不在表里）。期望值由 .NET 参考实现（AddMessageCatalog、InMemoryMessageLocalizer.Resolve）算出。",
   "code": "LOCALIZATION_CONFLICT_001",
   "cases": [
     {
@@ -328,6 +328,182 @@
           "expected": {
             "text": "Addon",
             "locale": "en-US"
+          }
+        }
+      ]
+    },
+    {
+      "name": "区域优先于目录的次序：后注册的目录有请求区域，先注册的目录只有回退区域",
+      "default": "en-US",
+      "catalogs": [
+        {
+          "name": "host",
+          "messages": {
+            "en-US": {
+              "shared.title": "Host title",
+              "shared.note": "Host note"
+            }
+          }
+        },
+        {
+          "name": "addon",
+          "messages": {
+            "zh-CN": {
+              "shared.title": "插件标题"
+            },
+            "en-US": {
+              "shared.note": "Addon note",
+              "shared.title": "Addon title"
+            }
+          }
+        }
+      ],
+      "conflict": false,
+      "requests": [
+        {
+          "key": "shared.title",
+          "locale": "zh-CN",
+          "expected": {
+            "text": "插件标题",
+            "locale": "zh-CN"
+          }
+        },
+        {
+          "key": "shared.title",
+          "locale": "zh-TW",
+          "expected": {
+            "text": "插件标题",
+            "locale": "zh-CN"
+          }
+        },
+        {
+          "key": "shared.title",
+          "locale": "en-US",
+          "expected": {
+            "text": "Host title",
+            "locale": "en-US"
+          }
+        },
+        {
+          "key": "shared.title",
+          "locale": "ja-JP",
+          "expected": {
+            "text": "Host title",
+            "locale": "en-US"
+          }
+        },
+        {
+          "key": "shared.note",
+          "locale": "zh-CN",
+          "expected": {
+            "text": "Host note",
+            "locale": "en-US"
+          }
+        }
+      ]
+    },
+    {
+      "name": "区域优先于目录的次序：默认区域在后注册的目录里，en-US 在先注册的目录里",
+      "default": "de-DE",
+      "catalogs": [
+        {
+          "name": "host",
+          "messages": {
+            "en-US": {
+              "shared.title": "Host title"
+            }
+          }
+        },
+        {
+          "name": "addon",
+          "messages": {
+            "de-DE": {
+              "shared.title": "Titel des Add-ons"
+            }
+          }
+        }
+      ],
+      "conflict": false,
+      "requests": [
+        {
+          "key": "shared.title",
+          "locale": "ja-JP",
+          "expected": {
+            "text": "Titel des Add-ons",
+            "locale": "de-DE"
+          }
+        },
+        {
+          "key": "shared.title",
+          "locale": "de-DE",
+          "expected": {
+            "text": "Titel des Add-ons",
+            "locale": "de-DE"
+          }
+        },
+        {
+          "key": "shared.title",
+          "locale": "en-US",
+          "expected": {
+            "text": "Host title",
+            "locale": "en-US"
+          }
+        }
+      ]
+    },
+    {
+      "name": "三个目录各有一级：请求区域在最后注册的目录里",
+      "default": "de-DE",
+      "catalogs": [
+        {
+          "name": "first",
+          "messages": {
+            "en-US": {
+              "shared.title": "English"
+            }
+          }
+        },
+        {
+          "name": "second",
+          "messages": {
+            "de-DE": {
+              "shared.title": "Deutsch"
+            }
+          }
+        },
+        {
+          "name": "third",
+          "messages": {
+            "fr-FR": {
+              "shared.title": "Français"
+            }
+          }
+        }
+      ],
+      "conflict": false,
+      "requests": [
+        {
+          "key": "shared.title",
+          "locale": "fr-FR",
+          "expected": {
+            "text": "Français",
+            "locale": "fr-FR"
+          }
+        },
+        {
+          "key": "shared.title",
+          "locale": "fr-CA",
+          "expected": {
+            "text": "Français",
+            "locale": "fr-FR"
+          }
+        },
+        {
+          "key": "shared.title",
+          "locale": "ko-KR",
+          "expected": {
+            "text": "Deutsch",
+            "locale": "de-DE"
           }
         }
       ]
