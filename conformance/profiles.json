@@ -246,7 +246,7 @@
       "title": "子系统：可观测性导出与运行信息",
       "stability": "stable",
       "documents": ["rfcs/0023-observability.md"],
-      "vectors": [],
+      "vectors": ["observability/host-usage.json"],
       "runner": []
     },
     {

@@ -1,0 +1,378 @@
+{
+  "$comment": "运行信息里由两次采样求差的使用率与速率，以及由总量算出的已用与使用率（RFC-0023「运行信息」的「契约」与「采样」，ADR-0056、ADR-0277）。百分比都在 0 到 100 之间、不取整；计数变小（回绕、网卡重建）、总增量为零或任一次没有读到时该项为空（null），不以 0 顶替。用例的结果都是二进制浮点能精确表示的数，按相等比较。sampleInterval：采样间隔的缺省值与取值范围（毫秒，大于 0、不超过一小时），valid 在范围内，invalid 不在。cpu：系统 CPU 使用率 = 1 − 空闲增量 / 总增量；before 与 after 是先后两次读到的累计空闲时间与总时间（单位相同即可，null 表示没有读到）。process：进程 CPU 使用率 = 进程处理器时间增量 /（经过时间 × 逻辑核心数）；cores 是逻辑核心数，elapsedMs 是两次采样之间经过的毫秒数，processCpuBeforeMs 与 processCpuAfterMs 是进程累计的处理器时间。network：网卡速率 = 累计字节增量 / 经过时间（字节每秒），收与发各算各的；before 与 after 是先后两次读到的累计字节数。memory：已用 = 总量 − 可用，使用率 = 已用 / 总量；disks：已用 = 总量 − 空闲，使用率 = 已用 / 总量；总量为零时使用率为空。期望值由 .NET 参考实现（Observability.Host 的采样器、MemoryInfo、DiskInfo 与 HostObservabilityOptions）算出。",
+  "sampleInterval": {
+    "defaultMs": 5000,
+    "maxMs": 3600000,
+    "valid": [
+      1,
+      1000,
+      5000,
+      3600000
+    ],
+    "invalid": [
+      0,
+      -1000,
+      3600001,
+      86400000
+    ]
+  },
+  "cpu": [
+    {
+      "name": "四分之一忙",
+      "before": {
+        "idle": 100,
+        "total": 400
+      },
+      "after": {
+        "idle": 175,
+        "total": 500
+      },
+      "usagePercent": 25
+    },
+    {
+      "name": "全忙：空闲没有增长",
+      "before": {
+        "idle": 100,
+        "total": 400
+      },
+      "after": {
+        "idle": 100,
+        "total": 500
+      },
+      "usagePercent": 100
+    },
+    {
+      "name": "全闲：增量全是空闲",
+      "before": {
+        "idle": 100,
+        "total": 400
+      },
+      "after": {
+        "idle": 200,
+        "total": 500
+      },
+      "usagePercent": 0
+    },
+    {
+      "name": "一半",
+      "before": {
+        "idle": 0,
+        "total": 0
+      },
+      "after": {
+        "idle": 1000,
+        "total": 2000
+      },
+      "usagePercent": 50
+    },
+    {
+      "name": "不取整",
+      "before": {
+        "idle": 0,
+        "total": 0
+      },
+      "after": {
+        "idle": 875,
+        "total": 1000
+      },
+      "usagePercent": 12.5
+    },
+    {
+      "name": "很小的使用率",
+      "before": {
+        "idle": 0,
+        "total": 0
+      },
+      "after": {
+        "idle": 1023,
+        "total": 1024
+      },
+      "usagePercent": 0.09765625
+    },
+    {
+      "name": "总增量为零",
+      "before": {
+        "idle": 100,
+        "total": 400
+      },
+      "after": {
+        "idle": 100,
+        "total": 400
+      },
+      "usagePercent": null
+    },
+    {
+      "name": "总计数变小（回绕）",
+      "before": {
+        "idle": 100,
+        "total": 400
+      },
+      "after": {
+        "idle": 120,
+        "total": 300
+      },
+      "usagePercent": null
+    },
+    {
+      "name": "空闲计数变小",
+      "before": {
+        "idle": 100,
+        "total": 400
+      },
+      "after": {
+        "idle": 90,
+        "total": 500
+      },
+      "usagePercent": null
+    },
+    {
+      "name": "空闲增量比总增量大：限制在 0",
+      "before": {
+        "idle": 100,
+        "total": 400
+      },
+      "after": {
+        "idle": 300,
+        "total": 500
+      },
+      "usagePercent": 0
+    },
+    {
+      "name": "前一次没有读到",
+      "before": null,
+      "after": {
+        "idle": 175,
+        "total": 500
+      },
+      "usagePercent": null
+    },
+    {
+      "name": "这一次没有读到",
+      "before": {
+        "idle": 100,
+        "total": 400
+      },
+      "after": null,
+      "usagePercent": null
+    }
+  ],
+  "process": [
+    {
+      "name": "一个核心的一半",
+      "cores": 1,
+      "elapsedMs": 1000,
+      "processCpuBeforeMs": 0,
+      "processCpuAfterMs": 500,
+      "usagePercent": 50
+    },
+    {
+      "name": "四个核心上用满一个",
+      "cores": 4,
+      "elapsedMs": 1000,
+      "processCpuBeforeMs": 0,
+      "processCpuAfterMs": 1000,
+      "usagePercent": 25
+    },
+    {
+      "name": "四个核心上的八分之一",
+      "cores": 4,
+      "elapsedMs": 1000,
+      "processCpuBeforeMs": 1000,
+      "processCpuAfterMs": 1500,
+      "usagePercent": 12.5
+    },
+    {
+      "name": "没有用 CPU",
+      "cores": 8,
+      "elapsedMs": 5000,
+      "processCpuBeforeMs": 2000,
+      "processCpuAfterMs": 2000,
+      "usagePercent": 0
+    },
+    {
+      "name": "用满全部核心",
+      "cores": 2,
+      "elapsedMs": 1000,
+      "processCpuBeforeMs": 0,
+      "processCpuAfterMs": 2000,
+      "usagePercent": 100
+    },
+    {
+      "name": "算出来超过 100：限制在 100",
+      "cores": 2,
+      "elapsedMs": 1000,
+      "processCpuBeforeMs": 0,
+      "processCpuAfterMs": 3000,
+      "usagePercent": 100
+    },
+    {
+      "name": "间隔 5 秒",
+      "cores": 4,
+      "elapsedMs": 5000,
+      "processCpuBeforeMs": 0,
+      "processCpuAfterMs": 2500,
+      "usagePercent": 12.5
+    },
+    {
+      "name": "处理器时间变小",
+      "cores": 4,
+      "elapsedMs": 1000,
+      "processCpuBeforeMs": 500,
+      "processCpuAfterMs": 400,
+      "usagePercent": null
+    }
+  ],
+  "network": [
+    {
+      "name": "一秒里的增量",
+      "elapsedMs": 1000,
+      "before": 1000,
+      "after": 3000,
+      "bytesPerSecond": 2000
+    },
+    {
+      "name": "间隔 5 秒",
+      "elapsedMs": 5000,
+      "before": 0,
+      "after": 10000,
+      "bytesPerSecond": 2000
+    },
+    {
+      "name": "间隔半秒",
+      "elapsedMs": 500,
+      "before": 1000,
+      "after": 1500,
+      "bytesPerSecond": 1000
+    },
+    {
+      "name": "没有流量",
+      "elapsedMs": 1000,
+      "before": 4096,
+      "after": 4096,
+      "bytesPerSecond": 0
+    },
+    {
+      "name": "不取整",
+      "elapsedMs": 4000,
+      "before": 0,
+      "after": 10,
+      "bytesPerSecond": 2.5
+    },
+    {
+      "name": "很大的计数",
+      "elapsedMs": 1000,
+      "before": 9007199254740000,
+      "after": 9007199254740992,
+      "bytesPerSecond": 992
+    },
+    {
+      "name": "计数变小（回绕或网卡重建）",
+      "elapsedMs": 1000,
+      "before": 3000,
+      "after": 1000,
+      "bytesPerSecond": null
+    },
+    {
+      "name": "前一次没有读到",
+      "elapsedMs": 1000,
+      "before": null,
+      "after": 3000,
+      "bytesPerSecond": null
+    },
+    {
+      "name": "这一次没有读到",
+      "elapsedMs": 1000,
+      "before": 3000,
+      "after": null,
+      "bytesPerSecond": null
+    }
+  ],
+  "memory": [
+    {
+      "name": "用了四分之一",
+      "totalBytes": 17179869184,
+      "availableBytes": 12884901888,
+      "usedBytes": 4294967296,
+      "usagePercent": 25
+    },
+    {
+      "name": "全部可用",
+      "totalBytes": 8589934592,
+      "availableBytes": 8589934592,
+      "usedBytes": 0,
+      "usagePercent": 0
+    },
+    {
+      "name": "全部用完",
+      "totalBytes": 8589934592,
+      "availableBytes": 0,
+      "usedBytes": 8589934592,
+      "usagePercent": 100
+    },
+    {
+      "name": "不取整",
+      "totalBytes": 1024,
+      "availableBytes": 1023,
+      "usedBytes": 1,
+      "usagePercent": 0.09765625
+    },
+    {
+      "name": "总量读不到",
+      "totalBytes": null,
+      "availableBytes": 12884901888,
+      "usedBytes": null,
+      "usagePercent": null
+    },
+    {
+      "name": "可用读不到",
+      "totalBytes": 17179869184,
+      "availableBytes": null,
+      "usedBytes": null,
+      "usagePercent": null
+    },
+    {
+      "name": "总量为零",
+      "totalBytes": 0,
+      "availableBytes": 0,
+      "usedBytes": 0,
+      "usagePercent": null
+    }
+  ],
+  "disks": [
+    {
+      "name": "用了一半",
+      "totalBytes": 536870912000,
+      "freeBytes": 268435456000,
+      "usedBytes": 268435456000,
+      "usagePercent": 50
+    },
+    {
+      "name": "空盘",
+      "totalBytes": 107374182400,
+      "freeBytes": 107374182400,
+      "usedBytes": 0,
+      "usagePercent": 0
+    },
+    {
+      "name": "满盘",
+      "totalBytes": 107374182400,
+      "freeBytes": 0,
+      "usedBytes": 107374182400,
+      "usagePercent": 100
+    },
+    {
+      "name": "不取整",
+      "totalBytes": 1024,
+      "freeBytes": 896,
+      "usedBytes": 128,
+      "usagePercent": 12.5
+    },
+    {
+      "name": "总量为零",
+      "totalBytes": 0,
+      "freeBytes": 0,
+      "usedBytes": 0,
+      "usagePercent": null
+    }
+  ]
+}

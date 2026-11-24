@@ -835,3 +835,77 @@ func WorkflowKeywords() (WorkflowKeywordVectors, error) {
 func WorkflowEventTopics() (WorkflowEventTopicVectors, error) {
 	return typed[WorkflowEventTopicVectors]()
 }
+
+// HostSampleIntervalVectors 是采样间隔的缺省值、上限与范围内外的样例（毫秒）。
+type HostSampleIntervalVectors struct {
+	DefaultMs int64   `json:"defaultMs"`
+	MaxMs     int64   `json:"maxMs"`
+	Valid     []int64 `json:"valid"`
+	Invalid   []int64 `json:"invalid"`
+}
+
+// HostCPUSample 是一次读到的系统 CPU 累计空闲时间与总时间。
+type HostCPUSample struct {
+	Idle  uint64 `json:"idle"`
+	Total uint64 `json:"total"`
+}
+
+// HostCPUCase 是先后两次采样与算出的系统 CPU 使用率：采样为 nil 表示没有读到，UsagePercent 为 nil 表示该项为空。
+type HostCPUCase struct {
+	Name         string         `json:"name"`
+	Before       *HostCPUSample `json:"before"`
+	After        *HostCPUSample `json:"after"`
+	UsagePercent *float64       `json:"usagePercent"`
+}
+
+// HostProcessCase 是先后两次读到的进程处理器时间与算出的进程 CPU 使用率。
+type HostProcessCase struct {
+	Name               string   `json:"name"`
+	Cores              int      `json:"cores"`
+	ElapsedMs          float64  `json:"elapsedMs"`
+	ProcessCPUBeforeMs float64  `json:"processCpuBeforeMs"`
+	ProcessCPUAfterMs  float64  `json:"processCpuAfterMs"`
+	UsagePercent       *float64 `json:"usagePercent"`
+}
+
+// HostNetworkCase 是先后两次读到的累计字节数与算出的速率（字节每秒）：计数为 nil 表示没有读到。
+type HostNetworkCase struct {
+	Name           string   `json:"name"`
+	ElapsedMs      float64  `json:"elapsedMs"`
+	Before         *int64   `json:"before"`
+	After          *int64   `json:"after"`
+	BytesPerSecond *float64 `json:"bytesPerSecond"`
+}
+
+// HostMemoryCase 是内存的总量、可用与由它们算出的已用、使用率：nil 表示读不到或算不出。
+type HostMemoryCase struct {
+	Name           string   `json:"name"`
+	TotalBytes     *int64   `json:"totalBytes"`
+	AvailableBytes *int64   `json:"availableBytes"`
+	UsedBytes      *int64   `json:"usedBytes"`
+	UsagePercent   *float64 `json:"usagePercent"`
+}
+
+// HostDiskCase 是磁盘的总量、空闲与由它们算出的已用、使用率：总量为零时使用率为 nil。
+type HostDiskCase struct {
+	Name         string   `json:"name"`
+	TotalBytes   int64    `json:"totalBytes"`
+	FreeBytes    int64    `json:"freeBytes"`
+	UsedBytes    int64    `json:"usedBytes"`
+	UsagePercent *float64 `json:"usagePercent"`
+}
+
+// HostUsageVectors 对应 observability/host-usage.json（RFC-0023「运行信息」的「契约」与「采样」，ADR-0277）。
+type HostUsageVectors struct {
+	SampleInterval HostSampleIntervalVectors `json:"sampleInterval"`
+	CPU            []HostCPUCase             `json:"cpu"`
+	Process        []HostProcessCase         `json:"process"`
+	Network        []HostNetworkCase         `json:"network"`
+	Memory         []HostMemoryCase          `json:"memory"`
+	Disks          []HostDiskCase            `json:"disks"`
+}
+
+// HostUsage 读取运行信息里使用率与速率的向量。
+func HostUsage() (HostUsageVectors, error) {
+	return typed[HostUsageVectors]()
+}

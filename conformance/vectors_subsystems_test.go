@@ -479,4 +479,32 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 		}
 		return events
 	},
+	"observability/host-usage.json": func(t *testing.T) any {
+		usage, err := conformance.HostUsage()
+		if err != nil || usage.SampleInterval.DefaultMs <= 0 || usage.SampleInterval.MaxMs <= 0 || len(usage.SampleInterval.Valid) == 0 || len(usage.SampleInterval.Invalid) == 0 ||
+			len(usage.CPU) == 0 || len(usage.Process) == 0 || len(usage.Network) == 0 || len(usage.Memory) == 0 || len(usage.Disks) == 0 {
+			t.Errorf("host usage: %v", err)
+		}
+		var names []string
+		for _, c := range usage.CPU {
+			names = append(names, "cpu "+c.Name)
+		}
+		for _, c := range usage.Process {
+			names = append(names, "process "+c.Name)
+			if c.Cores < 1 || c.ElapsedMs <= 0 {
+				t.Errorf("host process case %q must have cores and an elapsed time", c.Name)
+			}
+		}
+		for _, c := range usage.Network {
+			names = append(names, "network "+c.Name)
+		}
+		for _, c := range usage.Memory {
+			names = append(names, "memory "+c.Name)
+		}
+		for _, c := range usage.Disks {
+			names = append(names, "disk "+c.Name)
+		}
+		uniqueNames(t, "host usage", names)
+		return usage
+	},
 }

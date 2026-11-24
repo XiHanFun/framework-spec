@@ -1,6 +1,6 @@
 # RFC-0023 可观测性：导出与运行信息
 
-> 状态：已采纳（2026-11-02 修订：运行进程的用户名照常打印） | 日期：2026-10-30 | 对应 ADR：ADR-0056、ADR-0093（用户名不遮蔽） | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry` | 一致性：无套件（读的是所在机器，按平台写用例） | 一致性档：`observability`
+> 状态：已采纳（2026-11-02 修订：运行进程的用户名照常打印；2026-11-24 修订：一致性向量） | 日期：2026-10-30 | 对应 ADR：ADR-0056、ADR-0093（用户名不遮蔽）、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry` | 一致性：无行为套件（读的是所在机器，按平台写用例）；向量 `conformance/vectors/observability/host-usage.json` | 一致性档：`observability`
 
 ## 摘要
 
@@ -90,3 +90,9 @@
 ### 装配
 
 `Observability.Host` 的 `HostObservabilityFeature`（`IHostedFeature`）被选中提供 `observability.host` 时注册单例 `IHostMonitor`；启动时同步采第一次样并起采样循环，停止时结束循环。
+
+## 一致性
+
+向量（档 `observability`，2026-11-24，ADR-0277；以前这个档没有向量）：`conformance/vectors/observability/host-usage.json`——「采样」一节的三条公式（系统 CPU 使用率、进程 CPU 使用率、网卡速率）连同计数变小、总增量为零与没有读到时为空、百分比限制在 0–100 且不取整，「契约」一节里内存与磁盘由总量算出的已用与使用率，以及采样间隔的取值范围。
+
+这个档没有行为一致性套件：其余的规范性内容——各平台的读取路径、读不到的项为空、读取不阻塞不抛出、导出器的装配——读的是所在机器与运行中的后端，输入不由用例给出，由各实现按平台写用例核对（参考实现在 `Observability.Host.Tests` 与 `Observability.OpenTelemetry.Tests`）。`/proc/stat`、`/proc/meminfo` 等文件的解析没有收进向量：正文只给了读哪个文件的哪一项，没有逐字段给出取法（如 CPU 的空闲是否计入 `iowait`）。

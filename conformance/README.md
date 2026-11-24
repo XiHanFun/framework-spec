@@ -65,6 +65,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `workflow/status-order.json` | 定义与实例的状态按生命周期先后的次序（列表按状态排序用它，不按字母序） | RFC-0021「定义」的「列表排序」 |
 | `workflow/keyword-matching.json` | 列表查询的关键字：去首尾空白、小写折叠、字段分隔符换成空格，按字面包含、不跨字段匹配；期望值由 .NET 算出 | RFC-0021「定义」的「关键字」 |
 | `workflow/workflow-event-topics.json` | 工作流发布的 25 个事件主题与信封的 `source` | RFC-0021「实例与执行」的「事件」 |
+| `observability/host-usage.json` | 运行信息里两次采样求差的系统与进程 CPU 使用率、网卡速率（计数变小或总增量为零为空，百分比限制在 0–100、不取整），内存与磁盘的已用与使用率，采样间隔的取值范围；期望值由 .NET 算出 | RFC-0023「运行信息」的「契约」与「采样」 |
 | `security/webauthn.json` | WebAuthn 注册与认证的样例响应、存储的凭据与期望结果（成功的凭据与签名计数，失败的错误码与 `reason`） | RFC-0008「WebAuthn」 |
 | `provider/caching-distributed.json` | `caching.distributed@1` 远程 Provider 的操作 ID（含批量）、请求 / 响应样例、非法键与选项 | `provider/caching-distributed.md` |
 
@@ -87,6 +88,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `rules/persistence.go` | 索引名（`IndexColumnAbbreviation`、`IndexName`、`IsExplicitIndexName`）、雪花标识（`ComposeSnowflakeID`、`ParseSnowflakeID`、`SnowflakeTime`、`SnowflakeWorkerLockResource`） |
 | `rules/auditing.go` | 排除列表（`IsAuditExclusion`、`AuditExcludes`）、事件的选择与结果（`SelectAuditEvent`）、主体与租户的归属（`AuditAttribution`） |
 | `rules/workflow.go` | 工作流里的名字（`IsWorkflowName`、`IsWorkflowElementID`、`IsActivityType`）、状态的次序（`WorkflowDefinitionStatuses`、`WorkflowInstanceStatuses`）、关键字的折叠与匹配（`NormalizeWorkflowKeyword`、`FoldWorkflowKeyword`、`WorkflowKeywordMatches`）、事件主题（`WorkflowEventTopics`） |
+| `rules/observability.go` | 运行信息的使用率与速率（`HostCPUUsage`、`HostProcessCPUUsage`、`HostRate`、`HostUsage`）与采样间隔的范围（`IsHostSampleInterval`） |
 
 ## 黑盒运行器（`cmd/xihan-conformance`）
 
