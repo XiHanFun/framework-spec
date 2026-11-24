@@ -1,6 +1,6 @@
 # RFC-0001 原语层
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配；2026-11-19 修订：.NET 的 Result 与 Error 线上编码在内核的 `ResultJson`；同日再修订：`Error` 的文案不能只有空白，空白字符写死；2026-11-24 修订：收调用上下文的契约不另收取消令牌） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236、0244（.NET 的线上编码）、0263 | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配；2026-11-19 修订：.NET 的 Result 与 Error 线上编码在内核的 `ResultJson`；同日再修订：`Error` 的文案不能只有空白，空白字符写死；2026-11-24 修订：收调用上下文的契约不另收取消令牌；同日再修订：.NET 映射补上 `DeadlineText` 与 `ActivationEvent`） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236、0244（.NET 的线上编码）、0263、0278（截止时间文本与激活事件的 .NET 类型） | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
 
 ## 摘要
 
@@ -237,6 +237,13 @@ public readonly record struct TraceParent(string TraceId, string SpanId, bool Sa
     public static bool TryParse(string? text, out TraceParent value);   // 只认版本 00、小写十六进制；trace-id 或 parent-id 全零不合法
     public override string ToString();                                   // 00-<trace-id>-<parent-id>-<00|01>
 }
+
+// 截止时间文本的解析与写出（2026-11-24 增补，ADR-0278）：HTTP 载体与插件协议共用 RFC-0003 规则 8 的一条文法
+public static class DeadlineText
+{
+    public static bool TryParse(string? text, out DateTimeOffset deadline);   // 整串匹配，不裁剪首尾空白；读不出为 false；读出的时刻偏移为零，比 100 纳秒细的小数截断
+    public static string Format(DateTimeOffset deadline);                      // UTC、七位小数、+00:00 偏移
+}
 ```
 
 语义见 RFC-0003。`WithBaggage` 给已登记的键（幂等键除外）一个 `IsAcceptableValue` 不接受的值时抛出 `ArgumentException`，与键不合文法时一样：程序内逐项派生给出的值不合法是编程错误。外部输入（载体、插件协议、Wasm 中间件）在交给 `WithBaggage` 之前按 `conventions/baggage-keys.md` 丢弃不合的成员（2026-11-16 修订，ADR-0235；以前 `WithBaggage` 不核对值，Wasm 中间件把插件给的值原样并进上下文）。
@@ -321,6 +328,7 @@ public static class Redaction
 | `Binding` | 绑定名与资源类型 |
 | `Contributions` / `PipelineContribution` / `ConfigContribution` | 贡献点 |
 | `CapabilityId` / `ManifestId` | 格式校验与领域段提取 |
+| `ActivationEvent` | 激活事件的文法：`IsValid(value)` 判断一项是不是 `onStartup`、`onOperation:<模式>` 或 `onEvent:<模式>`（RFC-0002 解析规则 2 第 3 步）；`Manifest.Activation` 的初始化校验与内核读清单时的形状检查共用（2026-11-24 增补，ADR-0278） |
 
 接口版本是正整数，清单里写成十进制数字字符串（`"1"`）。只有依赖（`requires[].version` 与依赖文本）可以写成 `^N`，与 `N` 等价；`primitives` 与 `provides[].version` 只写数字（2026-11-16 写明，ADR-0233；以前的「`^N` 与 `N` 等价」没说只限依赖，与 Schema 不一致）。收集、解析与求解是内核的职责。
 
