@@ -1,0 +1,98 @@
+{
+  "$comment": "从租户属性推出分片（RFC-0007「分片」的默认解析器，ADR-0018、ADR-0277）：属性 ConnectionString 有值即分库，它是分片的连接串；属性 DatabaseProvider 是提供者名，写成小写；键以 Shard. 开头的属性透传给持久化 Provider，键去掉这个前缀（用点不用冒号：属性来自配置时冒号是节分隔符）；别的属性不透传。cases 的每项：properties 是租户的属性，shard 是推出的分片——connectionString、provider（null 表示没有）与透传的 properties；shard 为 null 表示这个租户共库、没有分片。分片的租户 ID 就是这个租户的 ID，不在这张表里。期望值由 .NET 参考实现（TenantStoreShardResolver.FromProperties）算出。",
+  "connectionStringProperty": "ConnectionString",
+  "providerProperty": "DatabaseProvider",
+  "passThroughPrefix": "Shard.",
+  "cases": [
+    {
+      "name": "没有属性：共库",
+      "properties": {},
+      "shard": null
+    },
+    {
+      "name": "只有别的属性：共库",
+      "properties": {
+        "Quota": "50",
+        "Shard.Schema": "acme",
+        "DatabaseProvider": "postgresql"
+      },
+      "shard": null
+    },
+    {
+      "name": "ConnectionString 为空：共库",
+      "properties": {
+        "ConnectionString": ""
+      },
+      "shard": null
+    },
+    {
+      "name": "ConnectionString 有值即分库",
+      "properties": {
+        "ConnectionString": "Host=db-7.internal;Database=acme;Username=app"
+      },
+      "shard": {
+        "connectionString": "Host=db-7.internal;Database=acme;Username=app",
+        "provider": null,
+        "properties": {}
+      }
+    },
+    {
+      "name": "DatabaseProvider 是提供者名",
+      "properties": {
+        "ConnectionString": "Host=db-7.internal;Database=acme;Username=app",
+        "DatabaseProvider": "postgresql"
+      },
+      "shard": {
+        "connectionString": "Host=db-7.internal;Database=acme;Username=app",
+        "provider": "postgresql",
+        "properties": {}
+      }
+    },
+    {
+      "name": "提供者名写成小写",
+      "properties": {
+        "ConnectionString": "Host=db-7.internal;Database=acme;Username=app",
+        "DatabaseProvider": "PostgreSQL"
+      },
+      "shard": {
+        "connectionString": "Host=db-7.internal;Database=acme;Username=app",
+        "provider": "postgresql",
+        "properties": {}
+      }
+    },
+    {
+      "name": "Shard.<key> 透传为 <key>，别的属性不透传",
+      "properties": {
+        "ConnectionString": "Host=db-7.internal;Database=acme;Username=app",
+        "DatabaseProvider": "sqlserver",
+        "Shard.Schema": "acme",
+        "Shard.Pool.Max": "20",
+        "Quota": "50"
+      },
+      "shard": {
+        "connectionString": "Host=db-7.internal;Database=acme;Username=app",
+        "provider": "sqlserver",
+        "properties": {
+          "Pool.Max": "20",
+          "Schema": "acme"
+        }
+      }
+    },
+    {
+      "name": "透传属性的键只去掉开头的 Shard.，大小写原样",
+      "properties": {
+        "ConnectionString": "Host=db-7.internal;Database=acme;Username=app",
+        "Shard.Shard.Key": "v",
+        "Shard.readOnly": "true"
+      },
+      "shard": {
+        "connectionString": "Host=db-7.internal;Database=acme;Username=app",
+        "provider": null,
+        "properties": {
+          "Shard.Key": "v",
+          "readOnly": "true"
+        }
+      }
+    }
+  ]
+}

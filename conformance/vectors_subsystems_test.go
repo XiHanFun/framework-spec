@@ -84,4 +84,44 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 		uniqueNames(t, "cloudevents envelopes", names)
 		return envelopes
 	},
+	"multitenancy/tenant-ids.json": func(t *testing.T) any {
+		ids, err := conformance.TenantIDs()
+		if err != nil || ids.MaxLength != 64 || len(ids.Valid) == 0 || len(ids.Invalid) == 0 {
+			t.Errorf("tenant ids: %v", err)
+		}
+		return ids
+	},
+	"multitenancy/tenant-resolution.json": func(t *testing.T) any {
+		resolution, err := conformance.TenantResolution()
+		if err != nil || len(resolution.Tenants) == 0 || len(resolution.Cases) == 0 {
+			t.Errorf("tenant resolution: %v", err)
+		}
+		var names []string
+		for _, c := range resolution.Cases {
+			names = append(names, c.Name)
+			if c.Claims == nil {
+				t.Errorf("tenant resolution case %q must list its claims (an empty array for none)", c.Name)
+			}
+			if c.Expected.Error != "" && (c.Expected.Tenant != nil || c.Expected.DisplayName != nil) {
+				t.Errorf("tenant resolution case %q must expect either an error or a tenant", c.Name)
+			}
+		}
+		uniqueNames(t, "tenant resolution", names)
+		return resolution
+	},
+	"multitenancy/tenant-shards.json": func(t *testing.T) any {
+		shards, err := conformance.TenantShards()
+		if err != nil || shards.ConnectionStringProperty == "" || shards.ProviderProperty == "" || shards.PassThroughPrefix == "" || len(shards.Cases) == 0 {
+			t.Errorf("tenant shards: %v", err)
+		}
+		var names []string
+		for _, c := range shards.Cases {
+			names = append(names, c.Name)
+			if c.Properties == nil || (c.Shard != nil && (c.Shard.ConnectionString == "" || c.Shard.Properties == nil)) {
+				t.Errorf("tenant shard case %q is incomplete", c.Name)
+			}
+		}
+		uniqueNames(t, "tenant shards", names)
+		return shards
+	},
 }

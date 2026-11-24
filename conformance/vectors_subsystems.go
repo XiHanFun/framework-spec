@@ -146,3 +146,88 @@ func OutboxBackoff() (OutboxBackoffVectors, error) {
 func CloudEventEnvelopes() (CloudEventEnvelopeVectors, error) {
 	return typed[CloudEventEnvelopeVectors]()
 }
+
+// TenantIDVectors 对应 multitenancy/tenant-ids.json（RFC-0007「租户 ID」，ADR-0277）。
+type TenantIDVectors struct {
+	MaxLength int      `json:"maxLength"`
+	Valid     []string `json:"valid"`
+	Invalid   []string `json:"invalid"`
+}
+
+// TenantDirectoryEntry 是租户存储里的一个租户：DisplayName 为 nil 表示没有显示名，Enabled 为假即禁用。
+type TenantDirectoryEntry struct {
+	ID          string  `json:"id"`
+	DisplayName *string `json:"displayName"`
+	Enabled     bool    `json:"enabled"`
+}
+
+// TenantResolutionOptions 是 Tenant 阶段的三个选项：DefaultTenant 为 nil 表示没有默认租户。
+type TenantResolutionOptions struct {
+	DefaultTenant        *string `json:"defaultTenant"`
+	RequireTenant        bool    `json:"requireTenant"`
+	ValidateAgainstStore bool    `json:"validateAgainstStore"`
+}
+
+// TenantResolutionExpectation 是 Tenant 阶段的裁定：Error 非空是结束调用的错误码；
+// 否则 Tenant 是写进安全上下文的租户 ID（nil 表示无租户继续），DisplayName 是随之带入的显示名。
+type TenantResolutionExpectation struct {
+	Tenant      *string `json:"tenant"`
+	DisplayName *string `json:"displayName"`
+	Error       string  `json:"error"`
+}
+
+// TenantResolutionCase 是一次调用与 Tenant 阶段对它的裁定：Claims 是已认证主体的 tenant 声明的值，
+// Baggage 是 Baggage 里的 xihan.tenant（nil 表示没有）。
+type TenantResolutionCase struct {
+	Name             string                      `json:"name"`
+	Authenticated    bool                        `json:"authenticated"`
+	Claims           []string                    `json:"claims"`
+	Baggage          *string                     `json:"baggage"`
+	PlatformCall     bool                        `json:"platformCall"`
+	Options          TenantResolutionOptions     `json:"options"`
+	StoreUnavailable bool                        `json:"storeUnavailable"`
+	Expected         TenantResolutionExpectation `json:"expected"`
+}
+
+// TenantResolutionVectors 对应 multitenancy/tenant-resolution.json（RFC-0007「解析」，ADR-0277）。
+type TenantResolutionVectors struct {
+	Tenants []TenantDirectoryEntry `json:"tenants"`
+	Cases   []TenantResolutionCase `json:"cases"`
+}
+
+// TenantShardExpectation 是从租户属性推出的分片：Provider 为 nil 表示没有提供者名。
+type TenantShardExpectation struct {
+	ConnectionString string            `json:"connectionString"`
+	Provider         *string           `json:"provider"`
+	Properties       map[string]string `json:"properties"`
+}
+
+// TenantShardCase 是一组租户属性与推出的分片：Shard 为 nil 表示共库。
+type TenantShardCase struct {
+	Name       string                  `json:"name"`
+	Properties map[string]string       `json:"properties"`
+	Shard      *TenantShardExpectation `json:"shard"`
+}
+
+// TenantShardVectors 对应 multitenancy/tenant-shards.json（RFC-0007「分片」，ADR-0277）。
+type TenantShardVectors struct {
+	ConnectionStringProperty string            `json:"connectionStringProperty"`
+	ProviderProperty         string            `json:"providerProperty"`
+	PassThroughPrefix        string            `json:"passThroughPrefix"`
+	Cases                    []TenantShardCase `json:"cases"`
+}
+
+// TenantIDs 读取租户 ID 文法的向量。
+func TenantIDs() (TenantIDVectors, error) {
+	return typed[TenantIDVectors]()
+}
+
+// TenantResolution 读取 Tenant 阶段裁定的向量。
+func TenantResolution() (TenantResolutionVectors, error) {
+	return typed[TenantResolutionVectors]()
+}
+
+// TenantShards 读取从租户属性推出分片的向量。
+func TenantShards() (TenantShardVectors, error) {
+	return typed[TenantShardVectors]()
+}

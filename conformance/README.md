@@ -38,6 +38,9 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `messaging/instance-ids.json` | 消息子系统实例标识文法的合法与不合法样例（含 64 个字符的上限两侧） | RFC-0009「订阅方式」第 6 条 |
 | `messaging/outbox-backoff.json` | 发件箱失败之后的退避间隔（次数很大时截在上限而不溢出）与进死信的时机，期望值由 .NET 算出 | RFC-0009「发件箱」 |
 | `messaging/cloudevents-envelopes.json` | 信封的 CloudEvents 结构化 JSON 编码：必须读得出的文档与读出的信封，必须拒绝的文档，期望值由 .NET 算出 | RFC-0009「信封」、`protocol/cloudevents.md` |
+| `multitenancy/tenant-ids.json` | 租户 ID 文法的合法与不合法样例（只用小写，含 64 个字符的上限两侧），期望值由 .NET 算出 | RFC-0007「租户 ID」 |
+| `multitenancy/tenant-resolution.json` | Tenant 阶段的裁定：声明、Baggage、默认租户与平台调用的先后，声明冲突，文法与存储的核对次序，到租户、无租户或错误码，期望值由 .NET 算出 | RFC-0007「解析」 |
+| `multitenancy/tenant-shards.json` | 从租户属性推出分片：连接串、小写的提供者名与去前缀的透传属性，期望值由 .NET 算出 | RFC-0007「分片」 |
 | `security/webauthn.json` | WebAuthn 注册与认证的样例响应、存储的凭据与期望结果（成功的凭据与签名计数，失败的错误码与 `reason`） | RFC-0008「WebAuthn」 |
 | `provider/caching-distributed.json` | `caching.distributed@1` 远程 Provider 的操作 ID（含批量）、请求 / 响应样例、非法键与选项 | `provider/caching-distributed.md` |
 
@@ -52,6 +55,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | 文件 | 规则 |
 | --- | --- |
 | `rules/messaging.go` | 死信主题（`DeadLetterTopic`）、扩展属性名与 Baggage 键的对应（`IsEnvelopeExtensionName`、`EnvelopeBaggageMappings`）、实例标识（`IsMessagingInstanceID`）、发件箱的退避与进死信（`OutboxRetryDelay`、`OutboxDeadLettered`）、结构化 JSON 信封的读取（`DecodeCloudEvent`）；主题文法是 `IsTopic` |
+| `rules/multitenancy.go` | 租户 ID（`IsTenantID`）、Tenant 阶段的裁定（`ResolveTenant`）、从租户属性推出分片（`TenantShardFromProperties`） |
 
 ## 黑盒运行器（`cmd/xihan-conformance`）
 

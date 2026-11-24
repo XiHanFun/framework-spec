@@ -125,7 +125,11 @@
       "title": "子系统：多租户",
       "stability": "stable",
       "documents": ["rfcs/0007-multitenancy.md"],
-      "vectors": [],
+      "vectors": [
+        "multitenancy/tenant-ids.json",
+        "multitenancy/tenant-resolution.json",
+        "multitenancy/tenant-shards.json"
+      ],
       "runner": []
     },
     {

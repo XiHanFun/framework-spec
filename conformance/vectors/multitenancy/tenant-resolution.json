@@ -1,0 +1,497 @@
+{
+  "$comment": "Tenant 阶段的裁定（RFC-0007「解析」第 1–5 条，ADR-0143、ADR-0192、ADR-0218、ADR-0277）。tenants 是租户存储里的租户（enabled 为假即禁用）。cases 的每项是一次调用：authenticated 是主体是否已认证，claims 是它的 tenant 声明的值（可以有多个），baggage 是 Baggage 里的 xihan.tenant（null 表示没有），platformCall 是进程内的代码是否声明了平台调用，options 是 DefaultTenant、RequireTenant 与 ValidateAgainstStore 三个选项，storeUnavailable 为真表示租户存储不可达；解析器是缺省的两个、按缺省顺序（已认证主体的 tenant 声明在前，Baggage 在后）。expected 三选一：tenant 是写进安全上下文的租户 ID、displayName 是随之带入的显示名（null 表示没有）；tenant 为 null 表示无租户继续；error 是结束这次调用的错误码。次序是规范性的：解析器失败即拒绝，不再问后面的解析器，默认租户也不顶替；默认租户与解析出来的租户一样先核对文法、再核对存储；文法先于存储。期望值由 .NET 参考实现（TenantResolutionMiddleware 加 ClaimTenantResolver、BaggageTenantResolver）算出。",
+  "tenants": [
+    {
+      "id": "acme",
+      "displayName": "Acme",
+      "enabled": true
+    },
+    {
+      "id": "globex",
+      "displayName": null,
+      "enabled": true
+    },
+    {
+      "id": "dormant",
+      "displayName": "Dormant",
+      "enabled": false
+    }
+  ],
+  "cases": [
+    {
+      "name": "已认证主体的 tenant 声明",
+      "authenticated": true,
+      "claims": [
+        "acme"
+      ],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "tenant": "acme",
+        "displayName": "Acme"
+      }
+    },
+    {
+      "name": "没有声明时取 Baggage 的 xihan.tenant",
+      "authenticated": false,
+      "claims": [],
+      "baggage": "acme",
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "tenant": "acme",
+        "displayName": "Acme"
+      }
+    },
+    {
+      "name": "已认证但没有 tenant 声明时取 Baggage",
+      "authenticated": true,
+      "claims": [],
+      "baggage": "globex",
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "tenant": "globex",
+        "displayName": null
+      }
+    },
+    {
+      "name": "声明在前：声明与 Baggage 不同取声明",
+      "authenticated": true,
+      "claims": [
+        "acme"
+      ],
+      "baggage": "globex",
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "tenant": "acme",
+        "displayName": "Acme"
+      }
+    },
+    {
+      "name": "多个 tenant 声明值都相同按一个算",
+      "authenticated": true,
+      "claims": [
+        "acme",
+        "acme"
+      ],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "tenant": "acme",
+        "displayName": "Acme"
+      }
+    },
+    {
+      "name": "多个 tenant 声明值不同即失败",
+      "authenticated": true,
+      "claims": [
+        "acme",
+        "globex"
+      ],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "error": "MULTITENANCY_VALIDATION_004"
+      }
+    },
+    {
+      "name": "声明冲突时不再问 Baggage",
+      "authenticated": true,
+      "claims": [
+        "acme",
+        "globex"
+      ],
+      "baggage": "acme",
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "error": "MULTITENANCY_VALIDATION_004"
+      }
+    },
+    {
+      "name": "声明冲突时默认租户不顶替",
+      "authenticated": true,
+      "claims": [
+        "acme",
+        "globex"
+      ],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": "acme",
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "error": "MULTITENANCY_VALIDATION_004"
+      }
+    },
+    {
+      "name": "都没有解析到时用默认租户",
+      "authenticated": false,
+      "claims": [],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": "acme",
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "tenant": "acme",
+        "displayName": "Acme"
+      }
+    },
+    {
+      "name": "解析到了就不用默认租户",
+      "authenticated": false,
+      "claims": [],
+      "baggage": "globex",
+      "platformCall": false,
+      "options": {
+        "defaultTenant": "acme",
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "tenant": "globex",
+        "displayName": null
+      }
+    },
+    {
+      "name": "没有租户也没有默认租户：不要求带租户时无租户继续",
+      "authenticated": false,
+      "claims": [],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "tenant": null
+      }
+    },
+    {
+      "name": "没有租户也没有默认租户：要求带租户时拒绝",
+      "authenticated": false,
+      "claims": [],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": true,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "error": "MULTITENANCY_VALIDATION_002"
+      }
+    },
+    {
+      "name": "要求带租户而有默认租户：用默认租户",
+      "authenticated": false,
+      "claims": [],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": "acme",
+        "requireTenant": true,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "tenant": "acme",
+        "displayName": "Acme"
+      }
+    },
+    {
+      "name": "平台调用不问解析器",
+      "authenticated": true,
+      "claims": [
+        "acme"
+      ],
+      "baggage": "globex",
+      "platformCall": true,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "tenant": null
+      }
+    },
+    {
+      "name": "平台调用不补默认租户、不要求带租户",
+      "authenticated": false,
+      "claims": [],
+      "baggage": null,
+      "platformCall": true,
+      "options": {
+        "defaultTenant": "acme",
+        "requireTenant": true,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "tenant": null
+      }
+    },
+    {
+      "name": "解析出的 ID 含大写不合文法",
+      "authenticated": false,
+      "claims": [],
+      "baggage": "Acme",
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "error": "MULTITENANCY_VALIDATION_001"
+      }
+    },
+    {
+      "name": "声明里的 ID 不合文法",
+      "authenticated": true,
+      "claims": [
+        "acme corp"
+      ],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "error": "MULTITENANCY_VALIDATION_001"
+      }
+    },
+    {
+      "name": "存储里没有这个租户",
+      "authenticated": true,
+      "claims": [
+        "ghost"
+      ],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "error": "MULTITENANCY_NOTFOUND_001"
+      }
+    },
+    {
+      "name": "租户已禁用",
+      "authenticated": true,
+      "claims": [
+        "dormant"
+      ],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "error": "MULTITENANCY_DENIED_001"
+      }
+    },
+    {
+      "name": "租户存储不可达：不当作不存在",
+      "authenticated": true,
+      "claims": [
+        "acme"
+      ],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": true,
+      "expected": {
+        "error": "MULTITENANCY_UNAVAILABLE_003"
+      }
+    },
+    {
+      "name": "默认租户同样核对存储：不存在",
+      "authenticated": false,
+      "claims": [],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": "ghost",
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "error": "MULTITENANCY_NOTFOUND_001"
+      }
+    },
+    {
+      "name": "默认租户同样核对存储：已禁用",
+      "authenticated": false,
+      "claims": [],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": "dormant",
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "error": "MULTITENANCY_DENIED_001"
+      }
+    },
+    {
+      "name": "不核对存储：存储里没有的租户照常通过，没有显示名",
+      "authenticated": true,
+      "claims": [
+        "ghost"
+      ],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": false
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "tenant": "ghost",
+        "displayName": null
+      }
+    },
+    {
+      "name": "不核对存储：已禁用的租户照常通过，没有显示名",
+      "authenticated": true,
+      "claims": [
+        "dormant"
+      ],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": false
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "tenant": "dormant",
+        "displayName": null
+      }
+    },
+    {
+      "name": "不核对存储：存储不可达不影响",
+      "authenticated": true,
+      "claims": [
+        "acme"
+      ],
+      "baggage": null,
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": false
+      },
+      "storeUnavailable": true,
+      "expected": {
+        "tenant": "acme",
+        "displayName": null
+      }
+    },
+    {
+      "name": "不核对存储：文法照样核对",
+      "authenticated": false,
+      "claims": [],
+      "baggage": "Acme",
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": false
+      },
+      "storeUnavailable": false,
+      "expected": {
+        "error": "MULTITENANCY_VALIDATION_001"
+      }
+    },
+    {
+      "name": "文法先于存储：不合文法的 ID 在存储不可达时仍是文法错误",
+      "authenticated": false,
+      "claims": [],
+      "baggage": "Acme",
+      "platformCall": false,
+      "options": {
+        "defaultTenant": null,
+        "requireTenant": false,
+        "validateAgainstStore": true
+      },
+      "storeUnavailable": true,
+      "expected": {
+        "error": "MULTITENANCY_VALIDATION_001"
+      }
+    }
+  ]
+}

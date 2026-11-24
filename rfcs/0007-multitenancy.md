@@ -1,6 +1,6 @@
 # RFC-0007 多租户
 
-> 状态：已采纳（2026-10-26 修订：租户分片；2026-10-27 修订：租户目录的数据库 Provider；2026-11-01 修订：资源名租户段与租户 ID 同一文法、内存实现只为被选中的能力注册；2026-11-04 修订：分片解析失败的 `reason` 只写异常类型；2026-11-12 修订：租户 ID 只用小写、整串匹配；2026-11-14 修订：数据库租户目录的缓存走 `ICache`、分片解析器不再缓存；2026-11-24 修订：解析器不另传取消令牌） | 日期：2026-10-21 | 对应 ADR：ADR-0018（分片）、ADR-0026（数据库 Provider）、ADR-0115、ADR-0196（租户 ID 只用小写）、ADR-0229（缓存走 ICache）、ADR-0263（解析器不另传取消令牌） | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory`、`XiHan.Framework.MultiTenancy.Database` | 一致性：`XiHan.Framework.MultiTenancy.Conformance` | 一致性档：`multitenancy`
+> 状态：已采纳（2026-10-26 修订：租户分片；2026-10-27 修订：租户目录的数据库 Provider；2026-11-01 修订：资源名租户段与租户 ID 同一文法、内存实现只为被选中的能力注册；2026-11-04 修订：分片解析失败的 `reason` 只写异常类型；2026-11-12 修订：租户 ID 只用小写、整串匹配；2026-11-14 修订：数据库租户目录的缓存走 `ICache`、分片解析器不再缓存；2026-11-24 修订：解析器不另传取消令牌；同日再修订：一致性向量） | 日期：2026-10-21 | 对应 ADR：ADR-0018（分片）、ADR-0026（数据库 Provider）、ADR-0115、ADR-0196（租户 ID 只用小写）、ADR-0229（缓存走 ICache）、ADR-0263（解析器不另传取消令牌）、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.MultiTenancy.Abstractions`、`XiHan.Framework.MultiTenancy.InMemory`、`XiHan.Framework.MultiTenancy.Database` | 一致性：`XiHan.Framework.MultiTenancy.Conformance`，向量 `conformance/vectors/multitenancy/` | 一致性档：`multitenancy`
 
 ## 摘要
 
@@ -59,6 +59,16 @@ Tenant 阶段一进入就调用 `context.MarkTenantResolved()`（内核 `Securit
 ## 一致性
 
 Provider 必须继承 `TenantStoreConformance` 并通过全部用例；分片解析器必须继承 `TenantShardResolverConformance`（分库租户解析出连接串、小写提供者名与去前缀的透传属性；共库与未知租户为成功无值；失效后重解析结果一致）。
+
+向量（档 `multitenancy`，`conformance/vectors/multitenancy/`；2026-11-24，ADR-0277，以前这个档没有向量）：
+
+| 文件 | 内容 |
+| --- | --- |
+| `tenant-ids.json` | 租户 ID 文法的合法与不合法样例，含大写、64 个字符的上限两侧与结尾的换行 |
+| `tenant-resolution.json` | Tenant 阶段的裁定（「解析」第 1–5 条）：缺省两个解析器的先后、多个声明、默认租户、要求带租户、平台调用、文法与存储的核对，到写进安全上下文的租户、无租户或结束调用的错误码 |
+| `tenant-shards.json` | 默认分片解析器从租户属性推出的分片（「分片」）：`ConnectionString`、`DatabaseProvider` 与 `Shard.<key>` |
+
+向量不收的：只有空白的 `ConnectionString`、空的 `DatabaseProvider`、键正好是 `Shard.` 的属性与属性名的大小写（正文没有写）；分片表示成连接绑定时属性的合并次序；租户存储的分页与管理（由 `TenantStoreConformance` 核对）。
 
 ## 错误码
 
