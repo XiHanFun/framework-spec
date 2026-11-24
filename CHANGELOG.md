@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- PATCH：能力登记表（`conventions/capability-ids.md`）把没有实现的 ID 标成「保留，尚无实现」并新增一节说明现状，ID 不删：`domain.model`、`persistence.document`、`search.fulltext`、`actors.virtual`、`hosting.aspnetcore`、`hosting.commandline`、`testing`（.NET 与六个 SDK 里都没有清单提供它们）；`configuration.secrets` 有契约与一致性套件、没有内置的 Provider 包，不算保留。`tools/speccheck` 新增测试：标注与「保留」一节一一对应，登记的 ID 合文法且领域在术语表里，不合文法的只能是保留项（ADR-0276）。各实现不用改。
 - PATCH：RFC-0018 里只在它那里写着的规则并入 `plugin/wasm.md`，RFC 改为引用，规则本身不变：可贡献的范围与 ABI 的演进（开头）、可用的 WebAssembly 提案（§1）、握手应答的核对（§3）、`xihan.log` 单条 16384 字节的上限、`net.outbound:` 声明即加载失败与再入计入嵌套深度（§4）、表的元素数上限、健康轮询与崩溃细节 `trap` 的写法（§5）。参考实现的选项名与默认值留在 RFC-0018（ADR-0276）。各实现不用改。
 - MINOR：定义规范用语（新增 `conventions/normative-language.md`，档 `core`；RFC-0024 新增「规范用语」一节）：「必须」「不得」「应当」「不应当」「可以」的约束力对应 RFC 2119 的 MUST、MUST NOT、SHOULD、SHOULD NOT、MAY，规范性内容里的陈述句与「必须」同等约束，要求落在行为上、只约束认领了所属档的实现。只加定义，已有正文的措辞不动（ADR-0276）。
 - MINOR：应用清单 Schema（`packaging/app.schema.json`）收紧到与 `packaging/app-manifest.md` 的字段表一致：`name`、`bindings.<name>.secret` 与 `leader.lease` 改用同一个 DNS 标签定义（`^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`），以 `-` 结尾的名字不再过得了 Schema；正文写明 `secret` 与 `lease` 是 DNS 标签，新增「Schema 之外的约束」一节列出 Schema 表达不了、由 `xihan pack` 读取时核对的几条（文件存在、`ports.grpc` 不等于 `http`、`startupSeconds` 不小于 `periodSeconds`、`scaling.max` 不小于 `min`、配置文件里的凭据键）。`tools/speccheck` 新增测试：正文禁止的例子过不了 Schema，Schema 表达不了的那几条有例子标明（ADR-0276）。`xihan pack` 的行为不变，它一直这样核对。

@@ -22,6 +22,7 @@
 
 - 错误码登记表自洽；正文、向量与协议里出现的框架错误码都在 `conventions/error-codes.md` 登记或撤销。
 - `manifest/manifest.schema.json` 与 `packaging/app.schema.json` 能编译；清单 Schema 对每个清单向量都与 RFC-0002 的读取步骤一致；应用清单 Schema 拒绝 `packaging/app-manifest.md` 字段表禁止的写法（`appschema_test.go` 里逐行备了例子，Schema 表达不了的跨字段约束另有一张表）。
+- 能力登记表自洽：登记的 ID 合文法、领域在术语表里，「保留，尚无实现」的标注与「保留、尚无实现的能力」一节一一对应。
 - 档表覆盖每个规范文件；子系统档名来自术语表；每个 RFC 状态行写的档与档表一致。
 
 它是独立模块（只有测试），在 `tools/speccheck` 目录里跑；测试把上两级目录当作仓库根，并先确认那里有 `README.md` 与 `conventions/error-codes.md`。

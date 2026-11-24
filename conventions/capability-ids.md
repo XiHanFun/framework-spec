@@ -30,8 +30,8 @@ Version        = %x31-39 *DIGIT  ; 不带前导零的正整数，不超过 21474
 | `kernel.plugins` | 插件宿主抽象 |
 | `plugins.out-of-process` | 进程外插件宿主（RFC-0017） |
 | `plugins.wasm` | Wasm 插件宿主（RFC-0018，Experimental） |
-| `domain.model` | 实体协议、值对象、领域事件、规约 |
-| `persistence.relational` / `persistence.document` | 仓储、工作单元、迁移 |
+| `domain.model` | 实体协议、值对象、领域事件、规约（保留，尚无实现） |
+| `persistence.relational` / `persistence.document` | 仓储、工作单元、迁移（`persistence.document` 保留，尚无实现） |
 | `caching.local` / `caching.distributed` | 缓存与分布式锁 |
 | `messaging.queue` / `messaging.stream` | 队列与流 |
 | `security.authentication` / `security.authorization` | 认证与授权 |
@@ -47,9 +47,26 @@ Version        = %x31-39 *DIGIT  ; 不带前导零的正整数，不超过 21474
 | `localization.resources` | 本地化资源 |
 | `auditing.trail` | 审计 |
 | `workflow.execution` | 持久化执行 |
-| `search.fulltext` | 全文检索 |
+| `search.fulltext` | 全文检索（保留，尚无实现） |
 | `ai.chat` / `ai.embedding` / `ai.tools` / `ai.knowledge` | AI 端口：聊天、嵌入、工具目录、知识库（RFC-0022） |
-| `actors.virtual` | 虚拟 Actor |
-| `hosting.aspnetcore` / `hosting.commandline` | 宿主 |
+| `actors.virtual` | 虚拟 Actor（保留，尚无实现） |
+| `hosting.aspnetcore` / `hosting.commandline` | 宿主（保留，尚无实现） |
 | `protocols.http` / `protocols.grpc` / `protocols.mcp` / `protocols.cloudevents` | 协议适配器 |
-| `testing` | 测试基座 |
+| `testing` | 测试基座（保留，尚无实现） |
+
+## 保留、尚无实现的能力
+
+上表标了「保留，尚无实现」的 ID 已经登记，但 .NET 参考实现与各语言 SDK 里都没有哪份清单提供它（2026-11-24 标注，ADR-0276；以前登记表不区分已实现与只占了名字的）。ID 保留：不删、不改、不挪作他用（规则 3）。
+
+| 能力 ID | 现状 |
+| --- | --- |
+| `domain.model` | `Domain` 是纯契约包，没有特性与清单，领域协议不作为能力提供 |
+| `persistence.document` | RFC-0005 预留；没有契约，也没有 Provider，.NET 只有常量 `PersistenceCapabilities.Document` |
+| `search.fulltext` | 没有 RFC，没有包 |
+| `actors.virtual` | 没有 RFC，没有包 |
+| `hosting.aspnetcore` / `hosting.commandline` | 宿主包存在（`Hosting.AspNetCore`、`Hosting.CommandLine`），但没有哪份清单提供这两项能力 |
+| `testing` | 测试基座不带清单；这个写法只有一段，不合上面的 `CapabilityId` 文法，写不进清单的 `provides` 与 `requires` |
+
+- 清单依赖保留的能力时求解找不到提供者：必需依赖报 `KERNEL_CAPABILITY_001`，可选依赖缺失不阻止启动、对应特性进入 `Degraded`（RFC-0002 解析规则 5、6）。
+- 落地一项保留的能力走 RFC（规则 3）：定下契约与接口版本，有了提供它的清单之后从本节与上表的标注里去掉。
+- `configuration.secrets` 不在此列：契约（`ISecretStore`）、接进配置的适配器与一致性套件都已定义（RFC-0014），只是 XiHan.Framework 仓库里还没有提供它的 Provider 包。
