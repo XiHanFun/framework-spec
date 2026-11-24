@@ -72,3 +72,67 @@ func TestHostUsageFollowsTheVectors(t *testing.T) {
 		}
 	}
 }
+
+// sameOptional 判断两个可空的值是否相同：都为 nil，或都不为 nil 且值相等。
+func sameOptional[T comparable](got, want *T) bool {
+	return (got == nil) == (want == nil) && (got == nil || *got == *want)
+}
+
+func TestLinuxHostReadingsFollowTheVectors(t *testing.T) {
+	vectors, err := conformance.HostUsage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	linux := vectors.Linux
+
+	for _, c := range linux.CPUTimes {
+		times, ok := rules.LinuxCPUTimes(c.Stat)
+		if ok != (c.Times != nil) || (ok && (times.Idle != c.Times.Idle || times.Total != c.Times.Total)) {
+			t.Errorf("cpu times %s: read %+v (present %v), want %+v", c.Name, times, ok, c.Times)
+		}
+	}
+	for _, c := range linux.Memory {
+		memory := rules.LinuxMemory(c.Meminfo)
+		if !sameOptional(memory.Total, c.Memory.TotalBytes) || !sameOptional(memory.Available, c.Memory.AvailableBytes) ||
+			!sameOptional(memory.Free, c.Memory.FreeBytes) || !sameOptional(memory.Cached, c.Memory.CachedBytes) {
+			t.Errorf("memory %s: the readings differ from the vector", c.Name)
+		}
+	}
+	for _, c := range linux.Uptime {
+		uptime, ok := rules.LinuxUptime(c.Uptime)
+		if ok != (c.Milliseconds != nil) || (ok && (uptime%time.Millisecond != 0 || uptime.Milliseconds() != *c.Milliseconds)) {
+			t.Errorf("uptime %s: read %v (present %v), want %v ms", c.Name, uptime, ok, c.Milliseconds)
+		}
+	}
+	for _, c := range linux.Mounts {
+		mounts := rules.LinuxBlockDeviceMounts(c.Mounts)
+		same := len(mounts) == len(c.Disks)
+		for index := 0; same && index < len(mounts); index++ {
+			same = mounts[index] == rules.HostMount{Device: c.Disks[index].Device, MountPoint: c.Disks[index].MountPoint, FileSystem: c.Disks[index].FileSystem}
+		}
+		if !same {
+			t.Errorf("mounts %s: read %+v, want %+v", c.Name, mounts, c.Disks)
+		}
+	}
+	for _, c := range linux.Processors {
+		processor := rules.LinuxProcessor(c.Files)
+		if !sameOptional(processor.Name, c.Processor.Name) || !sameOptional(processor.Vendor, c.Processor.Vendor) ||
+			!sameOptional(processor.PhysicalCores, c.Processor.PhysicalCores) || !sameOptional(processor.FrequencyMHz, c.Processor.FrequencyMhz) ||
+			!sameOptional(processor.CacheBytes, c.Processor.CacheBytes) {
+			t.Errorf("processor %s: the readings differ from the vector", c.Name)
+		}
+	}
+	for _, c := range linux.GPUs {
+		gpus := rules.LinuxGPUs(c.Files)
+		same := len(gpus) == len(c.GPUs)
+		for index := 0; same && index < len(gpus); index++ {
+			got, want := gpus[index], c.GPUs[index]
+			same = sameOptional(got.Name, want.Name) && sameOptional(got.Vendor, want.Vendor) && sameOptional(got.VendorID, want.VendorID) &&
+				sameOptional(got.DeviceID, want.DeviceID) && sameOptional(got.Driver, want.Driver) && sameOptional(got.DriverVersion, want.DriverVersion) &&
+				sameOptional(got.MemoryBytes, want.MemoryBytes) && sameOptional(got.TemperatureCelsius, want.TemperatureCelsius)
+		}
+		if !same {
+			t.Errorf("gpus %s: the readings differ from the vector", c.Name)
+		}
+	}
+}

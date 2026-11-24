@@ -935,7 +935,95 @@ type HostDiskCase struct {
 	UsagePercent *float64 `json:"usagePercent"`
 }
 
-// HostUsageVectors 对应 observability/host-usage.json（RFC-0023「运行信息」的「契约」与「采样」，ADR-0277）。
+// HostLinuxCPUTimesCase 是 /proc/stat 的内容与读出的系统 CPU 累计时间：Times 为 nil 表示读不出。
+type HostLinuxCPUTimesCase struct {
+	Name  string         `json:"name"`
+	Stat  string         `json:"stat"`
+	Times *HostCPUSample `json:"times"`
+}
+
+// HostLinuxMemory 是读出的物理内存（字节），nil 表示读不到。
+type HostLinuxMemory struct {
+	TotalBytes     *int64 `json:"totalBytes"`
+	AvailableBytes *int64 `json:"availableBytes"`
+	FreeBytes      *int64 `json:"freeBytes"`
+	CachedBytes    *int64 `json:"cachedBytes"`
+}
+
+// HostLinuxMemoryCase 是 /proc/meminfo 的内容与读出的物理内存。
+type HostLinuxMemoryCase struct {
+	Name    string          `json:"name"`
+	Meminfo string          `json:"meminfo"`
+	Memory  HostLinuxMemory `json:"memory"`
+}
+
+// HostLinuxUptimeCase 是 /proc/uptime 的内容与读出的系统运行时长（毫秒）：Milliseconds 为 nil 表示读不出。
+type HostLinuxUptimeCase struct {
+	Name         string `json:"name"`
+	Uptime       string `json:"uptime"`
+	Milliseconds *int64 `json:"milliseconds"`
+}
+
+// HostLinuxMount 是要读容量的一个挂载点：设备、挂载点与文件系统。
+type HostLinuxMount struct {
+	Device     string `json:"device"`
+	MountPoint string `json:"mountPoint"`
+	FileSystem string `json:"fileSystem"`
+}
+
+// HostLinuxMountsCase 是 /proc/self/mounts 的内容与要读容量的挂载点。
+type HostLinuxMountsCase struct {
+	Name   string           `json:"name"`
+	Mounts string           `json:"mounts"`
+	Disks  []HostLinuxMount `json:"disks"`
+}
+
+// HostLinuxProcessor 是读出的处理器静态信息，nil 表示读不到。
+type HostLinuxProcessor struct {
+	Name          *string  `json:"name"`
+	Vendor        *string  `json:"vendor"`
+	PhysicalCores *int     `json:"physicalCores"`
+	FrequencyMhz  *float64 `json:"frequencyMhz"`
+	CacheBytes    *int64   `json:"cacheBytes"`
+}
+
+// HostLinuxProcessorCase 是一组文件（路径相对文件系统的根）与读出的处理器静态信息。
+type HostLinuxProcessorCase struct {
+	Name      string             `json:"name"`
+	Files     map[string]string  `json:"files"`
+	Processor HostLinuxProcessor `json:"processor"`
+}
+
+// HostLinuxGPU 是读出的一块显卡，nil 表示读不到。
+type HostLinuxGPU struct {
+	Name               *string  `json:"name"`
+	Vendor             *string  `json:"vendor"`
+	VendorID           *string  `json:"vendorId"`
+	DeviceID           *string  `json:"deviceId"`
+	Driver             *string  `json:"driver"`
+	DriverVersion      *string  `json:"driverVersion"`
+	MemoryBytes        *int64   `json:"memoryBytes"`
+	TemperatureCelsius *float64 `json:"temperatureCelsius"`
+}
+
+// HostLinuxGPUCase 是一组文件（路径相对文件系统的根）与读出的各块显卡。
+type HostLinuxGPUCase struct {
+	Name  string            `json:"name"`
+	Files map[string]string `json:"files"`
+	GPUs  []HostLinuxGPU    `json:"gpus"`
+}
+
+// HostLinuxVectors 是 Linux 上各项由 /proc 与 /sys 里的文本读出的取法（RFC-0023「平台读取路径」的「Linux 的取法」，ADR-0286）。
+type HostLinuxVectors struct {
+	CPUTimes   []HostLinuxCPUTimesCase  `json:"cpuTimes"`
+	Memory     []HostLinuxMemoryCase    `json:"memory"`
+	Uptime     []HostLinuxUptimeCase    `json:"uptime"`
+	Mounts     []HostLinuxMountsCase    `json:"mounts"`
+	Processors []HostLinuxProcessorCase `json:"processors"`
+	GPUs       []HostLinuxGPUCase       `json:"gpus"`
+}
+
+// HostUsageVectors 对应 observability/host-usage.json（RFC-0023「运行信息」的「契约」「采样」与「平台读取路径」，ADR-0277、ADR-0286）。
 type HostUsageVectors struct {
 	SampleInterval HostSampleIntervalVectors `json:"sampleInterval"`
 	CPU            []HostCPUCase             `json:"cpu"`
@@ -943,6 +1031,7 @@ type HostUsageVectors struct {
 	Network        []HostNetworkCase         `json:"network"`
 	Memory         []HostMemoryCase          `json:"memory"`
 	Disks          []HostDiskCase            `json:"disks"`
+	Linux          HostLinuxVectors          `json:"linux"`
 }
 
 // HostUsage 读取运行信息里使用率与速率的向量。

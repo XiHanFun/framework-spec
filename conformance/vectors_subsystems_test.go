@@ -504,7 +504,9 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 	"observability/host-usage.json": func(t *testing.T) any {
 		usage, err := conformance.HostUsage()
 		if err != nil || usage.SampleInterval.DefaultMs <= 0 || usage.SampleInterval.MaxMs <= 0 || len(usage.SampleInterval.Valid) == 0 || len(usage.SampleInterval.Invalid) == 0 ||
-			len(usage.CPU) == 0 || len(usage.Process) == 0 || len(usage.Network) == 0 || len(usage.Memory) == 0 || len(usage.Disks) == 0 {
+			len(usage.CPU) == 0 || len(usage.Process) == 0 || len(usage.Network) == 0 || len(usage.Memory) == 0 || len(usage.Disks) == 0 ||
+			len(usage.Linux.CPUTimes) == 0 || len(usage.Linux.Memory) == 0 || len(usage.Linux.Uptime) == 0 || len(usage.Linux.Mounts) == 0 ||
+			len(usage.Linux.Processors) == 0 || len(usage.Linux.GPUs) == 0 {
 			t.Errorf("host usage: %v", err)
 		}
 		var names []string
@@ -525,6 +527,33 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 		}
 		for _, c := range usage.Disks {
 			names = append(names, "disk "+c.Name)
+		}
+		for _, c := range usage.Linux.CPUTimes {
+			names = append(names, "linux cpu times "+c.Name)
+		}
+		for _, c := range usage.Linux.Memory {
+			names = append(names, "linux memory "+c.Name)
+		}
+		for _, c := range usage.Linux.Uptime {
+			names = append(names, "linux uptime "+c.Name)
+		}
+		for _, c := range usage.Linux.Mounts {
+			names = append(names, "linux mounts "+c.Name)
+			if c.Disks == nil {
+				t.Errorf("linux mounts case %q must list its disks (an empty array for none)", c.Name)
+			}
+		}
+		for _, c := range usage.Linux.Processors {
+			names = append(names, "linux processor "+c.Name)
+			if len(c.Files) == 0 {
+				t.Errorf("linux processor case %q must carry its files", c.Name)
+			}
+		}
+		for _, c := range usage.Linux.GPUs {
+			names = append(names, "linux gpu "+c.Name)
+			if len(c.Files) == 0 || c.GPUs == nil {
+				t.Errorf("linux gpu case %q must carry its files and list its GPUs (an empty array for none)", c.Name)
+			}
 		}
 		uniqueNames(t, "host usage", names)
 		return usage

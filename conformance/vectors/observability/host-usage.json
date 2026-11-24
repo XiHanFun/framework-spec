@@ -1,5 +1,5 @@
 {
-  "$comment": "运行信息里由两次采样求差的使用率与速率，以及由总量算出的已用与使用率（RFC-0023「运行信息」的「契约」与「采样」，ADR-0056、ADR-0277）。百分比都在 0 到 100 之间、不取整；计数变小（回绕、网卡重建）、总增量为零或任一次没有读到时该项为空（null），不以 0 顶替。用例的结果都是二进制浮点能精确表示的数，按相等比较。sampleInterval：采样间隔的缺省值与取值范围（毫秒，大于 0、不超过一小时），valid 在范围内，invalid 不在。cpu：系统 CPU 使用率 = 1 − 空闲增量 / 总增量；before 与 after 是先后两次读到的累计空闲时间与总时间（单位相同即可，null 表示没有读到）。process：进程 CPU 使用率 = 进程处理器时间增量 /（经过时间 × 逻辑核心数）；cores 是逻辑核心数，elapsedMs 是两次采样之间经过的毫秒数，processCpuBeforeMs 与 processCpuAfterMs 是进程累计的处理器时间。network：网卡速率 = 累计字节增量 / 经过时间（字节每秒），收与发各算各的；before 与 after 是先后两次读到的累计字节数。memory：已用 = 总量 − 可用，使用率 = 已用 / 总量；disks：已用 = 总量 − 空闲，使用率 = 已用 / 总量；总量为零时使用率为空。期望值由 .NET 参考实现（Observability.Host 的采样器、MemoryInfo、DiskInfo 与 HostObservabilityOptions）算出。",
+  "$comment": "运行信息里由两次采样求差的使用率与速率，以及由总量算出的已用与使用率（RFC-0023「运行信息」的「契约」与「采样」，ADR-0056、ADR-0277、ADR-0286）。百分比都在 0 到 100 之间、不取整；计数变小（回绕、网卡重建）、总增量为零或任一次没有读到时该项为空（null），不以 0 顶替。用例的结果都是二进制浮点能精确表示的数，按相等比较。sampleInterval：采样间隔的缺省值与取值范围（毫秒，大于 0、不超过一小时），valid 在范围内，invalid 不在。cpu：系统 CPU 使用率 = 1 − 空闲增量 / 总增量；before 与 after 是先后两次读到的累计空闲时间与总时间（单位相同即可，null 表示没有读到）。process：进程 CPU 使用率 = 进程处理器时间增量 /（经过时间 × 逻辑核心数）；cores 是逻辑核心数，elapsedMs 是两次采样之间经过的毫秒数，processCpuBeforeMs 与 processCpuAfterMs 是进程累计的处理器时间。network：网卡速率 = 累计字节增量 / 经过时间（字节每秒），收与发各算各的；before 与 after 是先后两次读到的累计字节数。memory：已用 = 总量 − 可用，使用率 = 已用 / 总量；disks：已用 = 总量 − 空闲，使用率 = 已用 / 总量；总量为零时使用率为空。linux：Linux 上各项由 /proc 与 /sys 里的文本读出的取法（RFC-0023「平台读取路径」的「Linux 的取法」，2026-11-24 写明，ADR-0286；以前正文只给了读哪个文件的哪一项）。读不到的项为 null，文本去掉首尾空白后为空即读不到。cpuTimes：stat 是 /proc/stat 的内容，times 是读出的累计空闲时间与总时间——取第一个以 cpu 加空格起头的行、名字之后的前八列，空闲是第四列（idle）加第五列（iowait），总计是这几列之和，至少四列、都是十进制数字，否则为 null。memory：meminfo 是 /proc/meminfo 的内容，memory 是读出的总量、可用、空闲与缓存（字节）——MemTotal、MemAvailable、MemFree 各取同名的第一行，缓存是 Buffers 加 Cached，数值的单位是 kB、乘以 1024。uptime：uptime 是 /proc/uptime 的内容，milliseconds 是读出的系统运行时长（毫秒）——第一列是秒数，写成十进制小数。mounts：mounts 是 /proc/self/mounts 的内容，disks 是要读容量的挂载点，按文件里的次序——设备以 /dev/ 开头、不以 /dev/loop 开头，每个设备取第一行，设备与挂载点里的三位八进制转义还原。processors 与 gpus：files 是路径（相对文件系统的根，不带开头的斜杠）到文件内容，目录由路径推出；processor 是读出的型号、厂商、物理核心数、标称频率（MHz）与最后一级缓存的字节数，gpus 是读出的各块显卡，按 card<N> 目录名的字节序。期望值由 .NET 参考实现（Observability.Host 的采样器、MemoryInfo、DiskInfo、HostObservabilityOptions 与 Linux 的读取路径 LinuxHostPlatform）算出。",
   "sampleInterval": {
     "defaultMs": 5000,
     "maxMs": 3600000,
@@ -374,5 +374,785 @@
       "usedBytes": 0,
       "usagePercent": null
     }
-  ]
+  ],
+  "linux": {
+    "cpuTimes": [
+      {
+        "name": "十列：空闲含 iowait，总计是前八列，guest 两列不计",
+        "stat": "cpu  4705 356 584 3699 23 23 0 0 100 50\ncpu0 2352 178 292 1849 11 11 0 0 50 25\ncpu1 2353 178 292 1850 12 12 0 0 50 25\nintr 114930548 113199788\nctxt 1990473\n",
+        "times": {
+          "idle": 3722,
+          "total": 9390
+        }
+      },
+      {
+        "name": "八列",
+        "stat": "cpu  100 20 30 400 50 6 7 8\n",
+        "times": {
+          "idle": 450,
+          "total": 621
+        }
+      },
+      {
+        "name": "只有四列的老内核：没有 iowait",
+        "stat": "cpu 100 20 30 400\n",
+        "times": {
+          "idle": 400,
+          "total": 550
+        }
+      },
+      {
+        "name": "五列：空闲加 iowait",
+        "stat": "cpu  100 20 30 400 50\n",
+        "times": {
+          "idle": 450,
+          "total": 600
+        }
+      },
+      {
+        "name": "iowait 为 0",
+        "stat": "cpu  100 0 30 400 0 0 0 0 0 0\n",
+        "times": {
+          "idle": 400,
+          "total": 530
+        }
+      },
+      {
+        "name": "cpu 行不在第一行",
+        "stat": "intr 1 2 3\ncpu  1 2 3 4 5 6 7 8 9 10\n",
+        "times": {
+          "idle": 9,
+          "total": 36
+        }
+      },
+      {
+        "name": "只取总计的那一行，不取各核的行",
+        "stat": "cpu0 9 9 9 9 9 9 9 9\ncpu  1 2 3 4 5 6 7 8\n",
+        "times": {
+          "idle": 9,
+          "total": 36
+        }
+      },
+      {
+        "name": "很大的累计值",
+        "stat": "cpu  1234567890123 0 987654321098 5000000000000 4000000000 0 0 0 0 0\n",
+        "times": {
+          "idle": 5004000000000,
+          "total": 7226222211221
+        }
+      },
+      {
+        "name": "少于四列：读不出",
+        "stat": "cpu  100 20 30\n",
+        "times": null
+      },
+      {
+        "name": "前八列里有不是数字的：读不出",
+        "stat": "cpu  100 20 30 400 x 6 7 8\n",
+        "times": null
+      },
+      {
+        "name": "第八列之后不是数字不影响",
+        "stat": "cpu  100 20 30 400 50 6 7 8 x y\n",
+        "times": {
+          "idle": 450,
+          "total": 621
+        }
+      },
+      {
+        "name": "带负号的：读不出",
+        "stat": "cpu  100 -20 30 400\n",
+        "times": null
+      },
+      {
+        "name": "没有 cpu 行",
+        "stat": "cpu0 1 2 3 4\nintr 1\n",
+        "times": null
+      },
+      {
+        "name": "cpu 之后是制表符：不算这一行",
+        "stat": "cpu\t100 20 30 400\n",
+        "times": null
+      },
+      {
+        "name": "空文件",
+        "stat": "",
+        "times": null
+      }
+    ],
+    "memory": [
+      {
+        "name": "常见的内容",
+        "meminfo": "MemTotal:       16314208 kB\nMemFree:         1234567 kB\nMemAvailable:    8000000 kB\nBuffers:          100000 kB\nCached:          2000000 kB\nSwapCached:            0 kB\nSReclaimable:     300000 kB\n",
+        "memory": {
+          "totalBytes": 16705748992,
+          "availableBytes": 8192000000,
+          "freeBytes": 1264196608,
+          "cachedBytes": 2150400000
+        }
+      },
+      {
+        "name": "没有 MemAvailable 的老内核",
+        "meminfo": "MemTotal:        2048000 kB\nMemFree:          512000 kB\nBuffers:           64000 kB\nCached:           256000 kB\n",
+        "memory": {
+          "totalBytes": 2097152000,
+          "availableBytes": null,
+          "freeBytes": 524288000,
+          "cachedBytes": 327680000
+        }
+      },
+      {
+        "name": "只有 Cached：缓存就是它",
+        "meminfo": "MemTotal: 1000 kB\nCached: 5 kB\n",
+        "memory": {
+          "totalBytes": 1024000,
+          "availableBytes": null,
+          "freeBytes": null,
+          "cachedBytes": 5120
+        }
+      },
+      {
+        "name": "只有 Buffers：缓存就是它",
+        "meminfo": "MemTotal: 1000 kB\nBuffers: 7 kB\n",
+        "memory": {
+          "totalBytes": 1024000,
+          "availableBytes": null,
+          "freeBytes": null,
+          "cachedBytes": 7168
+        }
+      },
+      {
+        "name": "Buffers 与 Cached 都没有：缓存为空",
+        "meminfo": "MemTotal: 1000 kB\nMemFree: 10 kB\n",
+        "memory": {
+          "totalBytes": 1024000,
+          "availableBytes": null,
+          "freeBytes": 10240,
+          "cachedBytes": null
+        }
+      },
+      {
+        "name": "SwapCached 不是 Cached",
+        "meminfo": "MemTotal: 1000 kB\nSwapCached: 9 kB\n",
+        "memory": {
+          "totalBytes": 1024000,
+          "availableBytes": null,
+          "freeBytes": null,
+          "cachedBytes": null
+        }
+      },
+      {
+        "name": "同名的行取第一行",
+        "meminfo": "MemTotal: 1000 kB\nMemTotal: 2000 kB\n",
+        "memory": {
+          "totalBytes": 1024000,
+          "availableBytes": null,
+          "freeBytes": null,
+          "cachedBytes": null
+        }
+      },
+      {
+        "name": "字段名区分大小写",
+        "meminfo": "memtotal: 1000 kB\nMEMFREE: 5 kB\n",
+        "memory": {
+          "totalBytes": null,
+          "availableBytes": null,
+          "freeBytes": null,
+          "cachedBytes": null
+        }
+      },
+      {
+        "name": "冒号两侧的空白不计",
+        "meminfo": " MemTotal :\t1000 kB\n",
+        "memory": {
+          "totalBytes": 1024000,
+          "availableBytes": null,
+          "freeBytes": null,
+          "cachedBytes": null
+        }
+      },
+      {
+        "name": "值不是数字：这一项为空，别的照读",
+        "meminfo": "MemTotal: lots kB\nMemFree: 12 kB\n",
+        "memory": {
+          "totalBytes": null,
+          "availableBytes": null,
+          "freeBytes": 12288,
+          "cachedBytes": null
+        }
+      },
+      {
+        "name": "为 0",
+        "meminfo": "MemTotal: 0 kB\nMemAvailable: 0 kB\n",
+        "memory": {
+          "totalBytes": 0,
+          "availableBytes": 0,
+          "freeBytes": null,
+          "cachedBytes": null
+        }
+      },
+      {
+        "name": "空文件",
+        "meminfo": "",
+        "memory": {
+          "totalBytes": null,
+          "availableBytes": null,
+          "freeBytes": null,
+          "cachedBytes": null
+        }
+      }
+    ],
+    "uptime": [
+      {
+        "name": "内核写的两位小数",
+        "uptime": "350735.47 234388.90\n",
+        "milliseconds": 350735470
+      },
+      {
+        "name": "不到一秒",
+        "uptime": "0.01 0.00\n",
+        "milliseconds": 10
+      },
+      {
+        "name": "零",
+        "uptime": "0.00 0.00\n",
+        "milliseconds": 0
+      },
+      {
+        "name": "整数",
+        "uptime": "5 3\n",
+        "milliseconds": 5000
+      },
+      {
+        "name": "只有一列",
+        "uptime": "12345.67\n",
+        "milliseconds": 12345670
+      },
+      {
+        "name": "三位小数",
+        "uptime": "86400.125 1.000\n",
+        "milliseconds": 86400125
+      },
+      {
+        "name": "很多天",
+        "uptime": "31536000.50 126144000.00\n",
+        "milliseconds": 31536000500
+      },
+      {
+        "name": "不是数字：读不出",
+        "uptime": "abc 1\n",
+        "milliseconds": null
+      },
+      {
+        "name": "带负号：读不出",
+        "uptime": "-1.00 0.00\n",
+        "milliseconds": null
+      },
+      {
+        "name": "指数写法：读不出",
+        "uptime": "1e3 0\n",
+        "milliseconds": null
+      },
+      {
+        "name": "开头有空格：读不出",
+        "uptime": " 12.00 3.00\n",
+        "milliseconds": null
+      },
+      {
+        "name": "小数点之前没有数字",
+        "uptime": ".50 0.00\n",
+        "milliseconds": 500
+      },
+      {
+        "name": "小数点之后没有数字",
+        "uptime": "5. 0.00\n",
+        "milliseconds": 5000
+      },
+      {
+        "name": "只有小数点：读不出",
+        "uptime": ". 0.00\n",
+        "milliseconds": null
+      },
+      {
+        "name": "两个小数点：读不出",
+        "uptime": "1.2.3 0.00\n",
+        "milliseconds": null
+      },
+      {
+        "name": "带千位分隔符：读不出",
+        "uptime": "1,234.50 0.00\n",
+        "milliseconds": null
+      },
+      {
+        "name": "空文件",
+        "uptime": "",
+        "milliseconds": null
+      }
+    ],
+    "mounts": [
+      {
+        "name": "只取 /dev/ 开头、不是回环设备的，每个设备取第一个挂载点",
+        "mounts": "sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime 0 0\nproc /proc proc rw 0 0\n/dev/sda1 / ext4 rw,relatime 0 0\n/dev/sda1 /mnt/again ext4 rw,relatime 0 0\n/dev/loop0 /snap/core/1 squashfs ro,nodev 0 0\ntmpfs /tmp tmpfs rw 0 0\n/dev/mapper/vg-home /home xfs rw 0 0\n/dev/nvme0n1p2 /data btrfs rw 0 0\n",
+        "disks": [
+          {
+            "device": "/dev/sda1",
+            "mountPoint": "/",
+            "fileSystem": "ext4"
+          },
+          {
+            "device": "/dev/mapper/vg-home",
+            "mountPoint": "/home",
+            "fileSystem": "xfs"
+          },
+          {
+            "device": "/dev/nvme0n1p2",
+            "mountPoint": "/data",
+            "fileSystem": "btrfs"
+          }
+        ]
+      },
+      {
+        "name": "挂载点里的八进制转义还原：空格、制表符与反斜杠",
+        "mounts": "/dev/sdb1 /mnt/my\\040disk ext4 rw 0 0\n/dev/sdc1 /mnt/tab\\011here\\134x vfat rw 0 0\n",
+        "disks": [
+          {
+            "device": "/dev/sdb1",
+            "mountPoint": "/mnt/my disk",
+            "fileSystem": "ext4"
+          },
+          {
+            "device": "/dev/sdc1",
+            "mountPoint": "/mnt/tab\there\\x",
+            "fileSystem": "vfat"
+          }
+        ]
+      },
+      {
+        "name": "设备名里的转义也还原",
+        "mounts": "/dev/disk/by-label/my\\040usb /media/usb exfat rw 0 0\n",
+        "disks": [
+          {
+            "device": "/dev/disk/by-label/my usb",
+            "mountPoint": "/media/usb",
+            "fileSystem": "exfat"
+          }
+        ]
+      },
+      {
+        "name": "不足三位八进制的反斜杠原样保留",
+        "mounts": "/dev/sdd1 /mnt/a\\04 ext4 rw 0 0\n/dev/sde1 /mnt/b\\089 ext4 rw 0 0\n",
+        "disks": [
+          {
+            "device": "/dev/sdd1",
+            "mountPoint": "/mnt/a\\04",
+            "fileSystem": "ext4"
+          },
+          {
+            "device": "/dev/sde1",
+            "mountPoint": "/mnt/b\\089",
+            "fileSystem": "ext4"
+          }
+        ]
+      },
+      {
+        "name": "不足三列的行跳过",
+        "mounts": "/dev/sdf\n/dev/sdg /x\n/dev/sdh /y ext4\n",
+        "disks": [
+          {
+            "device": "/dev/sdh",
+            "mountPoint": "/y",
+            "fileSystem": "ext4"
+          }
+        ]
+      },
+      {
+        "name": "网络与虚拟文件系统不取",
+        "mounts": "server:/export /mnt/nfs nfs4 rw 0 0\n//host/share /mnt/smb cifs rw 0 0\noverlay / overlay rw 0 0\n",
+        "disks": []
+      },
+      {
+        "name": "没有块设备",
+        "mounts": "proc /proc proc rw 0 0\n",
+        "disks": []
+      },
+      {
+        "name": "空文件",
+        "mounts": "",
+        "disks": []
+      }
+    ],
+    "processors": [
+      {
+        "name": "x86：型号与厂商取第一个处理器的，四核八线程，标称频率取 base_frequency，最后一级缓存是三级",
+        "files": {
+          "proc/cpuinfo": "processor\t: 0\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel name\t: Intel(R) Core(TM) i7-9700K CPU @ 3.60GHz\ncache size\t: 12288 KB\n\nprocessor\t: 1\nvendor_id\t: GenuineIntel\nmodel name\t: Intel(R) Core(TM) i7-9700K CPU @ 3.60GHz\n",
+          "sys/devices/system/cpu/cpu0/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu0/topology/core_id": "0\n",
+          "sys/devices/system/cpu/cpu1/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu1/topology/core_id": "1\n",
+          "sys/devices/system/cpu/cpu2/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu2/topology/core_id": "2\n",
+          "sys/devices/system/cpu/cpu3/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu3/topology/core_id": "3\n",
+          "sys/devices/system/cpu/cpu4/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu4/topology/core_id": "0\n",
+          "sys/devices/system/cpu/cpu5/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu5/topology/core_id": "1\n",
+          "sys/devices/system/cpu/cpu6/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu6/topology/core_id": "2\n",
+          "sys/devices/system/cpu/cpu7/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu7/topology/core_id": "3\n",
+          "sys/devices/system/cpu/cpu0/cpufreq/base_frequency": "3600000\n",
+          "sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq": "4900000\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/level": "1\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/type": "Data\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/size": "32K\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/level": "1\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/type": "Instruction\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/size": "32K\n",
+          "sys/devices/system/cpu/cpu0/cache/index2/level": "2\n",
+          "sys/devices/system/cpu/cpu0/cache/index2/type": "Unified\n",
+          "sys/devices/system/cpu/cpu0/cache/index2/size": "256K\n",
+          "sys/devices/system/cpu/cpu0/cache/index3/level": "3\n",
+          "sys/devices/system/cpu/cpu0/cache/index3/type": "Unified\n",
+          "sys/devices/system/cpu/cpu0/cache/index3/size": "12288K\n"
+        },
+        "processor": {
+          "name": "Intel(R) Core(TM) i7-9700K CPU @ 3.60GHz",
+          "vendor": "GenuineIntel",
+          "physicalCores": 4,
+          "frequencyMhz": 3600,
+          "cacheBytes": 12582912
+        }
+      },
+      {
+        "name": "没有 model name 取 Hardware，没有 base_frequency 取 cpuinfo_max_freq",
+        "files": {
+          "proc/cpuinfo": "processor\t: 0\nBogoMIPS\t: 108.00\nFeatures\t: fp asimd\n\nHardware\t: BCM2835\nRevision\t: c03111\nModel\t\t: Raspberry Pi 4 Model B Rev 1.1\n",
+          "sys/devices/system/cpu/cpu0/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu0/topology/core_id": "0\n",
+          "sys/devices/system/cpu/cpu1/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu1/topology/core_id": "1\n",
+          "sys/devices/system/cpu/cpu2/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu2/topology/core_id": "2\n",
+          "sys/devices/system/cpu/cpu3/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu3/topology/core_id": "3\n",
+          "sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq": "1500000\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/level": "1\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/type": "Data\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/size": "32K\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/level": "1\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/type": "Instruction\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/size": "48K\n",
+          "sys/devices/system/cpu/cpu0/cache/index2/level": "2\n",
+          "sys/devices/system/cpu/cpu0/cache/index2/type": "Unified\n",
+          "sys/devices/system/cpu/cpu0/cache/index2/size": "1024K\n"
+        },
+        "processor": {
+          "name": "BCM2835",
+          "vendor": null,
+          "physicalCores": 4,
+          "frequencyMhz": 1500,
+          "cacheBytes": 1048576
+        }
+      },
+      {
+        "name": "两个封装：核心按封装与核心编号的组合数",
+        "files": {
+          "proc/cpuinfo": "vendor_id\t: AuthenticAMD\nmodel name\t: AMD EPYC 7302 16-Core Processor\n",
+          "sys/devices/system/cpu/cpu0/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu0/topology/core_id": "0\n",
+          "sys/devices/system/cpu/cpu1/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu1/topology/core_id": "1\n",
+          "sys/devices/system/cpu/cpu2/topology/physical_package_id": "1\n",
+          "sys/devices/system/cpu/cpu2/topology/core_id": "0\n",
+          "sys/devices/system/cpu/cpu3/topology/physical_package_id": "1\n",
+          "sys/devices/system/cpu/cpu3/topology/core_id": "1\n",
+          "sys/devices/system/cpu/cpu4/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu4/topology/core_id": "0\n",
+          "sys/devices/system/cpu/cpu5/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu5/topology/core_id": "1\n",
+          "sys/devices/system/cpu/cpu6/topology/physical_package_id": "1\n",
+          "sys/devices/system/cpu/cpu6/topology/core_id": "0\n",
+          "sys/devices/system/cpu/cpu7/topology/physical_package_id": "1\n",
+          "sys/devices/system/cpu/cpu7/topology/core_id": "1\n"
+        },
+        "processor": {
+          "name": "AMD EPYC 7302 16-Core Processor",
+          "vendor": "AuthenticAMD",
+          "physicalCores": 4,
+          "frequencyMhz": null,
+          "cacheBytes": null
+        }
+      },
+      {
+        "name": "频率不是整数兆赫：千赫除以 1000，不取整",
+        "files": {
+          "proc/cpuinfo": "model name\t: Test CPU\n",
+          "sys/devices/system/cpu/cpu0/cpufreq/base_frequency": "2893299\n"
+        },
+        "processor": {
+          "name": "Test CPU",
+          "vendor": null,
+          "physicalCores": null,
+          "frequencyMhz": 2893.299,
+          "cacheBytes": null
+        }
+      },
+      {
+        "name": "缓存大小的单位：K、M、G 与不带单位的字节数，小写也认",
+        "files": {
+          "proc/cpuinfo": "model name\t: Test CPU\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/level": "1\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/type": "Data\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/size": "48k\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/level": "2\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/type": "Unified\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/size": "2M\n",
+          "sys/devices/system/cpu/cpu0/cache/index2/level": "3\n",
+          "sys/devices/system/cpu/cpu0/cache/index2/type": "Unified\n",
+          "sys/devices/system/cpu/cpu0/cache/index2/size": "1G\n"
+        },
+        "processor": {
+          "name": "Test CPU",
+          "vendor": null,
+          "physicalCores": null,
+          "frequencyMhz": null,
+          "cacheBytes": 1073741824
+        }
+      },
+      {
+        "name": "最高一级只有指令缓存：取次一级",
+        "files": {
+          "proc/cpuinfo": "model name\t: Test CPU\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/level": "1\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/type": "Data\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/size": "65536\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/level": "2\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/type": "Instruction\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/size": "512K\n"
+        },
+        "processor": {
+          "name": "Test CPU",
+          "vendor": null,
+          "physicalCores": null,
+          "frequencyMhz": null,
+          "cacheBytes": 65536
+        }
+      },
+      {
+        "name": "大小读不出的那一级跳过",
+        "files": {
+          "proc/cpuinfo": "model name\t: Test CPU\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/level": "1\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/type": "Data\n",
+          "sys/devices/system/cpu/cpu0/cache/index0/size": "32K\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/level": "2\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/type": "Unified\n",
+          "sys/devices/system/cpu/cpu0/cache/index1/size": "big\n"
+        },
+        "processor": {
+          "name": "Test CPU",
+          "vendor": null,
+          "physicalCores": null,
+          "frequencyMhz": null,
+          "cacheBytes": 32768
+        }
+      },
+      {
+        "name": "model name 的值是空白：当作没有，取 Hardware",
+        "files": {
+          "proc/cpuinfo": "model name\t:   \nHardware\t: Generic Board\nvendor_id\t:\n"
+        },
+        "processor": {
+          "name": "Generic Board",
+          "vendor": null,
+          "physicalCores": null,
+          "frequencyMhz": null,
+          "cacheBytes": null
+        }
+      },
+      {
+        "name": "拓扑只读得到一部分核心：按读得到的算",
+        "files": {
+          "proc/cpuinfo": "model name\t: Test CPU\n",
+          "sys/devices/system/cpu/cpu0/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu0/topology/core_id": "0\n",
+          "sys/devices/system/cpu/cpu1/topology/physical_package_id": "0\n",
+          "sys/devices/system/cpu/cpu2/topology/core_id": "2\n",
+          "sys/devices/system/cpu/cpufreq/policy0/scaling_governor": "performance\n"
+        },
+        "processor": {
+          "name": "Test CPU",
+          "vendor": null,
+          "physicalCores": 1,
+          "frequencyMhz": null,
+          "cacheBytes": null
+        }
+      },
+      {
+        "name": "什么都没有：各项为空",
+        "files": {
+          "proc/version": "Linux\n"
+        },
+        "processor": {
+          "name": null,
+          "vendor": null,
+          "physicalCores": null,
+          "frequencyMhz": null,
+          "cacheBytes": null
+        }
+      }
+    ],
+    "gpus": [
+      {
+        "name": "amdgpu：驱动与 PCI ID 取 uevent，名称与厂商名查 pci.ids，显存与温度在 sysfs",
+        "files": {
+          "sys/class/drm/card0/device/uevent": "DRIVER=amdgpu\nPCI_CLASS=30000\nPCI_ID=1002:73BF\nPCI_SUBSYS_ID=1002:0E3A\nPCI_SLOT_NAME=0000:0b:00.0\n",
+          "sys/class/drm/card0/device/mem_info_vram_total": "17163091968\n",
+          "sys/class/drm/card0/device/hwmon/hwmon3/temp1_input": "47000\n",
+          "sys/class/drm/card0-DP-1/status": "connected\n",
+          "sys/module/amdgpu/version": "6.8.5\n",
+          "usr/share/hwdata/pci.ids": "# List of PCI ID's\n\n1002  Advanced Micro Devices, Inc. [AMD/ATI]\n\t73bf  Navi 21 [Radeon RX 6800/6800 XT / 6900 XT]\n\t\t1002 0e3a  Radeon RX 6900 XT\n\t73df  Navi 22 [Radeon RX 6700/6700 XT/6750 XT / 6800M/6850M XT]\n10de  NVIDIA Corporation\n\t2504  GA106 [GeForce RTX 3060]\n8086  Intel Corporation\n\t3e92  CoffeeLake-S GT2 [UHD Graphics 630]\nC 03  Display controller\n\t00  VGA compatible controller\n"
+        },
+        "gpus": [
+          {
+            "name": "Navi 21 [Radeon RX 6800/6800 XT / 6900 XT]",
+            "vendor": "Advanced Micro Devices, Inc. [AMD/ATI]",
+            "vendorId": "1002",
+            "deviceId": "73bf",
+            "driver": "amdgpu",
+            "driverVersion": "6.8.5",
+            "memoryBytes": 17163091968,
+            "temperatureCelsius": 47
+          }
+        ]
+      },
+      {
+        "name": "uevent 没有 PCI_ID：取 vendor 与 device 文件；pci.ids 在第二个位置",
+        "files": {
+          "sys/class/drm/card0/device/uevent": "DRIVER=i915\n",
+          "sys/class/drm/card0/device/vendor": "0x8086\n",
+          "sys/class/drm/card0/device/device": "0x3E92\n",
+          "usr/share/misc/pci.ids": "# List of PCI ID's\n\n1002  Advanced Micro Devices, Inc. [AMD/ATI]\n\t73bf  Navi 21 [Radeon RX 6800/6800 XT / 6900 XT]\n\t\t1002 0e3a  Radeon RX 6900 XT\n\t73df  Navi 22 [Radeon RX 6700/6700 XT/6750 XT / 6800M/6850M XT]\n10de  NVIDIA Corporation\n\t2504  GA106 [GeForce RTX 3060]\n8086  Intel Corporation\n\t3e92  CoffeeLake-S GT2 [UHD Graphics 630]\nC 03  Display controller\n\t00  VGA compatible controller\n"
+        },
+        "gpus": [
+          {
+            "name": "CoffeeLake-S GT2 [UHD Graphics 630]",
+            "vendor": "Intel Corporation",
+            "vendorId": "8086",
+            "deviceId": "3e92",
+            "driver": "i915",
+            "driverVersion": null,
+            "memoryBytes": null,
+            "temperatureCelsius": null
+          }
+        ]
+      },
+      {
+        "name": "两块显卡按目录名排序；厂商查得到而设备查不到的只有厂商名",
+        "files": {
+          "sys/class/drm/card1/device/uevent": "DRIVER=nouveau\nPCI_ID=10DE:2504\n",
+          "sys/class/drm/card0/device/uevent": "DRIVER=amdgpu\nPCI_ID=1002:FFFF\n",
+          "sys/class/drm/card0/device/hwmon/hwmon2/name": "amdgpu\n",
+          "sys/class/drm/card0/device/hwmon/hwmon5/temp1_input": "61500\n",
+          "usr/share/hwdata/pci.ids": "# List of PCI ID's\n\n1002  Advanced Micro Devices, Inc. [AMD/ATI]\n\t73bf  Navi 21 [Radeon RX 6800/6800 XT / 6900 XT]\n\t\t1002 0e3a  Radeon RX 6900 XT\n\t73df  Navi 22 [Radeon RX 6700/6700 XT/6750 XT / 6800M/6850M XT]\n10de  NVIDIA Corporation\n\t2504  GA106 [GeForce RTX 3060]\n8086  Intel Corporation\n\t3e92  CoffeeLake-S GT2 [UHD Graphics 630]\nC 03  Display controller\n\t00  VGA compatible controller\n"
+        },
+        "gpus": [
+          {
+            "name": null,
+            "vendor": "Advanced Micro Devices, Inc. [AMD/ATI]",
+            "vendorId": "1002",
+            "deviceId": "ffff",
+            "driver": "amdgpu",
+            "driverVersion": null,
+            "memoryBytes": null,
+            "temperatureCelsius": 61.5
+          },
+          {
+            "name": "GA106 [GeForce RTX 3060]",
+            "vendor": "NVIDIA Corporation",
+            "vendorId": "10de",
+            "deviceId": "2504",
+            "driver": "nouveau",
+            "driverVersion": null,
+            "memoryBytes": null,
+            "temperatureCelsius": null
+          }
+        ]
+      },
+      {
+        "name": "没有 pci.ids：名称与厂商名为空，ID 照给",
+        "files": {
+          "sys/class/drm/card0/device/uevent": "DRIVER=amdgpu\nPCI_ID=1002:73DF\n",
+          "sys/class/drm/card0/device/mem_info_vram_total": "12868124672\n"
+        },
+        "gpus": [
+          {
+            "name": null,
+            "vendor": null,
+            "vendorId": "1002",
+            "deviceId": "73df",
+            "driver": "amdgpu",
+            "driverVersion": null,
+            "memoryBytes": 12868124672,
+            "temperatureCelsius": null
+          }
+        ]
+      },
+      {
+        "name": "ID 不是四位十六进制：为空",
+        "files": {
+          "sys/class/drm/card0/device/uevent": "DRIVER=virtio-pci\nPCI_ID=1AF4:105\n",
+          "usr/share/hwdata/pci.ids": "# List of PCI ID's\n\n1002  Advanced Micro Devices, Inc. [AMD/ATI]\n\t73bf  Navi 21 [Radeon RX 6800/6800 XT / 6900 XT]\n\t\t1002 0e3a  Radeon RX 6900 XT\n\t73df  Navi 22 [Radeon RX 6700/6700 XT/6750 XT / 6800M/6850M XT]\n10de  NVIDIA Corporation\n\t2504  GA106 [GeForce RTX 3060]\n8086  Intel Corporation\n\t3e92  CoffeeLake-S GT2 [UHD Graphics 630]\nC 03  Display controller\n\t00  VGA compatible controller\n"
+        },
+        "gpus": [
+          {
+            "name": null,
+            "vendor": null,
+            "vendorId": "1af4",
+            "deviceId": null,
+            "driver": "virtio-pci",
+            "driverVersion": null,
+            "memoryBytes": null,
+            "temperatureCelsius": null
+          }
+        ]
+      },
+      {
+        "name": "没有驱动的设备：驱动与版本为空",
+        "files": {
+          "sys/class/drm/card0/device/uevent": "PCI_ID=10DE:2504\n",
+          "usr/share/hwdata/pci.ids": "# List of PCI ID's\n\n1002  Advanced Micro Devices, Inc. [AMD/ATI]\n\t73bf  Navi 21 [Radeon RX 6800/6800 XT / 6900 XT]\n\t\t1002 0e3a  Radeon RX 6900 XT\n\t73df  Navi 22 [Radeon RX 6700/6700 XT/6750 XT / 6800M/6850M XT]\n10de  NVIDIA Corporation\n\t2504  GA106 [GeForce RTX 3060]\n8086  Intel Corporation\n\t3e92  CoffeeLake-S GT2 [UHD Graphics 630]\nC 03  Display controller\n\t00  VGA compatible controller\n"
+        },
+        "gpus": [
+          {
+            "name": "GA106 [GeForce RTX 3060]",
+            "vendor": "NVIDIA Corporation",
+            "vendorId": "10de",
+            "deviceId": "2504",
+            "driver": null,
+            "driverVersion": null,
+            "memoryBytes": null,
+            "temperatureCelsius": null
+          }
+        ]
+      },
+      {
+        "name": "没有 drm 目录：空列表",
+        "files": {
+          "proc/version": "Linux\n"
+        },
+        "gpus": []
+      },
+      {
+        "name": "只有连接器目录，没有 card<N>：空列表",
+        "files": {
+          "sys/class/drm/card0-HDMI-A-1/status": "connected\n",
+          "sys/class/drm/version": "drm 1.1.0\n"
+        },
+        "gpus": []
+      }
+    ]
+  }
 }

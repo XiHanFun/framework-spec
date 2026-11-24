@@ -1,6 +1,6 @@
 # RFC-0023 可观测性：导出与运行信息
 
-> 状态：已采纳（2026-11-02 修订：运行进程的用户名照常打印；2026-11-24 修订：一致性向量；同日再修订：新增「内核的遥测」，操作调用的 Span 与指标带操作 ID） | 日期：2026-10-30 | 对应 ADR：ADR-0056、ADR-0093（用户名不遮蔽）、ADR-0269（内核的遥测）、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry`、`XiHan.Framework.Kernel`（`FrameworkDiagnostics`、`ObserveMiddleware`） | 一致性：无行为套件（读的是所在机器，按平台写用例）；向量 `conformance/vectors/observability/host-usage.json` | 一致性档：`observability`
+> 状态：已采纳（2026-11-02 修订：运行进程的用户名照常打印；2026-11-24 修订：一致性向量；同日再修订：新增「内核的遥测」，操作调用的 Span 与指标带操作 ID；同日第三次修订：平台读取路径逐条写明取法，Linux 的取法收进向量） | 日期：2026-10-30 | 对应 ADR：ADR-0056、ADR-0093（用户名不遮蔽）、ADR-0269（内核的遥测）、ADR-0277（一致性向量）、ADR-0286（平台读取路径的取法） | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry`、`XiHan.Framework.Kernel`（`FrameworkDiagnostics`、`ObserveMiddleware`） | 一致性：无行为套件（读的是所在机器，按平台写用例）；向量 `conformance/vectors/observability/host-usage.json` | 一致性档：`observability`
 
 ## 摘要
 
@@ -94,6 +94,34 @@
 | 主板 | `/sys/class/dmi/id/` 的 `board_*`、`sys_vendor`、`product_name`、`bios_*` | 注册表 `HKLM\HARDWARE\DESCRIPTION\System\BIOS` | 空 |
 | 运行时与进程 | `RuntimeInformation`、`Environment`、`Process`、`GC` | 同左 | 同左 |
 
+各项的取法逐条写明如下（2026-11-24 写明，ADR-0286；以前只有上面这张表，给了读哪个文件的哪一项，`/proc/stat` 的空闲算不算 `iowait`、总计取哪几列这些只在 .NET 的代码里）。向量 `conformance/vectors/observability/host-usage.json` 的 `linux` 一节按「Linux 的取法」给出输入与读出的值。
+
+#### Linux 的取法
+
+共同的：文件按文本读，读不到（不存在、没有权限）时该项为空。「一行」指文件的第一行去掉首尾空白（RFC-0001「空白字符」）与结尾的空字符之后的内容，为空即读不到；「一个整数」指这样的一行是十进制整数（可以带正负号）。`cpu<N>`、`card<N>` 指名字是 `cpu`、`card` 加至少一位十进制数字的子目录。
+
+1. CPU 使用率（`/proc/stat`）：取第一个以 `cpu` 加一个空格起头的行（各核的 `cpu0` 等行不取），按空格分列，取名字之后的前八列——`user`、`nice`、`system`、`idle`、`iowait`、`irq`、`softirq`、`steal`，不足八列有几列算几列，至少四列。空闲 = `idle` + `iowait`（等磁盘的时间里处理器没有在干活；只有四列时就是 `idle`），总计 = 这几列之和；第九、十列的 `guest`、`guest_nice` 已经计入 `user` 与 `nice`，不再加。没有这一行、不足四列或这几列里有不是十进制数字的，这一次读不出。使用率由先后两次读到的空闲与总计按「采样」的公式算。
+2. 内存（`/proc/meminfo`）：每行是「名字: 数值 kB」。名字是第一个冒号之前去掉两侧空白的部分，区分大小写，同名的行取第一行；数值是冒号之后（去掉两侧空白）到第一个空格之前的十进制数字，单位是 kB，乘以 1024 得字节数（单位不核对，内核对这几项固定写 kB）；不是数字的那一项为空。总量取 `MemTotal`，可用取 `MemAvailable`，空闲取 `MemFree`，缓存 = `Buffers` + `Cached`（只读到一项时就是那一项，两项都没有为空；`SwapCached`、`SReclaimable` 不计）。
+3. 系统运行时长（`/proc/uptime`）：第一列（到第一个空格或换行为止）是秒数，写成十进制小数——只有数字与至多一个小数点、至少一位数字，按十进制读，不经二进制浮点；含挂起的时间。带符号、指数、分组符或空白的写法读不出，超出实现的时长类型能表示的范围的同样读不出（2026-11-24 修订，ADR-0286；以前 .NET 按浮点读、连带符号与指数的写法一并照收，负数读成负的时长）。
+4. 磁盘（`/proc/self/mounts`）：每行按单个空格分列，前三列是设备、挂载点、文件系统，不足三列的行跳过；设备与挂载点里反斜杠加三位八进制数字的转义还原成那个码位的字符（`\040` 是空格，`\011` 是制表符，`\134` 是反斜杠），别的反斜杠原样保留。只取设备以 `/dev/` 开头、不以 `/dev/loop` 开头的行，每个设备取第一行，按文件里的次序。容量（总量、空闲、当前用户可用）按挂载点向文件系统查询，文件系统取第三列；未就绪或总量不为正的不列。
+5. CPU 型号与厂商（`/proc/cpuinfo`）：每行是「名字: 值」，名字的取法同上一条内存的，值是第一个冒号之后的一行。型号取第一个 `model name`，没有这一行或它的值为空时取第一个 `Hardware`；厂商取第一个 `vendor_id`。
+6. 物理核心：`/sys/devices/system/cpu/cpu<N>/topology/` 下 `physical_package_id` 与 `core_id` 各是一个整数；两个都读得出的那些 `cpu<N>` 里，不同的（封装，核心）组合数就是物理核心数，一个都读不出为空。
+7. 标称频率：`/sys/devices/system/cpu/cpu0/cpufreq/base_frequency` 是一个整数（kHz），读不出时取同目录的 `cpuinfo_max_freq`；除以 1000 得 MHz，不取整。
+8. 最后一级缓存：`/sys/devices/system/cpu/cpu0/cache/` 下名字以 `index` 开头的子目录各有 `level`（一个整数）、`type` 与 `size`（各一行）。取 `level` 最高、`type` 不是 `Instruction`、`size` 读得出的那一项的大小；同一级有几项时取目录名按字节序排在最前的（2026-11-24 修订，ADR-0286；以前 .NET 取目录枚举次序里的第一项，次序随文件系统而变）。`size` 是十进制数字后跟可选的单位 `K`、`M`、`G`（不区分大小写，1024 的一、二、三次方），没有单位就是字节数。
+9. GPU：`/sys/class/drm/` 下每个 `card<N>` 目录一块（`card0-DP-1` 这样的连接器目录不算），按目录名的字节序。`card<N>/device/uevent` 每行是「名字=值」：驱动取 `DRIVER`；`PCI_ID` 正好是冒号分开的两段时是厂商 ID 与设备 ID，否则取 `device/vendor` 与 `device/device` 两个文件各一行。ID 去掉开头的 `0x`（不区分大小写）之后必须正好是四位十六进制数字，给出时写成小写，不合的那一个为空。驱动版本取 `/sys/module/<驱动>/version` 的一行。显存取 `device/mem_info_vram_total`（一个整数，字节）。温度取 `device/hwmon/` 下按目录名字节序第一个读得出 `temp1_input`（一个整数，毫摄氏度）的子目录，除以 1000，不取整。
+10. GPU 的名称与厂商名查 `pci.ids`：依次看 `/usr/share/hwdata/pci.ids`、`/usr/share/misc/pci.ids`、`/usr/share/pci.ids`，用第一个存在的。空行与 `#` 起头的行跳过；厂商行顶格，设备行缩进一个制表符，缩进两个制表符的子系统行不看，`C` 加空格起头的行是类别段的开始、查到这里为止。一行（设备行去掉那一个制表符之后）以四位 ID 起头（不区分大小写）、第五个字符是空格、整行多于六个字符时，ID 之后去掉首尾空白的部分是名称。先找厂商，再在它名下（到下一个顶格的行之前）找设备；厂商找得到而设备找不到时只有厂商名，没有厂商 ID、没有文件或厂商找不到时两个都为空。
+11. 主板（`/sys/class/dmi/id/`）：各取一行——主板厂商 `board_vendor`、型号 `board_name`、版本 `board_version`、序列号 `board_serial`，整机厂商 `sys_vendor`、型号 `product_name`，BIOS 厂商 `bios_vendor`、版本 `bios_version`、日期 `bios_date`。
+
+#### Windows 的取法
+
+1. CPU 使用率：`GetSystemTimes` 给出空闲、内核、用户三个累计时间（100 纳秒），内核时间已含空闲时间。空闲 = 空闲时间，总计 = 内核时间 + 用户时间。
+2. 内存：`K32GetPerformanceInfo` 的页数乘以页大小——总量取 `PhysicalTotal`，可用取 `PhysicalAvailable`，缓存取 `SystemCache`；空闲为空。
+3. 物理核心与最后一级缓存：`GetLogicalProcessorInformation` 返回的条目里，关系是处理器核心（`RelationProcessorCore`）的条目数是物理核心数；关系是缓存（`RelationCache`）的条目里取级别最高、类型不是指令缓存的那一项的大小，同一级取先出现的。
+4. 型号、厂商与标称频率：注册表 `HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0` 的 `ProcessorNameString`、`VendorIdentifier` 与 `~MHz`（大于 0 才算）。
+5. GPU：显示适配器类下名字是四位数字的子键各一块，按名字的字节序，只取 `MatchingDeviceId` 以 `pci\` 开头（不区分大小写）的。名称取 `DriverDesc`，厂商名取 `ProviderName`，驱动版本取 `DriverVersion`；厂商 ID 与设备 ID 取 `MatchingDeviceId` 里 `ven_` 与 `dev_` 之后的四位十六进制数字，写成小写；显存取 `HardwareInformation.qwMemorySize`，读不出正数时取 `HardwareInformation.MemorySize`（64 位或 32 位的数值，或 8 字节、4 字节的小端二进制）。驱动名与温度为空。
+6. 主板：注册表 `HKLM\HARDWARE\DESCRIPTION\System\BIOS` 的 `BaseBoardManufacturer`、`BaseBoardProduct`、`BaseBoardVersion`、`SystemManufacturer`、`SystemProductName`、`BIOSVendor`、`BIOSVersion`、`BIOSReleaseDate`；序列号为空。
+7. 系统运行时长：系统启动以来的毫秒数（.NET 的 `Environment.TickCount64`）。
+
 ### 取不到的项
 
 外部命令（Windows 的 `powershell Get-CimInstance`，Linux 的 `dmidecode`、`lspci`、`nvidia-smi`、`top`、`df`，macOS 的 `system_profiler`、`sysctl`、`vm_stat`）有挂起与注入面。本 RFC 不启动外部命令，因此取不到这些：
@@ -115,6 +143,6 @@
 
 ## 一致性
 
-向量（档 `observability`，2026-11-24，ADR-0277；以前这个档没有向量）：`conformance/vectors/observability/host-usage.json`——「采样」一节的三条公式（系统 CPU 使用率、进程 CPU 使用率、网卡速率）连同计数变小、总增量为零与没有读到时为空、百分比限制在 0–100 且不取整，「契约」一节里内存与磁盘由总量算出的已用与使用率，以及采样间隔的取值范围。
+向量（档 `observability`，2026-11-24，ADR-0277；以前这个档没有向量）：`conformance/vectors/observability/host-usage.json`——「采样」一节的三条公式（系统 CPU 使用率、进程 CPU 使用率、网卡速率）连同计数变小、总增量为零与没有读到时为空、百分比限制在 0–100 且不取整，「契约」一节里内存与磁盘由总量算出的已用与使用率，采样间隔的取值范围，以及「平台读取路径」里 Linux 的取法（`linux` 一节：`/proc/stat`、`/proc/meminfo`、`/proc/uptime`、`/proc/self/mounts` 的文本，处理器与显卡在 `/proc`、`/sys` 与 `pci.ids` 里的一组文件，各自读出的值；2026-11-24，ADR-0286）。
 
-这个档没有行为一致性套件：其余的规范性内容——各平台的读取路径、读不到的项为空、读取不阻塞不抛出、导出器的装配——读的是所在机器与运行中的后端，输入不由用例给出，由各实现按平台写用例核对（参考实现在 `Observability.Host.Tests` 与 `Observability.OpenTelemetry.Tests`）。「内核的遥测」同样没有向量，由各实现用进程内的监听器核对（参考实现在 `Kernel.Tests` 的 `ObserveTelemetryTests`、`ObserveTracingTests` 与插件宿主的 `PluginTracingTests`）。`/proc/stat`、`/proc/meminfo` 等文件的解析没有收进向量：正文只给了读哪个文件的哪一项，没有逐字段给出取法（如 CPU 的空闲是否计入 `iowait`）。
+这个档没有行为一致性套件：其余的规范性内容——各平台的读取路径、读不到的项为空、读取不阻塞不抛出、导出器的装配——读的是所在机器与运行中的后端，输入不由用例给出，由各实现按平台写用例核对（参考实现在 `Observability.Host.Tests` 与 `Observability.OpenTelemetry.Tests`）。「内核的遥测」同样没有向量，由各实现用进程内的监听器核对（参考实现在 `Kernel.Tests` 的 `ObserveTelemetryTests`、`ObserveTracingTests` 与插件宿主的 `PluginTracingTests`）。Windows 的取法读的是系统调用与注册表，主板在 Linux 上是逐个文件各取一行，磁盘的容量要向文件系统查询：这几处输入不由用例给出或没有可算的内容，没有向量。
