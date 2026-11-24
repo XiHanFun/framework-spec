@@ -1,6 +1,6 @@
 # RFC-0016 应用清单与打包
 
-> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`；2026-11-01 修订：绑定的凭据属性覆盖配置节；2026-11-01 修订：Kustomize 不起 Kafka 与 Nacos 定为规则；2026-11-01 修订：`blob` 的依赖服务由 MinIO 换成 RustFS；2026-11-01 修订：连 `blob` 依赖服务要配条件写入的探测桶；2026-11-02 修订：探测桶不存在与凭据被拒启动失败；2026-11-10 修订：`Messaging.Redis` 的绑定；2026-11-24 修订：应用清单 Schema 收紧到与字段表一致，`secret` 与 `lease` 写明是 DNS 标签；同日再修订：下发给隔离运行的插件的绑定按同一套规则、在配置插件时解析；同日第三次修订：下发给隔离运行的插件的绑定带上属性，写明下发时属性名的文法与上限） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup）、ADR-0082（凭据属性）、ADR-0083（Kustomize 不起依赖服务）、ADR-0086（`blob` 的依赖服务）、ADR-0089（条件写入探测）、ADR-0093（被拒绝与缺桶启动失败）、ADR-0130（`Messaging.Redis` 的绑定）、ADR-0268（下发给插件的绑定）、ADR-0276（应用清单 Schema 与正文对照）、ADR-0285（下发给插件的绑定带属性） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json` | 一致性档：`host`
+> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`；2026-11-01 修订：绑定的凭据属性覆盖配置节；2026-11-01 修订：Kustomize 不起 Kafka 与 Nacos 定为规则；2026-11-01 修订：`blob` 的依赖服务由 MinIO 换成 RustFS；2026-11-01 修订：连 `blob` 依赖服务要配条件写入的探测桶；2026-11-02 修订：探测桶不存在与凭据被拒启动失败；2026-11-10 修订：`Messaging.Redis` 的绑定；2026-11-24 修订：应用清单 Schema 收紧到与字段表一致，`secret` 与 `lease` 写明是 DNS 标签；同日再修订：下发给隔离运行的插件的绑定按同一套规则、在配置插件时解析；同日第三次修订：下发给隔离运行的插件的绑定带上属性，写明下发时属性名的文法与上限；同日第四次修订：`blob` 绑定的属性补 `sessionToken`） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup）、ADR-0082（凭据属性）、ADR-0083（Kustomize 不起依赖服务）、ADR-0086（`blob` 的依赖服务）、ADR-0089（条件写入探测）、ADR-0093（被拒绝与缺桶启动失败）、ADR-0130（`Messaging.Redis` 的绑定）、ADR-0268（下发给插件的绑定）、ADR-0276（应用清单 Schema 与正文对照）、ADR-0281（`blob` 绑定的 `sessionToken`）、ADR-0285（下发给插件的绑定带属性） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json` | 一致性档：`host`
 
 ## 摘要
 
@@ -38,7 +38,7 @@
 | `Messaging.Redis` | `queue`（`cache:distributed`） | `XiHan:Messaging:Redis:Configuration` | `username`、`password` 覆盖连接字符串里的 `user`、`password`（同 `Caching.Redis`） |
 | `Messaging.Kafka` | `stream`（`stream`） | `XiHan:Messaging:Kafka:BootstrapServers` | `security.protocol`、`sasl.mechanism`、`sasl.username`、`sasl.password` 覆盖 `XiHan:Messaging:Kafka:Properties` 里的同名键（只认这四项，其余绑定属性不透传给 librdkafka） |
 | `Configuration.Nacos` | `nacos`（`configuration:remote`） | `XiHan:Configuration:Nacos:ServerAddresses` | `username`、`password` 覆盖 `Username`、`Password` |
-| `ObjectStorage.S3` | `objectstorage`（`blob`） | `XiHan:ObjectStorage:S3:ServiceUrl` | `region`、`accessKey`、`secretKey`、`forcePathStyle` 覆盖同名键（空白的属性同样不算给出） |
+| `ObjectStorage.S3` | `objectstorage`（`blob`） | `XiHan:ObjectStorage:S3:ServiceUrl` | `region`、`accessKey`、`secretKey`、`sessionToken`、`forcePathStyle` 覆盖同名键（空白的属性同样不算给出；`sessionToken` 是 2026-11-24 增补，ADR-0281） |
 
 持久化 Provider（EF Core、SqlSugar）不从配置节读连接，绑定原样交给应用传入特性的配置委托。命名存储实例不读绑定（RFC-0012）。
 

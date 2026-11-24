@@ -1,6 +1,6 @@
 # RFC-0012 对象存储
 
-> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误；2026-11-01 修订：一致性验证改对 RustFS；2026-11-01 修订：不覆盖写入并发原子、S3 探测条件写入；2026-11-01 修订：条件写入探测改为启动照常、后台与首次使用时重试，键的保留前缀 `.xihan`，云厂商的兼容服务只走标准条件头；2026-11-02 修订：条件写入探测被拒绝、探测桶不存在恢复为启动失败，只有连不上照常启动、后台重试；2026-11-04 修订：基础设施失败的 `reason` 只写异常类型；同日再修订：S3 命名实例的客户端过出站地址策略；2026-11-24 修订：分片上传批量放弃、命名实例批量移除与登记数上限、S3BlobStore 不再有公开构造；同日再修订：一致性向量） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约）、ADR-0086（验证用的 S3 兼容服务）、ADR-0089（条件写入探测）、ADR-0090（探测重试、保留前缀）、ADR-0093（被拒绝与缺桶启动失败）、ADR-0097（启动之后被拒绝或缺桶的处理已定）、ADR-0115、ADR-0266、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`，向量 `conformance/vectors/objectstorage/` | 一致性档：`objectstorage`
+> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误；2026-11-01 修订：一致性验证改对 RustFS；2026-11-01 修订：不覆盖写入并发原子、S3 探测条件写入；2026-11-01 修订：条件写入探测改为启动照常、后台与首次使用时重试，键的保留前缀 `.xihan`，云厂商的兼容服务只走标准条件头；2026-11-02 修订：条件写入探测被拒绝、探测桶不存在恢复为启动失败，只有连不上照常启动、后台重试；2026-11-04 修订：基础设施失败的 `reason` 只写异常类型；同日再修订：S3 命名实例的客户端过出站地址策略；2026-11-24 修订：分片上传批量放弃、命名实例批量移除与登记数上限、S3BlobStore 不再有公开构造；同日再修订：一致性向量；同日第三次修订：S3 的会话令牌、请求超时、尝试次数与 HTTP 代理成为设置） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约）、ADR-0086（验证用的 S3 兼容服务）、ADR-0089（条件写入探测）、ADR-0090（探测重试、保留前缀）、ADR-0093（被拒绝与缺桶启动失败）、ADR-0097（启动之后被拒绝或缺桶的处理已定）、ADR-0115、ADR-0266、ADR-0277（一致性向量）、ADR-0281（S3 客户端的设置） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`，向量 `conformance/vectors/objectstorage/` | 一致性档：`objectstorage`
 
 ## 摘要
 
@@ -62,7 +62,14 @@
 - 批量删除：S3 不报告对象是否存在过，先逐键 `Head` 定存在性（同一批里重复的键只有第一次算存在），再把存在的键按每批 1000 个 `DeleteObjects`；删除失败只影响本次负责删除的项。
 - 列举经 `ListObjectsV2`（S3 保证键的序数顺序），续页标记是其 continuation token；条目只有键、长度、`ETag` 与修改时间，内容类型为默认值、自定义元数据为空，需要时再 `Head`——列举条目的元数据因此是"可能不完整"的，一致性套件只校验键顺序、长度与 `ETag`。不符合键文法的对象（以 `/` 结尾的"目录"占位）跳过。
 - 不存在的键与桶 → `OBJECTSTORAGE_NOTFOUND_001`；桶不存在的列举是空页；其余服务端错误、网络错误与 SDK 超时 → `OBJECTSTORAGE_UNAVAILABLE_001`，`reason` 同样只写异常类型的全名（2026-11-04，ADR-0115）；批量删除里单个键的失败只写 S3 的错误码。没有配额（由桶策略管理）。`EnsureBuckets` 开启时写入遇到桶不存在就建桶再重试一次，默认由基础设施预先建桶。
-- 配置 `XiHan:ObjectStorage:S3`（`ServiceUrl`、`Region`、`AccessKey`、`SecretKey`、`ForcePathStyle`、`EnsureBuckets`、`HealthBucket`、`ConditionalWrites`、`HealthProbeIntervalSeconds`），绑定 `objectstorage`（类型 `blob`，与 RFC-0016 的绑定类型词表一致）的主值与属性覆盖之（RFC-0016「资源绑定与配置节」）；没有密钥时走 SDK 默认凭据链；应用自己注册的 `IAmazonS3` 优先。
+- 配置 `XiHan:ObjectStorage:S3`（`ServiceUrl`、`Region`、`AccessKey`、`SecretKey`、`SessionToken`、`ForcePathStyle`、`EnsureBuckets`、`HealthBucket`、`ConditionalWrites`、`HealthProbeIntervalSeconds`，以及下一条的 `RequestTimeoutSeconds`、`MaxAttempts` 与四个 `Proxy…`），绑定 `objectstorage`（类型 `blob`，与 RFC-0016 的绑定类型词表一致）的主值与属性覆盖之（RFC-0016「资源绑定与配置节」）；没有密钥时走 SDK 默认凭据链；应用自己注册的 `IAmazonS3` 优先，这时下一条的设置对它不起作用。
+- 客户端的设置（2026-11-24 增补，ADR-0281；以前临时凭据、超时、重试与代理只能靠应用向容器注册自己的 `IAmazonS3`，命名实例无从设置）：配置节与命名实例的设置里都有，公开面不出现 SDK 的类型；都不写时建出的客户端与以前相同。
+  - `SessionToken`：临时凭据的会话令牌。必须与 `AccessKey`、`SecretKey` 同时给出，缺任何一项是配置错误（不拿着令牌退回凭据链）；绑定属性 `sessionToken` 覆盖它。
+  - `RequestTimeoutSeconds`：单次 HTTP 请求的超时，每次尝试各算各的；正数，不超过 86400（24 小时，`S3ObjectStorageOptions.MaxRequestTimeout`）。不写时不另设时限（SDK 对 S3 的缺省，约 24.8 天）。超时照上面的映射是 `OBJECTSTORAGE_UNAVAILABLE_001`。
+  - `MaxAttempts`：一次操作最多发出的请求数，含首次；1 到 10（`S3ObjectStorageOptions.MaxAttemptsLimit`），1 即不重试。不写时取 SDK 的缺省（标准重试模式，共 3 次）。
+  - `ProxyHost`、`ProxyPort`、`ProxyUserName`、`ProxyPassword`：经 HTTP 代理访问服务。主机是主机名或 IP 字面量，不带协议、端口、路径与用户信息，带区域标识的 IPv6 地址（`fe80::1%eth0`）也不收；端口 1 到 65535；两项必须同时给出。用户名与口令可选，必须同时给出，且只能与主机、端口一起给。只给了一部分是配置错误。
+  - 配置错误的处置同 `HealthBucket`：缺省实例装配失败（`ArgumentException`），命名实例 → `OBJECTSTORAGE_VALIDATION_003`。消息里只写键名与数值，不带会话令牌、代理主机、用户名与口令的值。
+  - `SessionToken`、`ProxyUserName`、`ProxyPassword` 是凭据，打印选项时遮蔽（RFC-0014「选项里的凭据」）。
 
 ## S3 的条件写入探测（2026-11-01 增补，ADR-0089；同日修订，ADR-0090；2026-11-02 修订，ADR-0093）
 
@@ -101,7 +108,7 @@
 
 - 定义 `BlobStoreDefinition`：实例名（`^[a-z0-9][a-z0-9-]{0,63}$`）、Provider 名（`filesystem`、`s3`，不区分大小写）与设置。设置的键同该 Provider 的配置节，不区分大小写；未知的键是错误，拼错的键不会被静默忽略。
 - Provider `IBlobStoreProvider`：每个存储包一个，按定义建实例、探测实例。`CreateAsync` 返回 `Result<IBlobStore>`，失败不抛出（2026-11-11 修订，ADR-0150）：设置不合法 → `OBJECTSTORAGE_VALIDATION_003`，后端此刻建不出来 → `OBJECTSTORAGE_UNAVAILABLE_001`（`BlobStoreFailures` 给出标准错误，原因只写异常类型、完整异常由 Provider 记日志），探测发现不能用 → 探测的错误码；失败时 Provider 自己释放已建的资源。文件系统的命名实例必须给 `RootPath`（不给就会与缺省实例落在同一目录）；S3 的命名实例各建各的客户端，不读连接绑定，探测间隔不在设置里；`ConditionalWrites` 开启（缺省）时建实例时探测条件写入，探明不认、被拒绝或探测桶不存在都不建，只有连不上的照常建出、在后台重试（「S3 的条件写入探测」）。
-- 命名实例的端点可能来自应用的库，不可信（2026-11-04 修订，ADR-0117）：S3 命名实例的客户端过出站地址策略（RFC-0008），自建存储的地址要放行；被拒绝与连不上同样处理，建实例时的探测只算尚未确认，读写返回 `OBJECTSTORAGE_UNAVAILABLE_001`。缺省实例的端点是运维配的，不过策略。S3 命名实例必须给出 `AccessKey` 与 `SecretKey`（2026-11-12 修订，ADR-0178）：设置可以由租户填写，没给密钥就会用宿主的 AWS 凭据链（环境变量、配置文件、实例角色），等于把宿主的身份借给填设置的人；只给一项总是 `OBJECTSTORAGE_VALIDATION_003`，两项都不给只在运营方打开 `XiHan:ObjectStorage:S3:NamedInstancesUseAmbientCredentials` 时允许，这个开关不能经实例设置打开。缺省实例照旧，两项都空时走凭据链。
+- 命名实例的端点可能来自应用的库，不可信（2026-11-04 修订，ADR-0117）：S3 命名实例的客户端过出站地址策略（RFC-0008），自建存储的地址要放行；被拒绝与连不上同样处理，建实例时的探测只算尚未确认，读写返回 `OBJECTSTORAGE_UNAVAILABLE_001`。缺省实例的端点是运维配的，不过策略。命名实例配了代理时（2026-11-24 增补，ADR-0281），本进程连的是代理：过策略的是代理的地址，被拒绝与连不上同样处理；端点由代理去解析、去连，本进程的策略管不到，要限制经代理能到的目标就在代理上做。S3 命名实例必须给出 `AccessKey` 与 `SecretKey`（2026-11-12 修订，ADR-0178）：设置可以由租户填写，没给密钥就会用宿主的 AWS 凭据链（环境变量、配置文件、实例角色），等于把宿主的身份借给填设置的人；只给一项总是 `OBJECTSTORAGE_VALIDATION_003`，两项都不给只在运营方打开 `XiHan:ObjectStorage:S3:NamedInstancesUseAmbientCredentials` 时允许，这个开关不能经实例设置打开。缺省实例照旧，两项都空时走凭据链。
 - 登记规则（2026-11-01 修订，ADR-0075）：存储包只要装配（`UseFeature`）就登记自己的命名实例 Provider，与它是否被选为缺省实例无关。能力全部被别的存储顶替的存储包实现 `IShadowAwareFeature`（RFC-0002 解析规则 4），被顶替时只登记命名实例 Provider：不读自己的配置节与连接绑定、不建缺省实例、不启动。
 - 注册表 `BlobStores`（单例；装配任一个存储包即有）：
   - `Get(name)`：已建的直接返回；配置节 `XiHan:ObjectStorage:Stores:<name>`（`Provider` 加设置）里有定义的首次取用时建出；都没有 → `OBJECTSTORAGE_NOTFOUND_003`。
