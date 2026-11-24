@@ -8,6 +8,8 @@ Verb        = 小写动词（create、get、list、update、delete、cancel、..
 
 示例：`orders.create`、`orders.get`、`order-lines.list`。
 
+整个 ID 不超过 128 个字符（2026-11-24 写明，ADR-0276；.NET 的 `OperationId.MaxLength` 一直是 128，规范没写，各语言 SDK 与清单 Schema 都不设上限）。文法只含 ASCII 字符，字符数就是 UTF-8 字节数；正则见 RFC-0011「操作 ID」，按整串匹配（RFC-0001「文法的匹配」）。操作契约、调用请求、清单的 `contributes.operations` 与插件握手声明的操作都用这一条规则：129 个字符的 ID 别处都合文法也不合法。向量 `conformance/vectors/primitives/operation-ids.json`。
+
 ## 协议映射（默认推导，可显式覆盖）
 
 | 动词 | HTTP | gRPC | MCP tool |

@@ -134,6 +134,33 @@ func TestVersionNegotiationFollowsTheVectors(t *testing.T) {
 	}
 }
 
+func TestOperationIDsFollowTheVectors(t *testing.T) {
+	vectors, err := conformance.OperationIDs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vectors.MaxLength != rules.MaxOperationIDLength {
+		t.Fatalf("maxLength = %d, want %d", vectors.MaxLength, rules.MaxOperationIDLength)
+	}
+	atLimit, overLimit := false, false
+	for _, id := range vectors.Valid {
+		if !rules.IsOperationID(id) {
+			t.Errorf("%q must be an operation ID", id)
+		}
+		atLimit = atLimit || len(id) == vectors.MaxLength
+	}
+	for _, id := range vectors.Invalid {
+		if rules.IsOperationID(id) {
+			t.Errorf("%q must not be an operation ID", id)
+		}
+		overLimit = overLimit || len(id) == vectors.MaxLength+1
+	}
+	// 上限两侧各留一条：只查文法、不查长度的实现在 129 个字符那一条上才会失败
+	if !atLimit || !overLimit {
+		t.Errorf("the vector must keep an ID of exactly %d characters (found: %v) and one of %d (found: %v)", vectors.MaxLength, atLimit, vectors.MaxLength+1, overLimit)
+	}
+}
+
 func TestGrammars(t *testing.T) {
 	for _, id := range []string{"orders.create", "order-lines.list", "echoes.relay"} {
 		if !rules.IsOperationID(id) {

@@ -153,6 +153,13 @@ var nonEmptyChecks = map[string]func(t *testing.T) any{
 		}
 		return codes
 	},
+	"primitives/operation-ids.json": func(t *testing.T) any {
+		ids, err := conformance.OperationIDs()
+		if err != nil || ids.MaxLength != 128 || len(ids.Valid) == 0 || len(ids.Invalid) == 0 {
+			t.Errorf("operation ids: %v", err)
+		}
+		return ids
+	},
 	"primitives/baggage-keys.json": func(t *testing.T) any {
 		keys, err := conformance.BaggageKeys()
 		if err != nil || len(keys.Registered) == 0 || len(keys.Values.Acceptable) == 0 || len(keys.Values.Unacceptable) == 0 {

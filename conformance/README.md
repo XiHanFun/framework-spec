@@ -16,10 +16,11 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `primitives/lifecycle-transitions.json` | 生命周期合法迁移的完整列表 | RFC-0001 |
 | `primitives/wire-encoding.json` | Result 与 Error 线上编码的合法写法（连同规范形式）与必须拒绝的写法 | RFC-0001「Result」 |
 | `primitives/message-templates.json` | 消息键文法、模板的宽松与严格格式化（含值模型、数组与对象、可移植的格式说明符与舍入、区域的数字符号）、`Describe` | RFC-0010「模板」 |
+| `primitives/operation-ids.json` | 操作 ID 文法的合法与非法样例，含 128 个字符的上限两侧 | `conventions/operation-ids.md`、RFC-0011「操作 ID」 |
 | `primitives/kernel-messages.json` | SDK 与宿主共用的内核错误：错误码、消息键、参数名与 en-US 模板 | RFC-0011「错误码」 |
 | `primitives/trace-context.json` | `traceparent` 的合法与不合法文本、解析结果与写出 | RFC-0003 规则 7 |
 | `primitives/json-text.json` | XiHan 读取 JSON 文本的共同检查：合法、语法错误与重复成员（含路径），期望值由 .NET 算出 | RFC-0001「JSON 文本」 |
-| `manifest/manifests.json` | 必须读得出的清单与再写出的全文，必须拒绝的清单与逐字的错误（检查顺序、路径、跨字段约束），期望值由 .NET 算出 | RFC-0002 解析规则 2 与「写出」 |
+| `manifest/manifests.json` | 必须读得出的清单与再写出的全文，必须拒绝的清单与逐字的错误（检查顺序、路径、跨字段约束、操作 ID 的 128 个字符上限），期望值由 .NET 算出 | RFC-0002 解析规则 2 与「写出」 |
 | `pipeline/ordering.json` | 管道的登记序列、期望的 `Dump` 全文与各种错误报出的时机（期望值由 .NET 算出） | RFC-0004 |
 | `operations/payload-reasons.json` | 载荷的解码结果与不合法时 `reason` 的路径（三个各语言都能声明的请求类型，含必填成员与 `null`，期望值由 .NET 算出） | RFC-0011 规则 2 |
 | `plugin/handshake-lines.json` | 插件握手行的合法与非法样例：地址的空白字符集（与 .NET 正则的 `\s` 相同）、tcp 回环地址与端口的写法 | `plugin/handshake.md` §2 |

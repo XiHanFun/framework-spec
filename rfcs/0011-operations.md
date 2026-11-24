@@ -1,6 +1,6 @@
 # RFC-0011 操作契约与 XGI
 
-> 状态：已采纳（2026-10-28 修订：Schema 命名——封闭泛型带实参名、字符串枚举进 `$defs`；2026-10-28 修订：程序集级 Expose 缺省与只读声明；2026-11-01 修订：幂等回放还原响应、契约的权限码装配时核对；2026-11-01 修订：只读契约开只读工作单元；2026-11-01 修订：只读操作里的写入是 500 类缺陷；2026-11-01 修订：一组操作连同归属定义的权限码登记、契约的策略启动时核对；同日再修订：按归属撤回登记、契约的策略在宿主的启动核对里核对；2026-11-04 修订：Schema 的类型映射——任意 JSON 与 `JsonObject` / `JsonArray`，类型按命名空间与元数据名识别；同日再修订：`[JsonIgnore]` 的条件与上下文的 `DefaultIgnoreCondition`、任何键类型的字典按对象与 `propertyNames`、生成器诊断 `XHG006`；2026-11-16 修订：SDK 与宿主共用的内核错误与消息键、没有产出响应的调用；同日再修订：`reason` 的路径写法、未处理异常的键、SDK 的截止时间核对；同日第三次修订：载荷的解码语义与文本、类型不符只带 id、SDK 内置步骤的位置、响应写不出时的结果；2026-11-23 修订：登记表的变更令牌与新增的整组核对） | 日期：2026-10-22 | 对应 ADR：0034、0041、0064、0071、0073、0080、0081、0085、0233（共用的内核错误）、0235、0236、0251 | 参考实现：`XiHan.Framework.Kernel.Operations` | 一致性：`conformance/vectors/primitives/kernel-messages.json`；`conformance/vectors/operations/payload-reasons.json` | 一致性档：`core`
+> 状态：已采纳（2026-10-28 修订：Schema 命名——封闭泛型带实参名、字符串枚举进 `$defs`；2026-10-28 修订：程序集级 Expose 缺省与只读声明；2026-11-01 修订：幂等回放还原响应、契约的权限码装配时核对；2026-11-01 修订：只读契约开只读工作单元；2026-11-01 修订：只读操作里的写入是 500 类缺陷；2026-11-01 修订：一组操作连同归属定义的权限码登记、契约的策略启动时核对；同日再修订：按归属撤回登记、契约的策略在宿主的启动核对里核对；2026-11-04 修订：Schema 的类型映射——任意 JSON 与 `JsonObject` / `JsonArray`，类型按命名空间与元数据名识别；同日再修订：`[JsonIgnore]` 的条件与上下文的 `DefaultIgnoreCondition`、任何键类型的字典按对象与 `propertyNames`、生成器诊断 `XHG006`；2026-11-16 修订：SDK 与宿主共用的内核错误与消息键、没有产出响应的调用；同日再修订：`reason` 的路径写法、未处理异常的键、SDK 的截止时间核对；同日第三次修订：载荷的解码语义与文本、类型不符只带 id、SDK 内置步骤的位置、响应写不出时的结果；2026-11-23 修订：登记表的变更令牌与新增的整组核对；2026-11-24 修订：操作 ID 不超过 128 个字符） | 日期：2026-10-22 | 对应 ADR：0034、0041、0064、0071、0073、0080、0081、0085、0233（共用的内核错误）、0235、0236、0251、0276（操作 ID 的上限） | 参考实现：`XiHan.Framework.Kernel.Operations` | 一致性：`conformance/vectors/primitives/kernel-messages.json`；`conformance/vectors/primitives/operation-ids.json`；`conformance/vectors/operations/payload-reasons.json` | 一致性档：`core`
 
 ## 摘要
 
@@ -8,7 +8,7 @@
 
 ## 操作 ID
 
-见 `conventions/operation-ids.md`：`<resource>.<verb>`，资源是小写复数名词（连字符分隔），动词小写；文法 `^[a-z][a-z0-9]*(-[a-z0-9]+)*\.[a-z][a-z0-9]*(-[a-z0-9]+)*$`（`OperationId`）。
+见 `conventions/operation-ids.md`：`<resource>.<verb>`，资源是小写复数名词（连字符分隔），动词小写；文法 `^[a-z][a-z0-9]*(-[a-z0-9]+)*\.[a-z][a-z0-9]*(-[a-z0-9]+)*$`（`OperationId`），整个 ID 不超过 128 个字符（`OperationId.MaxLength`，2026-11-24 写明，ADR-0276；以前只有 .NET 有这个上限）。向量 `conformance/vectors/primitives/operation-ids.json`：合法与不合法的 ID，含正好 128 个与 129 个字符的。
 
 ## 契约
 

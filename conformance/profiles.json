@@ -33,6 +33,7 @@
         "primitives/kernel-messages.json",
         "primitives/lifecycle-transitions.json",
         "primitives/message-templates.json",
+        "primitives/operation-ids.json",
         "primitives/trace-context.json",
         "primitives/wire-encoding.json"
       ],

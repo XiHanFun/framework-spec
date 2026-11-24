@@ -20,6 +20,9 @@ var (
 	capabilityRequirementPattern = regexp.MustCompile(`^([a-z][a-z0-9]*\.[a-z][a-z0-9-]*)@(\^?)([1-9][0-9]*)(\??)$`)
 )
 
+// MaxOperationIDLength 是操作 ID 的最大长度（conventions/operation-ids.md，ADR-0276）；文法只含 ASCII，字符数就是字节数。
+const MaxOperationIDLength = 128
+
 // RegisteredBaggageKeys 是 conventions/baggage-keys.md 登记的键。
 var RegisteredBaggageKeys = []string{
 	"xihan.tenant",
@@ -65,8 +68,10 @@ func ErrorCodeKind(code string) string {
 	return parts[1]
 }
 
-// IsOperationID 判断操作 ID 是否符合 <resource>.<verb>（conventions/operation-ids.md）。
-func IsOperationID(id string) bool { return operationIDPattern.MatchString(id) }
+// IsOperationID 判断操作 ID 是否符合 <resource>.<verb> 且不超过 MaxOperationIDLength 个字符（conventions/operation-ids.md）。
+func IsOperationID(id string) bool {
+	return len(id) <= MaxOperationIDLength && operationIDPattern.MatchString(id)
+}
 
 // IsTopic 判断消息主题是否符合 RFC-0009 的文法。
 func IsTopic(topic string) bool { return topicPattern.MatchString(topic) }

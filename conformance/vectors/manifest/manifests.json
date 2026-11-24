@@ -137,6 +137,22 @@
         ]
       },
       "written": "{\n  \"$schema\": \"https://spec.xihanfun.com/manifest/v1.json\",\n  \"id\": \"xihan.orders.core\",\n  \"version\": \"1.0.0\",\n  \"primitives\": \"2147483647\",\n  \"stability\": \"stable\",\n  \"kind\": \"capability\",\n  \"role\": \"provider\",\n  \"provides\": [\n    {\n      \"id\": \"orders.store\",\n      \"version\": \"2147483647\"\n    }\n  ],\n  \"requires\": [\n    {\n      \"id\": \"kernel.hosting\",\n      \"version\": \"2147483647\",\n      \"optional\": false\n    }\n  ],\n  \"bindings\": [],\n  \"contributes\": {\n    \"pipeline\": [],\n    \"operations\": [],\n    \"permissions\": [],\n    \"health\": []\n  },\n  \"activation\": [\n    \"onStartup\"\n  ],\n  \"permissions\": []\n}"
+    },
+    {
+      "name": "操作 ID 正好 128 个字符",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "operations": [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.create"
+          ]
+        }
+      },
+      "written": "{\n  \"$schema\": \"https://spec.xihanfun.com/manifest/v1.json\",\n  \"id\": \"xihan.orders.core\",\n  \"version\": \"1.0.0\",\n  \"primitives\": \"1\",\n  \"stability\": \"stable\",\n  \"kind\": \"capability\",\n  \"role\": \"provider\",\n  \"provides\": [],\n  \"requires\": [],\n  \"bindings\": [],\n  \"contributes\": {\n    \"pipeline\": [],\n    \"operations\": [\n      \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.create\"\n    ],\n    \"permissions\": [],\n    \"health\": []\n  },\n  \"activation\": [\n    \"onStartup\"\n  ],\n  \"permissions\": []\n}"
     }
   ],
   "invalid": [
@@ -1424,6 +1440,30 @@
         "messageKey": "kernel.manifest.invalid_json",
         "arguments": {
           "reason": "$"
+        }
+      }
+    },
+    {
+      "name": "操作 ID 129 个字符",
+      "reason": "操作 ID 不超过 128 个字符",
+      "manifest": {
+        "id": "xihan.orders.core",
+        "version": "1.0.0",
+        "primitives": "1",
+        "stability": "stable",
+        "kind": "capability",
+        "contributes": {
+          "operations": [
+            "orders.create",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.create"
+          ]
+        }
+      },
+      "error": {
+        "code": "KERNEL_CAPABILITY_006",
+        "messageKey": "kernel.manifest.invalid",
+        "arguments": {
+          "reason": "$.contributes.operations[1]"
         }
       }
     }

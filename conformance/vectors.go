@@ -257,6 +257,13 @@ type ErrorCodeVectors struct {
 	Invalid []string `json:"invalid"`
 }
 
+// OperationIDVectors 对应 primitives/operation-ids.json（conventions/operation-ids.md，ADR-0276）：MaxLength 是整个 ID 的最大字符数。
+type OperationIDVectors struct {
+	MaxLength int      `json:"maxLength"`
+	Valid     []string `json:"valid"`
+	Invalid   []string `json:"invalid"`
+}
+
 // BaggageKeyVectors 对应 primitives/baggage-keys.json。
 type BaggageKeyVectors struct {
 	WellFormed []string            `json:"wellFormed"`
@@ -569,6 +576,7 @@ var typedVectors = []TypedVector{
 	vectorFile[KernelMessageVectors]("primitives/kernel-messages.json"),
 	vectorFile[LifecycleTransitionVectors]("primitives/lifecycle-transitions.json"),
 	vectorFile[MessageTemplateVectors]("primitives/message-templates.json"),
+	vectorFile[OperationIDVectors]("primitives/operation-ids.json"),
 	vectorFile[TraceContextVectors]("primitives/trace-context.json"),
 	vectorFile[WireEncodingVectors]("primitives/wire-encoding.json"),
 	vectorFile[CachingDistributedVectors]("provider/caching-distributed.json"),
@@ -650,6 +658,11 @@ func ErrorReading() (ErrorReadingVectors, error) {
 // ErrorCodes 读取错误码格式向量。
 func ErrorCodes() (ErrorCodeVectors, error) {
 	return typed[ErrorCodeVectors]()
+}
+
+// OperationIDs 读取操作 ID 文法向量。
+func OperationIDs() (OperationIDVectors, error) {
+	return typed[OperationIDVectors]()
 }
 
 // BaggageKeys 读取 Baggage 键向量。

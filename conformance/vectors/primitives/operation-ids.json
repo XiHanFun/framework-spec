@@ -1,0 +1,42 @@
+{
+  "$comment": "操作 ID 的文法（conventions/operation-ids.md、RFC-0011「操作 ID」，ADR-0276）：^[a-z][a-z0-9]*(-[a-z0-9]+)*\\.[a-z][a-z0-9]*(-[a-z0-9]+)*$，整个 ID 不超过 maxLength 个字符（文法只含 ASCII，字符数就是字节数）；按整串匹配，结尾的换行不例外。valid 必须接受，invalid 必须拒绝；valid 的末两项正好 128 个字符，invalid 的末三项是 129、129 与 200 个字符、别处都合文法。清单的 contributes.operations 与握手声明的操作用同一条规则（清单一侧的用例在 manifest/manifests.json）。期望值由 .NET 参考实现（OperationId.IsValid）算出。",
+  "maxLength": 128,
+  "valid": [
+    "orders.create",
+    "order-lines.list",
+    "echoes.relay",
+    "a.b",
+    "orders2.get",
+    "o1-2.v3-4",
+    "cache-entries.try-add",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.create",
+    "x-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx.list-all0"
+  ],
+  "invalid": [
+    "",
+    "Orders.Create",
+    "orders",
+    "orders.",
+    ".create",
+    "orders.create.now",
+    "-orders.create",
+    "orders-.create",
+    "orders--lines.list",
+    "orders.create-",
+    "orders.-create",
+    "1orders.create",
+    "orders.1create",
+    "orders_lines.list",
+    "orders create",
+    "orders.create\n",
+    " orders.create",
+    "orders.create ",
+    "orders.créate",
+    "ｏrders.create",
+    "orders/create",
+    "orders:create",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.create",
+    "x-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx.list-all00",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.create"
+  ]
+}

@@ -407,7 +407,7 @@ public static class Redaction
 
 ## 一致性向量
 
-`spec/conformance/vectors/primitives/`：`error-codes.json`、`lifecycle-transitions.json`、`capability-requirements.json`、`baggage-keys.json`（含 Baggage 值的约束）、`wire-encoding.json`（Result 与 Error 的编码）、`message-templates.json`（消息键文法、模板格式化与 `Describe`，RFC-0010）、`kernel-messages.json`（SDK 与宿主共用的内核错误码、消息键、参数与 en-US 模板，RFC-0011）、`trace-context.json`（`traceparent` 的解析与写出，RFC-0003）、`json-text.json`（JSON 文本的共同读取检查，见上文「JSON 文本」）。TypedId 的编码就是底层值，不另设向量。清单、管道与操作载荷的向量分别在 `vectors/manifest/`、`vectors/pipeline/`、`vectors/operations/`（RFC-0002、0004、0011）。
+`spec/conformance/vectors/primitives/`：`error-codes.json`、`lifecycle-transitions.json`、`capability-requirements.json`、`baggage-keys.json`（含 Baggage 值的约束）、`wire-encoding.json`（Result 与 Error 的编码）、`message-templates.json`（消息键文法、模板格式化与 `Describe`，RFC-0010）、`kernel-messages.json`（SDK 与宿主共用的内核错误码、消息键、参数与 en-US 模板，RFC-0011）、`trace-context.json`（`traceparent` 的解析与写出，RFC-0003）、`json-text.json`（JSON 文本的共同读取检查，见上文「JSON 文本」）、`operation-ids.json`（操作 ID 文法与 128 个字符的上限，RFC-0011）。TypedId 的编码就是底层值，不另设向量。清单、管道与操作载荷的向量分别在 `vectors/manifest/`、`vectors/pipeline/`、`vectors/operations/`（RFC-0002、0004、0011）。
 
 ## 备选方案
 

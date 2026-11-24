@@ -97,7 +97,7 @@
             }
           }
         },
-        "operations": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*\\.[a-z][a-z0-9]*(-[a-z0-9]+)*$" } },
+        "operations": { "type": "array", "items": { "type": "string", "maxLength": 128, "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*\\.[a-z][a-z0-9]*(-[a-z0-9]+)*$" }, "description": "操作 ID（conventions/operation-ids.md）：<resource>.<verb>，不超过 128 个字符" },
         "config": {
           "type": "object",
           "required": ["section"],
