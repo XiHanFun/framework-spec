@@ -191,7 +191,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `SCHEDULING_NOTFOUND_004` | 运行不存在或已结束 |
 | `SCHEDULING_NOTFOUND_005` | 作业没有代码定义（不能恢复为代码定义） |
 | `SCHEDULING_VALIDATION_001` | 作业定义不合法（触发器名重复、日历未登记、计划不合法） |
-| `SCHEDULING_VALIDATION_002` | 运行历史查询的分页越界：`Skip` 为负或 `Take` 不在 1 到 1000 之间（参数 `skip`、`take`、`max`；不在构造时抛出，`RunsAsync` 以结果返回，HTTP 400） |
+| `SCHEDULING_VALIDATION_002` | 运行历史查询的分页越界：`Skip` 为负或 `Take` 不在 1 到 1000 之间（参数 `skip`、`take`、`max`；不在构造时抛出，`ListRunsAsync` 以结果返回，HTTP 400） |
 | `SCHEDULING_VALIDATION_003` | 作业状态列表的查询不合法：`PageSize` 不在 1 到 1000 之间（参数 `pageSize`、`max`），或续页令牌不是调度器给出的；`ListStatusesAsync` 以结果返回（HTTP 400），不进存储（ADR-0148） |
 | `SCHEDULING_CONFLICT_001` | 作业正在运行且不允许并发 |
 | `SCHEDULING_CONFLICT_002` | 领导租约被其他持有者占用 |

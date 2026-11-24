@@ -1,6 +1,6 @@
 # RFC-0013 调度与领导选举
 
-> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发），2026-11-01 修订（ADR-0074：调度器启动之前的手动触发同样不可用、一致性套件由用例推进时钟并主动轮询；ADR-0082：运行查询的分页越界返回校验错误；ADR-0091：应用不在服务状态时不持有领导租约、数据库实现的租约释放不经管道），2026-11-02 修订（ADR-0094：领导选举一致性套件加上应用生命周期用例），2026-11-24 修订（ADR-0277：一致性向量） | 对应 ADR：ADR-0020、ADR-0074、ADR-0082、ADR-0091、ADR-0094、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance`，向量 `conformance/vectors/scheduling/` | 一致性档：`scheduling`
+> 状态：已采纳 | 日期：2026-10-23，2026-10-26 修订（ADR-0020：作业存储、动态作业、多触发器、misfire、暂停、历史、集群分发），2026-11-01 修订（ADR-0074：调度器启动之前的手动触发同样不可用、一致性套件由用例推进时钟并主动轮询；ADR-0082：运行查询的分页越界返回校验错误；ADR-0091：应用不在服务状态时不持有领导租约、数据库实现的租约释放不经管道），2026-11-02 修订（ADR-0094：领导选举一致性套件加上应用生命周期用例），2026-11-24 修订（ADR-0277：一致性向量；ADR-0270：调度器与存储的查询方法改名，补上动词 `List` / `Find`） | 对应 ADR：ADR-0020、ADR-0074、ADR-0082、ADR-0091、ADR-0094、ADR-0270（查询方法改名）、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.Scheduling.Abstractions`、`XiHan.Framework.Scheduling.InMemory`、`XiHan.Framework.Scheduling.Database` | 一致性：`XiHan.Framework.Scheduling.Conformance`，向量 `conformance/vectors/scheduling/` | 一致性档：`scheduling`
 
 ## 摘要
 
@@ -48,8 +48,8 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 - `TriggerAsync(requests[])`（`new JobTriggerRequest(name) { Data = … }`）：在本实例立即运行并等待结果，返回与请求同序的逐项 `Result`；不受暂停与领导限制；未登记 → `SCHEDULING_NOTFOUND_001`，正在运行且不允许并发 → `SCHEDULING_CONFLICT_001`，本实例的调度器尚未启动或已开始停止 → `SCHEDULING_UNAVAILABLE_001`（见下）。
 - `EnqueueAsync(requests[])`：插入一个立即到期的一次性触发器（名 `manual-<id>`），由集群中任一节点运行，不等待；返回触发器名。
 - `CancelRunsAsync(runIds[])`：请求取消运行——本实例的运行立即取消其令牌，其他节点的运行在下一个轮询周期取消；不在运行中 → `SCHEDULING_NOTFOUND_004`。取消的运行记为 `Canceled`，等待它的手动触发得到 `SCHEDULING_CONFLICT_003`。
-- `StatusesAsync(names[])`：按名取 `JobStatus`（作业的只读视图 `JobView`、是否暂停、每个触发器的状态与下一次 / 上一次运行时刻与次数、运行中数量、最近一次完成的运行与结果），与入参等长、同序，未登记的为无值，重复的名字各得一份；单个作业用扩展方法 `StatusAsync(name)`。`ListStatusesAsync(JobStatusQuery)` 按作业名的序数升序分页（`PageSize` 1～1000、缺省 100，不透明的续页令牌，读到令牌为空为止），越界或外来令牌 → `SCHEDULING_VALIDATION_003`。存储读不到时整批失败，不当作未登记（2026-11-11 修订，ADR-0148）。
-- `RunsAsync(query)`：运行历史（按作业、状态、时间范围、触发器名 `TriggerName`、触发来源集合 `Triggers`、执行节点、有无错误；查询成员与运行记录同名，2026-11-11 修订，ADR-0161；分页，计划时刻降序），返回只读视图 `JobRunView`（失败结果在 `Outcome`），存储记录 `JobRunRecord` 只留给 `IJobStore`（ADR-0148）；`CountRunsAsync(query)` 给出同一组过滤项下的总数（不看分页），管理界面分页用（ADR-0053）。`JobRunQuery` 的分页（`Skip` ≥ 0、`Take` 1～`MaxTake`（1000），默认 0 与 100）不在构造时抛出：越界时 `RunsAsync` 返回 `SCHEDULING_VALIDATION_002`（HTTP 400，消息键 `scheduling.run.query_page_invalid`，参数 `skip`、`take`、`max`），不进存储——查询常由请求绑定，越界是调用方可以改正的输入（2026-11-01 修订，ADR-0082）；`CountRunsAsync` 不看分页，不校验。存储收到的查询由调度器校验过。
+- `FindStatusesAsync(names[])`（2026-11-24 改名，ADR-0270，原名 `StatusesAsync`；未登记的为无值，按 RFC-0001「查找的命名」用 `Find`）：按名取 `JobStatus`（作业的只读视图 `JobView`、是否暂停、每个触发器的状态与下一次 / 上一次运行时刻与次数、运行中数量、最近一次完成的运行与结果），与入参等长、同序，未登记的为无值，重复的名字各得一份；单个作业用扩展方法 `FindStatusAsync(name)`（原名 `StatusAsync`）。`ListStatusesAsync(JobStatusQuery)` 按作业名的序数升序分页（`PageSize` 1～1000、缺省 100，不透明的续页令牌，读到令牌为空为止），越界或外来令牌 → `SCHEDULING_VALIDATION_003`。存储读不到时整批失败，不当作未登记（2026-11-11 修订，ADR-0148）。
+- `ListRunsAsync(query)`（2026-11-24 改名，ADR-0270，原名 `RunsAsync`）：运行历史（按作业、状态、时间范围、触发器名 `TriggerName`、触发来源集合 `Triggers`、执行节点、有无错误；查询成员与运行记录同名，2026-11-11 修订，ADR-0161；分页，计划时刻降序），返回只读视图 `JobRunView`（失败结果在 `Outcome`），存储记录 `JobRunRecord` 只留给 `IJobStore`（ADR-0148）；`CountRunsAsync(query)` 给出同一组过滤项下的总数（不看分页），管理界面分页用（ADR-0053）。`JobRunQuery` 的分页（`Skip` ≥ 0、`Take` 1～`MaxTake`（1000），默认 0 与 100）不在构造时抛出：越界时 `ListRunsAsync` 返回 `SCHEDULING_VALIDATION_002`（HTTP 400，消息键 `scheduling.run.query_page_invalid`，参数 `skip`、`take`、`max`），不进存储——查询常由请求绑定，越界是调用方可以改正的输入（2026-11-01 修订，ADR-0082）；`CountRunsAsync` 不看分页，不校验。存储收到的查询由调度器校验过。
 
 调度器在应用不在服务状态时（进入服务状态之前、开始排空之后）不按计划运行，领导租约也不拿不续，持有就立即释放（见「引擎」第 1 步）；进入服务状态后首个周期把代码登记的作业写入存储：
 
@@ -63,13 +63,13 @@ Quartz 的"作业（做什么）"与"触发器（何时做）"分离：一个作
 
 ## 存储 `IJobStore`
 
-Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 → `SCHEDULING_UNAVAILABLE_003`，容量已满（内存实现的历史）→ `SCHEDULING_UNAVAILABLE_004`：
+Provider 实现，所有方法返回 `Result`、批量优先、存储不可达 → `SCHEDULING_UNAVAILABLE_003`，容量已满（内存实现的历史）→ `SCHEDULING_UNAVAILABLE_004`；六个读取方法以 `List` 起头（2026-11-24 改名，ADR-0270；原名依次是 `TriggersAsync`、`RunsAsync`、`RunningAsync`、`LastRunsAsync`、`CancelRequestedRunsAsync`、`NodesAsync`，参数、返回与行为不变）：
 
 - `IsShared`：存储是否跨实例共享（抢占即集群唯一）。`false`（内存实现）时不共享的"集群只运行一次"作业只在持有领导租约的实例上按计划运行；`true`（数据库实现）时由抢占保证。
 - 作业：`FindJobAsync`、`ListJobsAsync`、`SaveJobsAsync`（新增或替换定义与暂停状态；已有行的 `ActiveRunId` 由存储保留，只有 `TryBeginRunAsync` / `CompleteRunAsync` / `RecoverNodesAsync` 改它）、`DeleteJobsAsync`（级联触发器）。`JobRecord`：定义的持久化形态（`JobTypeName` 为类型键）加 `Paused`、`ActiveRunId`（不允许并发时正在运行的运行 ID）、`Source`（`Code` / `Runtime` / `Overridden`）、`CodeFingerprint`（代码作业最近一次按代码写入时的指纹，运行时作业为空）、`UpdatedAt`。
-- 触发器：`TriggersAsync(job?)`、`SaveTriggersAsync`、`DeleteTriggersAsync`、`AcquireDueAsync(dueBefore, limit, nodeId, now)`（原子地把 `Waiting` 且到期的非本地触发器改成 `Acquired(nodeId)`，按到期时刻升序、优先级降序取至多 `limit` 条；多个节点同时调用时每条触发器只被一个节点拿到）。`TriggerRecord`：定义加 `State`（`Waiting` / `Paused` / `Acquired` / `Blocked` / `Complete` / `Error`）、`NextFireAt`、`PreviousFireAt`、`AcquiredBy`、`AcquiredAt`、`FireCount`、`Error`、`Local`。
-- 运行：`TryBeginRunAsync(run, exclusive)`（写入运行记录；`exclusive` 时原子地占用作业的 `ActiveRunId`，已被占用返回 `false`）、`CompleteRunAsync(run)`（写回结果，释放 `ActiveRunId`，把该作业 `Blocked` 的触发器改回 `Waiting`）、`BlockTriggerAsync(trigger)`（`TryBeginRunAsync` 返回 `false` 之后用：同一个原子操作里确认 `ActiveRunId` 仍指向未结束的运行，是则存为 `Blocked` 返回 `true`，占用已释放则存为 `Waiting` 返回 `false`，都清掉抢占者；与 `CompleteRunAsync` 的释放互斥，阻塞的触发器总能在占用释放时回到 `Waiting`，ADR-0062）、`RunsAsync(query)`、`CountRunsAsync(query)`、`RunningAsync(job?)`、`LastRunsAsync(jobs[])`、`RequestCancelAsync(runIds[])`、`CancelRequestedRunsAsync(nodeId)`、`PurgeRunsAsync(before)`。
-- 节点：`HeartbeatAsync(node)`、`NodesAsync()`、`RecoverNodesAsync(nodeIds[], now)`（失联节点 `Acquired` / `Blocked` 的触发器改回 `Waiting`，`Running` 的运行记为 `Lost`，释放其 `ActiveRunId`，删除节点记录，返回标记为 `Lost` 的运行）。
+- 触发器：`ListTriggersAsync(job?)`、`SaveTriggersAsync`、`DeleteTriggersAsync`、`AcquireDueAsync(dueBefore, limit, nodeId, now)`（原子地把 `Waiting` 且到期的非本地触发器改成 `Acquired(nodeId)`，按到期时刻升序、优先级降序取至多 `limit` 条；多个节点同时调用时每条触发器只被一个节点拿到）。`TriggerRecord`：定义加 `State`（`Waiting` / `Paused` / `Acquired` / `Blocked` / `Complete` / `Error`）、`NextFireAt`、`PreviousFireAt`、`AcquiredBy`、`AcquiredAt`、`FireCount`、`Error`、`Local`。
+- 运行：`TryBeginRunAsync(run, exclusive)`（写入运行记录；`exclusive` 时原子地占用作业的 `ActiveRunId`，已被占用返回 `false`）、`CompleteRunAsync(run)`（写回结果，释放 `ActiveRunId`，把该作业 `Blocked` 的触发器改回 `Waiting`）、`BlockTriggerAsync(trigger)`（`TryBeginRunAsync` 返回 `false` 之后用：同一个原子操作里确认 `ActiveRunId` 仍指向未结束的运行，是则存为 `Blocked` 返回 `true`，占用已释放则存为 `Waiting` 返回 `false`，都清掉抢占者；与 `CompleteRunAsync` 的释放互斥，阻塞的触发器总能在占用释放时回到 `Waiting`，ADR-0062）、`ListRunsAsync(query)`、`CountRunsAsync(query)`、`ListRunningRunsAsync(job?)`、`ListLastRunsAsync(jobs[])`、`RequestCancelAsync(runIds[])`、`ListCancelRequestedRunsAsync(nodeId)`（列出本节点上被请求取消的运行，本身不取消任何运行）、`PurgeRunsAsync(before)`。
+- 节点：`HeartbeatAsync(node)`、`ListNodesAsync()`、`RecoverNodesAsync(nodeIds[], now)`（失联节点 `Acquired` / `Blocked` 的触发器改回 `Waiting`，`Running` 的运行记为 `Lost`，释放其 `ActiveRunId`，删除节点记录，返回标记为 `Lost` 的运行）。
 
 ## 引擎
 
