@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- MINOR：`protocol/http.md`「OpenAPI」：稳定性是 `Deprecated` 的操作在操作对象上另带 OpenAPI 标准的 `deprecated: true`，其余级别不写这个字段；`x-xihan-stability` 照旧，弃用的操作两个字段都有（ADR-0273）。以前弃用只写在扩展字段里。只改文档的内容，路由与执行不变，其余协议不变。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0006「类型化缓存」：`GetOrCreateAsync` 在同一个缓存实例上对同一个键、同一种结果类型的并发未命中只回源一次（ADR-0271）；以前写的是未命中时各自执行工厂、不合并并发。先到的调用在自己的上下文里用自己的令牌执行工厂，其余调用等它的结局；等待的调用取消只结束自己的等待，领头的调用取消时工厂随它取消、由等待的调用里先到的一个接手；工厂失败时当时在等的调用收到同一个异常、不缓存；回源期间经本实例写入或删除这个键即脱钩，结果不写回；不跨实例合并。「两级缓存」随之修订：两级缓存自己合并，L1 未命中的并发调用只读一次 L2，对 L2 分开读写、不再调用它的 `GetOrCreate`，L2 存储的变更通知也让在途的回源脱钩。只影响 .NET 的缓存实现与自写的 `ICache`，存储契约、远程 Provider 的操作集与各 SDK 不变。
 - MINOR：RFC-0006 跟上 .NET 把键长度改按 UTF-8 字节计（ADR-0274；规则本身已随 ADR-0276 写明）：「一致性」写上行为套件 `CacheStoreConformance` 新增的用例——含多字节字符、恰好 512 字节的键完整往返，两个只差最后一个字节的最长键是两个条目；「代数缓存区」里区名上限的 .NET 常量名改为 `GenerationCache<T>.MaxRegionBytes`（原名 `MaxRegionLength`）。规则不变，各 SDK 不用改。
 - PATCH：RFC-0013 里 .NET 的调度器与存储的查询方法改名，补上动词（ADR-0270）：`IJobScheduler` 的 `RunsAsync` → `ListRunsAsync`、`StatusesAsync` → `FindStatusesAsync`，扩展方法 `StatusAsync` → `FindStatusAsync`（未登记的为无值，按 RFC-0001「查找的命名」用 `Find`）；`IJobStore` 的 `TriggersAsync`、`RunsAsync`、`RunningAsync`、`LastRunsAsync`、`CancelRequestedRunsAsync`、`NodesAsync` → `ListTriggersAsync`、`ListRunsAsync`、`ListRunningRunsAsync`、`ListLastRunsAsync`、`ListCancelRequestedRunsAsync`、`ListNodesAsync`；登记表里 `SCHEDULING_VALIDATION_002` 的措辞随之改。参数、返回、行为与错误码都不变，线上与各 SDK 不变。
