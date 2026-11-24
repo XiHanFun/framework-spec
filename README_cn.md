@@ -69,7 +69,7 @@ xihan-conformance vectors
 
 ## 状态
 
-规范以独立的语义化版本 `vX.Y.Z` 打标签（RFC-0024），`v1.0.0` 之前打 `v1.0.0-rc.N`。规范性内容按 [`conformance/profiles.json`](./conformance/profiles.json) 的一致性档划分：XiHan.Framework 认领 `plugin` 之外的全部档，六个 SDK 认领 `core` 与 `plugin`（Go 另有 `provider:caching.distributed@1`），都没有缺口。档、成熟度与各实现的现状见[文档页](https://framework.docs.xihanfun.com/appendix/spec)。
+规范以独立的语义化版本 `vX.Y.Z` 打标签（RFC-0024），`v1.0.0` 之前打 `v1.0.0-rc.N`。规范性内容按 [`conformance/profiles.json`](./conformance/profiles.json) 的一致性档划分：XiHan.Framework 认领 `plugin` 之外的全部档，六个 SDK 认领 `core` 与 `plugin`（Go 另有 `provider:caching.distributed@1`），在各自钉住的规范版本上都没有缺口；规范新增的向量文件由各实现在升规范指针时回放或登记为缺口。档、成熟度与各实现的现状见[文档页](https://framework.docs.xihanfun.com/appendix/spec)。
 
 ## 生态
 

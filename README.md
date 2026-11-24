@@ -73,7 +73,7 @@ The documentation site is written in Chinese.
 
 ## Status
 
-The spec is tagged with its own semantic versions `vX.Y.Z` (RFC-0024); before `v1.0.0` the tags are `v1.0.0-rc.N`. Normative content is divided into the conformance profiles of [`conformance/profiles.json`](./conformance/profiles.json): XiHan.Framework claims every profile except `plugin`, the six SDKs claim `core` and `plugin` (Go also `provider:caching.distributed@1`), and none has gaps. Profiles, maturity levels and the state of each implementation are on the [docs page](https://framework.docs.xihanfun.com/appendix/spec).
+The spec is tagged with its own semantic versions `vX.Y.Z` (RFC-0024); before `v1.0.0` the tags are `v1.0.0-rc.N`. Normative content is divided into the conformance profiles of [`conformance/profiles.json`](./conformance/profiles.json): XiHan.Framework claims every profile except `plugin`, the six SDKs claim `core` and `plugin` (Go also `provider:caching.distributed@1`), and none has gaps at the spec version it pins; vector files added to the spec are replayed, or listed as gaps, when an implementation moves its pin. Profiles, maturity levels and the state of each implementation are on the [docs page](https://framework.docs.xihanfun.com/appendix/spec).
 
 ## Ecosystem
 
