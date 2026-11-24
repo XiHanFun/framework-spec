@@ -1,6 +1,6 @@
 # RFC-0006 缓存、分布式锁与幂等
 
-> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配、两级缓存；2026-11-01 修订：幂等回放操作的响应；2026-11-01 修订：键列表的每页上限越界返回校验错误；2026-11-12 修订：幂等作用域键里主体带长度前缀、外层请求把幂等键交给内层调用；2026-11-14 修订：代数缓存区、组件登记缓存类型、两级缓存回填核对失效；2026-11-24 修订：键与前缀的长度按 UTF-8 字节计，代数缓存区的直写上限随之按字节计） | 日期：2026-10-21 | 对应 ADR：ADR-0064（幂等响应回放）、ADR-0084（键列表分页越界）、ADR-0229（代数缓存区与跨实例失效）、ADR-0276（键长度的单位） | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance` | 一致性档：`caching`
+> 状态：已采纳（2026-10-23 修订：批量方法；2026-10-26 修订：`IDistributedCache` 适配、两级缓存；2026-11-01 修订：幂等回放操作的响应；2026-11-01 修订：键列表的每页上限越界返回校验错误；2026-11-12 修订：幂等作用域键里主体带长度前缀、外层请求把幂等键交给内层调用；2026-11-14 修订：代数缓存区、组件登记缓存类型、两级缓存回填核对失效；2026-11-24 修订：键与前缀的长度按 UTF-8 字节计，代数缓存区的直写上限随之按字节计；同日再修订：`GetOrCreateAsync` 合并同键的并发未命中，两级缓存自己合并、不再调用 L2 的 `GetOrCreate`） | 日期：2026-10-21 | 对应 ADR：ADR-0064（幂等响应回放）、ADR-0084（键列表分页越界）、ADR-0229（代数缓存区与跨实例失效）、ADR-0271（合并同键并发）、ADR-0274（.NET 的键长度按字节计）、ADR-0276（键长度的单位） | 参考实现：`XiHan.Framework.Caching.Abstractions`、`XiHan.Framework.Caching.InMemory`、`XiHan.Framework.Caching.Redis` | 一致性：`XiHan.Framework.Caching.Conformance` | 一致性档：`caching`
 
 ## 摘要
 
@@ -73,7 +73,16 @@
 
 ## 类型化缓存
 
-`ICache`：`GetAsync<T>`、`SetAsync<T>`、`RemoveAsync`、`GetOrCreateAsync<T>`（未命中时各自执行工厂，不合并并发），以及批量的 `GetManyAsync<T>(keys)`、`SetManyAsync<T>(entries, options)`、`RemoveManyAsync(keys)`，语义与存储契约的批量方法一致，结果与入参顺序一一对应。进程内实现直接存对象引用，不序列化；跨进程实现用 `SerializingCache` 把存储与 `ICacheSerializer` 组合。默认序列化器是 System.Text.Json，要求选项带 `TypeInfoResolver`，通过 `JsonSerializerOptions.GetTypeInfo` 取类型信息，AOT 下无反射；反射版只在允许反射的运行时可用。
+`ICache`：`GetAsync<T>`、`SetAsync<T>`、`RemoveAsync`、`GetOrCreateAsync<T>`（合并同键的并发未命中，见下），以及批量的 `GetManyAsync<T>(keys)`、`SetManyAsync<T>(entries, options)`、`RemoveManyAsync(keys)`，语义与存储契约的批量方法一致，结果与入参顺序一一对应。进程内实现直接存对象引用，不序列化；跨进程实现用 `SerializingCache` 把存储与 `ICacheSerializer` 组合。默认序列化器是 System.Text.Json，要求选项带 `TypeInfoResolver`，通过 `JsonSerializerOptions.GetTypeInfo` 取类型信息，AOT 下无反射；反射版只在允许反射的运行时可用。
+
+`GetOrCreateAsync<T>` 在同一个缓存实例上，对同一个键、同一种结果类型的并发未命中只回源一次（2026-11-24 修订，ADR-0271；以前未命中时各自执行工厂、不合并并发，热点键过期时同时到来的调用各查一次源）：
+
+- 先到的调用领头：工厂在它自己的上下文里、用它自己的令牌执行，其余调用等它的结局，拿到的是它的结果，过期选项也以它为准。所以同一个键必须对应同一份数据，与调用方是谁无关。
+- 取消：等待的调用取消只结束自己的等待。领头的调用取消时工厂随它取消，异常只抛给它，等待的调用里先到的一个接手、执行它自己的工厂。令牌已经取消的调用未命中时不执行工厂，也不等待。
+- 失败：工厂抛出而领头的调用没有取消时，当时在等的调用收到同一个异常，不缓存，下一次调用重新回源。缓存后端故障照常抛出 `CACHING_UNAVAILABLE_001`，不改为直接回源。
+- 脱钩：回源期间经本实例写入或删除这个键（`Set`、`SetMany`、`Remove`、`RemoveMany`，对象缓存另有按前缀删除），在途的回源即脱钩——它照常结束，已经在等的调用照常拿到结果，但结果不写回，之后到达的调用不加入它、重新读缓存。别的实例的变更与绕过缓存直接经 `ICache.Store` 的写入看不见，不脱钩；要让失效之后开始的读取一定看到新数据并且跨实例成立，用下面的代数缓存区。
+- 不合并的：不同的缓存实例之间（要跨实例只回源一次，由应用用分布式锁包住）；同一个键的不同结果类型；工厂里再读调用链上正在回源的键（否则是等自己）。这几种照没有合并时各自回源。两条执行流的工厂互相读对方的键会死锁。
+- 过期选项在未命中时、回源之前校验。.NET 的在途表是 `InFlightLoadTable`（每个缓存实例一张，只存在途的键，回源结束或被取代即移除），自写 `ICache` 的实现用它得到同样的语义。
 
 框架组件放进缓存的类型用 `CacheSerializerRegistration.AddTypeInfo(services, resolver)` 登记自己的源生成上下文（容器里一项 `CacheTypeInfoSource`，同一个解析器只登记一次）。应用登记了 `JsonSerializerOptions` 时，序列化器的解析器是应用的解析器在前、这些上下文在后，应用的上下文不必认识框架的类型；应用选项没有解析器仍是配置错误。应用自己登记 `ICacheSerializer` 时要自行处理这些类型（2026-11-14 增补，ADR-0229）。
 
@@ -81,7 +90,7 @@
 
 `GenerationCache<T>` 架在 `ICache` 上，是按范围失效、丢弃失效之前开始的读取的读穿缓存区（2026-11-14 增补，ADR-0229）。框架里会被写入改变、多实例要一致的缓存（授予、租户目录）都用它。
 
-- 位置是（范围，条目）。范围是失效的单位，条目区分同一范围下的值，两者都是任意文本。键是 `<区>:gen`（区代数）、`<区>:gen:<范围>`（范围代数）、`<区>:entry:<范围>:<条目>`；范围与条目写成 `<长度>.<文本>`，含空白、控制字符或按 UTF-8 编码后超过 128 字节的写成 `#<SHA-256 十六进制>`（2026-11-24 修订，ADR-0276；以前是「超过 128 个字符」，按 UTF-16 码元计：键的上限改按字节计之后，区名、范围与条目各 128 个非 ASCII 字符拼出的键会超过 512 字节）。区名是合法的缓存键文本，按 UTF-8 编码后不超过 128 字节（同日写明；.NET 的 `MaxRegionLength`，以前按 UTF-16 码元计），这样拼出的键不会超过键的上限。
+- 位置是（范围，条目）。范围是失效的单位，条目区分同一范围下的值，两者都是任意文本。键是 `<区>:gen`（区代数）、`<区>:gen:<范围>`（范围代数）、`<区>:entry:<范围>:<条目>`；范围与条目写成 `<长度>.<文本>`，含空白、控制字符或按 UTF-8 编码后超过 128 字节的写成 `#<SHA-256 十六进制>`（2026-11-24 修订，ADR-0276；以前是「超过 128 个字符」，按 UTF-16 码元计：键的上限改按字节计之后，区名、范围与条目各 128 个非 ASCII 字符拼出的键会超过 512 字节）。区名是合法的缓存键文本，按 UTF-8 编码后不超过 128 字节（同日写明；.NET 的 `GenerationCache<T>.MaxRegionBytes`，原名 `MaxRegionLength`、按 UTF-16 码元计，ADR-0274），这样拼出的键不会超过键的上限。
 - 区与每个范围各有一个代数（随机令牌），也存在 `ICache` 里。条目存储为 `GenerationCacheEntry<T>`（区代数、范围代数、值），读取时两个代数都等于当前值才算命中。
 - `GetOrLoadMany(keys, load)`：结果与入参顺序一一对应，重复的位置只读一次、只查一次源，空集合不触缓存。先取代数，缺代数（从未写过、过期或被淘汰）就先写下新代数，再读条目；未命中的一次交给 `load`，结果连同读取开始时的代数写回。`load` 返回失败时原样返回、不写缓存；返回条数不符是编程错误。
 - `Invalidate(scopes)` 给每个范围换新代数，一次批量写入，空集合什么也不做；`InvalidateAll()` 换区代数。失效之后开始的读取看到新代数；失效之前开始的读取写回的条目带着旧代数，任何共用这份缓存的实例都不会当作命中。
@@ -116,7 +125,7 @@ Idempotency 阶段的中间件按 Baggage `xihan.idempotency-key` 去重，作�
 `Caching.Hybrid` 提供 `caching.local@1`、依赖 `caching.distributed@1`：`ICache` 是 L1（进程内对象引用，有界 LRU）在前、L2（被选中的 `ISharedCache`）在后的两级缓存。
 
 - 读：L1 命中直接返回；未命中读 L2，命中后写进 L1。批量读先在 L1 取全部，只把未命中的键一次交给 L2。
-- 写与删：先 L2 再 L1；`GetOrCreate` 两级都未命中才执行工厂，结果写两级。
+- 写与删：先 L2 再 L1；`GetOrCreate` 两级都未命中才执行工厂，结果写两级。同键并发由两级缓存自己合并（2026-11-24 修订，ADR-0271；以前 L1 未命中时把整件事交给 L2 的 `GetOrCreate`，并发调用各读各的 L2）：L1 未命中的并发调用只读一次 L2，对 L2 是一次读、一次写，不调用它的 `GetOrCreate`；本实例的写入与删除、L2 存储的变更通知都让在途的回源脱钩，脱钩的回源不写 L2、不回填 L1。
 - L1 的存活时间是条目过期与 `LocalTimeToLive`（默认 30 秒）的较小者，滑动过期在 L1 里按绝对时间处理；`LocalCapacity`（默认 10000）满时淘汰最久未访问的条目。
 - 跨实例失效（ADR-0055）：L2 的存储实现了 `ICacheChangeFeed` 时（Redis），本实例与其他实例对存储的写入与删除，都会让 L1 里的这些键（或前缀）立即失效；管理界面直接改存储也一样。
 - 回填核对失效（2026-11-14 修订，ADR-0229；以前读 L2 途中到达的失效通知挡不住读回的旧值回填 L1，旧值留到 `LocalTimeToLive`）：L1 按键散列分 64 个条带记失效轮次，删除一个键让它所在条带的轮次加一，按前缀删除让全部条带加一。读 L2（`Get`、`GetMany`、`GetOrCreate`）之前记下轮次，回填前核对，途中有过失效就不回填，下一次读取再去 L2。写入之后照旧写进 L1。
@@ -135,7 +144,7 @@ Idempotency 阶段的中间件按 Baggage `xihan.idempotency-key` 去重，作�
 
 ## 一致性
 
-Provider 必须继承 `CacheStoreConformance` 并通过全部用例（含基于存储的锁与批量：`GetMany` 的顺序与未命中、`SetMany` 的覆盖与各自过期、`RemoveMany` 的逐键结果、空集合）。过期用例用真实时间等待。实现了 `ICacheStoreInspector` 的存储另验证键列表的每页上限：0 与 1001 返回 `CACHING_VALIDATION_003`，1 与 1000 照常分页。
+Provider 必须继承 `CacheStoreConformance` 并通过全部用例（含基于存储的锁与批量：`GetMany` 的顺序与未命中、`SetMany` 的覆盖与各自过期、`RemoveMany` 的逐键结果、空集合）。含多字节字符、恰好 512 字节的键完整往返：两个只差最后一个字节的最长键是两个条目，存储不截断、不折叠键，实现了 `ICacheStoreInspector` 的存储按含多字节字符的前缀列出并删除它们（2026-11-24 增补，ADR-0274）。过期用例用真实时间等待。实现了 `ICacheStoreInspector` 的存储另验证键列表的每页上限：0 与 1001 返回 `CACHING_VALIDATION_003`，1 与 1000 照常分页。
 
 向量 `conformance/vectors/caching/cache-keys.json`（2026-11-24 增补，ADR-0276）：键与键前缀必须接受与必须拒绝的样例——正好 512 字节与 513 字节的键、UTF-16 码元数不超而字节数超过的键、空白与控制字符；判定键的类型（.NET 的 `CacheKey`）与远程 Provider 的插件一侧都回放它。
 
