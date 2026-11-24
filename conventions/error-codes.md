@@ -180,6 +180,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `OBJECTSTORAGE_UNAVAILABLE_002` | 配额或单对象大小超限 |
 | `OBJECTSTORAGE_UNAVAILABLE_003` | 不覆盖写入在本存储上无法保证：S3 兼容服务不认条件写入（`If-None-Match: *`；启动或建实例时探明的，缺省实例启动失败、命名实例不建；之后在后台或写入时才探明的，不覆盖写入一律以它失败、缺省实例的健康项 Failed），或存储以 `ConditionalWrites = false` 关闭了条件写入（`Overwrite = false` 的写入与分片上传的发起、完成一律以它失败，不访问存储） |
 | `OBJECTSTORAGE_UNAVAILABLE_004` | 不覆盖写入暂不可用：S3 兼容服务是否认条件写入尚未确认（启动或建实例时连不上，后台在重试；之后的探测被拒绝或探测桶不存在时同样以它失败；HTTP 503，参数 `container`、`key`、`reason` 为最近一次探测失败的错误码；不访问写入目标，探测通过后自动恢复，RFC-0012「S3 的条件写入探测」） |
+| `OBJECTSTORAGE_UNAVAILABLE_005` | 命名存储实例登记已满（`XiHan:ObjectStorage:StoreMaxCount`，缺省 64，1–1024；已建的实例都算）；满了再登记新名字以它失败，不建实例、不淘汰已有的，替换同名的不占名额（参数 `store`、`capacity`） |
 | `SCHEDULING_NOTFOUND_001` | 作业未登记 |
 | `SCHEDULING_NOTFOUND_002` | 作业类型未登记 |
 | `SCHEDULING_NOTFOUND_003` | 触发器不存在 |

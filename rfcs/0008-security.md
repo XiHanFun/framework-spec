@@ -1,6 +1,6 @@
 # RFC-0008 认证与授权
 
-> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地、绕过管道的端点；2026-11-01 修订：资源名文法、自己产生的租户声明跟随 TenantClaim、权限码文法；授予读不到不当作没有授予、操作引用的权限码装配时核对；插件声明的权限码由宿主登记、按名引用的策略与端点要求启动时核对；同日再修订：契约的策略在宿主的启动核对里核对、不论失败策略都拒绝启动，插件卸载撤回它声明的权限码；2026-11-04 修订：出站地址策略；2026-11-12 修订：WebAuthn；同日再修订：授予缓存在写入提交之后失效，资源名的租户段只用小写、整串匹配，授予的范围拆成平台、每个租户与租户专属；2026-11-14 修订：授予缓存走 `ICache`，失效作用于所有实例） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地）、ADR-0051（绕过管道的端点）、ADR-0071（授予读不到以 503 结束、操作引用的权限码装配时核对）、ADR-0080（插件声明的权限码、策略与端点要求启动时核对）、ADR-0085（启动核对不归失败策略管、卸载撤回登记）、ADR-0117（出站地址策略）、ADR-0170（WebAuthn）、ADR-0194（授予缓存在提交之后失效）、ADR-0196（租户段只用小写）、ADR-0197（授予的范围）、ADR-0229（授予缓存走 ICache） | 参考实现：`XiHan.Framework.Kernel`（出站地址策略）、`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Hosting.AspNetCore`（绕过管道的端点）、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region`、`XiHan.Framework.Security.WebAuthn` | 一致性：`XiHan.Framework.Security.Conformance` | 一致性档：`security`
+> 状态：已采纳（2026-10-27 修订：授予的数据库 Provider；2026-10-28 修订：权限收窄过滤器；2026-10-29 修订：凭据无效是认证失败、授予来源、条件、IP 归属地、绕过管道的端点；2026-11-01 修订：资源名文法、自己产生的租户声明跟随 TenantClaim、权限码文法；授予读不到不当作没有授予、操作引用的权限码装配时核对；插件声明的权限码由宿主登记、按名引用的策略与端点要求启动时核对；同日再修订：契约的策略在宿主的启动核对里核对、不论失败策略都拒绝启动，插件卸载撤回它声明的权限码；2026-11-04 修订：出站地址策略；2026-11-12 修订：WebAuthn；同日再修订：授予缓存在写入提交之后失效，资源名的租户段只用小写、整串匹配，授予的范围拆成平台、每个租户与租户专属；2026-11-14 修订：授予缓存走 `ICache`，失效作用于所有实例；2026-11-24 修订：凭据处理器不另传取消令牌并改名 ICredentialHandler，策略判定的结果改名 AuthorizationDecision） | 日期：2026-10-21 | 对应 ADR：ADR-0027（授予的数据库 Provider）、ADR-0039（权限收窄过滤器）、ADR-0042（凭据无效映射 401）、ADR-0045（授予来源）、ADR-0046（条件）、ADR-0047（IP 归属地）、ADR-0051（绕过管道的端点）、ADR-0071（授予读不到以 503 结束、操作引用的权限码装配时核对）、ADR-0080（插件声明的权限码、策略与端点要求启动时核对）、ADR-0085（启动核对不归失败策略管、卸载撤回登记）、ADR-0117（出站地址策略）、ADR-0170（WebAuthn）、ADR-0194（授予缓存在提交之后失效）、ADR-0196（租户段只用小写）、ADR-0197（授予的范围）、ADR-0229（授予缓存走 ICache）、ADR-0263、ADR-0264 | 参考实现：`XiHan.Framework.Kernel`（出站地址策略）、`XiHan.Framework.Security.Abstractions`、`XiHan.Framework.Hosting.AspNetCore`（绕过管道的端点）、`XiHan.Framework.Security.InMemory`、`XiHan.Framework.Security.Jwt`、`XiHan.Framework.Security.OpenIdConnect`、`XiHan.Framework.Security.Database`、`XiHan.Framework.Security.Ip2Region`、`XiHan.Framework.Security.WebAuthn` | 一致性：`XiHan.Framework.Security.Conformance` | 一致性档：`security`
 
 ## 摘要
 
@@ -19,7 +19,7 @@
 ## 认证
 
 1. 宿主在 Ingress 阶段把协议凭据（HTTP `Authorization: <scheme> <value>`；没有时，登记过的查询串令牌路径下取 `access_token`，见「绕过管道的端点」）放入上下文，自己不解释它。
-2. Authenticate 阶段：没有凭据保持匿名（`Principal.Anonymous`，ID 与认证方案都是 `null`；已认证主体两者都不为空，ADR-0145）；有凭据交给方案匹配（不区分大小写）的 `IAuthenticationHandler`。不支持的方案返回 `SECURITY_VALIDATION_001`；凭据无效返回 `SECURITY_DENIED_003`，不区分原因对外暴露；它与 `SECURITY_DENIED_001` 同是认证失败（HTTP 401 并带 `WWW-Authenticate`，gRPC `Unauthenticated`，ADR-0042），客户端据此刷新凭据，其余 DENIED 才是已认证但无权限；成功写入 `SecurityContext.Principal`，保留已有租户。
+2. Authenticate 阶段：没有凭据保持匿名（`Principal.Anonymous`，ID 与认证方案都是 `null`；已认证主体两者都不为空，ADR-0145）；有凭据交给方案匹配（不区分大小写）的 `ICredentialHandler`（`AuthenticateAsync(credential, context)`，取消与截止时间在 `context.CancellationToken` 上，不另传令牌；2026-11-24 修订，ADR-0263、ADR-0264，原名 `IAuthenticationHandler`）。不支持的方案返回 `SECURITY_VALIDATION_001`；凭据无效返回 `SECURITY_DENIED_003`，不区分原因对外暴露；它与 `SECURITY_DENIED_001` 同是认证失败（HTTP 401 并带 `WWW-Authenticate`，gRPC `Unauthenticated`，ADR-0042），客户端据此刷新凭据，其余 DENIED 才是已认证但无权限；成功写入 `SecurityContext.Principal`，保留已有租户。
 3. `XiHan:Security:RequireAuthentication` 为真时匿名调用在此被拒绝（`SECURITY_DENIED_001`）；默认由策略决定。
 4. 声明按原始类型名保留，不映射为 .NET 长类型；角色声明类型由 `XiHan:Security:RoleClaim`（默认 `role`）决定，租户声明类型由多租户选项 `XiHan:MultiTenancy:TenantClaim`（默认 `tenant`）决定。令牌类方案（JWT、OpenID Connect）原样保留令牌里的声明，签发方要按这个类型写租户；自己产生租户声明的方案（`ApiKey` 把主体记录的租户写成声明）读同一个配置键，改了 `TenantClaim` 也能被 Tenant 阶段的声明解析器认出。
 
@@ -30,7 +30,7 @@
 1. 凭据：先取 `Authorization` 头。没有时，只有请求路径（不含 PathBase）按路径段落在登记的查询串令牌路径前缀（`QueryTokenPaths`）下，才接受查询串 `access_token`（只有一个非空值），作为 `Bearer` 凭据。
    - 没有登记的路径带查询串令牌一律忽略，请求按匿名处理，受保护的端点回 401。
    - 前缀不能为空也不能是 `/`。查询串令牌会进入访问日志与代理日志，只给带不了请求头的客户端（浏览器的 WebSocket 与 EventSource）用。
-2. 认证：以请求建调用上下文（与管道同一套载体映射：链路、区域、来源、凭据），交给方案匹配的 `IAuthenticationHandler`，与 Authenticate 阶段是同一个处理器。
+2. 认证：以请求建调用上下文（与管道同一套载体映射：链路、区域、来源、凭据），交给方案匹配的 `ICredentialHandler`，与 Authenticate 阶段是同一个处理器。
    - 方案只认带绕过元数据的端点：只登记了这一个方案时 ASP.NET Core 会把它当作缺省方案，普通请求仍由管道认证，此处按未认证处理，不重复认证，也不调用挂点。
    - 没有凭据是未认证，不是失败。
    - 方案不支持、凭据无效都是认证失败：401，质询与管道一致（ADR-0042）；方案不支持时按已装配的方案质询。
@@ -70,7 +70,7 @@
      - 启动之后才写进上下文的要求（`RequireAuthorization`）：没有装配授权能力时抛出 `InvalidOperationException`，宁可失败不可放行。
 5. 策略不存在返回 `SECURITY_NOTFOUND_001`（宁可拒绝，不可放行）；拒绝返回策略给出的原因，未给出时为 `SECURITY_DENIED_002`。契约的权限码与策略、端点元数据都已在启动时核对（第 2、4 条），这条路径只剩启动时看不到的要求：应用代码以 `RequireAuthorization` 显式写入的要求、启动之后才加进来的端点。
 6. 内置策略：`authenticated`（已认证）；`permission:<code>`（匿名先按 `SECURITY_DENIED_001` 拒绝，缺权限返回 `SECURITY_DENIED_004`）。
-7. 策略判定（内核 `IPolicy.EvaluateAsync`）返回 `Result<AuthorizationResult>`（ADR-0071）：成功是允许或拒绝；失败是无法判定——判定依赖的授予存储、授予来源或收窄过滤器读不到数据（`SECURITY_UNAVAILABLE_001`）。Authorize 阶段以该失败结束调用（HTTP 503，gRPC `Unavailable`），既不放行，也不改写成拒绝（403）。权限策略把检查器的失败原样作为判定失败返回。
+7. 策略判定（内核 `IPolicy.EvaluateAsync`）返回 `Result<AuthorizationDecision>`（ADR-0071；2026-11-24 改名，ADR-0264，原名 `AuthorizationResult`）：成功是允许或拒绝；失败是无法判定——判定依赖的授予存储、授予来源或收窄过滤器读不到数据（`SECURITY_UNAVAILABLE_001`）。Authorize 阶段以该失败结束调用（HTTP 503，gRPC `Unavailable`），既不放行，也不改写成拒绝（403）。权限策略把检查器的失败原样作为判定失败返回。
 
 ## 资源名（2026-11-01 增补）
 

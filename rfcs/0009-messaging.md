@@ -1,6 +1,6 @@
 # RFC-0009 消息、CloudEvents 信封与发件箱
 
-> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题；2026-11-03 修订：发件箱把代理抛出与返回失败一样计入尝试、重试逐条发布、一轮遇到抛出即停止发布；2026-11-04 修订：框架异常的消息不拼代理的异常文字；2026-11-10 修订：Redis Streams Provider；2026-11-12 修订：投递覆盖租户分片库；2026-11-13 修订：插件投递带订阅方式；2026-11-24 修订：一次投递尝试的了结方式、停止打断的投递不计尝试、排空期间不原位重试） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题）、ADR-0108（发件箱计入代理抛出）、ADR-0115、ADR-0130（Redis Streams Provider）、ADR-0211（投递覆盖分片库）、ADR-0226（插件投递带订阅方式）、ADR-0261（投递尝试收成一处） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka`、`XiHan.Framework.Messaging.Redis` | 一致性：`XiHan.Framework.Messaging.Conformance` | 一致性档：`messaging`
+> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题；2026-11-03 修订：发件箱把代理抛出与返回失败一样计入尝试、重试逐条发布、一轮遇到抛出即停止发布；2026-11-04 修订：框架异常的消息不拼代理的异常文字；2026-11-10 修订：Redis Streams Provider；2026-11-12 修订：投递覆盖租户分片库；2026-11-13 修订：插件投递带订阅方式；2026-11-24 修订：一次投递尝试的了结方式、停止打断的投递不计尝试、排空期间不原位重试；2026-11-24 修订：处理器不另传取消令牌） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题）、ADR-0108（发件箱计入代理抛出）、ADR-0115、ADR-0130（Redis Streams Provider）、ADR-0211（投递覆盖分片库）、ADR-0226（插件投递带订阅方式）、ADR-0261（投递尝试收成一处）、ADR-0263（处理器不另传取消令牌） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka`、`XiHan.Framework.Messaging.Redis` | 一致性：`XiHan.Framework.Messaging.Conformance` | 一致性档：`messaging`
 
 ## 摘要
 
@@ -45,7 +45,7 @@ CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`dataco
 ## 投递
 
 1. 应用用 `AddMessageHandler<THandler>(topic, mode)` 订阅，`mode` 缺省为竞争消费（见「订阅方式」）；处理器是作用域服务。订阅只在装配时登记：消息运行时与派发器取用订阅表之后它是只读的，再登记抛出 `InvalidOperationException`，交出的订阅与处理器列表是只读视图（2026-11-11 修订，ADR-0155）。
-2. 代理为每个订阅（主题加订阅方式）消费，把投递交给派发器；投递带订阅方式（`MessageDelivery.Mode`）。派发器为每条消息开新作用域、构造调用上下文（Baggage 与追踪来自扩展属性）、经完整管道依次执行该主题、该方式的处理器，第一个失败即调用结果。
+2. 代理为每个订阅（主题加订阅方式）消费，把投递交给派发器；投递带订阅方式（`MessageDelivery.Mode`）。派发器为每条消息开新作用域、构造调用上下文（Baggage 与追踪来自扩展属性）、经完整管道依次执行该主题、该方式的处理器，第一个失败即调用结果。处理器是 `IMessageHandler.HandleAsync(delivery, context)`：取消与截止时间在 `context.CancellationToken` 上，与操作的处理器、作业一样不另传令牌（2026-11-24 修订，ADR-0263）。
 3. 处理器返回失败或抛异常都算投递失败。代理重试到 `MaxAttempts`（默认 3，含首次），之后竞争订阅进入死信，广播订阅丢弃并记日志。重试的顺序由代理决定（内存实现排到队尾）。一次投递尝试的判定只有一种写法（.NET：`MessageDeliveryAttempt.RunAsync`，给出确认、重投、进死信、丢弃或放弃五种了结方式之一），代理只把它翻译成自己的确认、重投与死信动作（2026-11-24 修订，ADR-0261）：
    - 派发抛出的异常记为 `MESSAGING_UNEXPECTED_001`：`reason` 只写异常类型的全名，框架异常写它的错误码、原错误作内部错误；完整异常进日志，不进错误（ADR-0115）。
    - 被停止打断的投递不是失败：代理的停止信号已经发出时，派发抛出取消、返回失败（管道把处理器的取消写成 `KERNEL_CANCELLED_001` 返回）或抛出别的异常，这次都不计入尝试上限，不重试、不进死信、不丢弃，也不了结原消息，留给代理重新投递。取消只认停止信号，不认错误码；停止信号没有发出时的取消异常（处理器自己的超时）照常是一次失败。处理器已经返回成功的照常了结。

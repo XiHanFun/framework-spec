@@ -4,6 +4,9 @@
 
 ## 未发布
 
+- MAJOR（`v1.0.0` 之前允许）：RFC-0012 对象存储（ADR-0266）：分片上传的 `Abort` 改为批量、逐项结果；命名实例注册表的 `Remove` 改为批量、逐项报告是否存在过，新增登记数上限 `XiHan:ObjectStorage:StoreMaxCount` 与错误码 `OBJECTSTORAGE_UNAVAILABLE_005`；`S3BlobStore` 不再有公开构造，一律按「S3 的条件写入探测」建出。只影响 .NET 的对象存储 Provider 与调用方，线上与各 SDK 不变。
+- MAJOR（`v1.0.0` 之前允许）：收调用上下文的处理器契约不另传取消令牌（ADR-0263）：RFC-0009 的 `IMessageHandler.HandleAsync(delivery, context)`、RFC-0008 的凭据处理器 `AuthenticateAsync(credential, context)`、RFC-0007 的 `ITenantResolver.ResolveAsync(context)`，取消与截止时间只在 `context.CancellationToken` 上；RFC-0001「可选参数」写明这条通用规则。只影响 .NET 的签名，线上与各 SDK 不变。
+- PATCH：RFC-0008 里两个 .NET 类型改名（ADR-0264）：`IAuthenticationHandler` → `ICredentialHandler`，策略判定的结果 `AuthorizationResult` → `AuthorizationDecision`，避开 ASP.NET Core 的同名类型；规则不变。
 - PATCH：能力登记表（`conventions/capability-ids.md`）把没有实现的 ID 标成「保留，尚无实现」并新增一节说明现状，ID 不删：`domain.model`、`persistence.document`、`search.fulltext`、`actors.virtual`、`hosting.aspnetcore`、`hosting.commandline`、`testing`（.NET 与六个 SDK 里都没有清单提供它们）；`configuration.secrets` 有契约与一致性套件、没有内置的 Provider 包，不算保留。`tools/speccheck` 新增测试：标注与「保留」一节一一对应，登记的 ID 合文法且领域在术语表里，不合文法的只能是保留项（ADR-0276）。各实现不用改。
 - PATCH：RFC-0018 里只在它那里写着的规则并入 `plugin/wasm.md`，RFC 改为引用，规则本身不变：可贡献的范围与 ABI 的演进（开头）、可用的 WebAssembly 提案（§1）、握手应答的核对（§3）、`xihan.log` 单条 16384 字节的上限、`net.outbound:` 声明即加载失败与再入计入嵌套深度（§4）、表的元素数上限、健康轮询与崩溃细节 `trap` 的写法（§5）。参考实现的选项名与默认值留在 RFC-0018（ADR-0276）。各实现不用改。
 - MINOR：定义规范用语（新增 `conventions/normative-language.md`，档 `core`；RFC-0024 新增「规范用语」一节）：「必须」「不得」「应当」「不应当」「可以」的约束力对应 RFC 2119 的 MUST、MUST NOT、SHOULD、SHOULD NOT、MAY，规范性内容里的陈述句与「必须」同等约束，要求落在行为上、只约束认领了所属档的实现。只加定义，已有正文的措辞不动（ADR-0276）。

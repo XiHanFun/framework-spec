@@ -1,6 +1,6 @@
 # RFC-0001 原语层
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配；2026-11-19 修订：.NET 的 Result 与 Error 线上编码在内核的 `ResultJson`；同日再修订：`Error` 的文案不能只有空白，空白字符写死） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236、0244（.NET 的线上编码） | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配；2026-11-19 修订：.NET 的 Result 与 Error 线上编码在内核的 `ResultJson`；同日再修订：`Error` 的文案不能只有空白，空白字符写死；2026-11-24 修订：收调用上下文的契约不另收取消令牌） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236、0244（.NET 的线上编码）、0263 | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
 
 ## 摘要
 
@@ -365,6 +365,7 @@ public static class Redaction
   - 一两个可选值用重载补齐：至少有不带它们的短重载与参数齐全的长重载，中间一级按需要提供，如 `DomainEventBuffer()` 与 `DomainEventBuffer(int capacity)`、`Error.Unexpected(code, messageKey)` / `(code, messageKey, details)` / `(code, messageKey, details, inner)`。短重载转调长重载，默认值只写在短重载的实现里。
   - 更多的可选值，或以后还会增加的，收进单次调用的选项记录，以后加字段只加属性，如 `App.CreateContext(services, InvocationContextOptions, cancellationToken)`、`BlobPutOptions`、`UnitOfWorkOptions`。
   - `CancellationToken` 放在最后，不设默认值。
+  - 收调用上下文的契约不另收取消令牌：取消与截止时间只在上下文的令牌上（ADR-0157、ADR-0263）。
   - 调用方信息参数（.NET 的 `CallerArgumentExpression`、`CallerMemberName` 等）由编译器填写，不算可选参数。
   - .NET 由分析器 XH0008 对生效级别为 `Stable` 的成员在编译期检查；`Preview` 与 `Experimental` 可以在小版本破坏，升 `Stable` 时这条规则随之生效（2026-11-11 修订，ADR-0167）。
   - 例外是面向源码使用的工具链包（`Testing`、`Conformance`）：测试项目总是随框架重新编译，可选参数保留，新参数只加在末尾（2026-11-11 修订，ADR-0157）。
