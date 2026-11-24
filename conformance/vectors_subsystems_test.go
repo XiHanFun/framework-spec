@@ -538,7 +538,7 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 	},
 	"ai/tool-names.json": func(t *testing.T) any {
 		tools, err := conformance.AIToolNames()
-		if err != nil || tools.MaxLength != 64 || len(tools.Cases) == 0 {
+		if err != nil || tools.MaxLength != 64 || len(tools.Valid) == 0 || len(tools.Invalid) == 0 || len(tools.Cases) == 0 {
 			t.Errorf("ai tool names: %v", err)
 		}
 		var names []string
@@ -587,11 +587,17 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 	},
 	"ai/prompt-templates.json": func(t *testing.T) any {
 		prompts, err := conformance.AIPromptTemplates()
-		if err != nil || len(prompts.Cases) == 0 {
+		if err != nil || prompts.Code == "" || prompts.MessageKey == "" || len(prompts.Cases) == 0 || len(prompts.Missing) == 0 {
 			t.Errorf("ai prompt templates: %v", err)
 		}
 		var names []string
 		for _, c := range prompts.Cases {
+			names = append(names, c.Name)
+			if c.Template == "" || c.Arguments == nil {
+				t.Errorf("ai prompt case %q must have a template and its arguments (an empty object for none)", c.Name)
+			}
+		}
+		for _, c := range prompts.Missing {
 			names = append(names, c.Name)
 			if c.Template == "" || c.Arguments == nil {
 				t.Errorf("ai prompt case %q must have a template and its arguments (an empty object for none)", c.Name)

@@ -1,5 +1,7 @@
 {
-  "$comment": "提示词模板的渲染（RFC-0022「聊天」的提示词，ADR-0277）：占位符是 {name}，按名字取参数的值写进去；{{ 与 }} 转义成字面量的 { 与 }；参数的值原样写出，不再当模板解析；多给的参数不用。cases 的每项：template 是模板，arguments 是名字到值的参数（值都是字符串），text 是渲染出的文本。缺少参数时渲染失败，错误码与消息键、占位符名字两侧的空白、没有闭合的 {、非字符串的值怎样写成文本正文没有写，不在这张表里。期望值由 .NET 参考实现（AIPromptTemplate.Render）算出。",
+  "$comment": "提示词模板的渲染（RFC-0022「聊天」的提示词，ADR-0277、ADR-0286）。从左到右扫描模板一遍：{{ 写成一个 {，}} 写成一个 }；单独的 { 往后找第一个 }，两者之间的文本去掉两侧的空白（RFC-0001「空白字符」）就是占位符的名字，写出这个名字的参数值——名字不作别的限制，可以为空、可以含空格、冒号与 {；找不到 } 时这个 { 连同其后直到结尾的文本原样写出，其中的 {{ 也不再转义；单独的 } 与其余字符原样写出。参数按名字逐字比较（区分大小写），值原样写出、不再当模板解析，值为 null 写成空串；多给的参数不用。cases 的每项：template 是模板，arguments 是名字到值的参数（值是字符串或 null），text 是渲染出的文本。missing 是缺少参数的：渲染以 code 失败，消息键是 messageKey，argument 是模板里第一个找不到参数的占位符名（消息的参数 argument；另一个参数 name 是模板的名字），不输出半截文本。（缺少参数时的错误、名字两侧的空白、没有闭合的 { 与 null 是 2026-11-24 写明的，ADR-0286；以前这几类不在表里。）字符串与 null 之外的值怎样写成文本不作规定，不在这张表里。期望值由 .NET 参考实现（AIPromptTemplate.Render）算出。",
+  "code": "AI_VALIDATION_001",
+  "messageKey": "ai.prompt.argument_missing",
   "cases": [
     {
       "name": "没有占位符",
@@ -72,6 +74,212 @@
         "note": ""
       },
       "text": "[]"
+    },
+    {
+      "name": "占位符名字两侧的空白去掉",
+      "template": "Hi { name }!",
+      "arguments": {
+        "name": "Ada"
+      },
+      "text": "Hi Ada!"
+    },
+    {
+      "name": "制表符、换行与不换行空格也是空白",
+      "template": "Hi {\t\u00a0name\u3000\n}!",
+      "arguments": {
+        "name": "Ada"
+      },
+      "text": "Hi Ada!"
+    },
+    {
+      "name": "名字里面的空白保留",
+      "template": "Hi {first name}",
+      "arguments": {
+        "first name": "Grace"
+      },
+      "text": "Hi Grace"
+    },
+    {
+      "name": "没有闭合的 {：连同其后的文本原样写出",
+      "template": "Hi {name",
+      "arguments": {
+        "name": "Ada"
+      },
+      "text": "Hi {name"
+    },
+    {
+      "name": "没有闭合的 { 之后的 {{ 不再转义",
+      "template": "{a} then {name and {{ more",
+      "arguments": {
+        "a": "x",
+        "name": "Ada"
+      },
+      "text": "x then {name and {{ more"
+    },
+    {
+      "name": "只有一个 {",
+      "template": "{",
+      "arguments": {},
+      "text": "{"
+    },
+    {
+      "name": "单独的 } 原样写出",
+      "template": "a } b",
+      "arguments": {},
+      "text": "a } b"
+    },
+    {
+      "name": "}}} 是转义的 } 再加一个 }",
+      "template": "a }}} b",
+      "arguments": {},
+      "text": "a }} b"
+    },
+    {
+      "name": "占位符之后紧跟 }：占位符在第一个 } 处闭合",
+      "template": "{name}}",
+      "arguments": {
+        "name": "Ada"
+      },
+      "text": "Ada}"
+    },
+    {
+      "name": "占位符之后紧跟 }}：转义成一个 }",
+      "template": "{name}}}",
+      "arguments": {
+        "name": "Ada"
+      },
+      "text": "Ada}"
+    },
+    {
+      "name": "{{{name}}}：转义的花括号里面是占位符",
+      "template": "{{{name}}}",
+      "arguments": {
+        "name": "Ada"
+      },
+      "text": "{Ada}"
+    },
+    {
+      "name": "{{name}} 是字面量，不是占位符",
+      "template": "{{name}}",
+      "arguments": {
+        "name": "Ada"
+      },
+      "text": "{name}"
+    },
+    {
+      "name": "连着的四个 { 是两个字面量",
+      "template": "{{{{",
+      "arguments": {},
+      "text": "{{"
+    },
+    {
+      "name": "名字为空：取名字为空串的参数",
+      "template": "[{}] [{ }]",
+      "arguments": {
+        "": "empty"
+      },
+      "text": "[empty] [empty]"
+    },
+    {
+      "name": "名字可以含 {",
+      "template": "{a{b}",
+      "arguments": {
+        "a{b": "odd"
+      },
+      "text": "odd"
+    },
+    {
+      "name": "不认格式说明符：冒号之后也是名字的一部分",
+      "template": "{amount:N2}",
+      "arguments": {
+        "amount:N2": "1.50",
+        "amount": "unused"
+      },
+      "text": "1.50"
+    },
+    {
+      "name": "值为空（null）写成空串",
+      "template": "[{note}]",
+      "arguments": {
+        "note": null
+      },
+      "text": "[]"
+    },
+    {
+      "name": "值里的空白与换行原样写出",
+      "template": "<{value}>",
+      "arguments": {
+        "value": "  two\nlines  "
+      },
+      "text": "<  two\nlines  >"
+    }
+  ],
+  "missing": [
+    {
+      "name": "缺少参数",
+      "template": "Hello {name}",
+      "arguments": {},
+      "argument": "name"
+    },
+    {
+      "name": "几个都缺：报第一个",
+      "template": "{first} and {second}",
+      "arguments": {},
+      "argument": "first"
+    },
+    {
+      "name": "前一个给了、后一个缺",
+      "template": "{first} and {second}",
+      "arguments": {
+        "first": "x"
+      },
+      "argument": "second"
+    },
+    {
+      "name": "名字区分大小写",
+      "template": "Hi {Name}",
+      "arguments": {
+        "name": "Ada"
+      },
+      "argument": "Name"
+    },
+    {
+      "name": "名字为空而没有名字为空串的参数",
+      "template": "Hi {}",
+      "arguments": {
+        "name": "Ada"
+      },
+      "argument": ""
+    },
+    {
+      "name": "去掉两侧的空白之后再找：带空白的参数名找不到",
+      "template": "Hi { name }",
+      "arguments": {
+        " name ": "Ada"
+      },
+      "argument": "name"
+    },
+    {
+      "name": "带格式说明符的占位符找不到不带的参数",
+      "template": "{amount:N2}",
+      "arguments": {
+        "amount": "1.5"
+      },
+      "argument": "amount:N2"
+    },
+    {
+      "name": "占位符里的 {{ 不转义：是名字的一部分",
+      "template": "Hi {a{{b}",
+      "arguments": {
+        "a{b": "odd"
+      },
+      "argument": "a{{b"
+    },
+    {
+      "name": "缺少的参数在没有闭合的 { 之前：仍然失败",
+      "template": "{missing} and {open",
+      "arguments": {},
+      "argument": "missing"
     }
   ]
 }

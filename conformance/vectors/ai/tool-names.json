@@ -1,6 +1,27 @@
 {
-  "$comment": "操作作为 AI 工具时的名字（RFC-0022「工具」，ADR-0277）：缺省的工具名由操作 ID 推出——<resource>_<verb>，- 与 . 换成 _；超过 maxLength 个字符时截成前 55 个字符加 _ 加全名（没有截之前的名字，按 UTF-8）SHA-256 的前 8 位小写十六进制，任何操作 ID 都推得出不超过 64 个字符且稳定的名字。cases 的每项：operation 是操作 ID，tool 是推出的工具名，descriptionKey 是工具描述在消息目录里的键（操作 ID 里的 - 换成 _，再加 .description）。前 55 个字符正好以 _ 结尾的操作 ID 不在这张表里：正文没有写这时要不要去掉它（见 RFC-0022「一致性」）。期望值由 .NET 参考实现（AIToolNameConvention.Derive、AIToolNameConvention.DescriptionKeyOf）算出，并与正文的规则逐条对过。",
+  "$comment": "操作作为 AI 工具时的名字（RFC-0022「工具」，ADR-0277、ADR-0286）。valid 与 invalid 是工具名本身文法的样例：^[A-Za-z0-9_-]{1,64}$，按整串匹配，显式登记的工具与配置覆盖的名字都按它核对，maxLength 是最长的字符数。缺省的工具名由操作 ID 推出——<resource>_<verb>，- 与 . 换成 _；超过 maxLength 个字符时取前 55 个字符、去掉结尾的 _（有的话），再接 _ 与全名（没有截之前的名字，按 UTF-8）SHA-256 的前 8 位小写十六进制：任何操作 ID 都推得出不超过 64 个字符且稳定的名字，前 55 个字符正好以 _ 结尾时名字是 63 个字符，不出现连着的两个 _（2026-11-24 写明，ADR-0286；以前这一类不在表里）。cases 的每项：operation 是操作 ID，tool 是推出的工具名，descriptionKey 是工具描述在消息目录里的键（操作 ID 里的 - 换成 _，再加 .description）。期望值由 .NET 参考实现（AIIdentifiers.IsValidToolName、AIToolNameConvention.Derive、AIToolNameConvention.DescriptionKeyOf）算出，并与正文的规则逐条对过。",
   "maxLength": 64,
+  "valid": [
+    "orders_create",
+    "a",
+    "A",
+    "9",
+    "_leading",
+    "-leading",
+    "Orders-Create_V2",
+    "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+  ],
+  "invalid": [
+    "",
+    "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+    "orders.create",
+    "orders create",
+    "orders/create",
+    "orders:create",
+    "订单",
+    "orders_create\n",
+    " orders_create"
+  ],
   "cases": [
     {
       "name": "资源与动词以下划线连接",
@@ -49,6 +70,30 @@
       "operation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.create",
       "tool": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_107b122f",
       "descriptionKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.create.description"
+    },
+    {
+      "name": "前 55 个字符正好以下划线结尾（点换成的）：去掉它再接下划线与哈希，名字是 63 个字符",
+      "operation": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr.list-all-items",
+      "tool": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr_8de66215",
+      "descriptionKey": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr.list_all_items.description"
+    },
+    {
+      "name": "前 55 个字符正好以下划线结尾（连字符换成的）",
+      "operation": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr-items.list",
+      "tool": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr_94df7955",
+      "descriptionKey": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr_items.list.description"
+    },
+    {
+      "name": "下划线是第 54 个字符：前 55 个字符不以它结尾，不去",
+      "operation": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr-x.list-all-items",
+      "tool": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr_x_47e92ef5",
+      "descriptionKey": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr_x.list_all_items.description"
+    },
+    {
+      "name": "下划线是第 56 个字符：不在前 55 个字符里",
+      "operation": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr-xx.list-all-items",
+      "tool": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr_fe2fab47",
+      "descriptionKey": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr_xx.list_all_items.description"
     }
   ]
 }

@@ -2,6 +2,7 @@ package rules_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/xihanfun/framework-spec/conformance"
@@ -27,7 +28,8 @@ func TestAIToolNamesFollowTheVectors(t *testing.T) {
 	if vectors.MaxLength != rules.MaxAIToolNameLength {
 		t.Fatalf("maxLength = %d, want %d", vectors.MaxLength, rules.MaxAIToolNameLength)
 	}
-	atLimit, shortened := false, false
+	replayGrammar(t, "AI tool name", vectors.MaxLength, vectors.Valid, vectors.Invalid, rules.IsAIToolName)
+	atLimit, shortened, trimmed := false, false, false
 	seen := map[string]string{}
 	for _, c := range vectors.Cases {
 		if !rules.IsOperationID(c.Operation) {
@@ -39,8 +41,8 @@ func TestAIToolNamesFollowTheVectors(t *testing.T) {
 		if got := rules.AIToolDescriptionKey(c.Operation); got != c.DescriptionKey {
 			t.Errorf("%s: description key = %q, want %q", c.Name, got, c.DescriptionKey)
 		}
-		if len(c.Tool) > vectors.MaxLength {
-			t.Errorf("%s: the tool name %q is longer than %d characters", c.Name, c.Tool, vectors.MaxLength)
+		if !rules.IsAIToolName(c.Tool) || strings.Contains(c.Tool, "__") {
+			t.Errorf("%s: the tool name %q must be a valid tool name without two underscores in a row", c.Name, c.Tool)
 		}
 		// 推出的名字要稳定且互不相同：不同的操作 ID 不撞名
 		if other, taken := seen[c.Tool]; taken {
@@ -50,9 +52,11 @@ func TestAIToolNamesFollowTheVectors(t *testing.T) {
 		// 不带下划线的资源与动词：ID 的长度就是推出的全名的长度
 		atLimit = atLimit || (len(c.Operation) == vectors.MaxLength && c.Tool == rules.AIToolName(c.Operation) && len(c.Tool) == vectors.MaxLength)
 		shortened = shortened || len(c.Operation) == vectors.MaxLength+1
+		// 前 55 个字符正好以下划线结尾的：去掉它之后名字比上限短一个字符
+		trimmed = trimmed || (len(c.Operation) > vectors.MaxLength && len(c.Tool) == vectors.MaxLength-1)
 	}
-	if !atLimit || !shortened {
-		t.Errorf("the vector must keep a name of exactly %d characters that is kept (found: %v) and one of %d that is shortened (found: %v)", vectors.MaxLength, atLimit, vectors.MaxLength+1, shortened)
+	if !atLimit || !shortened || !trimmed {
+		t.Errorf("the vector must keep a name of exactly %d characters that is kept (found: %v), one of %d that is shortened (found: %v) and one whose prefix ends with an underscore (found: %v)", vectors.MaxLength, atLimit, vectors.MaxLength+1, shortened, trimmed)
 	}
 }
 
@@ -113,13 +117,17 @@ func TestAIPromptTemplatesFollowTheVectors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !rules.IsErrorCode(vectors.Code) || !rules.IsMessageKey(vectors.MessageKey) {
+		t.Errorf("code %q and message key %q must be well-formed", vectors.Code, vectors.MessageKey)
+	}
 	for _, c := range vectors.Cases {
-		if got, ok := rules.RenderAIPrompt(c.Template, c.Arguments); !ok || got != c.Text {
+		if got, _, ok := rules.RenderAIPrompt(c.Template, c.Arguments); !ok || got != c.Text {
 			t.Errorf("%s: rendered %q (ok %v), want %q", c.Name, got, ok, c.Text)
 		}
 	}
-	// 缺少参数时渲染失败：向量只收渲染得出的，这一条在这里补上
-	if _, ok := rules.RenderAIPrompt("Hello {name}", map[string]string{}); ok {
-		t.Error("rendering must fail when an argument is missing")
+	for _, c := range vectors.Missing {
+		if got, missing, ok := rules.RenderAIPrompt(c.Template, c.Arguments); ok || missing != c.Argument {
+			t.Errorf("%s: rendered %q (ok %v) with %q missing, want a failure with %q missing", c.Name, got, ok, missing, c.Argument)
+		}
 	}
 }

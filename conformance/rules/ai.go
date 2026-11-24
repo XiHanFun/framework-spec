@@ -8,7 +8,10 @@ import (
 	"strings"
 )
 
-var aiNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
+var (
+	aiNamePattern     = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
+	aiToolNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+)
 
 // AI 子系统里名字与工具名的上限（RFC-0022「Provider 目录」「工具」）。
 const (
@@ -24,15 +27,18 @@ const (
 // 之后是小写字母、数字、.、_、-，最长 64 个字符。
 func IsAIName(name string) bool { return aiNamePattern.MatchString(name) }
 
+// IsAIToolName 判断工具名是否合文法（RFC-0022「工具」）：字母、数字、_ 与 -，1 到 64 个字符。
+func IsAIToolName(name string) bool { return aiToolNamePattern.MatchString(name) }
+
 // AIToolName 由操作 ID 推出缺省的工具名（RFC-0022「工具」）：<resource>_<verb>，- 与 . 换成 _；
-// 超过 64 个字符时截成前 55 个字符加 _ 加全名 SHA-256 的前 8 位小写十六进制。
+// 超过 64 个字符时取前 55 个字符、去掉结尾的 _，再接 _ 与全名 SHA-256 的前 8 位小写十六进制。
 func AIToolName(operationID string) string {
 	name := strings.NewReplacer("-", "_", ".", "_").Replace(operationID)
 	if len(name) <= MaxAIToolNameLength {
 		return name
 	}
 	sum := sha256.Sum256([]byte(name))
-	// 前缀正好以 _ 结尾时规范没有写要不要去掉它，向量也不收；这里照参考实现去掉，不留下两个连着的下划线
+	// 前缀正好以 _ 结尾时去掉它，不留下两个连着的下划线；操作 ID 的文法保证结尾至多一个
 	return strings.TrimRight(name[:aiToolNamePrefixLength], "_") + "_" + hex.EncodeToString(sum[:])[:8]
 }
 
@@ -41,15 +47,16 @@ func AIToolDescriptionKey(operationID string) string {
 	return strings.ReplaceAll(operationID, "-", "_") + ".description"
 }
 
-// ChunkFixedWindow 按固定窗口把文本切成块（RFC-0022「知识库」的内置分块）：换行统一成 LF，窗口 maxChunkSize 个字符，
-// 相邻两块重叠 overlap 个字符（裁到 0 到 maxChunkSize − 1 之间），全是空白的块丢弃。maxChunkSize 不小于 1，overlap 不小于 0。
+// ChunkFixedWindow 按固定窗口把文本切成块（RFC-0022「知识库」的内置分块）：换行统一成 LF，字符按码位计，窗口 maxChunkSize 个字符，
+// 相邻两个窗口重叠 overlap 个字符（裁到 0 到 maxChunkSize − 1 之间），取到文本结尾的窗口是最后一个；每个窗口切出来之后去掉首尾的空白，
+// 去掉之后为空的不成块。maxChunkSize 不小于 1，overlap 不小于 0。
 func ChunkFixedWindow(text string, maxChunkSize, overlap int) []string {
 	normalized := []rune(strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n"))
 	step := maxChunkSize - min(overlap, maxChunkSize-1)
 	chunks := []string{}
 	for start := 0; start < len(normalized); start += step {
 		end := min(start+maxChunkSize, len(normalized))
-		// 块首尾的空白规范没有写要不要去掉，向量也不收；这里照参考实现去掉
+		// 去空白在切分之后：只裁这一块的两端，后面的窗口仍按原文的位置算
 		if piece := strings.TrimFunc(string(normalized[start:end]), IsWhitespace); piece != "" {
 			chunks = append(chunks, piece)
 		}
@@ -90,9 +97,10 @@ func DefaultAIProviders(providers []string, defaultProvider, defaultEmbeddingPro
 	return chat, embedding
 }
 
-// RenderAIPrompt 渲染提示词模板（RFC-0022「聊天」的提示词）：{name} 按名字取参数的值，{{ 与 }} 转义成字面量；
-// 缺少参数返回假。
-func RenderAIPrompt(template string, arguments map[string]string) (string, bool) {
+// RenderAIPrompt 渲染提示词模板（RFC-0022「聊天」的提示词）：{{ 与 }} 转义成字面量；单独的 { 到其后第一个 } 之间去掉两侧的空白
+// 是占位符的名字，按名字取参数的值（nil 写成空串）；找不到 } 时这个 { 连同其后的文本原样写出。缺少参数返回假，
+// missing 是第一个找不到参数的占位符名（AI_VALIDATION_001，消息键 ai.prompt.argument_missing 的参数 argument）。
+func RenderAIPrompt(template string, arguments map[string]*string) (text, missing string, ok bool) {
 	var builder strings.Builder
 	for position := 0; position < len(template); {
 		switch {
@@ -105,20 +113,23 @@ func RenderAIPrompt(template string, arguments map[string]string) (string, bool)
 		case template[position] == '{':
 			length := strings.IndexByte(template[position+1:], '}')
 			if length < 0 {
-				// 没有闭合的 { 规范不作规定，向量也不收；这里照参考实现原样写出余下的文本
+				// 没有闭合的 {：连同其后的文本原样写出，其中的 {{ 也不再转义
 				builder.WriteString(template[position:])
-				return builder.String(), true
+				return builder.String(), "", true
 			}
-			value, ok := arguments[strings.TrimFunc(template[position+1:position+1+length], IsWhitespace)]
+			name := strings.TrimFunc(template[position+1:position+1+length], IsWhitespace)
+			value, ok := arguments[name]
 			if !ok {
-				return "", false
+				return "", name, false
 			}
-			builder.WriteString(value)
+			if value != nil {
+				builder.WriteString(*value)
+			}
 			position += length + 2
 		default:
 			builder.WriteByte(template[position])
 			position++
 		}
 	}
-	return builder.String(), true
+	return builder.String(), "", true
 }

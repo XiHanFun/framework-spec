@@ -69,10 +69,10 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `workflow/workflow-event-topics.json` | 工作流发布的 25 个事件主题与信封的 `source` | RFC-0021「实例与执行」的「事件」 |
 | `observability/host-usage.json` | 运行信息里两次采样求差的系统与进程 CPU 使用率、网卡速率（计数变小或总增量为零为空，百分比限制在 0–100、不取整），内存与磁盘的已用与使用率，采样间隔的取值范围；期望值由 .NET 算出 | RFC-0023「运行信息」的「契约」与「采样」 |
 | `ai/ai-names.json` | Provider 名、提示词名与知识库集合名的文法（64 个字符的上限两侧），期望值由 .NET 算出 | RFC-0022「Provider 目录」 |
-| `ai/tool-names.json` | 由操作 ID 推出的工具名（`-` 与 `.` 换 `_`，超过 64 个字符时前 55 个字符加 `_` 加 SHA-256 的前 8 位）与描述的消息键，期望值由 .NET 算出 | RFC-0022「工具」 |
-| `ai/knowledge-chunks.json` | 知识库的固定窗口分块（重叠的裁剪、换行的统一、空白块丢弃）、记录 ID、按租户分开的默认集合，期望值由 .NET 算出 | RFC-0022「知识库」 |
+| `ai/tool-names.json` | 工具名的文法（64 个字符的上限两侧），由操作 ID 推出的工具名（`-` 与 `.` 换 `_`，超过 64 个字符时前 55 个字符去掉结尾的 `_` 再加 `_` 与 SHA-256 的前 8 位）与描述的消息键，期望值由 .NET 算出 | RFC-0022「工具」 |
+| `ai/knowledge-chunks.json` | 知识库的固定窗口分块（重叠的裁剪、换行的统一、按码位计数、每块去掉首尾的空白、空块丢弃）、记录 ID、按租户分开的默认集合，期望值由 .NET 算出 | RFC-0022「知识库」 |
 | `ai/provider-defaults.json` | 框架自带的目录给出的默认聊天与默认嵌入 Provider 名，期望值由 .NET 算出 | RFC-0022「Provider 目录」的「默认名」 |
-| `ai/prompt-templates.json` | 提示词模板的渲染：`{name}` 占位符与 `{{`、`}}` 转义，期望值由 .NET 算出 | RFC-0022「聊天」 |
+| `ai/prompt-templates.json` | 提示词模板的渲染：`{name}` 占位符（名字两侧的空白去掉）与 `{{`、`}}` 转义、没有闭合的 `{`、值为 `null`，缺少参数时的错误码、消息键与报出的占位符名；期望值由 .NET 算出 | RFC-0022「聊天」 |
 | `security/webauthn.json` | WebAuthn 注册与认证的样例响应、存储的凭据与期望结果（成功的凭据与签名计数，失败的错误码与 `reason`） | RFC-0008「WebAuthn」 |
 | `provider/caching-distributed.json` | `caching.distributed@1` 远程 Provider 的操作 ID（含批量）、请求 / 响应样例、非法键与选项 | `provider/caching-distributed.md` |
 
@@ -96,7 +96,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `rules/auditing.go` | 排除列表（`IsAuditExclusion`、`AuditExcludes`）、事件的选择与结果（`SelectAuditEvent`）、主体与租户的归属（`AuditAttribution`） |
 | `rules/workflow.go` | 工作流里的名字（`IsWorkflowName`、`IsWorkflowElementID`、`IsActivityType`）、状态的次序（`WorkflowDefinitionStatuses`、`WorkflowInstanceStatuses`）、关键字的折叠与匹配（`NormalizeWorkflowKeyword`、`FoldWorkflowKeyword`、`WorkflowKeywordMatches`）、事件主题（`WorkflowEventTopics`） |
 | `rules/observability.go` | 运行信息的使用率与速率（`HostCPUUsage`、`HostProcessCPUUsage`、`HostRate`、`HostUsage`）与采样间隔的范围（`IsHostSampleInterval`） |
-| `rules/ai.go` | AI 的名字（`IsAIName`）、操作工具名与描述键（`AIToolName`、`AIToolDescriptionKey`）、固定窗口分块（`ChunkFixedWindow`）、记录 ID 与默认集合（`KnowledgeRecordID`、`DefaultKnowledgeCollection`）、默认 Provider 名（`DefaultAIProviders`）、提示词模板的渲染（`RenderAIPrompt`） |
+| `rules/ai.go` | AI 的名字（`IsAIName`）、工具名的文法（`IsAIToolName`）、操作工具名与描述键（`AIToolName`、`AIToolDescriptionKey`）、固定窗口分块（`ChunkFixedWindow`）、记录 ID 与默认集合（`KnowledgeRecordID`、`DefaultKnowledgeCollection`）、默认 Provider 名（`DefaultAIProviders`）、提示词模板的渲染（`RenderAIPrompt`） |
 
 ## 黑盒运行器（`cmd/xihan-conformance`）
 

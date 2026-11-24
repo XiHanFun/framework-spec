@@ -965,9 +965,11 @@ type AIToolNameCase struct {
 	DescriptionKey string `json:"descriptionKey"`
 }
 
-// AIToolNameVectors 对应 ai/tool-names.json（RFC-0022「工具」，ADR-0277）。
+// AIToolNameVectors 对应 ai/tool-names.json（RFC-0022「工具」，ADR-0277、ADR-0286）：Valid 与 Invalid 是工具名本身文法的样例。
 type AIToolNameVectors struct {
 	MaxLength int              `json:"maxLength"`
+	Valid     []string         `json:"valid"`
+	Invalid   []string         `json:"invalid"`
 	Cases     []AIToolNameCase `json:"cases"`
 }
 
@@ -1034,17 +1036,29 @@ type AIProviderDefaultVectors struct {
 	Cases               []AIProviderDefaultCase `json:"cases"`
 }
 
-// AIPromptCase 是一个提示词模板、参数与渲染出的文本。
+// AIPromptCase 是一个提示词模板、参数（值为 nil 即 null）与渲染出的文本。
 type AIPromptCase struct {
-	Name      string            `json:"name"`
-	Template  string            `json:"template"`
-	Arguments map[string]string `json:"arguments"`
-	Text      string            `json:"text"`
+	Name      string             `json:"name"`
+	Template  string             `json:"template"`
+	Arguments map[string]*string `json:"arguments"`
+	Text      string             `json:"text"`
 }
 
-// AIPromptTemplateVectors 对应 ai/prompt-templates.json（RFC-0022「聊天」的提示词，ADR-0277）。
+// AIPromptMissingCase 是一个缺少参数的提示词模板：Argument 是第一个找不到参数的占位符名。
+type AIPromptMissingCase struct {
+	Name      string             `json:"name"`
+	Template  string             `json:"template"`
+	Arguments map[string]*string `json:"arguments"`
+	Argument  string             `json:"argument"`
+}
+
+// AIPromptTemplateVectors 对应 ai/prompt-templates.json（RFC-0022「聊天」的提示词，ADR-0277、ADR-0286）：
+// Code 与 MessageKey 是缺少参数时的错误。
 type AIPromptTemplateVectors struct {
-	Cases []AIPromptCase `json:"cases"`
+	Code       string                `json:"code"`
+	MessageKey string                `json:"messageKey"`
+	Cases      []AIPromptCase        `json:"cases"`
+	Missing    []AIPromptMissingCase `json:"missing"`
 }
 
 // AINames 读取 AI 子系统名字文法的向量。
