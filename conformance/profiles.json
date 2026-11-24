@@ -117,7 +117,7 @@
       "title": "子系统：缓存、分布式锁与幂等",
       "stability": "stable",
       "documents": ["rfcs/0006-caching.md"],
-      "vectors": ["caching/keys.json"],
+      "vectors": ["caching/cache-keys.json"],
       "runner": []
     },
     {
@@ -213,7 +213,7 @@
       "title": "远程 Provider 操作集 caching.distributed@1（提供操作集的插件与宿主一侧的适配器）",
       "stability": "stable",
       "documents": ["rfcs/0019-remote-providers.md", "provider/README.md", "provider/caching-distributed.md"],
-      "vectors": ["caching/keys.json", "provider/caching-distributed.json"],
+      "vectors": ["caching/cache-keys.json", "provider/caching-distributed.json"],
       "runner": []
     }
   ]

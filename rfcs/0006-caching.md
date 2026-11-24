@@ -31,7 +31,7 @@
 
 批量方法按 `conventions/batch-first.md`：空集合不触后端；基础设施失败整批抛出 `CACHING_UNAVAILABLE_001`；`TryAdd`、`TryRemove` 与 `TryRefresh` 保持单键（它们是锁与幂等的原子原语，批量没有意义）。Provider 用原生批量（Redis `MGET`、管道里的 `SET` 带过期、管道里的 `DEL`），内存实现一次加锁逐项处理。
 
-- 键：非空、无空白与控制字符、按 UTF-8 编码后不超过 512 字节、区分大小写（2026-11-24 修订，ADR-0276；以前写「不超过 512 字符」，没说单位：.NET 按 UTF-16 码元计，Go SDK 按 UTF-8 字节计，含非 ASCII 字符的键两边判得不一样，.NET 收下的键远程插件会以 `CACHING_VALIDATION_001` 拒绝）。空白指 RFC-0001「空白字符」的 25 个码位，控制字符指 Unicode 的 Cc 类（U+0000–U+001F 与 U+007F–U+009F；同日写明，.NET 的 `char.IsControl` 与 Go 的 `unicode.IsControl` 本来就是它）。长度只看编码后的字节数，不看字符数或 UTF-16 码元数：256 个两字节字符正好到上限，171 个三字节字符（513 字节）已经超过。向量 `conformance/vectors/caching/keys.json`。
+- 键：非空、无空白与控制字符、按 UTF-8 编码后不超过 512 字节、区分大小写（2026-11-24 修订，ADR-0276；以前写「不超过 512 字符」，没说单位：.NET 按 UTF-16 码元计，Go SDK 按 UTF-8 字节计，含非 ASCII 字符的键两边判得不一样，.NET 收下的键远程插件会以 `CACHING_VALIDATION_001` 拒绝）。空白指 RFC-0001「空白字符」的 25 个码位，控制字符指 Unicode 的 Cc 类（U+0000–U+001F 与 U+007F–U+009F；同日写明，.NET 的 `char.IsControl` 与 Go 的 `unicode.IsControl` 本来就是它）。长度只看编码后的字节数，不看字符数或 UTF-16 码元数：256 个两字节字符正好到上限，171 个三字节字符（513 字节）已经超过。向量 `conformance/vectors/caching/cache-keys.json`。
 - 过期：绝对存活或滑动过期，二选一；都不设时用 Provider 的默认存活时间。
 - 基础设施失败抛出 `CACHING_UNAVAILABLE_001`，不伪装成未命中。
 - 返回的字节不可修改；实现要么复制，要么保证不被改写。
@@ -137,7 +137,7 @@ Idempotency 阶段的中间件按 Baggage `xihan.idempotency-key` 去重，作�
 
 Provider 必须继承 `CacheStoreConformance` 并通过全部用例（含基于存储的锁与批量：`GetMany` 的顺序与未命中、`SetMany` 的覆盖与各自过期、`RemoveMany` 的逐键结果、空集合）。过期用例用真实时间等待。实现了 `ICacheStoreInspector` 的存储另验证键列表的每页上限：0 与 1001 返回 `CACHING_VALIDATION_003`，1 与 1000 照常分页。
 
-向量 `conformance/vectors/caching/keys.json`（2026-11-24 增补，ADR-0276）：键与键前缀必须接受与必须拒绝的样例——正好 512 字节与 513 字节的键、UTF-16 码元数不超而字节数超过的键、空白与控制字符；判定键的类型（.NET 的 `CacheKey`）与远程 Provider 的插件一侧都回放它。
+向量 `conformance/vectors/caching/cache-keys.json`（2026-11-24 增补，ADR-0276）：键与键前缀必须接受与必须拒绝的样例——正好 512 字节与 513 字节的键、UTF-16 码元数不超而字节数超过的键、空白与控制字符；判定键的类型（.NET 的 `CacheKey`）与远程 Provider 的插件一侧都回放它。
 
 ## 错误码
 

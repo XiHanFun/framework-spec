@@ -263,7 +263,7 @@ var nonEmptyChecks = map[string]func(t *testing.T) any{
 		}
 		return caching
 	},
-	"caching/keys.json": func(t *testing.T) any {
+	"caching/cache-keys.json": func(t *testing.T) any {
 		keys, err := conformance.CacheKeys()
 		if err != nil || keys.MaxBytes != 512 || len(keys.Keys.Valid) == 0 || len(keys.Keys.Invalid) == 0 || len(keys.Prefixes.Valid) == 0 || len(keys.Prefixes.Invalid) == 0 {
 			t.Errorf("cache keys: %v", err)

@@ -508,7 +508,7 @@ type CacheKeyCaseSet struct {
 	Invalid []CacheKeyCase `json:"invalid"`
 }
 
-// CacheKeyVectors 对应 caching/keys.json（RFC-0006「存储契约」与「键管理」，ADR-0276）：
+// CacheKeyVectors 对应 caching/cache-keys.json（RFC-0006「存储契约」与「键管理」，ADR-0276）：
 // MaxBytes 是键与前缀按 UTF-8 编码后的最大字节数，Keys 是键，Prefixes 是键前缀（与键同一条规则，只是可以为空）。
 type CacheKeyVectors struct {
 	MaxBytes int             `json:"maxBytes"`
@@ -571,7 +571,7 @@ func vectorFile[T any](name string) TypedVector {
 // typedVectors 是向量文件表：每个向量文件一项，按 Names 的顺序。文件名只写在这里，类型化入口与 TypedVectors
 // （vectors 子命令与测试用它）都从这张表取；新增向量文件在这里加一行，再加一个类型化入口。
 var typedVectors = []TypedVector{
-	vectorFile[CacheKeyVectors]("caching/keys.json"),
+	vectorFile[CacheKeyVectors]("caching/cache-keys.json"),
 	vectorFile[HTTPDeadlineVectors]("context/http-deadline.json"),
 	vectorFile[ManifestVectors]("manifest/manifests.json"),
 	vectorFile[PayloadReasonVectors]("operations/payload-reasons.json"),
