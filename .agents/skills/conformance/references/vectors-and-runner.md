@@ -2,7 +2,8 @@
 
 ## 向量文件
 
-- JSON，两空格缩进，按主题放在 `conformance/vectors/`（`primitives/`、`manifest/`、`pipeline/`、`operations/`、`plugin/`、`security/`、`provider/`）。
+- JSON，两空格缩进，按主题放在 `conformance/vectors/`（`primitives/`、`manifest/`、`pipeline/`、`operations/`、`context/`、`plugin/`、`caching/`、`security/`、`provider/`，各子系统档一个目录：`messaging/`、`multitenancy/`、`objectstorage/`、`scheduling/`、`localization/`、`configuration/`、`persistence/`、`auditing/`、`workflow/`、`observability/`、`ai/`）。
+- 文件名（不带目录）全仓唯一、要具体（`cache-keys.json`，不叫 `keys.json`）：实现的向量覆盖测试按文件名认回放，一致性模块的测试 `TestVectorFileNamesAreUniqueAcrossDirectories` 守住。
 - 顶部 `$comment` 是这个文件的说明书：每个字段的含义、规范出处（RFC 与章节）、ADR，期望值的来源。用例多的文件每条带 `name`（中文短语），照同目录已有文件的形态写。
 - 不可见字符一律写成 JSON 转义（`\u00a0`、`\u2028`、`\ufeff` …），现有向量里没有原字符。
 - 文件名与 `conformance.Names()` 的写法相同（`plugin/handshake-lines.json`），档表的 `vectors` 也这样写。

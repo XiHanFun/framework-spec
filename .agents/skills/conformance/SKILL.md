@@ -12,8 +12,8 @@ description: 新增或修改 XiHan Spec 的一致性向量、规则包 conforman
 | 部分 | 位置 |
 | --- | --- |
 | 档表 | `conformance/profiles.json`，Go 经 `conformance.Profiles()` 与 `RequiredVectors(档…)` 读取 |
-| 向量 | `conformance/vectors/<主题>/<名字>.json`，经 `conformance.Vectors` 内嵌，类型化入口在 `conformance/vectors.go` |
-| 规则 | `conformance/rules`：文法与判定的 Go 实现，`rules_test.go`、`messages_test.go`、`plugin_test.go` 回放向量 |
+| 向量 | `conformance/vectors/<主题>/<名字>.json`，经 `conformance.Vectors` 内嵌，向量文件表与类型化入口在 `conformance/vectors.go`；各子系统档向量的类型与入口在 `conformance/vectors_subsystems.go`，非空核对在 `vectors_subsystems_test.go` |
+| 规则 | `conformance/rules`：文法与判定的 Go 实现，`rules_test.go`、`messages_test.go`、`plugin_test.go` 回放向量；子系统档一档一个文件（`messaging.go`、`scheduling.go` 与 `cron.go` 等），由同名的 `*_test.go` 回放 |
 | 运行器 | `conformance/plugin`（用例 `cases.go`、名单 `options.go`、调度 `runner.go`、进程与会话）与 `conformance/cmd/xihan-conformance` |
 | 运行器自测 | `conformance/plugin/fake_test.go`：测试程序扮演合规与 `legacy` 两种假插件 |
 
