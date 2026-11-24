@@ -124,4 +124,95 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 		uniqueNames(t, "tenant shards", names)
 		return shards
 	},
+	"objectstorage/container-names.json": func(t *testing.T) any {
+		names, err := conformance.ContainerNames()
+		if err != nil || names.MinLength != 3 || names.MaxLength != 63 || len(names.Valid) == 0 || len(names.Invalid) == 0 {
+			t.Errorf("container names: %v", err)
+		}
+		return names
+	},
+	"objectstorage/blob-keys.json": func(t *testing.T) any {
+		keys, err := conformance.BlobKeys()
+		if err != nil || keys.MaxLength != 1024 || keys.Separator == "" || keys.ReservedSegment == "" || len(keys.Valid) == 0 || len(keys.Invalid) == 0 || len(keys.Reserved) == 0 {
+			t.Errorf("blob keys: %v", err)
+		}
+		for group, cases := range map[string][]conformance.BlobKeyCase{"blob keys valid": keys.Valid, "blob keys invalid": keys.Invalid, "blob keys reserved": keys.Reserved} {
+			var names []string
+			for _, c := range cases {
+				names = append(names, c.Name)
+			}
+			uniqueNames(t, group, names)
+		}
+		return keys
+	},
+	"objectstorage/blob-metadata.json": func(t *testing.T) any {
+		metadata, err := conformance.BlobMetadata()
+		if err != nil || metadata.Names.MaxLength != 64 || len(metadata.Names.Valid) == 0 || len(metadata.Names.Invalid) == 0 || metadata.MaxBytes != 2048 || len(metadata.Sets.Valid) == 0 || len(metadata.Sets.Invalid) == 0 {
+			t.Errorf("blob metadata: %v", err)
+		}
+		var names []string
+		for _, c := range append(append([]conformance.BlobMetadataCase{}, metadata.Sets.Valid...), metadata.Sets.Invalid...) {
+			names = append(names, c.Name)
+			if c.Metadata == nil {
+				t.Errorf("blob metadata case %q must carry its metadata (an empty object for none)", c.Name)
+			}
+		}
+		uniqueNames(t, "blob metadata", names)
+		return metadata
+	},
+	"objectstorage/blob-content-types.json": func(t *testing.T) any {
+		types, err := conformance.BlobContentTypes()
+		if err != nil || types.MaxLength != 255 || types.Default == "" || len(types.Valid) == 0 || len(types.Invalid) == 0 {
+			t.Errorf("blob content types: %v", err)
+		}
+		return types
+	},
+	"objectstorage/blob-ranges.json": func(t *testing.T) any {
+		ranges, err := conformance.BlobRanges()
+		if err != nil || ranges.Code == "" || len(ranges.Cases) == 0 {
+			t.Errorf("blob ranges: %v", err)
+		}
+		var names []string
+		satisfiable, unsatisfiable := false, false
+		for _, c := range ranges.Cases {
+			names = append(names, c.Name)
+			satisfiable = satisfiable || c.Range != nil
+			unsatisfiable = unsatisfiable || c.Range == nil
+		}
+		if !satisfiable || !unsatisfiable {
+			t.Error("blob ranges must keep both satisfiable and unsatisfiable cases")
+		}
+		uniqueNames(t, "blob ranges", names)
+		return ranges
+	},
+	"objectstorage/multipart-parts.json": func(t *testing.T) any {
+		parts, err := conformance.MultipartParts()
+		if err != nil || parts.MaxPartNumber != 10000 || parts.MinPartBytes != 5<<20 || parts.Code == "" || len(parts.PartNumbers.Valid) == 0 || len(parts.PartNumbers.Invalid) == 0 || len(parts.Manifests) == 0 {
+			t.Errorf("multipart parts: %v", err)
+		}
+		var names []string
+		for _, c := range parts.Manifests {
+			names = append(names, c.Name)
+			if c.Parts == nil {
+				t.Errorf("multipart manifest %q must list its parts (an empty array for none)", c.Name)
+			}
+		}
+		uniqueNames(t, "multipart manifests", names)
+		return parts
+	},
+	"objectstorage/store-definitions.json": func(t *testing.T) any {
+		definitions, err := conformance.BlobStoreDefinitions()
+		if err != nil || definitions.Names.MaxLength != 64 || len(definitions.Names.Valid) == 0 || len(definitions.Names.Invalid) == 0 || len(definitions.Providers) == 0 || len(definitions.Same) == 0 {
+			t.Errorf("store definitions: %v", err)
+		}
+		var names []string
+		for _, c := range definitions.Same {
+			names = append(names, c.Name)
+			if c.Left.Settings == nil || c.Right.Settings == nil {
+				t.Errorf("store definition case %q must carry the settings of both sides", c.Name)
+			}
+		}
+		uniqueNames(t, "store definitions", names)
+		return definitions
+	},
 }

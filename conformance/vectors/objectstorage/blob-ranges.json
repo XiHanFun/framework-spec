@@ -1,0 +1,184 @@
+{
+  "$comment": "范围读取的实际范围（RFC-0012「范围读取、分片上传与预签名」，ADR-0049、ADR-0277）：请求的范围是起点 offset（不小于 0）与可选的长度 length（大于 0；null 表示读到末尾），total 是对象的总长。range 是实际读出的范围——起点、长度与总长；长度超出末尾即截断。起点不在对象内（含空对象）时 range 为 null，读取以 code 失败。数字都在 2^53 − 1 之内，各语言的 JSON 读法都读得出；长度很大时不得溢出。期望值由 .NET 参考实现（BlobRange.Resolve）算出。",
+  "code": "OBJECTSTORAGE_VALIDATION_001",
+  "cases": [
+    {
+      "name": "整个对象：起点 0、不给长度",
+      "offset": 0,
+      "length": null,
+      "total": 100,
+      "range": {
+        "offset": 0,
+        "length": 100,
+        "total": 100
+      }
+    },
+    {
+      "name": "开头的一段",
+      "offset": 0,
+      "length": 10,
+      "total": 100,
+      "range": {
+        "offset": 0,
+        "length": 10,
+        "total": 100
+      }
+    },
+    {
+      "name": "中间的一段",
+      "offset": 40,
+      "length": 20,
+      "total": 100,
+      "range": {
+        "offset": 40,
+        "length": 20,
+        "total": 100
+      }
+    },
+    {
+      "name": "不给长度读到末尾",
+      "offset": 90,
+      "length": null,
+      "total": 100,
+      "range": {
+        "offset": 90,
+        "length": 10,
+        "total": 100
+      }
+    },
+    {
+      "name": "长度正好到末尾",
+      "offset": 90,
+      "length": 10,
+      "total": 100,
+      "range": {
+        "offset": 90,
+        "length": 10,
+        "total": 100
+      }
+    },
+    {
+      "name": "长度超出末尾即截断",
+      "offset": 90,
+      "length": 50,
+      "total": 100,
+      "range": {
+        "offset": 90,
+        "length": 10,
+        "total": 100
+      }
+    },
+    {
+      "name": "最后一个字节",
+      "offset": 99,
+      "length": 1,
+      "total": 100,
+      "range": {
+        "offset": 99,
+        "length": 1,
+        "total": 100
+      }
+    },
+    {
+      "name": "最后一个字节、不给长度",
+      "offset": 99,
+      "length": null,
+      "total": 100,
+      "range": {
+        "offset": 99,
+        "length": 1,
+        "total": 100
+      }
+    },
+    {
+      "name": "长度比整个对象还长",
+      "offset": 0,
+      "length": 1000,
+      "total": 100,
+      "range": {
+        "offset": 0,
+        "length": 100,
+        "total": 100
+      }
+    },
+    {
+      "name": "一个字节的对象",
+      "offset": 0,
+      "length": null,
+      "total": 1,
+      "range": {
+        "offset": 0,
+        "length": 1,
+        "total": 1
+      }
+    },
+    {
+      "name": "起点正好是总长",
+      "offset": 100,
+      "length": null,
+      "total": 100,
+      "range": null
+    },
+    {
+      "name": "起点正好是总长、给了长度",
+      "offset": 100,
+      "length": 1,
+      "total": 100,
+      "range": null
+    },
+    {
+      "name": "起点超出总长",
+      "offset": 150,
+      "length": 10,
+      "total": 100,
+      "range": null
+    },
+    {
+      "name": "空对象、起点 0",
+      "offset": 0,
+      "length": null,
+      "total": 0,
+      "range": null
+    },
+    {
+      "name": "空对象、给了长度",
+      "offset": 0,
+      "length": 1,
+      "total": 0,
+      "range": null
+    },
+    {
+      "name": "很大的对象",
+      "offset": 4294967296,
+      "length": 1048576,
+      "total": 1099511627776,
+      "range": {
+        "offset": 4294967296,
+        "length": 1048576,
+        "total": 1099511627776
+      }
+    },
+    {
+      "name": "长度很大也只是截断，不溢出",
+      "offset": 5,
+      "length": 9007199254740991,
+      "total": 100,
+      "range": {
+        "offset": 5,
+        "length": 95,
+        "total": 100
+      }
+    },
+    {
+      "name": "起点与总长都很大",
+      "offset": 9007199254740990,
+      "length": null,
+      "total": 9007199254740991,
+      "range": {
+        "offset": 9007199254740990,
+        "length": 1,
+        "total": 9007199254740991
+      }
+    }
+  ]
+}

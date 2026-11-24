@@ -167,7 +167,15 @@
       "title": "子系统：对象存储",
       "stability": "stable",
       "documents": ["rfcs/0012-objectstorage.md"],
-      "vectors": [],
+      "vectors": [
+        "objectstorage/blob-content-types.json",
+        "objectstorage/blob-keys.json",
+        "objectstorage/blob-metadata.json",
+        "objectstorage/blob-ranges.json",
+        "objectstorage/container-names.json",
+        "objectstorage/multipart-parts.json",
+        "objectstorage/store-definitions.json"
+      ],
       "runner": []
     },
     {

@@ -1,0 +1,270 @@
+{
+  "$comment": "命名存储实例的定义（RFC-0012「命名存储实例」，ADR-0050、ADR-0277）。names：实例名的文法 ^[a-z0-9][a-z0-9-]{0,63}$，1 到 maxLength 个字符的小写字母、数字与连字符，字母或数字开头，按整串匹配；valid 必须接受，invalid 必须拒绝，valid 的末项正好 64 个字符。providers 是内置的 Provider 名，不区分大小写。same：两个定义是不是同一个定义（注册表的 GetOrAdd 对同名同定义返回同一实例，定义变了就建新实例替换）——实例名相同（区分大小写）、Provider 名相同（不区分大小写）、设置完全相同（键不区分大小写，值区分，与次序无关）；每项的 left 与 right 是两个定义，same 是结论。期望值由 .NET 参考实现（BlobStoreDefinition.IsValidName、BlobStoreDefinition.Describes）算出。",
+  "names": {
+    "maxLength": 64,
+    "valid": [
+      "default",
+      "a",
+      "0",
+      "tenant-acme",
+      "archive-2026",
+      "a--b",
+      "a-",
+      "s012345678901234567890123456789012345678901234567890123456789abc"
+    ],
+    "invalid": [
+      "",
+      "Default",
+      "-archive",
+      "tenant_acme",
+      "tenant.acme",
+      "tenant acme",
+      "tenant/acme",
+      " archive",
+      "archive\n",
+      "归档",
+      "s012345678901234567890123456789012345678901234567890123456789abcx",
+      "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"
+    ]
+  },
+  "providers": [
+    "filesystem",
+    "s3"
+  ],
+  "same": [
+    {
+      "name": "完全相同",
+      "left": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "right": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "same": true
+    },
+    {
+      "name": "Provider 名只差大小写",
+      "left": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "right": {
+        "name": "archive",
+        "provider": "S3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "same": true
+    },
+    {
+      "name": "设置的键只差大小写",
+      "left": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "right": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "bucket": "acme-uploads",
+          "REGION": "ap-east-1",
+          "serviceUrl": "https://s3.example.com"
+        }
+      },
+      "same": true
+    },
+    {
+      "name": "设置的次序不同",
+      "left": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "right": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "ServiceUrl": "https://s3.example.com",
+          "Region": "ap-east-1",
+          "Bucket": "acme-uploads"
+        }
+      },
+      "same": true
+    },
+    {
+      "name": "都没有设置",
+      "left": {
+        "name": "scratch",
+        "provider": "filesystem",
+        "settings": {}
+      },
+      "right": {
+        "name": "scratch",
+        "provider": "FileSystem",
+        "settings": {}
+      },
+      "same": true
+    },
+    {
+      "name": "实例名不同",
+      "left": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "right": {
+        "name": "archive-2",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "same": false
+    },
+    {
+      "name": "Provider 不同",
+      "left": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "right": {
+        "name": "archive",
+        "provider": "filesystem",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "same": false
+    },
+    {
+      "name": "一个设置的值不同",
+      "left": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "right": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "us-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "same": false
+    },
+    {
+      "name": "一个设置的值只差大小写",
+      "left": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "right": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "Acme-Uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "same": false
+    },
+    {
+      "name": "多了一个设置",
+      "left": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "right": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com",
+          "ForcePathStyle": "true"
+        }
+      },
+      "same": false
+    },
+    {
+      "name": "少了一个设置",
+      "left": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1",
+          "ServiceUrl": "https://s3.example.com"
+        }
+      },
+      "right": {
+        "name": "archive",
+        "provider": "s3",
+        "settings": {
+          "Bucket": "acme-uploads",
+          "Region": "ap-east-1"
+        }
+      },
+      "same": false
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # RFC-0012 对象存储
 
-> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误；2026-11-01 修订：一致性验证改对 RustFS；2026-11-01 修订：不覆盖写入并发原子、S3 探测条件写入；2026-11-01 修订：条件写入探测改为启动照常、后台与首次使用时重试，键的保留前缀 `.xihan`，云厂商的兼容服务只走标准条件头；2026-11-02 修订：条件写入探测被拒绝、探测桶不存在恢复为启动失败，只有连不上照常启动、后台重试；2026-11-04 修订：基础设施失败的 `reason` 只写异常类型；同日再修订：S3 命名实例的客户端过出站地址策略；2026-11-24 修订：分片上传批量放弃、命名实例批量移除与登记数上限、S3BlobStore 不再有公开构造） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约）、ADR-0086（验证用的 S3 兼容服务）、ADR-0089（条件写入探测）、ADR-0090（探测重试、保留前缀）、ADR-0093（被拒绝与缺桶启动失败）、ADR-0097（启动之后被拒绝或缺桶的处理已定）、ADR-0115、ADR-0266 | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance` | 一致性档：`objectstorage`
+> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误；2026-11-01 修订：一致性验证改对 RustFS；2026-11-01 修订：不覆盖写入并发原子、S3 探测条件写入；2026-11-01 修订：条件写入探测改为启动照常、后台与首次使用时重试，键的保留前缀 `.xihan`，云厂商的兼容服务只走标准条件头；2026-11-02 修订：条件写入探测被拒绝、探测桶不存在恢复为启动失败，只有连不上照常启动、后台重试；2026-11-04 修订：基础设施失败的 `reason` 只写异常类型；同日再修订：S3 命名实例的客户端过出站地址策略；2026-11-24 修订：分片上传批量放弃、命名实例批量移除与登记数上限、S3BlobStore 不再有公开构造；同日再修订：一致性向量） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约）、ADR-0086（验证用的 S3 兼容服务）、ADR-0089（条件写入探测）、ADR-0090（探测重试、保留前缀）、ADR-0093（被拒绝与缺桶启动失败）、ADR-0097（启动之后被拒绝或缺桶的处理已定）、ADR-0115、ADR-0266、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`，向量 `conformance/vectors/objectstorage/` | 一致性档：`objectstorage`
 
 ## 摘要
 
@@ -121,6 +121,20 @@
 ## 一致性
 
 Provider 必须继承 `BlobStoreConformance` 并通过全部用例（S3 Provider 对 RustFS 通过，此前对 MinIO 通过；ADR-0086 记录了其余兼容服务的差异）。用例包括并发的不覆盖写入（8 个写入方同时写同一个新键，恰好一个成功，ADR-0089）：先查再写的实现过不了，不认条件写入的 S3 兼容服务上不经探测建的 `S3BlobStore`（参考实现的测试经内部构造）也过不了（Garage、Zenko CloudServer 上 8 个全部成功），这正是 S3 Provider 探明之前不做不覆盖写入、探明不认就拒绝的原因；以及保留前缀（ADR-0090）：首段是 `.xihan` 的键构造时被拒，套件经 Provider 实现的钩子 `PlantOutsideContractAsync` 绕过契约在存储里放入保留前缀下的对象，列举必须跳过它们；实现了 `IBlobMultipartStore` 的 Provider 同样要通过分片用例，含批量放弃（不实现时这些用例跳过）。命名实例的 Provider 必须继承 `BlobStoreProviderConformance` 并通过全部用例（参考实现另有混装用例：两种装配顺序下两个存储包的命名实例 Provider 都登记，缺省的三个契约同一存储，被要求的契约选得不一致时装配失败、兜底选出的不失败而按被顶替处理）：按定义建出可读写且探测通过的实例、未知的设置键被拒绝、经注册表同定义复用 / 定义变了替换 / 批量移除逐项报告、移除后不存在、定义错误翻译为 `OBJECTSTORAGE_VALIDATION_003` 且不影响已有实例。
+
+向量（档 `objectstorage`，`conformance/vectors/objectstorage/`；2026-11-24，ADR-0277，以前这个档没有向量）：
+
+| 文件 | 内容 |
+| --- | --- |
+| `container-names.json` | 容器名文法的合法与不合法样例，含 3 与 63 个字符的两侧 |
+| `blob-keys.json` | 对象键的文法（分段、`.` 与 `..`、空白、控制字符、反斜线、1024 个字符的上限两侧）与保留前缀 |
+| `blob-metadata.json` | 自定义元数据名的文法，值里的控制字符，名与值合计 2048 个 UTF-8 字节的上限两侧 |
+| `blob-content-types.json` | 内容类型文法的合法与不合法样例，含 255 个字符的上限两侧 |
+| `blob-ranges.json` | 范围读取的实际范围与不可满足的范围 |
+| `multipart-parts.json` | 分片编号的范围、分片的最小字节数与完成清单的编号次序 |
+| `store-definitions.json` | 命名存储实例名的文法、内置的 Provider 名、两个定义是不是同一个定义 |
+
+向量不收的：对象键与保存的文件名的长度在含非 ASCII 字符时怎么计（正文写「字符」，没有说单位；.NET 按 UTF-16 码元计，S3 的键上限是 1024 个 UTF-8 字节）；内容类型里媒体类型与 `;` 之间的空白、只有 `;` 而没有参数的写法；空的元数据值；预签名的有效期与文件名、列举的每页条数（都只是数值范围）；宿主代签地址的签名（正文没有给出规范串）；完成清单里 ETag 与分片大小的核对、配额与并发（由 `BlobStoreConformance` 与 `BlobMultipartStoreConformance` 核对）。
 
 ## 错误码
 

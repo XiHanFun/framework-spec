@@ -231,3 +231,166 @@ func TenantResolution() (TenantResolutionVectors, error) {
 func TenantShards() (TenantShardVectors, error) {
 	return typed[TenantShardVectors]()
 }
+
+// ContainerNameVectors 对应 objectstorage/container-names.json（RFC-0012「标识」，ADR-0277）。
+type ContainerNameVectors struct {
+	MinLength int      `json:"minLength"`
+	MaxLength int      `json:"maxLength"`
+	Valid     []string `json:"valid"`
+	Invalid   []string `json:"invalid"`
+}
+
+// BlobKeyCase 是一条对象键的样例。
+type BlobKeyCase struct {
+	Name string `json:"name"`
+	Key  string `json:"key"`
+}
+
+// BlobKeyVectors 对应 objectstorage/blob-keys.json（RFC-0012「标识」，ADR-0277）：Valid 必须接受，
+// Invalid 与 Reserved 必须拒绝，Reserved 另外要被认作保留前缀下的键。
+type BlobKeyVectors struct {
+	MaxLength       int           `json:"maxLength"`
+	Separator       string        `json:"separator"`
+	ReservedSegment string        `json:"reservedSegment"`
+	Valid           []BlobKeyCase `json:"valid"`
+	Invalid         []BlobKeyCase `json:"invalid"`
+	Reserved        []BlobKeyCase `json:"reserved"`
+}
+
+// NameGrammarVectors 是一条名字文法的长度上限与合法、不合法样例。
+type NameGrammarVectors struct {
+	MaxLength int      `json:"maxLength"`
+	Valid     []string `json:"valid"`
+	Invalid   []string `json:"invalid"`
+}
+
+// BlobMetadataCase 是一个对象的整组自定义元数据：UTF8Bytes 是名与值的 UTF-8 字节数之和。
+type BlobMetadataCase struct {
+	Name      string            `json:"name"`
+	Metadata  map[string]string `json:"metadata"`
+	UTF8Bytes int               `json:"utf8Bytes"`
+}
+
+// BlobMetadataSets 是必须接受与必须拒绝的整组元数据。
+type BlobMetadataSets struct {
+	Valid   []BlobMetadataCase `json:"valid"`
+	Invalid []BlobMetadataCase `json:"invalid"`
+}
+
+// BlobMetadataVectors 对应 objectstorage/blob-metadata.json（RFC-0012「标识」，ADR-0277）：
+// Names 是元数据名的文法，MaxBytes 是名与值合计的最大 UTF-8 字节数，Sets 是整组元数据。
+type BlobMetadataVectors struct {
+	Names    NameGrammarVectors `json:"names"`
+	MaxBytes int                `json:"maxBytes"`
+	Sets     BlobMetadataSets   `json:"sets"`
+}
+
+// BlobContentTypeVectors 对应 objectstorage/blob-content-types.json（RFC-0012「标识」，ADR-0277）。
+type BlobContentTypeVectors struct {
+	MaxLength int      `json:"maxLength"`
+	Default   string   `json:"default"`
+	Valid     []string `json:"valid"`
+	Invalid   []string `json:"invalid"`
+}
+
+// BlobRangeExpectation 是范围读取实际读出的范围。
+type BlobRangeExpectation struct {
+	Offset int64 `json:"offset"`
+	Length int64 `json:"length"`
+	Total  int64 `json:"total"`
+}
+
+// BlobRangeCase 是一次范围读取：Length 为 nil 表示读到末尾，Range 为 nil 表示起点不在对象内。
+type BlobRangeCase struct {
+	Name   string                `json:"name"`
+	Offset int64                 `json:"offset"`
+	Length *int64                `json:"length"`
+	Total  int64                 `json:"total"`
+	Range  *BlobRangeExpectation `json:"range"`
+}
+
+// BlobRangeVectors 对应 objectstorage/blob-ranges.json（RFC-0012「范围读取、分片上传与预签名」，ADR-0277）：Code 是范围不可满足时的错误码。
+type BlobRangeVectors struct {
+	Code  string          `json:"code"`
+	Cases []BlobRangeCase `json:"cases"`
+}
+
+// MultipartPartNumbers 是在范围内与不在范围内的分片编号。
+type MultipartPartNumbers struct {
+	Valid   []int `json:"valid"`
+	Invalid []int `json:"invalid"`
+}
+
+// MultipartManifestCase 是一份完成清单里各片的编号，以及编号次序是否合法。
+type MultipartManifestCase struct {
+	Name  string `json:"name"`
+	Parts []int  `json:"parts"`
+	Valid bool   `json:"valid"`
+}
+
+// MultipartPartVectors 对应 objectstorage/multipart-parts.json（RFC-0012「范围读取、分片上传与预签名」，ADR-0277）：
+// Code 是清单不合法时的错误码。
+type MultipartPartVectors struct {
+	MaxPartNumber int                     `json:"maxPartNumber"`
+	MinPartBytes  int64                   `json:"minPartBytes"`
+	Code          string                  `json:"code"`
+	PartNumbers   MultipartPartNumbers    `json:"partNumbers"`
+	Manifests     []MultipartManifestCase `json:"manifests"`
+}
+
+// BlobStoreDefinitionCase 是一个命名存储实例的定义。
+type BlobStoreDefinitionCase struct {
+	Name     string            `json:"name"`
+	Provider string            `json:"provider"`
+	Settings map[string]string `json:"settings"`
+}
+
+// BlobStoreSameCase 是两个定义与它们是不是同一个定义。
+type BlobStoreSameCase struct {
+	Name  string                  `json:"name"`
+	Left  BlobStoreDefinitionCase `json:"left"`
+	Right BlobStoreDefinitionCase `json:"right"`
+	Same  bool                    `json:"same"`
+}
+
+// BlobStoreDefinitionVectors 对应 objectstorage/store-definitions.json（RFC-0012「命名存储实例」，ADR-0277）。
+type BlobStoreDefinitionVectors struct {
+	Names     NameGrammarVectors  `json:"names"`
+	Providers []string            `json:"providers"`
+	Same      []BlobStoreSameCase `json:"same"`
+}
+
+// ContainerNames 读取容器名文法的向量。
+func ContainerNames() (ContainerNameVectors, error) {
+	return typed[ContainerNameVectors]()
+}
+
+// BlobKeys 读取对象键文法与保留前缀的向量。
+func BlobKeys() (BlobKeyVectors, error) {
+	return typed[BlobKeyVectors]()
+}
+
+// BlobMetadata 读取对象自定义元数据的向量。
+func BlobMetadata() (BlobMetadataVectors, error) {
+	return typed[BlobMetadataVectors]()
+}
+
+// BlobContentTypes 读取对象内容类型文法的向量。
+func BlobContentTypes() (BlobContentTypeVectors, error) {
+	return typed[BlobContentTypeVectors]()
+}
+
+// BlobRanges 读取范围读取的向量。
+func BlobRanges() (BlobRangeVectors, error) {
+	return typed[BlobRangeVectors]()
+}
+
+// MultipartParts 读取分片编号与完成清单的向量。
+func MultipartParts() (MultipartPartVectors, error) {
+	return typed[MultipartPartVectors]()
+}
+
+// BlobStoreDefinitions 读取命名存储实例定义的向量。
+func BlobStoreDefinitions() (BlobStoreDefinitionVectors, error) {
+	return typed[BlobStoreDefinitionVectors]()
+}

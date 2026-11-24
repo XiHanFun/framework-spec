@@ -1,0 +1,36 @@
+{
+  "$comment": "容器名的文法（RFC-0012「标识」，ADR-0277）：^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$，minLength 到 maxLength 个字符的小写字母、数字与连字符，首尾是字母或数字（与 S3 桶名兼容，不含点）；按整串匹配，结尾的换行不例外。valid 必须接受，invalid 必须拒绝；valid 的末项正好 63 个字符，invalid 的末两项是 64 与 128 个字符、别处都合文法。期望值由 .NET 参考实现（ContainerName.IsValid）算出。",
+  "minLength": 3,
+  "maxLength": 63,
+  "valid": [
+    "abc",
+    "a1b",
+    "123",
+    "my-bucket",
+    "a--b",
+    "0-0",
+    "tenant-acme-uploads",
+    "c012345678901234567890123456789012345678901234567890123456789ab"
+  ],
+  "invalid": [
+    "",
+    "a",
+    "ab",
+    "-ab",
+    "ab-",
+    "-",
+    "Abc",
+    "ABC",
+    "my_bucket",
+    "my.bucket",
+    "my bucket",
+    " abc",
+    "abc ",
+    "abc\n",
+    "abc/def",
+    "桶桶桶",
+    "cafés",
+    "c012345678901234567890123456789012345678901234567890123456789abc",
+    "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  ]
+}

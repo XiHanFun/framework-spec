@@ -41,6 +41,13 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `multitenancy/tenant-ids.json` | 租户 ID 文法的合法与不合法样例（只用小写，含 64 个字符的上限两侧），期望值由 .NET 算出 | RFC-0007「租户 ID」 |
 | `multitenancy/tenant-resolution.json` | Tenant 阶段的裁定：声明、Baggage、默认租户与平台调用的先后，声明冲突，文法与存储的核对次序，到租户、无租户或错误码，期望值由 .NET 算出 | RFC-0007「解析」 |
 | `multitenancy/tenant-shards.json` | 从租户属性推出分片：连接串、小写的提供者名与去前缀的透传属性，期望值由 .NET 算出 | RFC-0007「分片」 |
+| `objectstorage/container-names.json` | 容器名文法的合法与不合法样例（3 到 63 个字符的两侧），期望值由 .NET 算出 | RFC-0012「标识」 |
+| `objectstorage/blob-keys.json` | 对象键的文法（分段、`.` 与 `..`、空白、控制字符、反斜线、1024 个字符的上限两侧）与保留前缀 `.xihan`，期望值由 .NET 算出 | RFC-0012「标识」 |
+| `objectstorage/blob-metadata.json` | 自定义元数据：名的文法，值里的控制字符，名与值合计 2048 个 UTF-8 字节的上限两侧（含码元数不超而字节数超过的），期望值由 .NET 算出 | RFC-0012「标识」 |
+| `objectstorage/blob-content-types.json` | 对象内容类型文法的合法与不合法样例（token 字符、参数、255 个字符的上限两侧），期望值由 .NET 算出 | RFC-0012「标识」 |
+| `objectstorage/blob-ranges.json` | 范围读取：起点、可选的长度与总长，到实际范围（超出末尾截断）或不可满足，期望值由 .NET 算出 | RFC-0012「范围读取、分片上传与预签名」 |
+| `objectstorage/multipart-parts.json` | 分片编号的范围（1–10000）、分片的最小字节数与完成清单的编号次序，期望值由 .NET 算出 | RFC-0012「范围读取、分片上传与预签名」 |
+| `objectstorage/store-definitions.json` | 命名存储实例：实例名的文法、内置的 Provider 名、两个定义是不是同一个定义，期望值由 .NET 算出 | RFC-0012「命名存储实例」 |
 | `security/webauthn.json` | WebAuthn 注册与认证的样例响应、存储的凭据与期望结果（成功的凭据与签名计数，失败的错误码与 `reason`） | RFC-0008「WebAuthn」 |
 | `provider/caching-distributed.json` | `caching.distributed@1` 远程 Provider 的操作 ID（含批量）、请求 / 响应样例、非法键与选项 | `provider/caching-distributed.md` |
 
@@ -56,6 +63,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | --- | --- |
 | `rules/messaging.go` | 死信主题（`DeadLetterTopic`）、扩展属性名与 Baggage 键的对应（`IsEnvelopeExtensionName`、`EnvelopeBaggageMappings`）、实例标识（`IsMessagingInstanceID`）、发件箱的退避与进死信（`OutboxRetryDelay`、`OutboxDeadLettered`）、结构化 JSON 信封的读取（`DecodeCloudEvent`）；主题文法是 `IsTopic` |
 | `rules/multitenancy.go` | 租户 ID（`IsTenantID`）、Tenant 阶段的裁定（`ResolveTenant`）、从租户属性推出分片（`TenantShardFromProperties`） |
+| `rules/objectstorage.go` | 容器名（`IsContainerName`）、对象键与保留前缀（`IsBlobKey`、`IsReservedBlobKey`）、自定义元数据（`IsBlobMetadataName`、`IsBlobMetadata`，合计按 UTF-8 字节计）、内容类型（`IsBlobContentType`）、范围读取（`ResolveBlobRange`）、分片编号与完成清单（`IsBlobPartNumber`、`IsBlobPartManifest`）、命名存储实例（`IsBlobStoreName`、`IsBlobStoreProvider`、`SameBlobStoreDefinition`） |
 
 ## 黑盒运行器（`cmd/xihan-conformance`）
 
