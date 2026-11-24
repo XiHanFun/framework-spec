@@ -1,0 +1,228 @@
+{
+  "$comment": "作业重试的等待时间与重试策略的取值范围（RFC-0013「作业与触发器」的重试，ADR-0060、ADR-0277）。waits：backoff 是 Fixed（每次都等 Delay）或 Exponential（第 n 次重试等 Delay × 2 的 n − 1 次方），delayMs 是第一次重试前的等待，maxDelayMs 是指数退避的上限（null 表示不设），retry 是第几次重试（从 1 起），waitMs 是这次重试前的等待；指数退避算出的等待超过上限取上限，没设上限时超过 30 天按 30 天，次数再多也不得溢出。policies：MaxRetries 在 1 到 maxRetries 之间，等待大于零且不超过 limitMs（30 天），上限（给了的话）同样大于零且不超过 30 天；valid 是这组取值是否合法。时间都以毫秒计。等待的期望值由 .NET 参考实现（JobRetryPolicy.DelayFor）算出并与正文的公式逐条对过，取值范围由 JobRetryPolicy 的构造是否抛出算出。",
+  "maxRetries": 100,
+  "limitMs": 2592000000,
+  "waits": [
+    {
+      "name": "固定间隔，第 1 次重试",
+      "backoff": "Fixed",
+      "delayMs": 30000,
+      "maxDelayMs": null,
+      "retry": 1,
+      "waitMs": 30000
+    },
+    {
+      "name": "固定间隔，第 5 次重试",
+      "backoff": "Fixed",
+      "delayMs": 30000,
+      "maxDelayMs": null,
+      "retry": 5,
+      "waitMs": 30000
+    },
+    {
+      "name": "固定间隔，第 100 次重试",
+      "backoff": "Fixed",
+      "delayMs": 30000,
+      "maxDelayMs": null,
+      "retry": 100,
+      "waitMs": 30000
+    },
+    {
+      "name": "指数退避，第 1 次重试",
+      "backoff": "Exponential",
+      "delayMs": 10000,
+      "maxDelayMs": null,
+      "retry": 1,
+      "waitMs": 10000
+    },
+    {
+      "name": "指数退避，第 2 次重试",
+      "backoff": "Exponential",
+      "delayMs": 10000,
+      "maxDelayMs": null,
+      "retry": 2,
+      "waitMs": 20000
+    },
+    {
+      "name": "指数退避，第 3 次重试",
+      "backoff": "Exponential",
+      "delayMs": 10000,
+      "maxDelayMs": null,
+      "retry": 3,
+      "waitMs": 40000
+    },
+    {
+      "name": "指数退避，第 10 次重试",
+      "backoff": "Exponential",
+      "delayMs": 10000,
+      "maxDelayMs": null,
+      "retry": 10,
+      "waitMs": 5120000
+    },
+    {
+      "name": "指数退避不设上限：还在 30 天以内",
+      "backoff": "Exponential",
+      "delayMs": 10000,
+      "maxDelayMs": null,
+      "retry": 18,
+      "waitMs": 1310720000
+    },
+    {
+      "name": "指数退避不设上限：超过 30 天按 30 天",
+      "backoff": "Exponential",
+      "delayMs": 10000,
+      "maxDelayMs": null,
+      "retry": 19,
+      "waitMs": 2592000000
+    },
+    {
+      "name": "指数退避不设上限：第 100 次重试不溢出",
+      "backoff": "Exponential",
+      "delayMs": 10000,
+      "maxDelayMs": null,
+      "retry": 100,
+      "waitMs": 2592000000
+    },
+    {
+      "name": "指数退避带上限：还没到上限",
+      "backoff": "Exponential",
+      "delayMs": 10000,
+      "maxDelayMs": 60000,
+      "retry": 3,
+      "waitMs": 40000
+    },
+    {
+      "name": "指数退避带上限：超过即取上限",
+      "backoff": "Exponential",
+      "delayMs": 10000,
+      "maxDelayMs": 60000,
+      "retry": 4,
+      "waitMs": 60000
+    },
+    {
+      "name": "指数退避带上限：翻倍后正好等于上限",
+      "backoff": "Exponential",
+      "delayMs": 15000,
+      "maxDelayMs": 60000,
+      "retry": 3,
+      "waitMs": 60000
+    },
+    {
+      "name": "指数退避带上限：第 100 次重试",
+      "backoff": "Exponential",
+      "delayMs": 10000,
+      "maxDelayMs": 60000,
+      "retry": 100,
+      "waitMs": 60000
+    },
+    {
+      "name": "指数退避：间隔已经是 30 天",
+      "backoff": "Exponential",
+      "delayMs": 2592000000,
+      "maxDelayMs": null,
+      "retry": 2,
+      "waitMs": 2592000000
+    },
+    {
+      "name": "指数退避：毫秒级的间隔",
+      "backoff": "Exponential",
+      "delayMs": 250,
+      "maxDelayMs": null,
+      "retry": 5,
+      "waitMs": 4000
+    }
+  ],
+  "policies": [
+    {
+      "name": "最少 1 次重试",
+      "maxRetries": 1,
+      "delayMs": 1000,
+      "maxDelayMs": null,
+      "valid": true
+    },
+    {
+      "name": "最多 100 次重试",
+      "maxRetries": 100,
+      "delayMs": 1000,
+      "maxDelayMs": null,
+      "valid": true
+    },
+    {
+      "name": "等待 1 毫秒",
+      "maxRetries": 3,
+      "delayMs": 1,
+      "maxDelayMs": null,
+      "valid": true
+    },
+    {
+      "name": "等待正好 30 天",
+      "maxRetries": 3,
+      "delayMs": 2592000000,
+      "maxDelayMs": null,
+      "valid": true
+    },
+    {
+      "name": "上限正好 30 天",
+      "maxRetries": 3,
+      "delayMs": 1000,
+      "maxDelayMs": 2592000000,
+      "valid": true
+    },
+    {
+      "name": "重试 0 次",
+      "maxRetries": 0,
+      "delayMs": 1000,
+      "maxDelayMs": null,
+      "valid": false
+    },
+    {
+      "name": "重试次数为负",
+      "maxRetries": -1,
+      "delayMs": 1000,
+      "maxDelayMs": null,
+      "valid": false
+    },
+    {
+      "name": "重试 101 次",
+      "maxRetries": 101,
+      "delayMs": 1000,
+      "maxDelayMs": null,
+      "valid": false
+    },
+    {
+      "name": "等待为 0",
+      "maxRetries": 3,
+      "delayMs": 0,
+      "maxDelayMs": null,
+      "valid": false
+    },
+    {
+      "name": "等待为负",
+      "maxRetries": 3,
+      "delayMs": -1000,
+      "maxDelayMs": null,
+      "valid": false
+    },
+    {
+      "name": "等待超过 30 天",
+      "maxRetries": 3,
+      "delayMs": 2592000001,
+      "maxDelayMs": null,
+      "valid": false
+    },
+    {
+      "name": "上限为 0",
+      "maxRetries": 3,
+      "delayMs": 1000,
+      "maxDelayMs": 0,
+      "valid": false
+    },
+    {
+      "name": "上限超过 30 天",
+      "maxRetries": 3,
+      "delayMs": 1000,
+      "maxDelayMs": 2592000001,
+      "valid": false
+    }
+  ]
+}

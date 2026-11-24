@@ -183,7 +183,12 @@
       "title": "子系统：调度与领导选举",
       "stability": "stable",
       "documents": ["rfcs/0013-scheduling.md"],
-      "vectors": [],
+      "vectors": [
+        "scheduling/cron-expressions.json",
+        "scheduling/event-topics.json",
+        "scheduling/job-names.json",
+        "scheduling/retry-delays.json"
+      ],
       "runner": []
     },
     {

@@ -610,6 +610,10 @@ var typedVectors = []TypedVector{
 	vectorFile[TraceContextVectors]("primitives/trace-context.json"),
 	vectorFile[WireEncodingVectors]("primitives/wire-encoding.json"),
 	vectorFile[CachingDistributedVectors]("provider/caching-distributed.json"),
+	vectorFile[CronExpressionVectors]("scheduling/cron-expressions.json"),
+	vectorFile[SchedulingEventTopicVectors]("scheduling/event-topics.json"),
+	vectorFile[JobNameVectors]("scheduling/job-names.json"),
+	vectorFile[JobRetryDelayVectors]("scheduling/retry-delays.json"),
 	vectorFile[WebAuthnVectors]("security/webauthn.json"),
 }
 

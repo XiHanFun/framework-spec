@@ -1,0 +1,663 @@
+{
+  "$comment": "cron 表达式与下一次触发（RFC-0013「作业与触发器」的 cron，ADR-0277）。表达式是 5 段（分 时 日 月 星期，秒为 0）或 6 段（秒 分 时 日 月 星期），可选第 7 段年份；各段可写 *、列表、范围与步长，月与星期可写英文缩写名（JAN–DEC、SUN–SAT），日与星期可写 ?，日还可写 L、L-n、nW、LW，星期还可写 nL、n#k；星期 0 与 7 是周日、1 是周一（Unix 约定）；日与星期同时限定取并集。cases 的每项：expression 是表达式，timeZone 是 IANA 时区名（null 表示 UTC），after 是起点，next 是从 after 起依次推算的触发时刻（UTC）——每一个都严格晚于前一个（第一个严格晚于 after），按该时区的墙上时间匹配；夏令时开始时被跳过的墙上时间不运行，结束时重复的墙上时间只运行第一次。exhausted 为真表示 next 列完之后再没有下一次（搜索上限 5 年之内没有匹配的时刻），next 为空即一次也没有。invalid 是必须拒绝的表达式。月名与星期名的小写、段之间的制表符与多个空格、单个值带步长（10/15）、年份的取值范围正文没有写，不在这张表里。期望值由 .NET 参考实现（CronExpression.TryParse、CronExpression.Next）算出；时区用例取规则多年不变的时区与日期。",
+  "cases": [
+    {
+      "name": "5 段：每分钟，秒为 0",
+      "expression": "* * * * *",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:30Z",
+      "next": [
+        "2026-01-01T00:01:00Z",
+        "2026-01-01T00:02:00Z",
+        "2026-01-01T00:03:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "6 段带秒：每 15 秒",
+      "expression": "*/15 * * * * *",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-01T00:00:15Z",
+        "2026-01-01T00:00:30Z",
+        "2026-01-01T00:00:45Z",
+        "2026-01-01T00:01:00Z",
+        "2026-01-01T00:01:15Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "秒的列表",
+      "expression": "5,10 * * * * *",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:07Z",
+      "next": [
+        "2026-01-01T00:00:10Z",
+        "2026-01-01T00:01:05Z",
+        "2026-01-01T00:01:10Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "after 正好是触发点时取下一个",
+      "expression": "0 0 * * *",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-02T00:00:00Z",
+        "2026-01-03T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "after 带小数秒：从下一个整秒起",
+      "expression": "* * * * * *",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00.500Z",
+      "next": [
+        "2026-01-01T00:00:01Z",
+        "2026-01-01T00:00:02Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "列表与范围",
+      "expression": "0 0,30 8-10 * * *",
+      "timeZone": null,
+      "after": "2026-01-01T09:15:00Z",
+      "next": [
+        "2026-01-01T09:30:00Z",
+        "2026-01-01T10:00:00Z",
+        "2026-01-01T10:30:00Z",
+        "2026-01-02T08:00:00Z",
+        "2026-01-02T08:30:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "范围带步长",
+      "expression": "0 0-30/10 * * * *",
+      "timeZone": null,
+      "after": "2026-01-01T00:05:00Z",
+      "next": [
+        "2026-01-01T00:10:00Z",
+        "2026-01-01T00:20:00Z",
+        "2026-01-01T00:30:00Z",
+        "2026-01-01T01:00:00Z",
+        "2026-01-01T01:10:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "星号带步长",
+      "expression": "0 0 */6 * * *",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-01T06:00:00Z",
+        "2026-01-01T12:00:00Z",
+        "2026-01-01T18:00:00Z",
+        "2026-01-02T00:00:00Z",
+        "2026-01-02T06:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "跨年",
+      "expression": "0 59 23 31 12 *",
+      "timeZone": null,
+      "after": "2026-12-31T23:59:00Z",
+      "next": [
+        "2027-12-31T23:59:00Z",
+        "2028-12-31T23:59:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "月名",
+      "expression": "0 0 0 1 JAN,JUL *",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-07-01T00:00:00Z",
+        "2027-01-01T00:00:00Z",
+        "2027-07-01T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "月的范围",
+      "expression": "0 0 0 1 MAR-MAY *",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-03-01T00:00:00Z",
+        "2026-04-01T00:00:00Z",
+        "2026-05-01T00:00:00Z",
+        "2027-03-01T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "星期名的范围：工作日 9 点",
+      "expression": "0 0 9 * * MON-FRI",
+      "timeZone": null,
+      "after": "2026-01-02T10:00:00Z",
+      "next": [
+        "2026-01-05T09:00:00Z",
+        "2026-01-06T09:00:00Z",
+        "2026-01-07T09:00:00Z",
+        "2026-01-08T09:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "5 段里的星期名列表",
+      "expression": "30 8 * * MON,WED,FRI",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-02T08:30:00Z",
+        "2026-01-05T08:30:00Z",
+        "2026-01-07T08:30:00Z",
+        "2026-01-09T08:30:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "星期 0 是周日",
+      "expression": "0 0 12 * * 0",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-04T12:00:00Z",
+        "2026-01-11T12:00:00Z",
+        "2026-01-18T12:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "星期 7 也是周日",
+      "expression": "0 0 12 * * 7",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-04T12:00:00Z",
+        "2026-01-11T12:00:00Z",
+        "2026-01-18T12:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "星期 1 是周一（Unix 约定）",
+      "expression": "0 0 12 * * 1",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-05T12:00:00Z",
+        "2026-01-12T12:00:00Z",
+        "2026-01-19T12:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "星期的范围到 7：周五到周日",
+      "expression": "0 0 12 * * 5-7",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-02T12:00:00Z",
+        "2026-01-03T12:00:00Z",
+        "2026-01-04T12:00:00Z",
+        "2026-01-09T12:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "? 在日上",
+      "expression": "0 0 0 ? * *",
+      "timeZone": null,
+      "after": "2026-01-30T00:00:00Z",
+      "next": [
+        "2026-01-31T00:00:00Z",
+        "2026-02-01T00:00:00Z",
+        "2026-02-02T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "? 在星期上",
+      "expression": "0 0 0 * * ?",
+      "timeZone": null,
+      "after": "2026-01-30T00:00:00Z",
+      "next": [
+        "2026-01-31T00:00:00Z",
+        "2026-02-01T00:00:00Z",
+        "2026-02-02T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "日与星期同时限定取并集",
+      "expression": "0 0 0 13 * FRI",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-02T00:00:00Z",
+        "2026-01-09T00:00:00Z",
+        "2026-01-13T00:00:00Z",
+        "2026-01-16T00:00:00Z",
+        "2026-01-23T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "L：每月最后一天",
+      "expression": "0 0 0 L * *",
+      "timeZone": null,
+      "after": "2026-01-15T00:00:00Z",
+      "next": [
+        "2026-01-31T00:00:00Z",
+        "2026-02-28T00:00:00Z",
+        "2026-03-31T00:00:00Z",
+        "2026-04-30T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "L：闰年的二月",
+      "expression": "0 0 0 L 2 *",
+      "timeZone": null,
+      "after": "2027-03-01T00:00:00Z",
+      "next": [
+        "2028-02-29T00:00:00Z",
+        "2029-02-28T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "L-2：倒数第三天",
+      "expression": "0 0 0 L-2 * *",
+      "timeZone": null,
+      "after": "2026-01-15T00:00:00Z",
+      "next": [
+        "2026-01-29T00:00:00Z",
+        "2026-02-26T00:00:00Z",
+        "2026-03-29T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "15W：离 15 日最近的工作日",
+      "expression": "0 0 0 15W * *",
+      "timeZone": null,
+      "after": "2026-08-01T00:00:00Z",
+      "next": [
+        "2026-08-14T00:00:00Z",
+        "2026-09-15T00:00:00Z",
+        "2026-10-15T00:00:00Z",
+        "2026-11-16T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "1W：1 日是周末时不跨月",
+      "expression": "0 0 0 1W * *",
+      "timeZone": null,
+      "after": "2026-07-15T00:00:00Z",
+      "next": [
+        "2026-08-03T00:00:00Z",
+        "2026-09-01T00:00:00Z",
+        "2026-10-01T00:00:00Z",
+        "2026-11-02T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "LW：每月最后一个工作日",
+      "expression": "0 0 0 LW * *",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-30T00:00:00Z",
+        "2026-02-27T00:00:00Z",
+        "2026-03-31T00:00:00Z",
+        "2026-04-30T00:00:00Z",
+        "2026-05-29T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "5L：每月最后一个周五",
+      "expression": "0 0 0 ? * 5L",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-30T00:00:00Z",
+        "2026-02-27T00:00:00Z",
+        "2026-03-27T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "MON#2：每月第二个周一",
+      "expression": "0 0 0 ? * MON#2",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-12T00:00:00Z",
+        "2026-02-09T00:00:00Z",
+        "2026-03-09T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "FRI#5：没有第五个周五的月份跳过",
+      "expression": "0 0 0 ? * FRI#5",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-30T00:00:00Z",
+        "2026-05-29T00:00:00Z",
+        "2026-07-31T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "第 7 段年份：只在那一年",
+      "expression": "0 0 0 1 1 ? 2028",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2028-01-01T00:00:00Z"
+      ],
+      "exhausted": true
+    },
+    {
+      "name": "年份的列表",
+      "expression": "0 0 0 1 6 ? 2027,2029",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2027-06-01T00:00:00Z",
+        "2029-06-01T00:00:00Z"
+      ],
+      "exhausted": true
+    },
+    {
+      "name": "闰日：下一次在两年后，再下一次在四年后",
+      "expression": "0 0 0 29 2 *",
+      "timeZone": null,
+      "after": "2026-03-01T00:00:00Z",
+      "next": [
+        "2028-02-29T00:00:00Z",
+        "2032-02-29T00:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "不存在的日期：搜索上限之内没有",
+      "expression": "0 0 0 30 2 *",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [],
+      "exhausted": true
+    },
+    {
+      "name": "年份已经过去",
+      "expression": "0 0 0 1 1 ? 2020",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [],
+      "exhausted": true
+    },
+    {
+      "name": "年份超出搜索上限",
+      "expression": "0 0 0 1 1 ? 2040",
+      "timeZone": null,
+      "after": "2026-01-01T00:00:00Z",
+      "next": [],
+      "exhausted": true
+    },
+    {
+      "name": "按时区的墙上时间",
+      "expression": "0 0 9 * * *",
+      "timeZone": "Asia/Shanghai",
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-01T01:00:00Z",
+        "2026-01-02T01:00:00Z",
+        "2026-01-03T01:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "时区的日期与 UTC 不同：按时区的星期",
+      "expression": "0 0 1 * * MON",
+      "timeZone": "Asia/Shanghai",
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-04T17:00:00Z",
+        "2026-01-11T17:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "半小时偏移的时区",
+      "expression": "0 30 9 * * *",
+      "timeZone": "Asia/Kolkata",
+      "after": "2026-01-01T00:00:00Z",
+      "next": [
+        "2026-01-01T04:00:00Z",
+        "2026-01-02T04:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "夏令时开始：被跳过的墙上时间不运行（纽约）",
+      "expression": "0 30 2 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-03-07T00:00:00Z",
+      "next": [
+        "2026-03-07T07:30:00Z",
+        "2026-03-09T06:30:00Z",
+        "2026-03-10T06:30:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "夏令时开始：被跳过的墙上时间不运行（柏林）",
+      "expression": "0 30 2 * * *",
+      "timeZone": "Europe/Berlin",
+      "after": "2026-03-28T00:00:00Z",
+      "next": [
+        "2026-03-28T01:30:00Z",
+        "2026-03-30T00:30:00Z",
+        "2026-03-31T00:30:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "夏令时结束：重复的墙上时间只运行第一次",
+      "expression": "0 30 1 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-10-31T00:00:00Z",
+      "next": [
+        "2026-10-31T05:30:00Z",
+        "2026-11-01T05:30:00Z",
+        "2026-11-02T06:30:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "夏令时结束：重复的那一小时里每个触发点各一次",
+      "expression": "0 0,30 1 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-11-01T04:59:00Z",
+      "next": [
+        "2026-11-01T05:00:00Z",
+        "2026-11-01T05:30:00Z",
+        "2026-11-02T06:00:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "after 落在重复时刻的第二次出现：不再运行这一天的",
+      "expression": "0 30 1 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-11-01T06:15:00Z",
+      "next": [
+        "2026-11-02T06:30:00Z",
+        "2026-11-03T06:30:00Z"
+      ],
+      "exhausted": false
+    },
+    {
+      "name": "夏令时前后偏移不同",
+      "expression": "0 0 12 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-03-07T00:00:00Z",
+      "next": [
+        "2026-03-07T17:00:00Z",
+        "2026-03-08T16:00:00Z",
+        "2026-03-09T16:00:00Z"
+      ],
+      "exhausted": false
+    }
+  ],
+  "invalid": [
+    {
+      "name": "空",
+      "expression": ""
+    },
+    {
+      "name": "只有空格",
+      "expression": "   "
+    },
+    {
+      "name": "4 段",
+      "expression": "* * * *"
+    },
+    {
+      "name": "8 段",
+      "expression": "* * * * * * * *"
+    },
+    {
+      "name": "秒超出范围",
+      "expression": "60 * * * * *"
+    },
+    {
+      "name": "分超出范围",
+      "expression": "60 * * * *"
+    },
+    {
+      "name": "时超出范围",
+      "expression": "0 24 * * *"
+    },
+    {
+      "name": "日为 0",
+      "expression": "0 0 0 * *"
+    },
+    {
+      "name": "日超出范围",
+      "expression": "0 0 32 * *"
+    },
+    {
+      "name": "月为 0",
+      "expression": "0 0 1 0 *"
+    },
+    {
+      "name": "月超出范围",
+      "expression": "0 0 1 13 *"
+    },
+    {
+      "name": "星期超出范围",
+      "expression": "0 0 * * 8"
+    },
+    {
+      "name": "不认识的月名",
+      "expression": "0 0 1 FOO *"
+    },
+    {
+      "name": "不认识的星期名",
+      "expression": "0 0 * * FUNDAY"
+    },
+    {
+      "name": "月名写在星期上",
+      "expression": "0 0 * * JAN"
+    },
+    {
+      "name": "星期名写在月上",
+      "expression": "0 0 1 MON *"
+    },
+    {
+      "name": "步长为 0",
+      "expression": "*/0 * * * *"
+    },
+    {
+      "name": "步长不是数字",
+      "expression": "*/a * * * *"
+    },
+    {
+      "name": "范围的起点在终点之后",
+      "expression": "30-10 * * * *"
+    },
+    {
+      "name": "? 写在分上",
+      "expression": "? * * * *"
+    },
+    {
+      "name": "? 写在月上",
+      "expression": "0 0 1 ? *"
+    },
+    {
+      "name": "列表里有空项",
+      "expression": "1,,2 * * * *"
+    },
+    {
+      "name": "列表以逗号结尾",
+      "expression": "1, * * * *"
+    },
+    {
+      "name": "字母",
+      "expression": "a * * * *"
+    },
+    {
+      "name": "负数",
+      "expression": "-1 * * * *"
+    },
+    {
+      "name": "小数",
+      "expression": "1.5 * * * *"
+    },
+    {
+      "name": "L 写在分上",
+      "expression": "L * * * *"
+    },
+    {
+      "name": "W 前面没有日",
+      "expression": "0 0 W * *"
+    },
+    {
+      "name": "W 前面的日超出范围",
+      "expression": "0 0 32W * *"
+    },
+    {
+      "name": "# 后面是 0",
+      "expression": "0 0 ? * MON#0"
+    },
+    {
+      "name": "# 后面是 6",
+      "expression": "0 0 ? * MON#6"
+    },
+    {
+      "name": "# 前面没有星期",
+      "expression": "0 0 ? * #2"
+    },
+    {
+      "name": "L 前面的星期超出范围",
+      "expression": "0 0 ? * 8L"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "$comment": "调度里名字的文法（RFC-0013「作业与触发器」，ADR-0277）：^[a-z0-9][a-z0-9._-]{0,127}$，与消息主题同一条文法，不超过 maxLength 个字符；作业名、触发器名与领导选举的资源名都用它；按整串匹配，结尾的换行不例外。valid 必须接受（其中 default 是便利构造生成的触发器名，manual-<id> 是手动入队的一次性触发器名的形状，scheduling.jobs 是引擎缺省的租约资源名），invalid 必须拒绝；valid 的末项正好 128 个字符，invalid 的末两项是 129 与 200 个字符、别处都合文法。期望值由 .NET 参考实现（JobName.IsValid）算出。",
+  "maxLength": 128,
+  "valid": [
+    "cleanup",
+    "reports.daily",
+    "billing_close",
+    "orders-sync",
+    "default",
+    "manual-0190b3c47d1e7c3a9f5b2a1c3d4e5f60",
+    "scheduling.jobs",
+    "a",
+    "0",
+    "9to5",
+    "a..b",
+    "a.",
+    "a-",
+    "a_",
+    "j012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789abcdefg"
+  ],
+  "invalid": [
+    "",
+    "Cleanup",
+    "reports.Daily",
+    ".cleanup",
+    "-cleanup",
+    "_cleanup",
+    "daily report",
+    " cleanup",
+    "cleanup ",
+    "cleanup\n",
+    "reports/daily",
+    "reports:daily",
+    "cleanup@node-1",
+    "cleanup*",
+    "清理",
+    "cléanup",
+    "ｃleanup",
+    "j012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789abcdefgh",
+    "jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj"
+  ]
+}

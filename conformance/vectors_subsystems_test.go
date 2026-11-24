@@ -215,4 +215,64 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 		uniqueNames(t, "store definitions", names)
 		return definitions
 	},
+	"scheduling/job-names.json": func(t *testing.T) any {
+		names, err := conformance.JobNames()
+		if err != nil || names.MaxLength != 128 || len(names.Valid) == 0 || len(names.Invalid) == 0 {
+			t.Errorf("job names: %v", err)
+		}
+		return names
+	},
+	"scheduling/cron-expressions.json": func(t *testing.T) any {
+		cron, err := conformance.CronExpressions()
+		if err != nil || len(cron.Cases) == 0 || len(cron.Invalid) == 0 {
+			t.Errorf("cron expressions: %v", err)
+		}
+		var names []string
+		zoned, exhausted := false, false
+		for _, c := range cron.Cases {
+			names = append(names, c.Name)
+			if c.Expression == "" || c.After == "" || c.Next == nil || (len(c.Next) == 0 && !c.Exhausted) {
+				t.Errorf("cron case %q is incomplete: it needs an expression, a start and its occurrences (an empty array only when exhausted)", c.Name)
+			}
+			zoned = zoned || c.TimeZone != nil
+			exhausted = exhausted || c.Exhausted
+		}
+		if !zoned || !exhausted {
+			t.Error("cron expressions must keep cases in a time zone and cases that run out of occurrences")
+		}
+		uniqueNames(t, "cron cases", names)
+		names = nil
+		for _, c := range cron.Invalid {
+			names = append(names, c.Name)
+		}
+		uniqueNames(t, "cron rejections", names)
+		return cron
+	},
+	"scheduling/retry-delays.json": func(t *testing.T) any {
+		delays, err := conformance.JobRetryDelays()
+		if err != nil || delays.MaxRetries != 100 || delays.LimitMs <= 0 || len(delays.Waits) == 0 || len(delays.Policies) == 0 {
+			t.Errorf("retry delays: %v", err)
+		}
+		var names []string
+		for _, c := range delays.Waits {
+			names = append(names, c.Name)
+			if c.DelayMs <= 0 || c.Retry < 1 || c.WaitMs <= 0 {
+				t.Errorf("retry wait case %q is incomplete", c.Name)
+			}
+		}
+		uniqueNames(t, "retry waits", names)
+		names = nil
+		for _, c := range delays.Policies {
+			names = append(names, c.Name)
+		}
+		uniqueNames(t, "retry policies", names)
+		return delays
+	},
+	"scheduling/event-topics.json": func(t *testing.T) any {
+		events, err := conformance.SchedulingEventTopics()
+		if err != nil || events.Source == "" || len(events.Topics) != 9 {
+			t.Errorf("scheduling event topics: %v", err)
+		}
+		return events
+	},
 }

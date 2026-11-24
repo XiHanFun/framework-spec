@@ -394,3 +394,87 @@ func MultipartParts() (MultipartPartVectors, error) {
 func BlobStoreDefinitions() (BlobStoreDefinitionVectors, error) {
 	return typed[BlobStoreDefinitionVectors]()
 }
+
+// JobNameVectors 对应 scheduling/job-names.json（RFC-0013「作业与触发器」，ADR-0277）。
+type JobNameVectors struct {
+	MaxLength int      `json:"maxLength"`
+	Valid     []string `json:"valid"`
+	Invalid   []string `json:"invalid"`
+}
+
+// CronCase 是一条 cron 表达式与从 After 起依次推算的触发时刻（UTC）：TimeZone 为 nil 表示 UTC，
+// Exhausted 为真表示 Next 列完之后再没有下一次。
+type CronCase struct {
+	Name       string   `json:"name"`
+	Expression string   `json:"expression"`
+	TimeZone   *string  `json:"timeZone"`
+	After      string   `json:"after"`
+	Next       []string `json:"next"`
+	Exhausted  bool     `json:"exhausted"`
+}
+
+// CronRejection 是一条必须拒绝的 cron 表达式。
+type CronRejection struct {
+	Name       string `json:"name"`
+	Expression string `json:"expression"`
+}
+
+// CronExpressionVectors 对应 scheduling/cron-expressions.json（RFC-0013「作业与触发器」的 cron，ADR-0277）。
+type CronExpressionVectors struct {
+	Cases   []CronCase      `json:"cases"`
+	Invalid []CronRejection `json:"invalid"`
+}
+
+// JobRetryWaitCase 是一次重试前的等待：Backoff 是 Fixed 或 Exponential，MaxDelayMs 为 nil 表示不设上限，Retry 从 1 起。
+type JobRetryWaitCase struct {
+	Name       string `json:"name"`
+	Backoff    string `json:"backoff"`
+	DelayMs    int64  `json:"delayMs"`
+	MaxDelayMs *int64 `json:"maxDelayMs"`
+	Retry      int    `json:"retry"`
+	WaitMs     int64  `json:"waitMs"`
+}
+
+// JobRetryPolicyCase 是一组重试策略的取值与它是否合法。
+type JobRetryPolicyCase struct {
+	Name       string `json:"name"`
+	MaxRetries int    `json:"maxRetries"`
+	DelayMs    int64  `json:"delayMs"`
+	MaxDelayMs *int64 `json:"maxDelayMs"`
+	Valid      bool   `json:"valid"`
+}
+
+// JobRetryDelayVectors 对应 scheduling/retry-delays.json（RFC-0013「作业与触发器」的重试，ADR-0277）：
+// MaxRetries 是重试次数的上限，LimitMs 是等待与上限的上限（毫秒）。
+type JobRetryDelayVectors struct {
+	MaxRetries int                  `json:"maxRetries"`
+	LimitMs    int64                `json:"limitMs"`
+	Waits      []JobRetryWaitCase   `json:"waits"`
+	Policies   []JobRetryPolicyCase `json:"policies"`
+}
+
+// SchedulingEventTopicVectors 对应 scheduling/event-topics.json（RFC-0013「引擎」的事件，ADR-0277）。
+type SchedulingEventTopicVectors struct {
+	Source string   `json:"source"`
+	Topics []string `json:"topics"`
+}
+
+// JobNames 读取调度里名字文法的向量。
+func JobNames() (JobNameVectors, error) {
+	return typed[JobNameVectors]()
+}
+
+// CronExpressions 读取 cron 表达式与下一次触发的向量。
+func CronExpressions() (CronExpressionVectors, error) {
+	return typed[CronExpressionVectors]()
+}
+
+// JobRetryDelays 读取作业重试的等待与重试策略取值范围的向量。
+func JobRetryDelays() (JobRetryDelayVectors, error) {
+	return typed[JobRetryDelayVectors]()
+}
+
+// SchedulingEventTopics 读取调度事件主题的向量。
+func SchedulingEventTopics() (SchedulingEventTopicVectors, error) {
+	return typed[SchedulingEventTopicVectors]()
+}

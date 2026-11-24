@@ -1,0 +1,15 @@
+{
+  "$comment": "调度发布的事件（RFC-0013「引擎」的事件，RFC-0009「流」里要预建的主题，ADR-0277）：装配了 messaging.queue 时，调度把作业与运行的变化作为 CloudEvents 信封发布，信封的 source 是 source，主题与 type 都是 topics 里的名字，共 9 个；每个名字都合主题文法（RFC-0009）。broker 关闭了自动建主题的部署要预先建好这 9 个主题。期望值取自 .NET 参考实现（SchedulingTopics）的常量。",
+  "source": "/scheduling",
+  "topics": [
+    "scheduling.job.scheduled",
+    "scheduling.job.unscheduled",
+    "scheduling.job.paused",
+    "scheduling.job.resumed",
+    "scheduling.run.started",
+    "scheduling.run.succeeded",
+    "scheduling.run.failed",
+    "scheduling.run.canceled",
+    "scheduling.run.lost"
+  ]
+}

@@ -48,6 +48,10 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `objectstorage/blob-ranges.json` | 范围读取：起点、可选的长度与总长，到实际范围（超出末尾截断）或不可满足，期望值由 .NET 算出 | RFC-0012「范围读取、分片上传与预签名」 |
 | `objectstorage/multipart-parts.json` | 分片编号的范围（1–10000）、分片的最小字节数与完成清单的编号次序，期望值由 .NET 算出 | RFC-0012「范围读取、分片上传与预签名」 |
 | `objectstorage/store-definitions.json` | 命名存储实例：实例名的文法、内置的 Provider 名、两个定义是不是同一个定义，期望值由 .NET 算出 | RFC-0012「命名存储实例」 |
+| `scheduling/job-names.json` | 作业名、触发器名与领导选举资源名的文法（与主题相同，含 128 个字符的上限两侧），期望值由 .NET 算出 | RFC-0013「作业与触发器」 |
+| `scheduling/cron-expressions.json` | cron 表达式：5、6、7 段，列表、范围、步长、名字、`?`、`L`、`L-n`、`nW`、`LW`、`nL`、`n#k`，从起点依次推算的触发时刻（含时区与夏令时的跳过、重复），搜索上限之内没有的，必须拒绝的表达式；期望值由 .NET 算出 | RFC-0013「作业与触发器」 |
+| `scheduling/retry-delays.json` | 作业重试前的等待（固定间隔与指数退避、上限、30 天）与重试策略的取值范围，期望值由 .NET 算出 | RFC-0013「作业与触发器」 |
+| `scheduling/event-topics.json` | 调度发布的 9 个事件主题与信封的 `source` | RFC-0013「引擎」 |
 | `security/webauthn.json` | WebAuthn 注册与认证的样例响应、存储的凭据与期望结果（成功的凭据与签名计数，失败的错误码与 `reason`） | RFC-0008「WebAuthn」 |
 | `provider/caching-distributed.json` | `caching.distributed@1` 远程 Provider 的操作 ID（含批量）、请求 / 响应样例、非法键与选项 | `provider/caching-distributed.md` |
 
@@ -64,6 +68,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `rules/messaging.go` | 死信主题（`DeadLetterTopic`）、扩展属性名与 Baggage 键的对应（`IsEnvelopeExtensionName`、`EnvelopeBaggageMappings`）、实例标识（`IsMessagingInstanceID`）、发件箱的退避与进死信（`OutboxRetryDelay`、`OutboxDeadLettered`）、结构化 JSON 信封的读取（`DecodeCloudEvent`）；主题文法是 `IsTopic` |
 | `rules/multitenancy.go` | 租户 ID（`IsTenantID`）、Tenant 阶段的裁定（`ResolveTenant`）、从租户属性推出分片（`TenantShardFromProperties`） |
 | `rules/objectstorage.go` | 容器名（`IsContainerName`）、对象键与保留前缀（`IsBlobKey`、`IsReservedBlobKey`）、自定义元数据（`IsBlobMetadataName`、`IsBlobMetadata`，合计按 UTF-8 字节计）、内容类型（`IsBlobContentType`）、范围读取（`ResolveBlobRange`）、分片编号与完成清单（`IsBlobPartNumber`、`IsBlobPartManifest`）、命名存储实例（`IsBlobStoreName`、`IsBlobStoreProvider`、`SameBlobStoreDefinition`） |
+| `rules/scheduling.go`、`rules/cron.go` | 调度里的名字（`IsJobName`）、重试的等待与取值范围（`JobRetryWait`、`IsJobRetryPolicy`）、事件主题（`SchedulingEventTopics`）；cron 的解析与下一次触发（`ParseCron`、`CronExpression.Next`、`IsCronExpression`，与 .NET 独立实现、回放同一份向量） |
 
 ## 黑盒运行器（`cmd/xihan-conformance`）
 
