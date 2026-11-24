@@ -472,6 +472,29 @@ type CachingDistributedVectors struct {
 	Errors         map[string]string `json:"errors"`
 }
 
+// CacheKeyCase 是一条缓存键或键前缀的样例：Text 是原文，UTF8Bytes 是它的 UTF-8 字节数，
+// UTF16Units 是 UTF-16 码元数（不参与判定，只为标出按码元计会判错的用例）。
+type CacheKeyCase struct {
+	Name       string `json:"name"`
+	Text       string `json:"text"`
+	UTF8Bytes  int    `json:"utf8Bytes"`
+	UTF16Units int    `json:"utf16Units"`
+}
+
+// CacheKeyCaseSet 是一组必须接受与必须拒绝的样例。
+type CacheKeyCaseSet struct {
+	Valid   []CacheKeyCase `json:"valid"`
+	Invalid []CacheKeyCase `json:"invalid"`
+}
+
+// CacheKeyVectors 对应 caching/keys.json（RFC-0006「存储契约」与「键管理」，ADR-0276）：
+// MaxBytes 是键与前缀按 UTF-8 编码后的最大字节数，Keys 是键，Prefixes 是键前缀（与键同一条规则，只是可以为空）。
+type CacheKeyVectors struct {
+	MaxBytes int             `json:"maxBytes"`
+	Keys     CacheKeyCaseSet `json:"keys"`
+	Prefixes CacheKeyCaseSet `json:"prefixes"`
+}
+
 // WebAuthnVectors 对应 security/webauthn.json；响应与凭据保持原样，形状见 RFC-0008「WebAuthn」。
 type WebAuthnVectors struct {
 	RelyingParty   WebAuthnRelyingParty `json:"relyingParty"`
@@ -527,6 +550,7 @@ func vectorFile[T any](name string) TypedVector {
 // typedVectors 是向量文件表：每个向量文件一项，按 Names 的顺序。文件名只写在这里，类型化入口与 TypedVectors
 // （vectors 子命令与测试用它）都从这张表取；新增向量文件在这里加一行，再加一个类型化入口。
 var typedVectors = []TypedVector{
+	vectorFile[CacheKeyVectors]("caching/keys.json"),
 	vectorFile[ManifestVectors]("manifest/manifests.json"),
 	vectorFile[PayloadReasonVectors]("operations/payload-reasons.json"),
 	vectorFile[PipelineOrderingVectors]("pipeline/ordering.json"),
@@ -576,6 +600,11 @@ func WebAuthn() (WebAuthnVectors, error) {
 // CachingDistributed 读取 caching.distributed 远程 Provider 的操作集向量。
 func CachingDistributed() (CachingDistributedVectors, error) {
 	return typed[CachingDistributedVectors]()
+}
+
+// CacheKeys 读取缓存键与键前缀的文法向量。
+func CacheKeys() (CacheKeyVectors, error) {
+	return typed[CacheKeyVectors]()
 }
 
 // HandshakeLines 读取握手行向量。

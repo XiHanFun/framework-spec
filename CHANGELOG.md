@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- MAJOR（`v1.0.0` 之前允许）：缓存键与键前缀的长度按 UTF-8 编码后的字节数计，不超过 512 字节（RFC-0006「存储契约」「键管理」、`provider/caching-distributed.md` §2）；以前写「不超过 512 字符」没说单位，.NET 按 UTF-16 码元计、Go SDK 按字节计。同时写明控制字符指 Unicode 的 Cc 类；代数缓存区直写范围与条目的上限、区名的上限随之改为 128 字节。新增向量 `caching/keys.json`（档 `caching` 与 `provider:caching.distributed@1`）：正好 512 字节、513 字节、UTF-16 码元数不超而字节数超过的键，空白与控制字符；`provider/caching-distributed.json` 的 `invalidKeys` 补一个多字节的超长键；规则包新增 `rules.IsCacheKey` / `IsCacheKeyPrefix`（ADR-0276）。.NET 的 `CacheKey` 与 `GenerationCache` 要改，Go SDK 的判定本来就是字节数。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0009「投递」：被代理的停止信号打断的投递不算一次失败（不计尝试、不重试、不进死信、不了结原消息），取消只认停止信号；原位重试的代理（Kafka、Redis）每次尝试前都等应用进入服务状态，排空期间不再接着重试；派发抛出的异常记为 `MESSAGING_UNEXPECTED_001`、`reason` 只写异常类型全名或框架错误码；Redis 回收到的已超上限条目不等服务状态直接进死信。一次投递尝试的判定只有一种写法（.NET：`MessageDeliveryAttempt.RunAsync`）（ADR-0261）。只影响 .NET 的消息代理，线上与各 SDK 不变。
 - MINOR：RFC-0005 新增「管道外的工作单元」：单例存储、后台循环与健康探针在新服务作用域里开工作单元时的开始与收尾只有一种写法（.NET：`UnitOfWorkScope.RunAsync`）——成功提交、失败或抛出回滚；回滚与释放作用域自身的失败只记警告，不盖掉已经确定的结果或异常；只有令牌已取消的取消异常算取消；映射成错误时不带异常的消息文本；绑定租户分片在解析工作单元之前做（ADR-0259）。以前只写了用哪些选项，收尾不作规定。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0014 密钥库的批量读取 `GetAsync(names[])` 返回与入参同序、等长的 `Result<SecretValue>` 列表，删除带键的结果记录 `SecretLookup`（ADR-0257）；只影响 .NET 的密钥库 Provider 与调用方，线上与各 SDK 不变。

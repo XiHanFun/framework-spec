@@ -30,6 +30,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `plugin/error-reading.json` | 读入对方写来的 `Error`：错误码与消息键不合文法、`details` 不合法或溢出、`inner`、`ok` 为假却没有错误 | `plugin/invocation.md` §3 |
 | `plugin/protocol-versions.json` | 协议版本协商与原语层版本核对 | `plugin/handshake.md` |
 | `plugin/wasm-exports.json` | Wasm ABI v1 的导出与导入表 | `plugin/wasm.md` |
+| `caching/keys.json` | 缓存键与键前缀必须接受与必须拒绝的样例：长度按 UTF-8 字节计（正好 512 字节、513 字节、UTF-16 码元数不超而字节数超过）、空白与控制字符 | RFC-0006「存储契约」、`provider/caching-distributed.md` §2 |
 | `security/webauthn.json` | WebAuthn 注册与认证的样例响应、存储的凭据与期望结果（成功的凭据与签名计数，失败的错误码与 `reason`） | RFC-0008「WebAuthn」 |
 | `provider/caching-distributed.json` | `caching.distributed@1` 远程 Provider 的操作 ID（含批量）、请求 / 响应样例、非法键与选项 | `provider/caching-distributed.md` |
 
@@ -37,7 +38,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 
 ## 规则（`rules/`）
 
-规范文法与判定的 Go 实现，供运行器使用，也供 SDK 作者对照：错误码、操作 ID、主题、Baggage 键与值、清单 ID、能力 ID 与依赖文本、握手行与端点（`ParseHandshakeLine`、`ParseEndpoint`、`IsLoopbackAddress`，空白字符集 `IsWhitespace`）、宿主回调端点列表（`ParseHostAddresses`、`SelectHostEndpoint`、`FormatHostAddresses`）、截止时间（`ParseDeadline`、`FormatDeadline`、`EffectiveDeadline`）、回调失败的映射（`MapCallbackStatus`、`GRPCStatusName`、`StatusReason`、`CallbackPermission`、`CallbackPhase`）、读入对方写来的 `Error` 与 `Status`（`ReadProtoError`、`ReadProtoStatus`、`ReadDetails`）、版本协商、生命周期迁移、管道阶段、消息键与模板占位符、Result 与 Error 的线上编码（`CanonicalResult` / `CanonicalError` 给出再写出时的规范形式）、JSON 文本的共同读取检查（`CheckJSONText`，与 .NET 独立实现、回放同一份向量）。每条规则都由向量验证（`rules/rules_test.go`、`rules/messages_test.go`、`rules/plugin_test.go`）；`plugin-messages.json` 另核对模板占位符与参数一致，`callback-status.json` 的 `details` 成员与所用消息键的参数一致。模板的格式化结果由参考实现 .NET 回放 `message-templates.json` 核对，规则包不另实现一份。
+规范文法与判定的 Go 实现，供运行器使用，也供 SDK 作者对照：错误码、操作 ID、主题、Baggage 键与值、清单 ID、能力 ID 与依赖文本、缓存键与键前缀（`IsCacheKey`、`IsCacheKeyPrefix`，长度按 UTF-8 字节计）、握手行与端点（`ParseHandshakeLine`、`ParseEndpoint`、`IsLoopbackAddress`，空白字符集 `IsWhitespace`）、宿主回调端点列表（`ParseHostAddresses`、`SelectHostEndpoint`、`FormatHostAddresses`）、截止时间（`ParseDeadline`、`FormatDeadline`、`EffectiveDeadline`）、回调失败的映射（`MapCallbackStatus`、`GRPCStatusName`、`StatusReason`、`CallbackPermission`、`CallbackPhase`）、读入对方写来的 `Error` 与 `Status`（`ReadProtoError`、`ReadProtoStatus`、`ReadDetails`）、版本协商、生命周期迁移、管道阶段、消息键与模板占位符、Result 与 Error 的线上编码（`CanonicalResult` / `CanonicalError` 给出再写出时的规范形式）、JSON 文本的共同读取检查（`CheckJSONText`，与 .NET 独立实现、回放同一份向量）。每条规则都由向量验证（`rules/rules_test.go`、`rules/messages_test.go`、`rules/plugin_test.go`）；`plugin-messages.json` 另核对模板占位符与参数一致，`callback-status.json` 的 `details` 成员与所用消息键的参数一致。模板的格式化结果由参考实现 .NET 回放 `message-templates.json` 核对，规则包不另实现一份。
 
 ## 黑盒运行器（`cmd/xihan-conformance`）
 

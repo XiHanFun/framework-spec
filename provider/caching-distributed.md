@@ -1,6 +1,6 @@
 # `caching.distributed@1` 的操作集
 
-> 规范性。RFC-0019、RFC-0006。适配器参考实现：`XiHan.Framework.Caching.Remote`；插件参考实现：`framework-sdk-go` 的 `caching` 包。向量：`../conformance/vectors/provider/caching-distributed.json`。
+> 规范性。RFC-0019、RFC-0006。适配器参考实现：`XiHan.Framework.Caching.Remote`；插件参考实现：`framework-sdk-go` 的 `caching` 包。向量：`../conformance/vectors/provider/caching-distributed.json`、`../conformance/vectors/caching/keys.json`。
 
 ## 1. 操作
 
@@ -22,7 +22,7 @@
 
 ## 2. 字段
 
-- `key`：字符串，非空、不含空白与控制字符、不超过 512 字符、区分大小写。
+- `key`：字符串，非空、不含空白与控制字符、按 UTF-8 编码后不超过 512 字节、区分大小写（2026-11-24 修订，ADR-0276；以前写「不超过 512 字符」，适配器一侧的 .NET 按 UTF-16 码元计、插件一侧的 Go SDK 按字节计）。与 RFC-0006「存储契约」的键是同一条规则，向量 `../conformance/vectors/caching/keys.json`。
 - `value` / `expected`：标准 base64（RFC 4648 §4，带填充）编码的字节；空字节串编码为 `""`。字段缺失按空字节串。
 - `ttlMs`：绝对存活毫秒数，正整数。`slidingMs`：滑动过期毫秒数，正整数。二者至多给一个；都不给时用插件的默认存活时间（插件自行决定，须大于零）。
 - 响应里没有列出的字段必须忽略；请求里未知字段必须忽略。
@@ -67,3 +67,4 @@
 
 - 适配器 + 插件通过 `CacheStoreConformance` 全部用例（含 32 路并发 `try-add`、256 KiB 值、真实时间的过期与滑动过期、基于存储的分布式锁）。
 - 向量 `caching-distributed.json`：操作 ID（含三个批量操作与 `try-refresh`）、各操作的请求 / 响应样例、非法键与非法选项样例；各语言实现的单元测试以它核对编码。
+- 向量 `caching/keys.json`：键必须接受与必须拒绝的样例（长度按 UTF-8 字节计的边界、空白与控制字符）；适配器与插件判定键的代码都回放它（2026-11-24 增补，ADR-0276）。

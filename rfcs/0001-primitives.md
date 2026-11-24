@@ -106,7 +106,7 @@ XiHan 读取的 JSON 文本（Result 与 Error 的线上编码、操作载荷、
 - PHP 的 `ctype_space` 只认 ASCII。
 - RE2（Go）的 `\s` 只认 ASCII。
 
-用到它的地方：`Error` 的文案（「Result」与「Error 与 ErrorCode」）、插件握手行与回调端点（`plugin/handshake.md` §2）、读入插件错误的 `text`（`plugin/invocation.md` §3）。
+用到它的地方：`Error` 的文案（「Result」与「Error 与 ErrorCode」）、插件握手行与回调端点（`plugin/handshake.md` §2）、读入插件错误的 `text`（`plugin/invocation.md` §3）、缓存键与键前缀（RFC-0006「存储契约」）。
 
 ### Error 与 ErrorCode
 

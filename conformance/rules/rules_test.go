@@ -1,8 +1,10 @@
 package rules_test
 
 import (
+	"encoding/json"
 	"slices"
 	"testing"
+	"unicode/utf16"
 
 	"github.com/xihanfun/framework-spec/conformance"
 	"github.com/xihanfun/framework-spec/conformance/rules"
@@ -151,5 +153,88 @@ func TestGrammars(t *testing.T) {
 	}
 	if len(rules.PipelineStages) != 11 || rules.PipelineStages[0] != "ingress" || rules.PipelineStages[10] != "egress" {
 		t.Error("pipeline stages")
+	}
+}
+
+func TestCacheKeysFollowTheVectors(t *testing.T) {
+	vectors, err := conformance.CacheKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vectors.MaxBytes != rules.MaxCacheKeyBytes {
+		t.Fatalf("maxBytes = %d, want %d", vectors.MaxBytes, rules.MaxCacheKeyBytes)
+	}
+
+	// 向量里写的两个计数先核对：字节数是规范的判据，码元数只用来标出按码元计会判错的用例
+	atLimit, overOnlyInBytes := false, false
+	check := func(group string, cases []conformance.CacheKeyCase, accepts func(string) bool, want bool) {
+		for _, c := range cases {
+			if bytes := len(c.Text); bytes != c.UTF8Bytes {
+				t.Errorf("%s %q: utf8Bytes = %d, but the text is %d bytes", group, c.Name, c.UTF8Bytes, bytes)
+			}
+			if units := len(utf16.Encode([]rune(c.Text))); units != c.UTF16Units {
+				t.Errorf("%s %q: utf16Units = %d, but the text is %d code units", group, c.Name, c.UTF16Units, units)
+			}
+			if got := accepts(c.Text); got != want {
+				t.Errorf("%s %q: accepted = %v, want %v", group, c.Name, got, want)
+			}
+			atLimit = atLimit || (want && c.UTF8Bytes == vectors.MaxBytes)
+			overOnlyInBytes = overOnlyInBytes || (!want && c.UTF8Bytes > vectors.MaxBytes && c.UTF16Units <= vectors.MaxBytes)
+		}
+	}
+	check("keys.valid", vectors.Keys.Valid, rules.IsCacheKey, true)
+	check("keys.invalid", vectors.Keys.Invalid, rules.IsCacheKey, false)
+	check("prefixes.valid", vectors.Prefixes.Valid, rules.IsCacheKeyPrefix, true)
+	check("prefixes.invalid", vectors.Prefixes.Invalid, rules.IsCacheKeyPrefix, false)
+
+	// 两类边界缺一不可：正好到上限的键，以及码元数不超、字节数超过的键（只按码元计的实现会放过它）
+	if !atLimit || !overOnlyInBytes {
+		t.Errorf("the vector must keep a key of exactly %d bytes (found: %v) and a key over the limit only when counted in bytes (found: %v)", vectors.MaxBytes, atLimit, overOnlyInBytes)
+	}
+	if !rules.IsCacheKeyPrefix("") || rules.IsCacheKey("") {
+		t.Error("the empty text is a valid prefix but not a valid key")
+	}
+}
+
+func TestProviderCacheKeysFollowTheKeyGrammar(t *testing.T) {
+	vectors, err := conformance.CachingDistributed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range vectors.InvalidKeys {
+		if rules.IsCacheKey(key) {
+			t.Errorf("invalid key %q of the operation set must not be a cache key", key)
+		}
+	}
+
+	// 样例请求里的键都必须合法：单键操作在 key，批量在 keys 与 entries[].key
+	checked := 0
+	for _, sample := range vectors.Samples {
+		var request struct {
+			Key     *string  `json:"key"`
+			Keys    []string `json:"keys"`
+			Entries []struct {
+				Key string `json:"key"`
+			} `json:"entries"`
+		}
+		if err := json.Unmarshal(sample.Request, &request); err != nil {
+			t.Fatalf("%s: %v", sample.Operation, err)
+		}
+		keys := request.Keys
+		if request.Key != nil {
+			keys = append(keys, *request.Key)
+		}
+		for _, entry := range request.Entries {
+			keys = append(keys, entry.Key)
+		}
+		for _, key := range keys {
+			checked++
+			if !rules.IsCacheKey(key) {
+				t.Errorf("%s: sample key %q must be a cache key", sample.Operation, key)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no sample key was checked")
 	}
 }

@@ -1,5 +1,5 @@
 {
-  "$comment": "caching.distributed@1 的远程 Provider 操作集：操作 ID（含批量）、请求 / 响应样例、非法键与非法选项；见 spec/provider/caching-distributed.md",
+  "$comment": "caching.distributed@1 的远程 Provider 操作集：操作 ID（含批量）、请求 / 响应样例、非法键与非法选项；键的长度按 UTF-8 字节计（invalidKeys 末两项：ASCII 513 字节，三字节字符 171 个共 513 字节、UTF-16 码元数不超），键的完整样例在 caching/keys.json；见 spec/provider/caching-distributed.md",
   "capability": "caching.distributed@1",
   "operations": [
     "cache-entries.get",
@@ -234,7 +234,8 @@
     "tab\tkey",
     "line\nbreak",
     "control\u0001char",
-    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键键"
   ],
   "invalidOptions": [
     {

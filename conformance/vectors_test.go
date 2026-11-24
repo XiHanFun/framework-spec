@@ -242,6 +242,25 @@ var nonEmptyChecks = map[string]func(t *testing.T) any{
 		}
 		return caching
 	},
+	"caching/keys.json": func(t *testing.T) any {
+		keys, err := conformance.CacheKeys()
+		if err != nil || keys.MaxBytes != 512 || len(keys.Keys.Valid) == 0 || len(keys.Keys.Invalid) == 0 || len(keys.Prefixes.Valid) == 0 || len(keys.Prefixes.Invalid) == 0 {
+			t.Errorf("cache keys: %v", err)
+		}
+		names := map[string]bool{}
+		for group, cases := range map[string][]conformance.CacheKeyCase{
+			"keys.valid": keys.Keys.Valid, "keys.invalid": keys.Keys.Invalid,
+			"prefixes.valid": keys.Prefixes.Valid, "prefixes.invalid": keys.Prefixes.Invalid,
+		} {
+			for _, c := range cases {
+				if c.Name == "" || names[group+"/"+c.Name] {
+					t.Errorf("cache key case %q in %s must have a unique name", c.Name, group)
+				}
+				names[group+"/"+c.Name] = true
+			}
+		}
+		return keys
+	},
 	"security/webauthn.json": func(t *testing.T) any {
 		webauthn, err := conformance.WebAuthn()
 		if err != nil || webauthn.RelyingParty.ID == "" || len(webauthn.RelyingParty.Origins) == 0 || len(webauthn.Registration) == 0 || len(webauthn.Authentication) == 0 {
