@@ -52,6 +52,7 @@
         "plugin/plugin.proto"
       ],
       "vectors": [
+        "plugin/binding-properties.json",
         "plugin/callback-status.json",
         "plugin/deadlines.json",
         "plugin/error-reading.json",
@@ -87,6 +88,7 @@
       ],
       "vectors": [
         "context/http-deadline.json",
+        "plugin/binding-properties.json",
         "plugin/deadlines.json",
         "plugin/error-reading.json",
         "plugin/handshake-lines.json",

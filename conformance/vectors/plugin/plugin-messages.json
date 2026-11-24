@@ -81,6 +81,24 @@
     },
     {
       "key": "plugins.process.failed",
+      "phase": "configure",
+      "reason": "binding '{binding}' has more than 64 properties",
+      "when": "宿主组装 Configure 请求：清单声明的绑定解析出的属性多于 64 个；{binding} 换成清单里的绑定名（lifecycle.md §2）"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "configure",
+      "reason": "binding '{binding}' has a property name that is not valid",
+      "when": "宿主组装 Configure 请求：清单声明的绑定有属性名不合下发的文法（lifecycle.md §2）"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "configure",
+      "reason": "the properties of binding '{binding}' exceed 262144 bytes",
+      "when": "宿主组装 Configure 请求：清单声明的绑定的属性名与属性值合计超过 262144 个 UTF-8 字节（lifecycle.md §2）"
+    },
+    {
+      "key": "plugins.process.failed",
       "phase": "invoke",
       "reason": "invalid error code '{code}'",
       "when": "对方写来的错误码不合文法；{code} 换成原样的错误码（invocation.md §3）"

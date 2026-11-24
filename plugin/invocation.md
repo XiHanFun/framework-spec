@@ -141,7 +141,7 @@ SDK 运行时与宿主共用下面的消息键（2026-11-18 写明，ADR-0237；
 | 键 | 参数 | 错误码 | 场合 |
 | --- | --- | --- | --- |
 | `plugins.process.unavailable` | `id`、`state` | `PLUGINS_UNAVAILABLE_001` | 不在可服务状态时到达的调用与投递（`state` 是状态名） |
-| `plugins.process.failed` | `id`、`phase`、`reason` | `PLUGINS_UNEXPECTED_001` | 回调抛出、配置节不是对象、对方写来的错误不合法、没有对应的 gRPC 状态 |
+| `plugins.process.failed` | `id`、`phase`、`reason` | `PLUGINS_UNEXPECTED_001` | 回调抛出、配置节不是对象、对方写来的错误不合法、没有对应的 gRPC 状态；宿主组装 `Configure` 时清单声明的绑定读不出来、属性不合文法或超过上限（`lifecycle.md` §2） |
 | `plugins.event.unsubscribed` | `id`、`topic`、`type`、`mode` | `KERNEL_NOTFOUND_001` | 投递找不到订阅 |
 | `plugins.host.unavailable` | `id`、`reason` | `PLUGINS_UNAVAILABLE_001` | 回调连不上宿主、没有可用的回调端点 |
 | `plugins.callback.denied` | `id`、`permission` | `PLUGINS_DENIED_002` | 回调所需的权限未声明或未授予 |

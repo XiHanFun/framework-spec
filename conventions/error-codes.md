@@ -61,7 +61,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `PLUGINS_NOTFOUND_001` | 插件清单文件、程序集或入口类型不存在 |
 | `PLUGINS_DENIED_001` | 插件声明的权限未被宿主授予 |
 | `PLUGINS_CONFLICT_001` | 同一清单 ID 的插件已加载 |
-| `PLUGINS_UNEXPECTED_001` | 插件加载、配置、启动或停止时发生未处理异常（进程外插件一侧的生命周期与健康回调抛出同此，`plugin/lifecycle.md` §7）；进程外另有：下发的配置节不是 JSON 对象，对方写来的错误不合法（错误码不合文法、`ok` 为假却没有 `error`），gRPC 状态没有对应的映射，`Host.Publish` 的结果数与信封数不同（消息键 `plugins.process.failed`；`plugin/invocation.md` §3、§5、§8） |
+| `PLUGINS_UNEXPECTED_001` | 插件加载、配置、启动或停止时发生未处理异常（进程外插件一侧的生命周期与健康回调抛出同此，`plugin/lifecycle.md` §7）；进程外另有：下发的配置节不是 JSON 对象，对方写来的错误不合法（错误码不合文法、`ok` 为假却没有 `error`），gRPC 状态没有对应的映射，`Host.Publish` 的结果数与信封数不同（消息键 `plugins.process.failed`；`plugin/invocation.md` §3、§5、§8）；进程外与 Wasm：宿主组装 `Configure` 请求时清单声明的绑定读不出来，或它的属性不合文法、超过上限（`plugin/lifecycle.md` §2） |
 | `PLUGINS_VALIDATION_003` | 进程外：握手行不合法，或协议版本没有交集 |
 | `PLUGINS_VALIDATION_004` | 握手响应与清单不一致（原语层版本、清单字段、未声明或重复的操作 / 健康项 / 订阅）；进程外与 Wasm 相同，Wasm 另含声明了流式操作（`plugin/wasm.md` §3） |
 | `PLUGINS_DENIED_002` | 插件回调被拒：会话令牌无效（进程外），所需权限未在清单声明、未被宿主授予，或回调与发布带了不属于在途调用的租户（进程外与 Wasm；`plugin/invocation.md` §5，`plugin/wasm.md` §4，ADR-0195） |

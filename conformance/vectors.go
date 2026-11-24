@@ -217,6 +217,109 @@ type ErrorReadingVectors struct {
 	StatusWithoutError []StatusWithoutErrorCase `json:"statusWithoutError"`
 }
 
+// BindingPropertyLimits 是下发给插件的绑定属性的上限：一个绑定的属性数、属性名的字符数、全部属性名与属性值的 UTF-8 字节数。
+type BindingPropertyLimits struct {
+	MaxProperties int `json:"maxProperties"`
+	MaxNameLength int `json:"maxNameLength"`
+	MaxBytes      int `json:"maxBytes"`
+}
+
+// BindingPropertyNames 是下发时属性名文法的样例：Valid 必须接受，Invalid 必须拒绝。
+type BindingPropertyNames struct {
+	Valid   []string `json:"valid"`
+	Invalid []string `json:"invalid"`
+}
+
+// BindingProperties 是一个绑定的属性（属性名到属性值）。向量里的属性值是字符串，或 {repeat, count}（把 repeat 重复 count 次，
+// 用来写上限两侧的长值）；读入后都是展开的文本。
+type BindingProperties map[string]string
+
+// UnmarshalJSON 读入属性并展开 {repeat, count} 形式的值。
+func (p *BindingProperties) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("conformance: parse binding properties: %w", err)
+	}
+	properties := make(BindingProperties, len(raw))
+	for name, value := range raw {
+		var text string
+		if err := json.Unmarshal(value, &text); err == nil {
+			properties[name] = text
+			continue
+		}
+		// 不是字符串就必须是 {repeat, count}：多余或缺少成员都算写错，免得把笔误读成空值
+		var repeated struct {
+			Repeat *string `json:"repeat"`
+			Count  *int    `json:"count"`
+		}
+		decoder := json.NewDecoder(strings.NewReader(string(value)))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&repeated); err != nil || repeated.Repeat == nil || repeated.Count == nil || *repeated.Count < 0 {
+			return fmt.Errorf("conformance: binding property %q must be a string or {repeat, count}", name)
+		}
+		properties[name] = strings.Repeat(*repeated.Repeat, *repeated.Count)
+	}
+	*p = properties
+	return nil
+}
+
+// DeclaredBinding 是清单 bindings 的一项声明。
+type DeclaredBinding struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+// ResolvedBinding 是按 RFC-0016 解析出的一个绑定：Type 为空表示来源没有声明类型，Value 为 nil 表示来源没有给主值。
+type ResolvedBinding struct {
+	Type       string            `json:"type"`
+	Value      *string           `json:"value"`
+	Properties BindingProperties `json:"properties"`
+}
+
+// DeliveredBinding 是 Configure 请求里的一个绑定，也是 SDK 交给作者的绑定：没有属性时 Properties 是空表。
+type DeliveredBinding struct {
+	Name       string            `json:"name"`
+	Type       string            `json:"type"`
+	Value      string            `json:"value"`
+	Properties BindingProperties `json:"properties"`
+}
+
+// BindingDeliveryError 是宿主不发 Configure 时的错误：错误码、消息键与 details（id、phase、reason）。
+type BindingDeliveryError struct {
+	Code    string            `json:"code"`
+	Key     string            `json:"key"`
+	Details map[string]string `json:"details"`
+}
+
+// BindingDeliveryCase 是宿主一侧的一次组装：Declared 是清单的声明（按清单的顺序），Resolved 是解析出的绑定（键是绑定名）。
+// 期望是 Bindings（下发的绑定，连同记了 Warning 的绑定名 Warnings）或 Error 之一，Error 为 nil 表示下发。
+type BindingDeliveryCase struct {
+	Name     string                     `json:"name"`
+	Declared []DeclaredBinding          `json:"declared"`
+	Resolved map[string]ResolvedBinding `json:"resolved"`
+	Bindings []DeliveredBinding         `json:"bindings"`
+	Warnings []string                   `json:"warnings"`
+	Error    *BindingDeliveryError      `json:"error"`
+}
+
+// BindingReadingCase 是插件一侧的一次读取：Hex 是宿主写出的 ConfigureRequest 的 protobuf 字节（十六进制），
+// JSON 是同一个请求在 Wasm 载体上的 proto3 JSON 文本，Bindings 是 SDK 交给作者的绑定。
+type BindingReadingCase struct {
+	Name     string             `json:"name"`
+	Hex      string             `json:"hex"`
+	JSON     string             `json:"json"`
+	Bindings []DeliveredBinding `json:"bindings"`
+}
+
+// BindingPropertyVectors 对应 plugin/binding-properties.json（lifecycle.md §2 与 §7.2，ADR-0285）：插件 PluginID 的绑定连同属性的下发与读取。
+type BindingPropertyVectors struct {
+	PluginID string                `json:"pluginId"`
+	Limits   BindingPropertyLimits `json:"limits"`
+	Names    BindingPropertyNames  `json:"names"`
+	Delivery []BindingDeliveryCase `json:"delivery"`
+	Reading  []BindingReadingCase  `json:"reading"`
+}
+
 // ProtocolVersionCase 是一次版本协商：有交集时 Selected 是选定版本，否则 Error 是错误码。
 type ProtocolVersionCase struct {
 	Host     []uint32 `json:"host"`
@@ -606,6 +709,7 @@ var typedVectors = []TypedVector{
 	vectorFile[IndexNameVectors]("persistence/index-names.json"),
 	vectorFile[SnowflakeIDVectors]("persistence/snowflake-ids.json"),
 	vectorFile[PipelineOrderingVectors]("pipeline/ordering.json"),
+	vectorFile[BindingPropertyVectors]("plugin/binding-properties.json"),
 	vectorFile[CallbackStatusVectors]("plugin/callback-status.json"),
 	vectorFile[DeadlineVectors]("plugin/deadlines.json"),
 	vectorFile[ErrorReadingVectors]("plugin/error-reading.json"),
@@ -711,6 +815,11 @@ func CallbackStatus() (CallbackStatusVectors, error) {
 // ErrorReading 读取读入对方写来的 Error 与 Status 的向量。
 func ErrorReading() (ErrorReadingVectors, error) {
 	return typed[ErrorReadingVectors]()
+}
+
+// PluginBindings 读取下发给插件的绑定连同属性的向量：属性名的文法与上限、宿主下发什么、插件读到什么。
+func PluginBindings() (BindingPropertyVectors, error) {
+	return typed[BindingPropertyVectors]()
 }
 
 // ErrorCodes 读取错误码格式向量。

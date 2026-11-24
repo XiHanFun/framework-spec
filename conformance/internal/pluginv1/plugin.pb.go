@@ -952,7 +952,11 @@ type Binding struct {
 	// 资源类型（`connection:relational`、`cache:distributed`、`queue`、`blob`）。
 	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
 	// 连接串或地址。
-	Value         string `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	Value string `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	// 绑定的其余属性，键是属性名（区分大小写）、值是属性值；没有其余属性时为空。来源只给了属性、没有主值的绑定照常下发，
+	// `value` 为空。属性名的文法、数量与大小的上限见 lifecycle.md §2；属性值可能是凭据，宿主与插件都不得写进日志。
+	// 较早的宿主不发这个字段，较早的插件忽略它。
+	Properties    map[string]string `protobuf:"bytes,4,rep,name=properties,proto3" json:"properties,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1006,6 +1010,13 @@ func (x *Binding) GetValue() string {
 		return x.Value
 	}
 	return ""
+}
+
+func (x *Binding) GetProperties() map[string]string {
+	if x != nil {
+		return x.Properties
+	}
+	return nil
 }
 
 // 配置结果。
@@ -2407,11 +2418,17 @@ const file_plugin_proto_rawDesc = "" +
 	"\rconfiguration\x18\x01 \x01(\tR\rconfiguration\x12/\n" +
 	"\x13granted_permissions\x18\x02 \x03(\tR\x12grantedPermissions\x124\n" +
 	"\bbindings\x18\x03 \x03(\v2\x18.xihan.plugin.v1.BindingR\bbindings\x12%\n" +
-	"\x0ework_directory\x18\x04 \x01(\tR\rworkDirectory\"G\n" +
+	"\x0ework_directory\x18\x04 \x01(\tR\rworkDirectory\"\xd0\x01\n" +
 	"\aBinding\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x14\n" +
-	"\x05value\x18\x03 \x01(\tR\x05value\"D\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\x12H\n" +
+	"\n" +
+	"properties\x18\x04 \x03(\v2(.xihan.plugin.v1.Binding.PropertiesEntryR\n" +
+	"properties\x1a=\n" +
+	"\x0fPropertiesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"D\n" +
 	"\x11ConfigureResponse\x12/\n" +
 	"\x06status\x18\x01 \x01(\v2\x17.xihan.plugin.v1.StatusR\x06status\"\x0e\n" +
 	"\fStartRequest\"@\n" +
@@ -2554,7 +2571,7 @@ func file_plugin_proto_rawDescGZIP() []byte {
 }
 
 var file_plugin_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_plugin_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
+var file_plugin_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_plugin_proto_goTypes = []any{
 	(HealthStatus)(0),            // 0: xihan.plugin.v1.HealthStatus
 	(LifecycleState)(0),          // 1: xihan.plugin.v1.LifecycleState
@@ -2592,9 +2609,10 @@ var file_plugin_proto_goTypes = []any{
 	(*Status)(nil),               // 33: xihan.plugin.v1.Status
 	(*Error)(nil),                // 34: xihan.plugin.v1.Error
 	nil,                          // 35: xihan.plugin.v1.LocaleTemplates.TemplatesEntry
-	nil,                          // 36: xihan.plugin.v1.InvocationMetadata.BaggageEntry
-	nil,                          // 37: xihan.plugin.v1.Envelope.ExtensionsEntry
-	nil,                          // 38: xihan.plugin.v1.MiddlewareResponse.BaggageEntry
+	nil,                          // 36: xihan.plugin.v1.Binding.PropertiesEntry
+	nil,                          // 37: xihan.plugin.v1.InvocationMetadata.BaggageEntry
+	nil,                          // 38: xihan.plugin.v1.Envelope.ExtensionsEntry
+	nil,                          // 39: xihan.plugin.v1.MiddlewareResponse.BaggageEntry
 }
 var file_plugin_proto_depIdxs = []int32{
 	4,  // 0: xihan.plugin.v1.HandshakeRequest.host:type_name -> xihan.plugin.v1.HostInfo
@@ -2606,59 +2624,60 @@ var file_plugin_proto_depIdxs = []int32{
 	11, // 6: xihan.plugin.v1.MessageCatalog.locales:type_name -> xihan.plugin.v1.LocaleTemplates
 	35, // 7: xihan.plugin.v1.LocaleTemplates.templates:type_name -> xihan.plugin.v1.LocaleTemplates.TemplatesEntry
 	13, // 8: xihan.plugin.v1.ConfigureRequest.bindings:type_name -> xihan.plugin.v1.Binding
-	33, // 9: xihan.plugin.v1.ConfigureResponse.status:type_name -> xihan.plugin.v1.Status
-	33, // 10: xihan.plugin.v1.StartResponse.status:type_name -> xihan.plugin.v1.Status
-	33, // 11: xihan.plugin.v1.StopResponse.status:type_name -> xihan.plugin.v1.Status
-	1,  // 12: xihan.plugin.v1.HealthResponse.state:type_name -> xihan.plugin.v1.LifecycleState
-	21, // 13: xihan.plugin.v1.HealthResponse.items:type_name -> xihan.plugin.v1.HealthItem
-	34, // 14: xihan.plugin.v1.HealthResponse.error:type_name -> xihan.plugin.v1.Error
-	0,  // 15: xihan.plugin.v1.HealthItem.status:type_name -> xihan.plugin.v1.HealthStatus
-	36, // 16: xihan.plugin.v1.InvocationMetadata.baggage:type_name -> xihan.plugin.v1.InvocationMetadata.BaggageEntry
-	22, // 17: xihan.plugin.v1.InvokeRequest.metadata:type_name -> xihan.plugin.v1.InvocationMetadata
-	33, // 18: xihan.plugin.v1.InvokeResponse.status:type_name -> xihan.plugin.v1.Status
-	23, // 19: xihan.plugin.v1.StreamFrame.start:type_name -> xihan.plugin.v1.InvokeRequest
-	33, // 20: xihan.plugin.v1.StreamFrame.end:type_name -> xihan.plugin.v1.Status
-	28, // 21: xihan.plugin.v1.HandleEventRequest.envelope:type_name -> xihan.plugin.v1.Envelope
-	22, // 22: xihan.plugin.v1.HandleEventRequest.metadata:type_name -> xihan.plugin.v1.InvocationMetadata
-	33, // 23: xihan.plugin.v1.HandleEventResponse.status:type_name -> xihan.plugin.v1.Status
-	37, // 24: xihan.plugin.v1.Envelope.extensions:type_name -> xihan.plugin.v1.Envelope.ExtensionsEntry
-	28, // 25: xihan.plugin.v1.PublishRequest.envelopes:type_name -> xihan.plugin.v1.Envelope
-	22, // 26: xihan.plugin.v1.PublishRequest.metadata:type_name -> xihan.plugin.v1.InvocationMetadata
-	33, // 27: xihan.plugin.v1.PublishResponse.results:type_name -> xihan.plugin.v1.Status
-	22, // 28: xihan.plugin.v1.MiddlewareRequest.metadata:type_name -> xihan.plugin.v1.InvocationMetadata
-	33, // 29: xihan.plugin.v1.MiddlewareRequest.outcome:type_name -> xihan.plugin.v1.Status
-	2,  // 30: xihan.plugin.v1.MiddlewareResponse.action:type_name -> xihan.plugin.v1.MiddlewareAction
-	33, // 31: xihan.plugin.v1.MiddlewareResponse.outcome:type_name -> xihan.plugin.v1.Status
-	38, // 32: xihan.plugin.v1.MiddlewareResponse.baggage:type_name -> xihan.plugin.v1.MiddlewareResponse.BaggageEntry
-	34, // 33: xihan.plugin.v1.Status.error:type_name -> xihan.plugin.v1.Error
-	34, // 34: xihan.plugin.v1.Error.inner:type_name -> xihan.plugin.v1.Error
-	3,  // 35: xihan.plugin.v1.Plugin.Handshake:input_type -> xihan.plugin.v1.HandshakeRequest
-	12, // 36: xihan.plugin.v1.Plugin.Configure:input_type -> xihan.plugin.v1.ConfigureRequest
-	15, // 37: xihan.plugin.v1.Plugin.Start:input_type -> xihan.plugin.v1.StartRequest
-	17, // 38: xihan.plugin.v1.Plugin.Stop:input_type -> xihan.plugin.v1.StopRequest
-	19, // 39: xihan.plugin.v1.Plugin.Health:input_type -> xihan.plugin.v1.HealthRequest
-	19, // 40: xihan.plugin.v1.Plugin.WatchHealth:input_type -> xihan.plugin.v1.HealthRequest
-	23, // 41: xihan.plugin.v1.Plugin.Invoke:input_type -> xihan.plugin.v1.InvokeRequest
-	25, // 42: xihan.plugin.v1.Plugin.InvokeStream:input_type -> xihan.plugin.v1.StreamFrame
-	26, // 43: xihan.plugin.v1.Plugin.HandleEvent:input_type -> xihan.plugin.v1.HandleEventRequest
-	23, // 44: xihan.plugin.v1.Host.Invoke:input_type -> xihan.plugin.v1.InvokeRequest
-	29, // 45: xihan.plugin.v1.Host.Publish:input_type -> xihan.plugin.v1.PublishRequest
-	6,  // 46: xihan.plugin.v1.Plugin.Handshake:output_type -> xihan.plugin.v1.HandshakeResponse
-	14, // 47: xihan.plugin.v1.Plugin.Configure:output_type -> xihan.plugin.v1.ConfigureResponse
-	16, // 48: xihan.plugin.v1.Plugin.Start:output_type -> xihan.plugin.v1.StartResponse
-	18, // 49: xihan.plugin.v1.Plugin.Stop:output_type -> xihan.plugin.v1.StopResponse
-	20, // 50: xihan.plugin.v1.Plugin.Health:output_type -> xihan.plugin.v1.HealthResponse
-	20, // 51: xihan.plugin.v1.Plugin.WatchHealth:output_type -> xihan.plugin.v1.HealthResponse
-	24, // 52: xihan.plugin.v1.Plugin.Invoke:output_type -> xihan.plugin.v1.InvokeResponse
-	25, // 53: xihan.plugin.v1.Plugin.InvokeStream:output_type -> xihan.plugin.v1.StreamFrame
-	27, // 54: xihan.plugin.v1.Plugin.HandleEvent:output_type -> xihan.plugin.v1.HandleEventResponse
-	24, // 55: xihan.plugin.v1.Host.Invoke:output_type -> xihan.plugin.v1.InvokeResponse
-	30, // 56: xihan.plugin.v1.Host.Publish:output_type -> xihan.plugin.v1.PublishResponse
-	46, // [46:57] is the sub-list for method output_type
-	35, // [35:46] is the sub-list for method input_type
-	35, // [35:35] is the sub-list for extension type_name
-	35, // [35:35] is the sub-list for extension extendee
-	0,  // [0:35] is the sub-list for field type_name
+	36, // 9: xihan.plugin.v1.Binding.properties:type_name -> xihan.plugin.v1.Binding.PropertiesEntry
+	33, // 10: xihan.plugin.v1.ConfigureResponse.status:type_name -> xihan.plugin.v1.Status
+	33, // 11: xihan.plugin.v1.StartResponse.status:type_name -> xihan.plugin.v1.Status
+	33, // 12: xihan.plugin.v1.StopResponse.status:type_name -> xihan.plugin.v1.Status
+	1,  // 13: xihan.plugin.v1.HealthResponse.state:type_name -> xihan.plugin.v1.LifecycleState
+	21, // 14: xihan.plugin.v1.HealthResponse.items:type_name -> xihan.plugin.v1.HealthItem
+	34, // 15: xihan.plugin.v1.HealthResponse.error:type_name -> xihan.plugin.v1.Error
+	0,  // 16: xihan.plugin.v1.HealthItem.status:type_name -> xihan.plugin.v1.HealthStatus
+	37, // 17: xihan.plugin.v1.InvocationMetadata.baggage:type_name -> xihan.plugin.v1.InvocationMetadata.BaggageEntry
+	22, // 18: xihan.plugin.v1.InvokeRequest.metadata:type_name -> xihan.plugin.v1.InvocationMetadata
+	33, // 19: xihan.plugin.v1.InvokeResponse.status:type_name -> xihan.plugin.v1.Status
+	23, // 20: xihan.plugin.v1.StreamFrame.start:type_name -> xihan.plugin.v1.InvokeRequest
+	33, // 21: xihan.plugin.v1.StreamFrame.end:type_name -> xihan.plugin.v1.Status
+	28, // 22: xihan.plugin.v1.HandleEventRequest.envelope:type_name -> xihan.plugin.v1.Envelope
+	22, // 23: xihan.plugin.v1.HandleEventRequest.metadata:type_name -> xihan.plugin.v1.InvocationMetadata
+	33, // 24: xihan.plugin.v1.HandleEventResponse.status:type_name -> xihan.plugin.v1.Status
+	38, // 25: xihan.plugin.v1.Envelope.extensions:type_name -> xihan.plugin.v1.Envelope.ExtensionsEntry
+	28, // 26: xihan.plugin.v1.PublishRequest.envelopes:type_name -> xihan.plugin.v1.Envelope
+	22, // 27: xihan.plugin.v1.PublishRequest.metadata:type_name -> xihan.plugin.v1.InvocationMetadata
+	33, // 28: xihan.plugin.v1.PublishResponse.results:type_name -> xihan.plugin.v1.Status
+	22, // 29: xihan.plugin.v1.MiddlewareRequest.metadata:type_name -> xihan.plugin.v1.InvocationMetadata
+	33, // 30: xihan.plugin.v1.MiddlewareRequest.outcome:type_name -> xihan.plugin.v1.Status
+	2,  // 31: xihan.plugin.v1.MiddlewareResponse.action:type_name -> xihan.plugin.v1.MiddlewareAction
+	33, // 32: xihan.plugin.v1.MiddlewareResponse.outcome:type_name -> xihan.plugin.v1.Status
+	39, // 33: xihan.plugin.v1.MiddlewareResponse.baggage:type_name -> xihan.plugin.v1.MiddlewareResponse.BaggageEntry
+	34, // 34: xihan.plugin.v1.Status.error:type_name -> xihan.plugin.v1.Error
+	34, // 35: xihan.plugin.v1.Error.inner:type_name -> xihan.plugin.v1.Error
+	3,  // 36: xihan.plugin.v1.Plugin.Handshake:input_type -> xihan.plugin.v1.HandshakeRequest
+	12, // 37: xihan.plugin.v1.Plugin.Configure:input_type -> xihan.plugin.v1.ConfigureRequest
+	15, // 38: xihan.plugin.v1.Plugin.Start:input_type -> xihan.plugin.v1.StartRequest
+	17, // 39: xihan.plugin.v1.Plugin.Stop:input_type -> xihan.plugin.v1.StopRequest
+	19, // 40: xihan.plugin.v1.Plugin.Health:input_type -> xihan.plugin.v1.HealthRequest
+	19, // 41: xihan.plugin.v1.Plugin.WatchHealth:input_type -> xihan.plugin.v1.HealthRequest
+	23, // 42: xihan.plugin.v1.Plugin.Invoke:input_type -> xihan.plugin.v1.InvokeRequest
+	25, // 43: xihan.plugin.v1.Plugin.InvokeStream:input_type -> xihan.plugin.v1.StreamFrame
+	26, // 44: xihan.plugin.v1.Plugin.HandleEvent:input_type -> xihan.plugin.v1.HandleEventRequest
+	23, // 45: xihan.plugin.v1.Host.Invoke:input_type -> xihan.plugin.v1.InvokeRequest
+	29, // 46: xihan.plugin.v1.Host.Publish:input_type -> xihan.plugin.v1.PublishRequest
+	6,  // 47: xihan.plugin.v1.Plugin.Handshake:output_type -> xihan.plugin.v1.HandshakeResponse
+	14, // 48: xihan.plugin.v1.Plugin.Configure:output_type -> xihan.plugin.v1.ConfigureResponse
+	16, // 49: xihan.plugin.v1.Plugin.Start:output_type -> xihan.plugin.v1.StartResponse
+	18, // 50: xihan.plugin.v1.Plugin.Stop:output_type -> xihan.plugin.v1.StopResponse
+	20, // 51: xihan.plugin.v1.Plugin.Health:output_type -> xihan.plugin.v1.HealthResponse
+	20, // 52: xihan.plugin.v1.Plugin.WatchHealth:output_type -> xihan.plugin.v1.HealthResponse
+	24, // 53: xihan.plugin.v1.Plugin.Invoke:output_type -> xihan.plugin.v1.InvokeResponse
+	25, // 54: xihan.plugin.v1.Plugin.InvokeStream:output_type -> xihan.plugin.v1.StreamFrame
+	27, // 55: xihan.plugin.v1.Plugin.HandleEvent:output_type -> xihan.plugin.v1.HandleEventResponse
+	24, // 56: xihan.plugin.v1.Host.Invoke:output_type -> xihan.plugin.v1.InvokeResponse
+	30, // 57: xihan.plugin.v1.Host.Publish:output_type -> xihan.plugin.v1.PublishResponse
+	47, // [47:58] is the sub-list for method output_type
+	36, // [36:47] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_plugin_proto_init() }
@@ -2677,7 +2696,7 @@ func file_plugin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_plugin_proto_rawDesc), len(file_plugin_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   36,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

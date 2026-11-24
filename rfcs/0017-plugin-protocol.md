@@ -1,6 +1,6 @@
 # RFC-0017 进程外插件协议
 
-> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：清单写了 `contributes.pipeline` 的插件在发现时被拒，不再静默忽略；同日第三次修订：gRPC `Cancelled` 不再按时钟改报超时，交给截止时间中间件归因；2026-11-12 修订：回调与发布只能带宿主随调用交给插件的租户；2026-11-13 修订：`HandleEventRequest` 带这次投递的订阅方式；2026-11-18 修订：宿主提供多个回调端点并至少有一个回环 TCP，插件一侧的次序、配置、就绪、停止、收尾、投递、回调与错误读写写明，运行时消息键进规范，`Host.Publish` 按元数据建上下文；2026-11-24 修订：`Configure` 的 `bindings` 在组装请求时与内核同源解析、只带主值；同日再修订：Span `xihan.plugin.invoke` 的种类、父级、标签、状态与范围，`trace_parent` 以它为父级） | 日期：2026-10-23 | 对应 ADR：0006、0085、0092、0195、0226、0237、0268、0269 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`；一致性：`XiHan.Framework.Plugins.Conformance` | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md` | 一致性档：`plugin`、`host`
+> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：清单写了 `contributes.pipeline` 的插件在发现时被拒，不再静默忽略；同日第三次修订：gRPC `Cancelled` 不再按时钟改报超时，交给截止时间中间件归因；2026-11-12 修订：回调与发布只能带宿主随调用交给插件的租户；2026-11-13 修订：`HandleEventRequest` 带这次投递的订阅方式；2026-11-18 修订：宿主提供多个回调端点并至少有一个回环 TCP，插件一侧的次序、配置、就绪、停止、收尾、投递、回调与错误读写写明，运行时消息键进规范，`Host.Publish` 按元数据建上下文；2026-11-24 修订：`Configure` 的 `bindings` 在组装请求时与内核同源解析、只带主值；同日再修订：Span `xihan.plugin.invoke` 的种类、父级、标签、状态与范围，`trace_parent` 以它为父级；同日第三次修订：`Binding` 消息新增 `properties`，绑定的属性随 `Configure` 下发） | 日期：2026-10-23 | 对应 ADR：0006、0085、0092、0195、0226、0237、0268、0269、0285 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`；一致性：`XiHan.Framework.Plugins.Conformance` | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md` | 一致性档：`plugin`、`host`
 
 ## 摘要
 
@@ -26,6 +26,8 @@
 
 状态词汇与 `LifecycleState` 相同；`Configure` → `Start` → `Ready`，`Stop` 带宽限期；健康以 `WatchHealth` 推送为主、`Health` 轮询为备；崩溃进入 `Failed` 并按退避重启，宿主进入 `Degraded` 但不退出；激活事件 `onStartup` / `onOperation:` / `onEvent:` 决定进程何时启动。见 `lifecycle.md`。
 
+`Configure` 下发配置节、已授予的权限、工作目录与清单声明并获批的资源绑定。每个绑定带名字、类型、主值与它的全部属性（`Binding.properties`；2026-11-24 修订，ADR-0285，以前只带主值，只挂属性文件的绑定对插件不可用）：属性名区分大小写、原样下发，下发时属性名有文法、数量与字节数有上限，不合即配置失败；属性随绑定一起受 `binding:<绑定名>` 的授予约束，不单独授权；属性值可能是凭据，宿主与插件都不得写进日志。`properties` 是同一协议版本里的新增字段，不升协议版本：较早的插件忽略它，较早的宿主不发它。细则见 `lifecycle.md` §2 与 §7.2。
+
 ### 调用
 
 插件操作在宿主登记为代理操作，与本地操作一样经完整管道并由协议适配器发布；Handle 阶段经 `Invoke`（一元）或 `InvokeStream`（双向帧流）执行。上下文按 RFC-0003 平铺为 `InvocationMetadata`（traceparent、截止时间、已登记 Baggage）；业务失败走 `Status.error`，gRPC 状态只表示传输失败并映射为 `PLUGINS_*` / `KERNEL_*` 错误码。事件按 RFC-0009 至少一次投递。见 `invocation.md`。
@@ -43,12 +45,12 @@
 
 ## 一致性
 
-- 数据向量：`conformance/vectors/plugin/handshake-lines.json`（握手行文法）、`protocol-versions.json`（版本协商）、`host-addresses.json`（回调端点列表与选择）、`deadlines.json`（`deadline` 的读法与生效的截止时间）、`plugin-messages.json`（运行时的消息键）、`callback-status.json`（插件一侧回调失败的映射）、`error-reading.json`（读入对方写来的 `Error`）。
+- 数据向量：`conformance/vectors/plugin/handshake-lines.json`（握手行文法）、`protocol-versions.json`（版本协商）、`host-addresses.json`（回调端点列表与选择）、`deadlines.json`（`deadline` 的读法与生效的截止时间）、`plugin-messages.json`（运行时的消息键）、`callback-status.json`（插件一侧回调失败的映射）、`error-reading.json`（读入对方写来的 `Error`）、`binding-properties.json`（下发给插件的绑定：属性名的文法与上限、宿主下发什么、插件读到什么）。
 - gRPC 黑盒套件：`XiHan.Framework.Plugins.Conformance` 的 `PluginProtocolConformance`，以本 RFC 的三份规范性文本为用例来源，对任何语言的插件实现做一致性测试；远程 Provider 的套件随各子系统的 Conformance 包。
 
 ## 与 .NET 的映射
 
-- `Plugins.OutOfProcess`（Ring 5）：`OutOfProcessPluginsFeature`（能力 `plugins.out-of-process@1`，配置 `XiHan:Plugins:OutOfProcess`）在配置阶段发现并握手、登记代理操作（`OperationDescriptor` 直通 JSON，`ExecuteAsync` 发 `Invoke`）连同清单声明的权限码（`plugin/invocation.md` §1，ADR-0080）、以清单 ID 为归属的消息目录（RFC-0010「归属目录」，ADR-0252）与事件订阅（`AddMessageHandler`）；`OutOfProcessPluginHost : IPluginHost, IHealthContributor` 负责进程管理、握手核对、健康、重启退避、回调服务器与运行期加载卸载；卸载按归属（清单 ID）撤回插件登记的代理操作、权限码与消息目录，之后可直接再加载（`plugin/invocation.md` §1，ADR-0085）。宿主回调端点在 Windows 上是命名管道加回环 TCP、其他系统是 Unix 域套接字加回环 TCP（`handshake.md` §4，ADR-0237）。
+- `Plugins.OutOfProcess`（Ring 5）：`OutOfProcessPluginsFeature`（能力 `plugins.out-of-process@1`，配置 `XiHan:Plugins:OutOfProcess`）在配置阶段发现并握手、登记代理操作（`OperationDescriptor` 直通 JSON，`ExecuteAsync` 发 `Invoke`）连同清单声明的权限码（`plugin/invocation.md` §1，ADR-0080）、以清单 ID 为归属的消息目录（RFC-0010「归属目录」，ADR-0252）与事件订阅（`AddMessageHandler`）；`OutOfProcessPluginHost : IPluginHost, IHealthContributor` 负责进程管理、握手核对、健康、重启退避、回调服务器与运行期加载卸载；卸载按归属（清单 ID）撤回插件登记的代理操作、权限码与消息目录，之后可直接再加载（`plugin/invocation.md` §1，ADR-0085）。宿主回调端点在 Windows 上是命名管道加回环 TCP、其他系统是 Unix 域套接字加回环 TCP（`handshake.md` §4，ADR-0237）。进程外与 Wasm 两个宿主共用 `Plugins.Protocol` 的 `PluginConfigureRequests` 组装 `Configure` 请求：绑定经内核的 `BindingResolver` 解析（ADR-0268），`BindingValue.Properties` 原样写进 `Binding.properties`，文法与上限由 `PluginBindingProperties` 核对（ADR-0285）。
 - 内核新增 `IHealthContributor` / `ContributorStatus`，`HealthSnapshot.Contributions` 与 `App.State` 采集它们：条目 Degraded / Failed 只把 Ready 压成 Degraded（`lifecycle.md` §4 的"宿主进入 Degraded 但不退出"由此实现）。
 - 协议消息的 .NET 类型由 `Grpc.Tools` 从同一份 `.proto` 生成（运行时 `Google.Protobuf`，Ring 5 允许第三方依赖）；`Protocols.Grpc` 的动态编解码只服务于没有编译期 Schema 的操作消息，不用于本协议。其他语言用各自的 protobuf 工具链从同一份 `.proto` 生成。
 - 错误码常量 `PluginErrors` 与消息键 `PluginMessages` 随包实现，文案 10 种区域各一个文件（RFC-0010）。

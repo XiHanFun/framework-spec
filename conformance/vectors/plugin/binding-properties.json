@@ -1,0 +1,1359 @@
+{
+  "$comment": "下发给隔离运行的插件（进程外、Wasm）的绑定连同属性（plugin/lifecycle.md §2 与 §7.2，RFC-0016「资源绑定与配置节」第 7 条，ADR-0285）。limits：一个绑定最多 maxProperties 个属性，属性名最多 maxNameLength 个字符，一个绑定的全部属性名与属性值按 UTF-8 编码后合计不超过 maxBytes 字节，主值不计入。names：下发时属性名的文法 ^[A-Za-z0-9_-][A-Za-z0-9._-]{0,252}$（按整串匹配），valid 必须接受，invalid 必须拒绝。delivery 是宿主一侧：declared 是清单 bindings 的声明（按清单的顺序），resolved 是按 RFC-0016 解析出的绑定（键是绑定名，没有的名字就是两种来源都没给；type 为空表示来源没有声明类型，value 为 null 表示来源没有给主值，properties 是属性名到属性值）；属性值是字符串，或 {repeat, count}，表示把 repeat 重复 count 次。期望是 bindings 或 error 之一：bindings 是 Configure 请求里的绑定，按清单的顺序，properties 与 resolved 的逐项相同、各项的先后没有含义，warnings 是宿主为之记一条 Warning 日志的绑定名（主值与属性都没有、因此不下发的）；error 表示宿主不发 Configure、按配置这一步失败处理，details 的 id 是插件的清单 ID（pluginId），reason 是固定的英文文本。reading 是插件一侧：hex 是宿主写出的 ConfigureRequest 的 protobuf 字节（十六进制），json 是同一个请求在 Wasm 载体上的 proto3 JSON 文本（wasm.md §2），bindings 是 SDK 交给作者的绑定——properties 没有时是空表，属性名区分大小写，值为空的属性照样在表里；SDK 用自己生成的消息类型解码 hex（实现了 Wasm 一侧的另解码 json），再走自己的配置路径，与 bindings 比较。期望值由 .NET 参考实现算出（delivery 经 PluginConfigureRequests.Build，names 经 PluginBindingProperties.IsValidName，hex 与 json 是它写出的请求）。",
+  "pluginId": "xihan.test.bound",
+  "limits": {
+    "maxProperties": 64,
+    "maxNameLength": 253,
+    "maxBytes": 262144
+  },
+  "names": {
+    "valid": [
+      "username",
+      "password",
+      "uri",
+      "host",
+      "port",
+      "sasl.username",
+      "security.protocol",
+      "accessKey",
+      "forcePathStyle",
+      "ca.crt",
+      "tls_key",
+      "tls-key",
+      "a",
+      "0",
+      "-",
+      "_",
+      "A",
+      "Username",
+      "USERNAME",
+      "a..b",
+      "a.",
+      "9lives",
+      "value",
+      "type",
+      "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+    ],
+    "invalid": [
+      "",
+      ".",
+      ".hidden",
+      "..data",
+      "user name",
+      " username",
+      "username ",
+      "username\n",
+      "\tusername",
+      "a/b",
+      "a\\b",
+      "a:b",
+      "a=b",
+      "a,b",
+      "a+b",
+      "a@b",
+      "用户名",
+      "usérname",
+      "a\u0000b",
+      "a\u00a0b",
+      "a\u200bb",
+      "\ufeffusername",
+      "\uff41",
+      "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+    ]
+  },
+  "delivery": [
+    {
+      "name": "主值与属性都有：属性原样下发，目录来源的 uri 既是主值也是属性",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "connection:relational",
+          "value": "postgres://db.internal/app",
+          "properties": {
+            "uri": "postgres://db.internal/app",
+            "username": "app",
+            "password": "s3cret"
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "value": "postgres://db.internal/app",
+          "properties": {
+            "password": "s3cret",
+            "uri": "postgres://db.internal/app",
+            "username": "app"
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "只有属性、没有主值：照常下发，主值为空，类型取清单声明的",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "host": "db.internal",
+            "port": "5432",
+            "username": "app",
+            "password": "s3cret"
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "value": "",
+          "properties": {
+            "host": "db.internal",
+            "password": "s3cret",
+            "port": "5432",
+            "username": "app"
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "只有主值、没有属性：属性是空表",
+      "declared": [
+        {
+          "name": "cache",
+          "type": "cache:distributed"
+        }
+      ],
+      "resolved": {
+        "cache": {
+          "type": "",
+          "value": "redis.internal:6379",
+          "properties": {}
+        }
+      },
+      "bindings": [
+        {
+          "name": "cache",
+          "type": "cache:distributed",
+          "value": "redis.internal:6379",
+          "properties": {}
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "来源声明的类型先于清单声明的类型",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "connection:document",
+          "value": "mongodb://db.internal/app",
+          "properties": {
+            "username": "app"
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "db",
+          "type": "connection:document",
+          "value": "mongodb://db.internal/app",
+          "properties": {
+            "username": "app"
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "主值与属性都没有（来源只给了类型）：不下发，记警告",
+      "declared": [
+        {
+          "name": "queue",
+          "type": "queue"
+        }
+      ],
+      "resolved": {
+        "queue": {
+          "type": "queue",
+          "value": null,
+          "properties": {}
+        }
+      },
+      "bindings": [],
+      "warnings": [
+        "queue"
+      ]
+    },
+    {
+      "name": "来源里没有这个绑定：不下发，不记警告",
+      "declared": [
+        {
+          "name": "queue",
+          "type": "queue"
+        }
+      ],
+      "resolved": {},
+      "bindings": [],
+      "warnings": []
+    },
+    {
+      "name": "属性名区分大小写、不改写",
+      "declared": [
+        {
+          "name": "objectstorage",
+          "type": "blob"
+        }
+      ],
+      "resolved": {
+        "objectstorage": {
+          "type": "blob",
+          "value": "https://s3.internal",
+          "properties": {
+            "accessKey": "AKIAEXAMPLE",
+            "SecretKey": "s3cret",
+            "forcePathStyle": "true",
+            "sasl.username": "app",
+            "ca.crt": "-----BEGIN CERTIFICATE-----"
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "objectstorage",
+          "type": "blob",
+          "value": "https://s3.internal",
+          "properties": {
+            "SecretKey": "s3cret",
+            "accessKey": "AKIAEXAMPLE",
+            "ca.crt": "-----BEGIN CERTIFICATE-----",
+            "forcePathStyle": "true",
+            "sasl.username": "app"
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "值为空的属性照发",
+      "declared": [
+        {
+          "name": "cache",
+          "type": "cache:distributed"
+        }
+      ],
+      "resolved": {
+        "cache": {
+          "type": "",
+          "value": "redis.internal:6379",
+          "properties": {
+            "username": "",
+            "password": "s3cret"
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "cache",
+          "type": "cache:distributed",
+          "value": "redis.internal:6379",
+          "properties": {
+            "password": "s3cret",
+            "username": ""
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "属性值原样下发：首尾空白、非 ASCII 字符与换行都不动",
+      "declared": [
+        {
+          "name": "cache",
+          "type": "cache:distributed"
+        }
+      ],
+      "resolved": {
+        "cache": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "note": " 缓存 A\n第二行 ",
+            "password": "p@ss w0rd/=+"
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "cache",
+          "type": "cache:distributed",
+          "value": "",
+          "properties": {
+            "note": " 缓存 A\n第二行 ",
+            "password": "p@ss w0rd/=+"
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "几个绑定按清单的顺序下发，没有的跳过，清单没声明的不下发",
+      "declared": [
+        {
+          "name": "queue",
+          "type": "queue"
+        },
+        {
+          "name": "db",
+          "type": "connection:relational"
+        },
+        {
+          "name": "cache",
+          "type": "cache:distributed"
+        }
+      ],
+      "resolved": {
+        "cache": {
+          "type": "",
+          "value": "redis.internal:6379",
+          "properties": {
+            "password": "c"
+          }
+        },
+        "db": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "host": "db.internal"
+          }
+        },
+        "secrets": {
+          "type": "",
+          "value": "vault://internal",
+          "properties": {
+            "token": "t"
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "value": "",
+          "properties": {
+            "host": "db.internal"
+          }
+        },
+        {
+          "name": "cache",
+          "type": "cache:distributed",
+          "value": "redis.internal:6379",
+          "properties": {
+            "password": "c"
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "正好 64 个属性",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            "p00": "v",
+            "p01": "v",
+            "p02": "v",
+            "p03": "v",
+            "p04": "v",
+            "p05": "v",
+            "p06": "v",
+            "p07": "v",
+            "p08": "v",
+            "p09": "v",
+            "p10": "v",
+            "p11": "v",
+            "p12": "v",
+            "p13": "v",
+            "p14": "v",
+            "p15": "v",
+            "p16": "v",
+            "p17": "v",
+            "p18": "v",
+            "p19": "v",
+            "p20": "v",
+            "p21": "v",
+            "p22": "v",
+            "p23": "v",
+            "p24": "v",
+            "p25": "v",
+            "p26": "v",
+            "p27": "v",
+            "p28": "v",
+            "p29": "v",
+            "p30": "v",
+            "p31": "v",
+            "p32": "v",
+            "p33": "v",
+            "p34": "v",
+            "p35": "v",
+            "p36": "v",
+            "p37": "v",
+            "p38": "v",
+            "p39": "v",
+            "p40": "v",
+            "p41": "v",
+            "p42": "v",
+            "p43": "v",
+            "p44": "v",
+            "p45": "v",
+            "p46": "v",
+            "p47": "v",
+            "p48": "v",
+            "p49": "v",
+            "p50": "v",
+            "p51": "v",
+            "p52": "v",
+            "p53": "v",
+            "p54": "v",
+            "p55": "v",
+            "p56": "v",
+            "p57": "v",
+            "p58": "v",
+            "p59": "v",
+            "p60": "v",
+            "p61": "v",
+            "p62": "v",
+            "p63": "v"
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "value": "x",
+          "properties": {
+            "p00": "v",
+            "p01": "v",
+            "p02": "v",
+            "p03": "v",
+            "p04": "v",
+            "p05": "v",
+            "p06": "v",
+            "p07": "v",
+            "p08": "v",
+            "p09": "v",
+            "p10": "v",
+            "p11": "v",
+            "p12": "v",
+            "p13": "v",
+            "p14": "v",
+            "p15": "v",
+            "p16": "v",
+            "p17": "v",
+            "p18": "v",
+            "p19": "v",
+            "p20": "v",
+            "p21": "v",
+            "p22": "v",
+            "p23": "v",
+            "p24": "v",
+            "p25": "v",
+            "p26": "v",
+            "p27": "v",
+            "p28": "v",
+            "p29": "v",
+            "p30": "v",
+            "p31": "v",
+            "p32": "v",
+            "p33": "v",
+            "p34": "v",
+            "p35": "v",
+            "p36": "v",
+            "p37": "v",
+            "p38": "v",
+            "p39": "v",
+            "p40": "v",
+            "p41": "v",
+            "p42": "v",
+            "p43": "v",
+            "p44": "v",
+            "p45": "v",
+            "p46": "v",
+            "p47": "v",
+            "p48": "v",
+            "p49": "v",
+            "p50": "v",
+            "p51": "v",
+            "p52": "v",
+            "p53": "v",
+            "p54": "v",
+            "p55": "v",
+            "p56": "v",
+            "p57": "v",
+            "p58": "v",
+            "p59": "v",
+            "p60": "v",
+            "p61": "v",
+            "p62": "v",
+            "p63": "v"
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "65 个属性：配置失败",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            "p00": "v",
+            "p01": "v",
+            "p02": "v",
+            "p03": "v",
+            "p04": "v",
+            "p05": "v",
+            "p06": "v",
+            "p07": "v",
+            "p08": "v",
+            "p09": "v",
+            "p10": "v",
+            "p11": "v",
+            "p12": "v",
+            "p13": "v",
+            "p14": "v",
+            "p15": "v",
+            "p16": "v",
+            "p17": "v",
+            "p18": "v",
+            "p19": "v",
+            "p20": "v",
+            "p21": "v",
+            "p22": "v",
+            "p23": "v",
+            "p24": "v",
+            "p25": "v",
+            "p26": "v",
+            "p27": "v",
+            "p28": "v",
+            "p29": "v",
+            "p30": "v",
+            "p31": "v",
+            "p32": "v",
+            "p33": "v",
+            "p34": "v",
+            "p35": "v",
+            "p36": "v",
+            "p37": "v",
+            "p38": "v",
+            "p39": "v",
+            "p40": "v",
+            "p41": "v",
+            "p42": "v",
+            "p43": "v",
+            "p44": "v",
+            "p45": "v",
+            "p46": "v",
+            "p47": "v",
+            "p48": "v",
+            "p49": "v",
+            "p50": "v",
+            "p51": "v",
+            "p52": "v",
+            "p53": "v",
+            "p54": "v",
+            "p55": "v",
+            "p56": "v",
+            "p57": "v",
+            "p58": "v",
+            "p59": "v",
+            "p60": "v",
+            "p61": "v",
+            "p62": "v",
+            "p63": "v",
+            "p64": "v"
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'db' has more than 64 properties"
+        }
+      }
+    },
+    {
+      "name": "属性名含空格：配置失败",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            "user name": "app"
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'db' has a property name that is not valid"
+        }
+      }
+    },
+    {
+      "name": "属性名以点开头：配置失败",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            ".hidden": "app"
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'db' has a property name that is not valid"
+        }
+      }
+    },
+    {
+      "name": "属性名是非 ASCII 字符：配置失败",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            "用户名": "app"
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'db' has a property name that is not valid"
+        }
+      }
+    },
+    {
+      "name": "属性名正好 253 个字符",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn": "v"
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "value": "x",
+          "properties": {
+            "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn": "v"
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "属性名 254 个字符：配置失败",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn": "v"
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'db' has a property name that is not valid"
+        }
+      }
+    },
+    {
+      "name": "属性名与属性值合计正好 262144 字节，主值不计入",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": "postgres://db.internal/app",
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "value": "postgres://db.internal/app",
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "合计 262145 字节：配置失败",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": "postgres://db.internal/app",
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262141
+            }
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "the properties of binding 'db' exceed 262144 bytes"
+        }
+      }
+    },
+    {
+      "name": "非 ASCII 的值按 UTF-8 字节计：87380 个三字节字符加 4 字节的名字正好 262144 字节",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "值",
+              "count": 87380
+            }
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "value": "",
+          "properties": {
+            "blob": {
+              "repeat": "值",
+              "count": 87380
+            }
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "按 UTF-16 码元计不超、按字节计超过：配置失败",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "值",
+              "count": 87381
+            }
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "the properties of binding 'db' exceed 262144 bytes"
+        }
+      }
+    },
+    {
+      "name": "合计分摊在两个属性上，正好 262144 字节",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "a": {
+              "repeat": "v",
+              "count": 131071
+            },
+            "b": {
+              "repeat": "v",
+              "count": 131071
+            }
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "value": "",
+          "properties": {
+            "a": {
+              "repeat": "v",
+              "count": 131071
+            },
+            "b": {
+              "repeat": "v",
+              "count": 131071
+            }
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "合计分摊在两个属性上，多一个字节：配置失败",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "a": {
+              "repeat": "v",
+              "count": 131071
+            },
+            "b": {
+              "repeat": "v",
+              "count": 131072
+            }
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "the properties of binding 'db' exceed 262144 bytes"
+        }
+      }
+    },
+    {
+      "name": "先核对数量：65 个属性里另有不合文法的名字，报数量",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            "p00": "v",
+            "p01": "v",
+            "p02": "v",
+            "p03": "v",
+            "p04": "v",
+            "p05": "v",
+            "p06": "v",
+            "p07": "v",
+            "p08": "v",
+            "p09": "v",
+            "p10": "v",
+            "p11": "v",
+            "p12": "v",
+            "p13": "v",
+            "p14": "v",
+            "p15": "v",
+            "p16": "v",
+            "p17": "v",
+            "p18": "v",
+            "p19": "v",
+            "p20": "v",
+            "p21": "v",
+            "p22": "v",
+            "p23": "v",
+            "p24": "v",
+            "p25": "v",
+            "p26": "v",
+            "p27": "v",
+            "p28": "v",
+            "p29": "v",
+            "p30": "v",
+            "p31": "v",
+            "p32": "v",
+            "p33": "v",
+            "p34": "v",
+            "p35": "v",
+            "p36": "v",
+            "p37": "v",
+            "p38": "v",
+            "p39": "v",
+            "p40": "v",
+            "p41": "v",
+            "p42": "v",
+            "p43": "v",
+            "p44": "v",
+            "p45": "v",
+            "p46": "v",
+            "p47": "v",
+            "p48": "v",
+            "p49": "v",
+            "p50": "v",
+            "p51": "v",
+            "p52": "v",
+            "p53": "v",
+            "p54": "v",
+            "p55": "v",
+            "p56": "v",
+            "p57": "v",
+            "p58": "v",
+            "p59": "v",
+            "p60": "v",
+            "p61": "v",
+            "p62": "v",
+            "p63": "v",
+            "user name": "app"
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'db' has more than 64 properties"
+        }
+      }
+    },
+    {
+      "name": "属性名先于字节数：既有不合文法的名字又超过字节数，报属性名",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            "user name": "app",
+            "blob": {
+              "repeat": "v",
+              "count": 262141
+            }
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'db' has a property name that is not valid"
+        }
+      }
+    },
+    {
+      "name": "按清单的顺序报第一个不合的绑定",
+      "declared": [
+        {
+          "name": "cache",
+          "type": "cache:distributed"
+        },
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            "user name": "app"
+          }
+        },
+        "cache": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            "p00": "v",
+            "p01": "v",
+            "p02": "v",
+            "p03": "v",
+            "p04": "v",
+            "p05": "v",
+            "p06": "v",
+            "p07": "v",
+            "p08": "v",
+            "p09": "v",
+            "p10": "v",
+            "p11": "v",
+            "p12": "v",
+            "p13": "v",
+            "p14": "v",
+            "p15": "v",
+            "p16": "v",
+            "p17": "v",
+            "p18": "v",
+            "p19": "v",
+            "p20": "v",
+            "p21": "v",
+            "p22": "v",
+            "p23": "v",
+            "p24": "v",
+            "p25": "v",
+            "p26": "v",
+            "p27": "v",
+            "p28": "v",
+            "p29": "v",
+            "p30": "v",
+            "p31": "v",
+            "p32": "v",
+            "p33": "v",
+            "p34": "v",
+            "p35": "v",
+            "p36": "v",
+            "p37": "v",
+            "p38": "v",
+            "p39": "v",
+            "p40": "v",
+            "p41": "v",
+            "p42": "v",
+            "p43": "v",
+            "p44": "v",
+            "p45": "v",
+            "p46": "v",
+            "p47": "v",
+            "p48": "v",
+            "p49": "v",
+            "p50": "v",
+            "p51": "v",
+            "p52": "v",
+            "p53": "v",
+            "p54": "v",
+            "p55": "v",
+            "p56": "v",
+            "p57": "v",
+            "p58": "v",
+            "p59": "v",
+            "p60": "v",
+            "p61": "v",
+            "p62": "v",
+            "p63": "v",
+            "p64": "v"
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'cache' has more than 64 properties"
+        }
+      }
+    },
+    {
+      "name": "清单没有声明的绑定不核对：它的属性不合文法不影响这个插件",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": "postgres://db.internal/app",
+          "properties": {
+            "username": "app"
+          }
+        },
+        "other": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            "user name": "app"
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "value": "postgres://db.internal/app",
+          "properties": {
+            "username": "app"
+          }
+        }
+      ],
+      "warnings": []
+    }
+  ],
+  "reading": [
+    {
+      "name": "带属性的绑定",
+      "hex": "0a027b7d1a5c0a0264621215636f6e6e656374696f6e3a72656c6174696f6e616c1a1a706f7374677265733a2f2f64622e696e7465726e616c2f617070220f0a08757365726e616d65120361707022120a0870617373776f72641206733363726574",
+      "json": "{ \"configuration\": \"{}\", \"bindings\": [ { \"name\": \"db\", \"type\": \"connection:relational\", \"value\": \"postgres://db.internal/app\", \"properties\": { \"username\": \"app\", \"password\": \"s3cret\" } } ] }",
+      "bindings": [
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "value": "postgres://db.internal/app",
+          "properties": {
+            "username": "app",
+            "password": "s3cret"
+          }
+        }
+      ]
+    },
+    {
+      "name": "只有属性、主值为空",
+      "hex": "0a027b7d1a630a0264621215636f6e6e656374696f6e3a72656c6174696f6e616c22130a04686f7374120b64622e696e7465726e616c220c0a04706f7274120435343332220f0a08757365726e616d65120361707022120a0870617373776f72641206733363726574",
+      "json": "{ \"configuration\": \"{}\", \"bindings\": [ { \"name\": \"db\", \"type\": \"connection:relational\", \"properties\": { \"host\": \"db.internal\", \"port\": \"5432\", \"username\": \"app\", \"password\": \"s3cret\" } } ] }",
+      "bindings": [
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "value": "",
+          "properties": {
+            "host": "db.internal",
+            "port": "5432",
+            "username": "app",
+            "password": "s3cret"
+          }
+        }
+      ]
+    },
+    {
+      "name": "没有属性：与较早的宿主写出的请求在线上相同，读到的是空表",
+      "hex": "0a027b7d1a2f0a056361636865121163616368653a64697374726962757465641a1372656469732e696e7465726e616c3a36333739",
+      "json": "{ \"configuration\": \"{}\", \"bindings\": [ { \"name\": \"cache\", \"type\": \"cache:distributed\", \"value\": \"redis.internal:6379\" } ] }",
+      "bindings": [
+        {
+          "name": "cache",
+          "type": "cache:distributed",
+          "value": "redis.internal:6379",
+          "properties": {}
+        }
+      ]
+    },
+    {
+      "name": "只差大小写的两个属性名是两项",
+      "hex": "0a027b7d1a580a0d6f626a65637473746f726167651204626c6f621a1368747470733a2f2f73332e696e7465726e616c22180a096163636573734b6579120b414b49414558414d504c4522120a094163636573734b657912056f74686572",
+      "json": "{ \"configuration\": \"{}\", \"bindings\": [ { \"name\": \"objectstorage\", \"type\": \"blob\", \"value\": \"https://s3.internal\", \"properties\": { \"accessKey\": \"AKIAEXAMPLE\", \"AccessKey\": \"other\" } } ] }",
+      "bindings": [
+        {
+          "name": "objectstorage",
+          "type": "blob",
+          "value": "https://s3.internal",
+          "properties": {
+            "accessKey": "AKIAEXAMPLE",
+            "AccessKey": "other"
+          }
+        }
+      ]
+    },
+    {
+      "name": "值为空的属性照样在表里",
+      "hex": "0a027b7d1a4f0a056361636865121163616368653a64697374726962757465641a1372656469732e696e7465726e616c3a36333739220a0a08757365726e616d6522120a0870617373776f72641206733363726574",
+      "json": "{ \"configuration\": \"{}\", \"bindings\": [ { \"name\": \"cache\", \"type\": \"cache:distributed\", \"value\": \"redis.internal:6379\", \"properties\": { \"username\": \"\", \"password\": \"s3cret\" } } ] }",
+      "bindings": [
+        {
+          "name": "cache",
+          "type": "cache:distributed",
+          "value": "redis.internal:6379",
+          "properties": {
+            "username": "",
+            "password": "s3cret"
+          }
+        }
+      ]
+    },
+    {
+      "name": "属性值里的非 ASCII 字符、首尾空白与换行原样",
+      "hex": "0a027b7d1a380a056361636865121163616368653a6469737472696275746564221c0a046e6f7465121420e7bc93e5ad9820410ae7acace4ba8ce8a18c20",
+      "json": "{ \"configuration\": \"{}\", \"bindings\": [ { \"name\": \"cache\", \"type\": \"cache:distributed\", \"properties\": { \"note\": \" 缓存 A\\n第二行 \" } } ] }",
+      "bindings": [
+        {
+          "name": "cache",
+          "type": "cache:distributed",
+          "value": "",
+          "properties": {
+            "note": " 缓存 A\n第二行 "
+          }
+        }
+      ]
+    },
+    {
+      "name": "几个绑定保持先后，各带各的属性",
+      "hex": "0a027b7d1a220a057175657565120571756575651a12616d71703a2f2f6d712e696e7465726e616c1a300a0264621215636f6e6e656374696f6e3a72656c6174696f6e616c22130a04686f7374120b64622e696e7465726e616c1a3e0a056361636865121163616368653a64697374726962757465641a1372656469732e696e7465726e616c3a36333739220d0a0870617373776f7264120163",
+      "json": "{ \"configuration\": \"{}\", \"bindings\": [ { \"name\": \"queue\", \"type\": \"queue\", \"value\": \"amqp://mq.internal\" }, { \"name\": \"db\", \"type\": \"connection:relational\", \"properties\": { \"host\": \"db.internal\" } }, { \"name\": \"cache\", \"type\": \"cache:distributed\", \"value\": \"redis.internal:6379\", \"properties\": { \"password\": \"c\" } } ] }",
+      "bindings": [
+        {
+          "name": "queue",
+          "type": "queue",
+          "value": "amqp://mq.internal",
+          "properties": {}
+        },
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "value": "",
+          "properties": {
+            "host": "db.internal"
+          }
+        },
+        {
+          "name": "cache",
+          "type": "cache:distributed",
+          "value": "redis.internal:6379",
+          "properties": {
+            "password": "c"
+          }
+        }
+      ]
+    },
+    {
+      "name": "没有绑定",
+      "hex": "0a027b7d",
+      "json": "{ \"configuration\": \"{}\" }",
+      "bindings": []
+    }
+  ]
+}

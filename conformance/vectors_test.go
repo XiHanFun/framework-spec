@@ -146,6 +146,28 @@ var nonEmptyChecks = map[string]func(t *testing.T) any{
 		}
 		return reading
 	},
+	"plugin/binding-properties.json": func(t *testing.T) any {
+		bindings, err := conformance.PluginBindings()
+		if err != nil || bindings.PluginID == "" || bindings.Limits.MaxProperties == 0 || bindings.Limits.MaxNameLength == 0 || bindings.Limits.MaxBytes == 0 ||
+			len(bindings.Names.Valid) == 0 || len(bindings.Names.Invalid) == 0 || len(bindings.Delivery) == 0 || len(bindings.Reading) == 0 {
+			t.Errorf("plugin bindings: %v", err)
+		}
+		names := map[string]bool{}
+		for _, c := range bindings.Delivery {
+			// 期望是下发（bindings 与 warnings 都列出，可以为空）或失败（error）之一
+			if c.Name == "" || names[c.Name] || len(c.Declared) == 0 || c.Resolved == nil || (c.Error == nil) != (c.Bindings != nil && c.Warnings != nil) || (c.Error != nil && (c.Bindings != nil || c.Warnings != nil)) {
+				t.Errorf("binding delivery case %q must have a unique name, its declarations, the resolved bindings and either the delivered bindings with warnings or an error", c.Name)
+			}
+			names[c.Name] = true
+		}
+		for _, c := range bindings.Reading {
+			if c.Name == "" || names[c.Name] || c.Hex == "" || c.JSON == "" || c.Bindings == nil {
+				t.Errorf("binding reading case %q must have a unique name, the bytes, the JSON text and the bindings (an empty array for none)", c.Name)
+			}
+			names[c.Name] = true
+		}
+		return bindings
+	},
 	"plugin/protocol-versions.json": func(t *testing.T) any {
 		versions, err := conformance.ProtocolVersions()
 		if err != nil || len(versions.Cases) == 0 || len(versions.Primitives) == 0 {
