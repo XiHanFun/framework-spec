@@ -58,7 +58,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `localization/locale-negotiation.json` | 区域的协商（精确命中、按语言命中、默认区域，不合文法的候选忽略）与取文案的回退链，期望值由 .NET 算出 | RFC-0010「协商与宿主」「解析」 |
 | `localization/catalog-resolution.json` | 消息目录的合并（同名取并集、同一键同一区域不同即冲突）与按回退链的查找（文案与实际命中的区域），期望值由 .NET 算出 | RFC-0010「语言文件」「解析」 |
 | `configuration/secret-names.json` | 密钥名文法的合法与不合法样例（`..`、`//`、结尾的 `/`，256 个字符的上限两侧），期望值由 .NET 算出 | RFC-0014「密钥」 |
-| `configuration/remote-documents.json` | 远程配置文档展平成配置键值（JSON 按 `:` 展平、数组按下标、`null` 保留；properties 的 `.` 换成 `:`、注释行）与 Nacos 的内容版本（UTF-8 的 MD5），期望值由 .NET 算出 | RFC-0014「远程配置」「Nacos Provider」 |
+| `configuration/remote-documents.json` | 远程配置文档展平成配置键值（JSON 按 `:` 展平、数组按下标、布尔写成 `True` / `False`、数字取原文、`null` 保留，照收注释与尾逗号，嵌套 64 层的上限两侧；properties 的 `=` 与 `:` 分隔符、两侧的空白、`.` 换成 `:`、注释行）与 Nacos 的内容版本（UTF-8 的 MD5），不合声明格式的文档（含展平后重复的键）；期望值由 .NET 算出 | RFC-0014「远程配置」「Nacos Provider」 |
 | `persistence/index-names.json` | 索引名的推算：前缀、表名、每列的缩写（按词取前两个字符），63 个字符的上限两侧，显式名字的文法；期望值由 .NET 算出 | RFC-0005「索引声明」 |
 | `persistence/snowflake-ids.json` | 雪花标识的位布局：由毫秒数、机器位与序列合成标识，由标识还原三段与时刻（含超过 2^53 的值），超出范围的三段；期望值由 .NET 算出 | RFC-0005「雪花标识」 |
 | `auditing/exclusions.json` | 审计排除列表的项（操作 ID 或以 `*` 结尾的前缀）合法与不合法的样例，操作是否命中排除列表；期望值由 .NET 算出 | RFC-0015「事件的产生」 |
@@ -91,7 +91,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `rules/objectstorage.go` | 容器名（`IsContainerName`）、对象键、查询前缀与保留前缀（`IsBlobKey`、`IsBlobKeyPrefix`、`IsReservedBlobKey`，长度按 UTF-8 字节计）、保存的文件名（`IsBlobDownloadFileName`）、自定义元数据（`IsBlobMetadataName`、`IsBlobMetadata`，合计按 UTF-8 字节计）、内容类型（`IsBlobContentType`）、范围读取（`ResolveBlobRange`）、分片编号与完成清单（`IsBlobPartNumber`、`IsBlobPartManifest`）、命名存储实例（`IsBlobStoreName`、`IsBlobStoreProvider`、`SameBlobStoreDefinition`） |
 | `rules/scheduling.go`、`rules/cron.go` | 调度里的名字（`IsJobName`）、重试的等待与取值范围（`JobRetryWait`、`IsJobRetryPolicy`）、事件主题（`SchedulingEventTopics`）；cron 的解析与下一次触发（`ParseCron`、`CronExpression.Next`、`IsCronExpression`，与 .NET 独立实现、回放同一份向量） |
 | `rules/localization.go` | 区域名（`IsLocaleName`、`NormalizeLocaleName`、`LocaleLanguage`）、协商与回退链（`NegotiateLocale`、`LocaleFallbackChain`）、目录的合并与查找（`MergeMessageCatalogs`、`FindMessage`）；消息键与模板在 `rules/messages.go` |
-| `rules/configuration.go` | 密钥名（`IsSecretName`）、远程配置文档的展平（`FlattenJSONConfiguration`、`FlattenPropertiesConfiguration`）与 Nacos 的内容版本（`ConfigurationContentVersion`） |
+| `rules/configuration.go` | 密钥名（`IsSecretName`）、远程配置文档的展平（`FlattenJSONConfiguration`、`FlattenPropertiesConfiguration`，JSON 的读取器照收注释与尾逗号，与 .NET 独立实现）与 Nacos 的内容版本（`ConfigurationContentVersion`） |
 | `rules/persistence.go` | 索引名（`IndexColumnAbbreviation`、`IndexName`、`IsExplicitIndexName`）、雪花标识（`ComposeSnowflakeID`、`ParseSnowflakeID`、`SnowflakeTime`、`SnowflakeWorkerLockResource`） |
 | `rules/auditing.go` | 排除列表（`IsAuditExclusion`、`AuditExcludes`）、事件的选择与结果（`SelectAuditEvent`）、主体与租户的归属（`AuditAttribution`） |
 | `rules/workflow.go` | 工作流里的名字（`IsWorkflowName`、`IsWorkflowElementID`、`IsActivityType`）、状态的次序（`WorkflowDefinitionStatuses`、`WorkflowInstanceStatuses`）、关键字的折叠与匹配（`NormalizeWorkflowKeyword`、`FoldWorkflowKeyword`、`WorkflowKeywordMatches`）、事件主题（`WorkflowEventTopics`） |

@@ -634,7 +634,7 @@ type RemoteDocumentRejection struct {
 	Content string `json:"content"`
 }
 
-// RemoteDocumentVectors 对应 configuration/remote-documents.json（RFC-0014「远程配置」「Nacos Provider」，ADR-0277）：Code 是文档不合格式时的错误码。
+// RemoteDocumentVectors 对应 configuration/remote-documents.json（RFC-0014「远程配置」「Nacos Provider」，ADR-0277、ADR-0286）：Code 是文档不合格式时的错误码。
 type RemoteDocumentVectors struct {
 	Code    string                    `json:"code"`
 	Cases   []RemoteDocumentCase      `json:"cases"`

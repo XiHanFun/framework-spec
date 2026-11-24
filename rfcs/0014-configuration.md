@@ -1,6 +1,6 @@
 # RFC-0014 远程配置与密钥
 
-> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义；2026-11-01 修订：宿主的配置源顺序；2026-11-01 修订：Nacos 凭据随绑定属性覆盖；2026-11-01 修订：选项打印遮蔽凭据；2026-11-01 修订：访问密钥 ID 也遮蔽；2026-11-01 修订：登录用户名也遮蔽；2026-11-02 修订：用户名的遮蔽范围定为不扩到系统账户与驱动消息；2026-11-24 修订：密钥库批量读取返回同序的结果列表；同日再修订：一致性向量；同日第三次修订：代理的用户名与口令同样遮蔽） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义）、ADR-0075（配置源顺序）、ADR-0082（凭据属性）、ADR-0086（选项打印遮蔽凭据）、ADR-0089（访问密钥 ID 也遮蔽）、ADR-0090（登录用户名也遮蔽）、ADR-0093（用户名遮蔽范围已定）、ADR-0257（密钥库批量读取的返回形态）、ADR-0277（一致性向量）、ADR-0281（代理的登录凭据） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance`，向量 `conformance/vectors/configuration/` | 一致性档：`configuration`
+> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义；2026-11-01 修订：宿主的配置源顺序；2026-11-01 修订：Nacos 凭据随绑定属性覆盖；2026-11-01 修订：选项打印遮蔽凭据；2026-11-01 修订：访问密钥 ID 也遮蔽；2026-11-01 修订：登录用户名也遮蔽；2026-11-02 修订：用户名的遮蔽范围定为不扩到系统账户与驱动消息；2026-11-24 修订：密钥库批量读取返回同序的结果列表；同日再修订：一致性向量；同日第三次修订：代理的用户名与口令同样遮蔽；同日第四次修订：Nacos 的两种文档格式逐条写明，展平后重复的键不合法） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义）、ADR-0075（配置源顺序）、ADR-0082（凭据属性）、ADR-0086（选项打印遮蔽凭据）、ADR-0089（访问密钥 ID 也遮蔽）、ADR-0090（登录用户名也遮蔽）、ADR-0093（用户名遮蔽范围已定）、ADR-0257（密钥库批量读取的返回形态）、ADR-0277（一致性向量）、ADR-0281（代理的登录凭据）、ADR-0286（Nacos 的文档格式） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance`，向量 `conformance/vectors/configuration/` | 一致性档：`configuration`
 
 ## 摘要
 
@@ -48,7 +48,17 @@
 
 - 命名空间参数即 Nacos 的 `dataId`；`Group`（默认 `DEFAULT_GROUP`）与 `Tenant`（Nacos 命名空间 ID，默认公共）来自选项。
 - 版本是内容的 MD5（小写十六进制），与 Nacos 监听接口的约定一致：监听时服务端拿报来的值与它存的内容 MD5（按 UTF-8 编码计算）逐字比较。取配置响应的 `Content-MD5` 头（HTTP 上它是内容头）原文；没有这个头时按同样的算法自己算，不得换成别的摘要，否则监听永远报告变化、退化成普通轮询。`knownVersion` 非空时先以该 MD5 长轮询监听（`LongPollTimeout`，默认 30 秒），服务端报告变化才取整份文档，窗口到期或取消返回无值。
-- 文档格式 `Format`：`Json`（默认，对象按 `A:B` 展平、数组按下标、`null` 保留为空值）或 `Properties`（`a.b=c` → `a:b`，`#` / `!` 行是注释）。
+- 文档格式 `Format`：`Json`（默认）或 `Properties`，把整份内容展平成配置的键值（2026-11-24 写明，ADR-0286；以前只有「对象按 `A:B` 展平、数组按下标、`null` 保留为空值」与「`a.b=c` → `a:b`，`#` / `!` 行是注释」两句，其余的取法只在 .NET 的代码里）。
+  - 两种格式共同的：键不区分大小写（配置系统的规则；.NET 按 `OrdinalIgnoreCase` 比较），展平后同一个键出现两次——含只差大小写的——文档不合法（`CONFIGURATION_VALIDATION_001`），不取其中任何一个（2026-11-24 修订，ADR-0286；以前 .NET 悄悄取最后一个，与 .NET 自带的 JSON 配置提供程序、`ConfigurationDocument` 对重复键的处理都不一致）。展平出的键为空同样不合法：文档的键不能为空（上文「远程配置」）。不合法的原因进错误的详情：键重复时只带键名，键为空时只带行号（Properties）或不带位置（Json），都不带配置的值。
+  - `Json`，读法与 .NET 的 `Microsoft.Extensions.Configuration.Json`（读 `appsettings.json` 的那一个）相同：
+    1. 顶层必须是对象。语法按 JSON，另照收 `//` 到行尾与 `/* … */` 的注释，以及对象、数组里最后一项之后的一个逗号；对象与数组最多嵌套 64 层。不合这些的文档不合法。
+    2. 对象的成员名以 `:` 接在上一层的键之后，数组的元素以从 0 起的下标接上。成员名原样拼接、不转义：`{"A:B":1}` 与 `{"A":{"B":1}}` 展平出同一个键；顶层的成员名是空串时展平出的键为空，文档不合法。
+    3. 叶子的值：字符串取还原转义之后的值；数字取文档里的原文（`1.50`、`1e3` 不改写）；布尔写成 `True` / `False`（首字母大写）；`null` 保留为空值。空对象与空数组不产生键（.NET 自带的提供程序会给这个键一个空值或空串，这里不给）。
+    4. 重复按展平后的键判断：`{"a":{"b":1},"a:b":2}` 重复；`{"a":"1","a":{"b":"2"}}` 展平成 `a` 与 `a:b`，不重复。
+  - `Properties`，每行一个键值：
+    1. 按 `\n` 分行，每行去掉两侧的空白（RFC-0001「空白字符」；行尾的 `\r` 因此去掉）。空行与以 `#` 或 `!` 起头的行跳过。
+    2. 行里第一个 `=` 或 `:` 是分隔符：之前是键，之后是值，各自再去掉两侧的空白；之后的 `=` 与 `:` 都留在值里。没有分隔符的行整行是键、值是空串。键为空的行不合法。
+    3. 键里的每个 `.` 换成 `:`，键里面的空白保留。不认反斜杠转义、`\uXXXX` 与续行，值里的 `#` 与 `!` 也不是注释。
 - 配置构建期的入口 `AddXiHanNacos(options, remote)` 经工厂重载自建客户端（自带 `HttpClient`），随配置根释放；运行期由特性登记进容器的客户端归容器。
 - 配置了 `UserName` / `Password` 时先登录取 `accessToken`，到期前自动续；`ServerAddresses` 可以是多个地址，按序尝试。凭据与令牌的传输（2026-11-13 修订，ADR-0220）：令牌经请求头 `Authorization: Bearer <令牌>` 发送，不进查询串（查询串会进 Nacos、网关与代理的访问日志；Nacos 1.x 与 2.x 都认这个头）；配置了凭据时，非本机（不是回环地址）的 `http` 地址要显式 `AllowInsecureHttp = true`，否则建客户端时抛出 `ArgumentException`：登录把口令以表单明文发出，令牌随每个请求发出；请求失败时原因只带状态码与动作，不带响应正文。可选绑定 `nacos`（`configuration:remote`）的主值覆盖 `ServerAddresses`，属性 `username` / `password` 覆盖 `UserName` / `Password`（各自逐项，空白不算给出），其余键照读配置节（RFC-0016「资源绑定与配置节」）。
 - 地址的路径是 Nacos 的上下文路径（`server.servlet.contextPath`，经网关转发时连同网关的前缀），接口路径（`/v1/cs/configs`、`/v1/cs/configs/listener`、`/v1/auth/login`）接在它后面；地址没有路径（或只有 `/`）时用 Nacos 的缺省上下文路径 `/nacos`。`http://host:8848` 与 `http://host:8848/nacos` 等价。
@@ -71,9 +81,9 @@ Provider 继承 `RemoteConfigurationClientConformance` 或 `SecretStoreConforman
 | 文件 | 内容 |
 | --- | --- |
 | `secret-names.json` | 密钥名文法的合法与不合法样例，含 256 个字符的上限两侧 |
-| `remote-documents.json` | 远程配置文档展平成配置键值（「Nacos Provider」的两种格式）与 Nacos 的内容版本；不合声明格式的文档 |
+| `remote-documents.json` | 远程配置文档展平成配置键值（「Nacos Provider」的两种格式：布尔与数字的文本形式、注释与尾逗号、嵌套的上限、分隔符与两侧的空白）与 Nacos 的内容版本；不合声明格式的文档，含展平后重复的键 |
 
-向量不收的：JSON 里布尔与小数的文本形式、注释与尾逗号、顶层不是对象的文档、只差大小写的重复键；properties 里用 `:` 作分隔符、键值两侧的空白与续行（正文没有写；.NET 把布尔写成 `True` / `False`，照收注释与尾逗号，认 `:` 作分隔符并裁掉两侧的空白）；「选项里的凭据」是 .NET 记录的打印约定，由参考实现的架构测试核对；配置源的顺序、适配器的加载、轮询与失败处理（有状态，由 `RemoteConfigurationClientConformance` 与 `SecretStoreConformance` 核对）。
+两种文档格式的细则已经写明并收进向量（2026-11-24，ADR-0286；ADR-0277 补向量时这些正文没有写，没有收）。向量不收的：ASCII 以外的字母只差大小写的键算不算重复（随实现的配置系统，向量只用 ASCII 字母）；「选项里的凭据」是 .NET 记录的打印约定，由参考实现的架构测试核对；配置源的顺序、适配器的加载、轮询与失败处理（有状态，由 `RemoteConfigurationClientConformance` 与 `SecretStoreConformance` 核对）。
 
 ## 错误码
 

@@ -1,5 +1,5 @@
 {
-  "$comment": "远程配置文档的展平与版本（RFC-0014「远程配置」与「Nacos Provider」，ADR-0277）：Provider 把自己的格式展平成 IConfiguration 的键形式（A:B:C），键不区分大小写。cases 的每项：format 是文档格式，content 是远端的文档原文，values 是展平后的键到值（null 是保留下来的空值），version 是这份文档的版本——Nacos Provider 的版本是内容按 UTF-8 编码的 MD5（小写十六进制），与 Nacos 监听接口的约定一致，换成别的摘要监听永远报告变化。Json：对象按 : 展平，数组按下标，null 保留为空值，字符串原样，整数取原文。Properties：每行 键=值，键里的 . 换成 :，# 与 ! 起头的行是注释，空行跳过。invalid 是不合声明格式的文档，取文档以 code 失败。布尔与小数的文本形式、JSON 里的注释与尾逗号、顶层不是对象的 JSON、只差大小写的重复键、Properties 里用 : 作分隔符、键值两侧的空白与续行正文没有写，不在这张表里。期望值由 .NET 参考实现（Configuration.Nacos 的 NacosDocumentParser 与版本的算法）算出；提供 Nacos 远程配置客户端的实现回放它。",
+  "$comment": "远程配置文档的展平与版本（RFC-0014「远程配置」与「Nacos Provider」的「文档格式」，ADR-0277、ADR-0286）：Provider 把自己的格式展平成 IConfiguration 的键形式（A:B:C）；键不区分大小写，values 里的键照文档里写的大小写给出。cases 的每项：format 是文档格式，content 是远端的文档原文，values 是展平后的键到值（null 是保留下来的空值），version 是这份文档的版本——Nacos Provider 的版本是内容按 UTF-8 编码的 MD5（小写十六进制），与 Nacos 监听接口的约定一致，换成别的摘要监听永远报告变化。Json：顶层是对象，对象按 : 展平（成员名原样拼接，不转义），数组按下标，字符串取值，数字取原文，布尔写成 True / False，null 保留为空值，空对象与空数组不产生键；照收 // 与 /* */ 注释和尾逗号，嵌套最多 64 层。Properties：按 LF 分行，行、键、值两侧的空白（RFC-0001「空白字符」）去掉，空行与 # / ! 起头的行跳过，第一个 = 或 : 分开键与值，没有分隔符的行值为空串，键里的 . 换成 :，不认转义与续行。invalid 是不合声明格式的文档，取文档以 code 失败：语法不合法、Json 的顶层不是对象或嵌套超过 64 层、展平出的键为空（Json 顶层的成员名是空串、Properties 的键为空），以及展平后的键（不区分大小写）出现两次——重复的键不取其中任何一个。（布尔与小数的文本形式、注释与尾逗号、顶层不是对象、重复的键、Properties 的冒号分隔符与两侧的空白是 2026-11-24 写明的，ADR-0286；以前这几类不在表里，重复的键 .NET 取最后一个。）期望值由 .NET 参考实现（Configuration.Nacos 的 NacosDocumentParser 与版本的算法）算出；提供 Nacos 远程配置客户端的实现回放它。",
   "code": "CONFIGURATION_VALIDATION_001",
   "cases": [
     {
@@ -142,6 +142,276 @@
       "content": "# only a comment\n",
       "version": "1b73b4ec12155c28402a77ecaf25465c",
       "values": {}
+    },
+    {
+      "name": "JSON：布尔写成 True 与 False",
+      "format": "Json",
+      "content": "{\"Enabled\":true,\"Verbose\":false}",
+      "version": "891d3355de5fb4c761ae2cd443189df0",
+      "values": {
+        "Enabled": "True",
+        "Verbose": "False"
+      }
+    },
+    {
+      "name": "JSON：小数、指数与很大的数按原文",
+      "format": "Json",
+      "content": "{\"Ratio\":1.50,\"Scale\":1e3,\"Negative\":-0.0,\"Big\":12345678901234567890}",
+      "version": "b85be0c4e36889ae9ffe6a65b0ec9045",
+      "values": {
+        "Big": "12345678901234567890",
+        "Negative": "-0.0",
+        "Ratio": "1.50",
+        "Scale": "1e3"
+      }
+    },
+    {
+      "name": "JSON：行注释与块注释照收",
+      "format": "Json",
+      "content": "{\n  // listen address\n  \"Host\": \"0.0.0.0\", /* inline */\n  \"Port\": 8080\n}\n// tail\n",
+      "version": "cbddebdf144e0cfca32a8a9faac8fa87",
+      "values": {
+        "Host": "0.0.0.0",
+        "Port": "8080"
+      }
+    },
+    {
+      "name": "JSON：文档开头的注释",
+      "format": "Json",
+      "content": "/* generated */ {\"Name\":\"orders\"}",
+      "version": "42f43ddb1dd14343270ae7600829b867",
+      "values": {
+        "Name": "orders"
+      }
+    },
+    {
+      "name": "JSON：对象与数组的尾逗号照收",
+      "format": "Json",
+      "content": "{\"Hosts\":[\"a\",\"b\",],\"Name\":\"orders\",}",
+      "version": "79a3f3ec1a8e62a98b681a5696f545d2",
+      "values": {
+        "Hosts:0": "a",
+        "Hosts:1": "b",
+        "Name": "orders"
+      }
+    },
+    {
+      "name": "JSON：空对象与空数组不产生键",
+      "format": "Json",
+      "content": "{\"Empty\":{},\"None\":[],\"Nested\":{\"Deep\":{}},\"Name\":\"orders\"}",
+      "version": "5b45a64eaeb84d1e6aebaac5d946ea19",
+      "values": {
+        "Name": "orders"
+      }
+    },
+    {
+      "name": "JSON：数组里的数组与空值",
+      "format": "Json",
+      "content": "{\"Matrix\":[[1,2],[3]],\"Mixed\":[null,\"x\",{\"K\":\"v\"}]}",
+      "version": "babd92c4711617316532a5e80ada6939",
+      "values": {
+        "Matrix:0:0": "1",
+        "Matrix:0:1": "2",
+        "Matrix:1:0": "3",
+        "Mixed:0": null,
+        "Mixed:1": "x",
+        "Mixed:2:K": "v"
+      }
+    },
+    {
+      "name": "JSON：成员名里的冒号不转义，就是层次",
+      "format": "Json",
+      "content": "{\"Logging:Level\":\"Debug\"}",
+      "version": "8106135c8d28643ccdf3d18916dd198f",
+      "values": {
+        "Logging:Level": "Debug"
+      }
+    },
+    {
+      "name": "JSON：字符串里的转义还原",
+      "format": "Json",
+      "content": "{\"Text\":\"line\\nbreak \\u00e9 \\ud83d\\ude00 \\\" \\\\ \\/\"}",
+      "version": "41340fb6945c9490d83fe4c61d7c7176",
+      "values": {
+        "Text": "line\nbreak é \ud83d\ude00 \" \\ /"
+      }
+    },
+    {
+      "name": "JSON：两个键只差大小写、其下的键不同，不算重复",
+      "format": "Json",
+      "content": "{\"a\":{\"b\":\"1\"},\"A\":{\"c\":\"2\"}}",
+      "version": "6e50b8411d73b6eb7f5ba52344eb2c29",
+      "values": {
+        "A:c": "2",
+        "a:b": "1"
+      }
+    },
+    {
+      "name": "JSON：同名的成员一个是值、一个是对象，展平后的键不同，不算重复",
+      "format": "Json",
+      "content": "{\"a\":\"1\",\"a\":{\"b\":\"2\"}}",
+      "version": "8000c4b37a30fef541beb9a68745aa39",
+      "values": {
+        "a": "1",
+        "a:b": "2"
+      }
+    },
+    {
+      "name": "JSON：嵌套 64 层",
+      "format": "Json",
+      "content": "{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":\"x\"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}",
+      "version": "be600e9a0415eda5d24b202541374ed4",
+      "values": {
+        "a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a:a": "x"
+      }
+    },
+    {
+      "name": "Properties：冒号也是分隔符",
+      "format": "Properties",
+      "content": "a.b:c\n",
+      "version": "60a87e93511ee061d41e23632ebceaee",
+      "values": {
+        "a:b": "c"
+      }
+    },
+    {
+      "name": "Properties：键值以第一个 = 或 : 分开，之后的都留在值里",
+      "format": "Properties",
+      "content": "url=http://example.com:8080/x\njdbc:mysql=1\n",
+      "version": "bb2c38ca8afdda2ab9c2c5f07716bbbb",
+      "values": {
+        "jdbc": "mysql=1",
+        "url": "http://example.com:8080/x"
+      }
+    },
+    {
+      "name": "Properties：行、键、值两侧的空白去掉",
+      "format": "Properties",
+      "content": "  a.b  =  c d  \n\tx\t:\ty\t\n",
+      "version": "38e1e5a39973164a1b757fbbf770c935",
+      "values": {
+        "a:b": "c d",
+        "x": "y"
+      }
+    },
+    {
+      "name": "Properties：CRLF 的行尾",
+      "format": "Properties",
+      "content": "a=1\r\nb=2\r\n",
+      "version": "439a96f5ff697754ac595ea9b9e97076",
+      "values": {
+        "a": "1",
+        "b": "2"
+      }
+    },
+    {
+      "name": "Properties：最后一行没有换行",
+      "format": "Properties",
+      "content": "a=1\nb=2",
+      "version": "36daa8ea0dd87e5f097829ab55d9a588",
+      "values": {
+        "a": "1",
+        "b": "2"
+      }
+    },
+    {
+      "name": "Properties：没有分隔符的行，值为空串",
+      "format": "Properties",
+      "content": "flag\n",
+      "version": "6470e394cbf6dab6a91682cc8585059b",
+      "values": {
+        "flag": ""
+      }
+    },
+    {
+      "name": "Properties：分隔符之后为空，值为空串",
+      "format": "Properties",
+      "content": "a=\nb = \nc:\n",
+      "version": "677cebc6dff590a4ebf9a6defd7ef038",
+      "values": {
+        "a": "",
+        "b": "",
+        "c": ""
+      }
+    },
+    {
+      "name": "Properties：缩进的注释行",
+      "format": "Properties",
+      "content": "  # indented\n\t! bang\na=1\n",
+      "version": "334c42b0d98b871cc5b7ca859ec401ce",
+      "values": {
+        "a": "1"
+      }
+    },
+    {
+      "name": "Properties：值里的 # 与 ! 不是注释",
+      "format": "Properties",
+      "content": "a=x # y\nb=!z\n",
+      "version": "7c79efa167326dda838c903a3cd9d619",
+      "values": {
+        "a": "x # y",
+        "b": "!z"
+      }
+    },
+    {
+      "name": "Properties：不认转义与续行，反斜杠是普通字符",
+      "format": "Properties",
+      "content": "path=C:\\temp\\new\ntext=\\u4e2d\nlong=a\\\nnext=b\n",
+      "version": "4c25d4dad74ce20128105576494b9626",
+      "values": {
+        "long": "a\\",
+        "next": "b",
+        "path": "C:\\temp\\new",
+        "text": "\\u4e2d"
+      }
+    },
+    {
+      "name": "Properties：键里面的空白保留",
+      "format": "Properties",
+      "content": "a b=1\n",
+      "version": "a340f313ca93ed311382eb792e34831d",
+      "values": {
+        "a b": "1"
+      }
+    },
+    {
+      "name": "Properties：不换行空格与表意空格也是空白",
+      "format": "Properties",
+      "content": "a=\u00a0x\u3000\n\u2003b\u2003=\u2003y\n",
+      "version": "48e1b0cdc48645a093eb3259e10d1956",
+      "values": {
+        "a": "x",
+        "b": "y"
+      }
+    },
+    {
+      "name": "Properties：键里的每个点都换成冒号",
+      "format": "Properties",
+      "content": "a.b.c=1\nd..e=2\n",
+      "version": "ca09ef1de5c0ad6c144f316d4ca45bb9",
+      "values": {
+        "a:b:c": "1",
+        "d::e": "2"
+      }
+    },
+    {
+      "name": "Properties：键里写不出冒号，冒号总是分隔符",
+      "format": "Properties",
+      "content": "a.b=1\nc:d=2\n",
+      "version": "10c7d5926a21901acbad45dba662b292",
+      "values": {
+        "a:b": "1",
+        "c": "d=2"
+      }
+    },
+    {
+      "name": "Properties：非 ASCII 的键与值",
+      "format": "Properties",
+      "content": "标题=订单服务\n",
+      "version": "b248b0eff5e5b310a496bf0174bf1e63",
+      "values": {
+        "标题": "订单服务"
+      }
     }
   ],
   "invalid": [
@@ -159,6 +429,141 @@
       "name": "JSON：空文本",
       "format": "Json",
       "content": ""
+    },
+    {
+      "name": "JSON：顶层是数组",
+      "format": "Json",
+      "content": "[1,2]"
+    },
+    {
+      "name": "JSON：顶层是字符串",
+      "format": "Json",
+      "content": "\"orders\""
+    },
+    {
+      "name": "JSON：顶层是 null",
+      "format": "Json",
+      "content": "null"
+    },
+    {
+      "name": "JSON：顶层的成员名是空串，展平出的键为空",
+      "format": "Json",
+      "content": "{\"\":\"root\"}"
+    },
+    {
+      "name": "JSON：重复的键",
+      "format": "Json",
+      "content": "{\"a\":1,\"a\":2}"
+    },
+    {
+      "name": "JSON：只差大小写的重复键",
+      "format": "Json",
+      "content": "{\"Name\":\"a\",\"name\":\"b\"}"
+    },
+    {
+      "name": "JSON：嵌套对象里只差大小写的重复键",
+      "format": "Json",
+      "content": "{\"a\":{\"b\":1},\"A\":{\"B\":2}}"
+    },
+    {
+      "name": "JSON：嵌套的成员与带冒号的成员名展平后是同一个键",
+      "format": "Json",
+      "content": "{\"a\":{\"b\":1},\"a:b\":2}"
+    },
+    {
+      "name": "JSON：数组下标与写成数字的成员名展平后是同一个键",
+      "format": "Json",
+      "content": "{\"a\":[\"x\"],\"a:0\":\"y\"}"
+    },
+    {
+      "name": "JSON：根值之后还有内容",
+      "format": "Json",
+      "content": "{\"a\":1}{\"b\":2}"
+    },
+    {
+      "name": "JSON：没有结束的块注释",
+      "format": "Json",
+      "content": "{\"a\":1 /* open"
+    },
+    {
+      "name": "JSON：数组里连着两个逗号",
+      "format": "Json",
+      "content": "{\"a\":[1,,2]}"
+    },
+    {
+      "name": "JSON：只有逗号的对象",
+      "format": "Json",
+      "content": "{,}"
+    },
+    {
+      "name": "JSON：只有逗号的数组",
+      "format": "Json",
+      "content": "{\"a\":[,]}"
+    },
+    {
+      "name": "JSON：单引号的字符串",
+      "format": "Json",
+      "content": "{\"a\":'x'}"
+    },
+    {
+      "name": "JSON：成员名没有引号",
+      "format": "Json",
+      "content": "{a:1}"
+    },
+    {
+      "name": "JSON：数字有前导 0",
+      "format": "Json",
+      "content": "{\"a\":01}"
+    },
+    {
+      "name": "JSON：字符串里有没转义的制表符",
+      "format": "Json",
+      "content": "{\"a\":\"tab\there\"}"
+    },
+    {
+      "name": "JSON：落单的代理项转义",
+      "format": "Json",
+      "content": "{\"a\":\"\\ud800\"}"
+    },
+    {
+      "name": "JSON：成员名里落单的代理项转义",
+      "format": "Json",
+      "content": "{\"\\udc00\":1}"
+    },
+    {
+      "name": "JSON：嵌套 65 层",
+      "format": "Json",
+      "content": "{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":\"x\"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}"
+    },
+    {
+      "name": "JSON：# 不是注释",
+      "format": "Json",
+      "content": "{\"a\":1 # hash\n}"
+    },
+    {
+      "name": "Properties：键为空（等号起头）",
+      "format": "Properties",
+      "content": "=value\n"
+    },
+    {
+      "name": "Properties：键为空（冒号起头）",
+      "format": "Properties",
+      "content": "a=1\n : value\n"
+    },
+    {
+      "name": "Properties：重复的键",
+      "format": "Properties",
+      "content": "a=1\na=2\n"
+    },
+    {
+      "name": "Properties：只差大小写的重复键",
+      "format": "Properties",
+      "content": "a.b=1\nA.B=2\n"
+    },
+    {
+      "name": "Properties：一行用等号、一行用冒号分隔的同一个键",
+      "format": "Properties",
+      "content": "a.b=1\na.b:2\n"
     }
   ]
 }
