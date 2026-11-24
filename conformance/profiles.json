@@ -214,7 +214,10 @@
       "title": "子系统：审计",
       "stability": "stable",
       "documents": ["rfcs/0015-auditing.md"],
-      "vectors": [],
+      "vectors": [
+        "auditing/event-selection.json",
+        "auditing/exclusions.json"
+      ],
       "runner": []
     },
     {

@@ -1,0 +1,497 @@
+{
+  "$comment": "一次调用是否记成审计事件、记成什么（RFC-0015「事件的产生」，ADR-0071、ADR-0080、ADR-0191、ADR-0277）。defaults 是两个选项的缺省值。selection：options 是 Selection（Protected 只记需要授权的操作——契约声明了权限码或策略名；All 记所有操作；None 只记显式声明的）、IncludeSuccesses 与 Exclude；operation 是当前操作（id 加契约上的 permission 与 policy，null 表示这次调用不是操作调用），explicitAction 是调用期间显式声明的动作（null 表示没有）；outcome 是调用怎样结束——success 与 failure 是管道里写入了成功或失败的结果（失败的错误码是 ORDERS_VALIDATION_001），none 是正常返回却没写结果，throws 是没有写结果而抛出了异常，canceled 是没有写结果而被取消。expected 是记下的事件：action、succeeded 与失败时的错误码 code；null 表示不记。动作取显式声明的，否则取按选择规则挑出且没被排除的操作 ID，没有动作就不记；IncludeSuccesses 为假时只记失败。attribution：事件的主体与租户——principal 是安全上下文里已认证的主体（null 表示匿名），baggagePrincipal 与 baggageTenant 是 Baggage 的 xihan.principal 与 xihan.tenant，tenantResolved 是 Tenant 阶段是否裁定过这次调用的租户，tenant 是它写进安全上下文的租户（null 表示无租户）；expected 是事件上的主体与租户。主体先取安全上下文、匿名时回退到 Baggage；租户先取安全上下文，只在 Tenant 阶段没有裁定过时回退到 Baggage。期望值由 .NET 参考实现（AuditMiddleware）算出。",
+  "defaults": {
+    "selection": "Protected",
+    "includeSuccesses": true
+  },
+  "selection": [
+    {
+      "name": "Protected（缺省）：声明了权限码的操作",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "success",
+      "expected": {
+        "action": "orders.create",
+        "succeeded": true,
+        "code": null
+      }
+    },
+    {
+      "name": "Protected：只用策略保护的操作同样记录",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.approve",
+        "permission": null,
+        "policy": "order-approver"
+      },
+      "explicitAction": null,
+      "outcome": "success",
+      "expected": {
+        "action": "orders.approve",
+        "succeeded": true,
+        "code": null
+      }
+    },
+    {
+      "name": "Protected：不需要授权的操作不记",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.list",
+        "permission": null,
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "success",
+      "expected": null
+    },
+    {
+      "name": "Protected：不需要授权的操作显式声明了动作",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.list",
+        "permission": null,
+        "policy": null
+      },
+      "explicitAction": "orders.export-report",
+      "outcome": "success",
+      "expected": {
+        "action": "orders.export-report",
+        "succeeded": true,
+        "code": null
+      }
+    },
+    {
+      "name": "显式声明的动作优先于操作 ID",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": "orders.import",
+      "outcome": "success",
+      "expected": {
+        "action": "orders.import",
+        "succeeded": true,
+        "code": null
+      }
+    },
+    {
+      "name": "All：所有操作都记",
+      "options": {
+        "selection": "All",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.list",
+        "permission": null,
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "success",
+      "expected": {
+        "action": "orders.list",
+        "succeeded": true,
+        "code": null
+      }
+    },
+    {
+      "name": "None：操作不记",
+      "options": {
+        "selection": "None",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "success",
+      "expected": null
+    },
+    {
+      "name": "None：只记显式声明的",
+      "options": {
+        "selection": "None",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": "auth.login",
+      "outcome": "success",
+      "expected": {
+        "action": "auth.login",
+        "succeeded": true,
+        "code": null
+      }
+    },
+    {
+      "name": "不是操作调用、没有显式动作：没有动作就不记",
+      "options": {
+        "selection": "All",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": null,
+      "explicitAction": null,
+      "outcome": "success",
+      "expected": null
+    },
+    {
+      "name": "不是操作调用但显式声明了动作",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": null,
+      "explicitAction": "auth.login",
+      "outcome": "success",
+      "expected": {
+        "action": "auth.login",
+        "succeeded": true,
+        "code": null
+      }
+    },
+    {
+      "name": "被排除的操作不记",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": true,
+        "exclude": [
+          "orders.*"
+        ]
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "success",
+      "expected": null
+    },
+    {
+      "name": "排除只针对按规则挑出的操作：显式声明动作的调用照样记录",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": true,
+        "exclude": [
+          "orders.*"
+        ]
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": "orders.export-report",
+      "outcome": "success",
+      "expected": {
+        "action": "orders.export-report",
+        "succeeded": true,
+        "code": null
+      }
+    },
+    {
+      "name": "All 下被排除的操作不记",
+      "options": {
+        "selection": "All",
+        "includeSuccesses": true,
+        "exclude": [
+          "orders.list"
+        ]
+      },
+      "operation": {
+        "id": "orders.list",
+        "permission": null,
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "success",
+      "expected": null
+    },
+    {
+      "name": "结果：管道里写入的失败",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "failure",
+      "expected": {
+        "action": "orders.create",
+        "succeeded": false,
+        "code": "ORDERS_VALIDATION_001"
+      }
+    },
+    {
+      "name": "结果：没有写入而抛出了异常",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "throws",
+      "expected": {
+        "action": "orders.create",
+        "succeeded": false,
+        "code": "KERNEL_UNEXPECTED_001"
+      }
+    },
+    {
+      "name": "结果：没有写入而被取消",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "canceled",
+      "expected": {
+        "action": "orders.create",
+        "succeeded": false,
+        "code": "KERNEL_CANCELLED_001"
+      }
+    },
+    {
+      "name": "结果：正常返回却没写结果视为成功",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": true,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "none",
+      "expected": {
+        "action": "orders.create",
+        "succeeded": true,
+        "code": null
+      }
+    },
+    {
+      "name": "IncludeSuccesses 为假：成功的不记",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": false,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "success",
+      "expected": null
+    },
+    {
+      "name": "IncludeSuccesses 为假：没写结果的正常返回也是成功，不记",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": false,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "none",
+      "expected": null
+    },
+    {
+      "name": "IncludeSuccesses 为假：失败的照记",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": false,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "failure",
+      "expected": {
+        "action": "orders.create",
+        "succeeded": false,
+        "code": "ORDERS_VALIDATION_001"
+      }
+    },
+    {
+      "name": "IncludeSuccesses 为假：抛出的照记",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": false,
+        "exclude": []
+      },
+      "operation": {
+        "id": "orders.create",
+        "permission": "orders.write",
+        "policy": null
+      },
+      "explicitAction": null,
+      "outcome": "throws",
+      "expected": {
+        "action": "orders.create",
+        "succeeded": false,
+        "code": "KERNEL_UNEXPECTED_001"
+      }
+    },
+    {
+      "name": "IncludeSuccesses 为假：显式声明的动作成功时同样不记",
+      "options": {
+        "selection": "Protected",
+        "includeSuccesses": false,
+        "exclude": []
+      },
+      "operation": null,
+      "explicitAction": "auth.login",
+      "outcome": "success",
+      "expected": null
+    }
+  ],
+  "attribution": [
+    {
+      "name": "已认证的主体与 Tenant 阶段解析出的租户",
+      "principal": "u-1",
+      "baggagePrincipal": null,
+      "tenantResolved": true,
+      "tenant": "acme",
+      "baggageTenant": null,
+      "expected": {
+        "principal": "u-1",
+        "tenant": "acme"
+      }
+    },
+    {
+      "name": "安全上下文优先于 Baggage",
+      "principal": "u-1",
+      "baggagePrincipal": "alice",
+      "tenantResolved": true,
+      "tenant": "acme",
+      "baggageTenant": "globex",
+      "expected": {
+        "principal": "u-1",
+        "tenant": "acme"
+      }
+    },
+    {
+      "name": "匿名调用回退到 Baggage 的主体",
+      "principal": null,
+      "baggagePrincipal": "alice",
+      "tenantResolved": false,
+      "tenant": null,
+      "baggageTenant": null,
+      "expected": {
+        "principal": "alice",
+        "tenant": null
+      }
+    },
+    {
+      "name": "没有 Tenant 阶段的宿主：租户回退到 Baggage",
+      "principal": null,
+      "baggagePrincipal": "alice",
+      "tenantResolved": false,
+      "tenant": null,
+      "baggageTenant": "acme",
+      "expected": {
+        "principal": "alice",
+        "tenant": "acme"
+      }
+    },
+    {
+      "name": "Tenant 阶段裁定为无租户：不回退到调用方自报的租户",
+      "principal": "u-1",
+      "baggagePrincipal": null,
+      "tenantResolved": true,
+      "tenant": null,
+      "baggageTenant": "ghost",
+      "expected": {
+        "principal": "u-1",
+        "tenant": null
+      }
+    },
+    {
+      "name": "Tenant 阶段裁定过：主体照常回退到 Baggage",
+      "principal": null,
+      "baggagePrincipal": "alice",
+      "tenantResolved": true,
+      "tenant": "acme",
+      "baggageTenant": null,
+      "expected": {
+        "principal": "alice",
+        "tenant": "acme"
+      }
+    },
+    {
+      "name": "都没有：匿名、全局",
+      "principal": null,
+      "baggagePrincipal": null,
+      "tenantResolved": false,
+      "tenant": null,
+      "baggageTenant": null,
+      "expected": {
+        "principal": null,
+        "tenant": null
+      }
+    }
+  ]
+}

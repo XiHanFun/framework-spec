@@ -391,4 +391,46 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 		uniqueNames(t, "snowflake ids", cases)
 		return ids
 	},
+	"auditing/exclusions.json": func(t *testing.T) any {
+		exclusions, err := conformance.AuditExclusions()
+		if err != nil || len(exclusions.Entries.Valid) == 0 || len(exclusions.Entries.Invalid) == 0 || len(exclusions.Matches) == 0 {
+			t.Errorf("audit exclusions: %v", err)
+		}
+		var names []string
+		for _, c := range exclusions.Matches {
+			names = append(names, c.Name)
+			if c.Exclude == nil || c.Operation == "" {
+				t.Errorf("audit exclusion case %q must have its list (an empty array for none) and an operation", c.Name)
+			}
+		}
+		uniqueNames(t, "audit exclusions", names)
+		return exclusions
+	},
+	"auditing/event-selection.json": func(t *testing.T) any {
+		selection, err := conformance.AuditEventSelection()
+		if err != nil || selection.Defaults.Selection == "" || len(selection.Selection) == 0 || len(selection.Attribution) == 0 {
+			t.Errorf("audit event selection: %v", err)
+		}
+		var names []string
+		outcomes := map[string]bool{}
+		for _, c := range selection.Selection {
+			names = append(names, c.Name)
+			outcomes[c.Outcome] = true
+			if c.Options.Selection == "" || c.Options.Exclude == nil {
+				t.Errorf("audit selection case %q must carry its options", c.Name)
+			}
+		}
+		for _, outcome := range []string{"success", "failure", "none", "throws", "canceled"} {
+			if !outcomes[outcome] {
+				t.Errorf("audit event selection must keep a case that ends with %q", outcome)
+			}
+		}
+		uniqueNames(t, "audit selection", names)
+		names = nil
+		for _, c := range selection.Attribution {
+			names = append(names, c.Name)
+		}
+		uniqueNames(t, "audit attribution", names)
+		return selection
+	},
 }

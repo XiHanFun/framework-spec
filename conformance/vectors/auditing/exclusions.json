@@ -1,0 +1,148 @@
+{
+  "$comment": "审计的按操作排除（RFC-0015「事件的产生」，ADR-0080、ADR-0277）。entries：XiHan:Auditing:Exclude 的每一项是合法的操作 ID（conventions/operation-ids.md，精确匹配），或以 * 结尾的前缀——* 之前是非空的操作 ID 前缀 ^[a-z][a-z0-9-]*(\\.[a-z0-9-]*)?$（小写字母开头，只含小写字母、数字与 -，至多一个 .）；valid 必须接受，invalid 是配置错误（空白项、单独的 *、* 不在末尾、大写或其他字符），读取选项时即失败、应用不启动。matches：exclude 是排除列表，operation 是按选择规则挑出的操作的 ID，excluded 是它是否命中列表里的任一项——不带 * 的项精确匹配，带 * 的项按前缀匹配，都按序数比较。显式声明动作的调用不受排除影响，见 auditing/event-selection.json。期望值由 .NET 参考实现（AuditingOptions.Exclude 的赋值是否抛出、AuditMiddleware）算出。",
+  "entries": {
+    "valid": [
+      "orders.list",
+      "permissions.current",
+      "order-lines.try-add",
+      "profile.*",
+      "my-*",
+      "orders.l*",
+      "o*",
+      "orders*",
+      "a.*",
+      "order-lines.*",
+      "orders.list-*"
+    ],
+    "invalid": [
+      "",
+      " ",
+      "*",
+      "**",
+      "*.list",
+      "orders.*.list",
+      "orders.**",
+      "or*ders",
+      "Orders.*",
+      "orders.List",
+      "orders",
+      "orders.",
+      "orders.list.all",
+      "orders.list.*",
+      "1orders.*",
+      "-orders.*",
+      ".*",
+      "orders_lines.*",
+      "orders .*",
+      "orders.*\n",
+      "orders.list\n",
+      "订单.*"
+    ]
+  },
+  "matches": [
+    {
+      "name": "精确匹配",
+      "exclude": [
+        "orders.list"
+      ],
+      "operation": "orders.list",
+      "excluded": true
+    },
+    {
+      "name": "精确匹配不命中别的操作",
+      "exclude": [
+        "orders.list"
+      ],
+      "operation": "orders.list-all",
+      "excluded": false
+    },
+    {
+      "name": "资源的全部操作",
+      "exclude": [
+        "profile.*"
+      ],
+      "operation": "profile.get",
+      "excluded": true
+    },
+    {
+      "name": "资源名只是以它开头的不命中",
+      "exclude": [
+        "profile.*"
+      ],
+      "operation": "profiles.get",
+      "excluded": false
+    },
+    {
+      "name": "资源名的前缀",
+      "exclude": [
+        "my-*"
+      ],
+      "operation": "my-orders.list",
+      "excluded": true
+    },
+    {
+      "name": "资源名的前缀不命中别的资源",
+      "exclude": [
+        "my-*"
+      ],
+      "operation": "mine.list",
+      "excluded": false
+    },
+    {
+      "name": "前缀不带点：命中以它开头的资源",
+      "exclude": [
+        "orders*"
+      ],
+      "operation": "orders-archive.list",
+      "excluded": true
+    },
+    {
+      "name": "动词的前缀",
+      "exclude": [
+        "orders.l*"
+      ],
+      "operation": "orders.list",
+      "excluded": true
+    },
+    {
+      "name": "动词的前缀不命中别的动词",
+      "exclude": [
+        "orders.l*"
+      ],
+      "operation": "orders.get",
+      "excluded": false
+    },
+    {
+      "name": "一个字母的资源",
+      "exclude": [
+        "a.*"
+      ],
+      "operation": "a.b",
+      "excluded": true
+    },
+    {
+      "name": "多项里任一项命中",
+      "exclude": [
+        "permissions.current",
+        "profile.*"
+      ],
+      "operation": "profile.update",
+      "excluded": true
+    },
+    {
+      "name": "多项都不命中",
+      "exclude": [
+        "permissions.current",
+        "profile.*"
+      ],
+      "operation": "orders.create",
+      "excluded": false
+    },
+    {
+      "name": "没有排除项",
+      "exclude": [],
+      "operation": "orders.create",
+      "excluded": false
+    }
+  ]
+}

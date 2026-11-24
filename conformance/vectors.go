@@ -571,6 +571,8 @@ func vectorFile[T any](name string) TypedVector {
 // typedVectors 是向量文件表：每个向量文件一项，按 Names 的顺序。文件名只写在这里，类型化入口与 TypedVectors
 // （vectors 子命令与测试用它）都从这张表取；新增向量文件在这里加一行，再加一个类型化入口。
 var typedVectors = []TypedVector{
+	vectorFile[AuditEventSelectionVectors]("auditing/event-selection.json"),
+	vectorFile[AuditExclusionVectors]("auditing/exclusions.json"),
 	vectorFile[CacheKeyVectors]("caching/cache-keys.json"),
 	vectorFile[RemoteDocumentVectors]("configuration/remote-documents.json"),
 	vectorFile[SecretNameVectors]("configuration/secret-names.json"),

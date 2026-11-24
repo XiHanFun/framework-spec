@@ -1,6 +1,6 @@
 # RFC-0015 审计
 
-> 状态：已采纳（2026-10-27 修订：数据库 Provider；2026-10-28 修订：主体与租户取自安全上下文、记录列长；2026-11-01 修订：受保护的操作含只用策略保护的；2026-11-01 修订：按操作排除；2026-11-04 修订：查询失败的 `reason` 只写异常类型） | 日期：2026-10-23 | 对应 ADR：ADR-0028（数据库 Provider）、ADR-0036、ADR-0071（受保护的操作）、ADR-0080（按操作排除）、ADR-0115 | 参考实现：`XiHan.Framework.Auditing.Abstractions`、`XiHan.Framework.Auditing.InMemory`、`XiHan.Framework.Auditing.Database` | 一致性：`XiHan.Framework.Auditing.Conformance` | 一致性档：`auditing`
+> 状态：已采纳（2026-10-27 修订：数据库 Provider；2026-10-28 修订：主体与租户取自安全上下文、记录列长；2026-11-01 修订：受保护的操作含只用策略保护的；2026-11-01 修订：按操作排除；2026-11-04 修订：查询失败的 `reason` 只写异常类型；2026-11-24 修订：一致性向量） | 日期：2026-10-23 | 对应 ADR：ADR-0028（数据库 Provider）、ADR-0036、ADR-0071（受保护的操作）、ADR-0080（按操作排除）、ADR-0115、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.Auditing.Abstractions`、`XiHan.Framework.Auditing.InMemory`、`XiHan.Framework.Auditing.Database` | 一致性：`XiHan.Framework.Auditing.Conformance`，向量 `conformance/vectors/auditing/` | 一致性档：`auditing`
 
 ## 摘要
 
@@ -37,6 +37,15 @@
 ## 一致性
 
 Provider 继承 `AuditTrailConformance`，实现返回接收器与查询的夹具，并通过全部用例。
+
+向量（档 `auditing`，`conformance/vectors/auditing/`；2026-11-24，ADR-0277，以前这个档没有向量）：
+
+| 文件 | 内容 |
+| --- | --- |
+| `exclusions.json` | 排除列表的项合法与不合法的样例，操作是否命中排除列表（精确与前缀，按序数比较） |
+| `event-selection.json` | 一次调用是否记成事件、动作取自哪里、结果怎样定（管道里写入的、抛出的、取消的、没写的），`IncludeSuccesses`；事件的主体与租户（安全上下文优先，Tenant 阶段裁定过就不回退到 Baggage） |
+
+向量不收的：查询的过滤、分页与校验，接收器的有界与不抛出，数据库 Provider 的队列与落库（有状态，由 `AuditTrailConformance` 核对）；写成单个值而不是列表的 `Exclude`（配置的形状，随各语言的配置系统而不同）。
 
 ## 错误码
 

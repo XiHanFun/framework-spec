@@ -683,3 +683,94 @@ func IndexNames() (IndexNameVectors, error) {
 func SnowflakeIDs() (SnowflakeIDVectors, error) {
 	return typed[SnowflakeIDVectors]()
 }
+
+// AuditExclusionEntries 是排除列表里合法与不合法的项。
+type AuditExclusionEntries struct {
+	Valid   []string `json:"valid"`
+	Invalid []string `json:"invalid"`
+}
+
+// AuditExclusionMatch 是一份排除列表、一个操作 ID 与它是否被排除。
+type AuditExclusionMatch struct {
+	Name      string   `json:"name"`
+	Exclude   []string `json:"exclude"`
+	Operation string   `json:"operation"`
+	Excluded  bool     `json:"excluded"`
+}
+
+// AuditExclusionVectors 对应 auditing/exclusions.json（RFC-0015「事件的产生」，ADR-0277）。
+type AuditExclusionVectors struct {
+	Entries AuditExclusionEntries `json:"entries"`
+	Matches []AuditExclusionMatch `json:"matches"`
+}
+
+// AuditOptionsCase 是审计的三个选项。
+type AuditOptionsCase struct {
+	Selection        string   `json:"selection"`
+	IncludeSuccesses bool     `json:"includeSuccesses"`
+	Exclude          []string `json:"exclude"`
+}
+
+// AuditOperationCase 是一次调用的当前操作：Permission 与 Policy 为 nil 表示契约没有声明。
+type AuditOperationCase struct {
+	ID         string  `json:"id"`
+	Permission *string `json:"permission"`
+	Policy     *string `json:"policy"`
+}
+
+// AuditEventExpectation 是记下的事件：动作、是否成功与失败时的错误码。
+type AuditEventExpectation struct {
+	Action    string  `json:"action"`
+	Succeeded bool    `json:"succeeded"`
+	Code      *string `json:"code"`
+}
+
+// AuditSelectionCase 是一次调用与它记成的事件：Operation 为 nil 表示不是操作调用，Expected 为 nil 表示不记。
+type AuditSelectionCase struct {
+	Name           string                 `json:"name"`
+	Options        AuditOptionsCase       `json:"options"`
+	Operation      *AuditOperationCase    `json:"operation"`
+	ExplicitAction *string                `json:"explicitAction"`
+	Outcome        string                 `json:"outcome"`
+	Expected       *AuditEventExpectation `json:"expected"`
+}
+
+// AuditAttributionExpectation 是事件上的主体与租户，nil 表示匿名与全局。
+type AuditAttributionExpectation struct {
+	Principal *string `json:"principal"`
+	Tenant    *string `json:"tenant"`
+}
+
+// AuditAttributionCase 是一次调用的主体与租户来源：安全上下文里的与 Baggage 里的，以及 Tenant 阶段是否裁定过租户。
+type AuditAttributionCase struct {
+	Name             string                      `json:"name"`
+	Principal        *string                     `json:"principal"`
+	BaggagePrincipal *string                     `json:"baggagePrincipal"`
+	TenantResolved   bool                        `json:"tenantResolved"`
+	Tenant           *string                     `json:"tenant"`
+	BaggageTenant    *string                     `json:"baggageTenant"`
+	Expected         AuditAttributionExpectation `json:"expected"`
+}
+
+// AuditSelectionDefaults 是 Selection 与 IncludeSuccesses 的缺省值。
+type AuditSelectionDefaults struct {
+	Selection        string `json:"selection"`
+	IncludeSuccesses bool   `json:"includeSuccesses"`
+}
+
+// AuditEventSelectionVectors 对应 auditing/event-selection.json（RFC-0015「事件的产生」，ADR-0277）。
+type AuditEventSelectionVectors struct {
+	Defaults    AuditSelectionDefaults `json:"defaults"`
+	Selection   []AuditSelectionCase   `json:"selection"`
+	Attribution []AuditAttributionCase `json:"attribution"`
+}
+
+// AuditExclusions 读取审计按操作排除的向量。
+func AuditExclusions() (AuditExclusionVectors, error) {
+	return typed[AuditExclusionVectors]()
+}
+
+// AuditEventSelection 读取审计事件的选择、结果与归属的向量。
+func AuditEventSelection() (AuditEventSelectionVectors, error) {
+	return typed[AuditEventSelectionVectors]()
+}
