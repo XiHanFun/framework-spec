@@ -8,9 +8,17 @@
 | --- | --- | --- |
 | Trace | `traceparent` | W3C：trace-id、parent-id 与 trace-flags（上游「不采样」原样保留）；缺失或不合法时并入宿主当前的请求 Activity（ASP.NET Core 的请求 Span），也没有时生成新的 trace-id（RFC-0003 规则 7） |
 | Baggage | `baggage` | W3C；只保留已登记的 `xihan.` 键，其中 `xihan.tenant` 与 `xihan.principal` 不收（ADR-0121）：调用方的租户与主体只来自认证 |
-| Deadline | `xihan-deadline` | RFC 3339，UTC |
+| Deadline | `xihan-deadline` | 绝对截止时间的文本，文法见 RFC-0003 规则 8；读不出当作没有这个头（见表后） |
 | Locale | `Accept-Language` | 没有显式 `xihan.locale` Baggage 时按权重协商写入 |
 | Credential | `Authorization` | 原样进入凭据，由 Authenticate 阶段解释 |
+
+`xihan-deadline`（2026-11-24 写明，ADR-0276；以前只写「RFC 3339，UTC」，参考实现用通用的日期解析，比文法宽得多，见 RFC-0003 规则 8）：
+
+- 值按 RFC-0003 规则 8 的文法整串匹配。宿主拿到的是 HTTP 解析器交来的值（首尾的可选空白已按 RFC 9110 §5.5 去掉），不再裁剪，也不换别的日期格式再试。
+- 它是单值头：出现多次时各个值以逗号并成一个文本（RFC 9110 §5.3），逗号不在文法里，所以读不出。
+- 读不出（不合文法、越界、空值、出现多次）当作没有这个头：请求照常处理，不因此报错；gRPC 的 `grpc-timeout` 这时照常生效（`protocol/grpc.md`）。
+- 读出的时刻已经过去也照样作为截止时间：调用进入 Resilience 阶段时以 `KERNEL_TIMEOUT_001` 结束（RFC-0004「Resilience 阶段」），HTTP 状态 504。
+- 向量 `conformance/vectors/context/http-deadline.json`：请求头到截止时间；文法本身的合法与不合法文本在 `conformance/vectors/plugin/deadlines.json`。
 
 ## 操作映射（RFC-0011）
 

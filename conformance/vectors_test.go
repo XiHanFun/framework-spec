@@ -91,6 +91,20 @@ var nonEmptyChecks = map[string]func(t *testing.T) any{
 		}
 		return deadlines
 	},
+	"context/http-deadline.json": func(t *testing.T) any {
+		deadlines, err := conformance.HTTPDeadlines()
+		if err != nil || deadlines.Now == "" || len(deadlines.Cases) == 0 {
+			t.Errorf("http deadlines: %v", err)
+		}
+		names := map[string]bool{}
+		for _, c := range deadlines.Cases {
+			if c.Name == "" || names[c.Name] || c.Headers == nil {
+				t.Errorf("http deadline case %q must have a unique name and its headers (an empty object for none)", c.Name)
+			}
+			names[c.Name] = true
+		}
+		return deadlines
+	},
 	"plugin/plugin-messages.json": func(t *testing.T) any {
 		messages, err := conformance.PluginMessages()
 		if err != nil || len(messages.Messages) == 0 || len(messages.Reasons) == 0 {

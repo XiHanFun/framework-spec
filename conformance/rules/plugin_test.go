@@ -112,6 +112,69 @@ func TestDeadlinesFollowTheVectors(t *testing.T) {
 	}
 }
 
+func TestHTTPDeadlinesFollowTheVectors(t *testing.T) {
+	vectors, err := conformance.HTTPDeadlines()
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := mustTime(t, vectors.Now)
+	fromHeader, fromTimeout, none := 0, 0, 0
+	for _, c := range vectors.Cases {
+		for name := range c.Headers {
+			if name != rules.DeadlineHeader && name != rules.GRPCTimeoutHeader {
+				t.Errorf("%s: unexpected header %q", c.Name, name)
+			}
+		}
+		got, ok := rules.HTTPDeadline(c.Headers[rules.DeadlineHeader], c.Headers[rules.GRPCTimeoutHeader], now)
+		switch {
+		case c.Deadline == nil && ok:
+			t.Errorf("%s: must have no deadline, got %s", c.Name, got.Format(time.RFC3339Nano))
+		case c.Deadline != nil && (!ok || !got.Equal(mustTime(t, *c.Deadline)) || got.Location() != time.UTC):
+			t.Errorf("%s: deadline %s (ok=%v), want %s", c.Name, got.Format(time.RFC3339Nano), ok, *c.Deadline)
+		}
+		// 三种结局各数一遍：头读得出、落到 grpc-timeout、没有截止时间
+		_, header := rules.ParseDeadline(firstValue(c.Headers[rules.DeadlineHeader]))
+		switch {
+		case c.Deadline == nil:
+			none++
+		case header && len(c.Headers[rules.DeadlineHeader]) == 1:
+			fromHeader++
+		default:
+			fromTimeout++
+		}
+	}
+	if fromHeader == 0 || fromTimeout == 0 || none == 0 {
+		t.Fatalf("checked %d deadlines from the header, %d from grpc-timeout and %d absent; each must be non-zero", fromHeader, fromTimeout, none)
+	}
+
+	// 换算出的时刻超出范围时截到能读出的最晚时刻；八位数的小时装不进 time.Duration
+	latest := mustTime(t, "9999-12-31T23:59:59.999999999Z")
+	if got, ok := rules.HTTPDeadline(nil, []string{"99999999H"}, now); !ok || !got.Equal(latest) {
+		t.Errorf("99999999H from %s = %s (ok=%v), want %s", vectors.Now, got.Format(time.RFC3339Nano), ok, latest.Format(time.RFC3339Nano))
+	}
+	if got, ok := rules.HTTPDeadline(nil, []string{"1n"}, latest); !ok || !got.Equal(latest) {
+		t.Errorf("1n from the latest instant = %s (ok=%v), want the latest instant", got.Format(time.RFC3339Nano), ok)
+	}
+	for text, want := range map[string]time.Duration{"0S": 0, "5S": 5 * time.Second, "250m": 250 * time.Millisecond, "7u": 7 * time.Microsecond, "9n": 9, "00000002M": 2 * time.Minute, "99999999H": 1<<63 - 1} {
+		if got, ok := rules.ParseGRPCTimeout(text); !ok || got != want {
+			t.Errorf("grpc-timeout %q = %v (ok=%v), want %v", text, got, ok, want)
+		}
+	}
+	for _, text := range []string{"", "S", "5", "5s", "5 S", " 5S", "5S ", "-5S", "+5S", "5.0S", "123456789S", "5S,5S", "５S"} {
+		if got, ok := rules.ParseGRPCTimeout(text); ok {
+			t.Errorf("grpc-timeout %q must not parse, got %v", text, got)
+		}
+	}
+}
+
+// firstValue 返回头的第一个值；没有值时为空串。
+func firstValue(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
 func TestCallbackStatusFollowsTheVectors(t *testing.T) {
 	vectors, err := conformance.CallbackStatus()
 	if err != nil {

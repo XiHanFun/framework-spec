@@ -117,6 +117,20 @@ type DeadlineVectors struct {
 	Written   []WrittenDeadline       `json:"written"`
 }
 
+// HTTPDeadlineCase 是一次从 HTTP 请求头读截止时间：Headers 是头名到各个值的列表（一个头出现几次就有几项），
+// Deadline 是期望的截止时间（UTC，九位小数），nil 表示没有截止时间。
+type HTTPDeadlineCase struct {
+	Name     string              `json:"name"`
+	Headers  map[string][]string `json:"headers"`
+	Deadline *string             `json:"deadline"`
+}
+
+// HTTPDeadlineVectors 对应 context/http-deadline.json（RFC-0003 规则 8，protocol/http.md，protocol/grpc.md，ADR-0276）：Now 是宿主时钟的当前时刻。
+type HTTPDeadlineVectors struct {
+	Now   string             `json:"now"`
+	Cases []HTTPDeadlineCase `json:"cases"`
+}
+
 // PluginMessage 是 SDK 运行时与宿主共用的一项插件错误：码、消息键、参数名（也就是 details 的成员）与 en-US 模板。
 type PluginMessage struct {
 	Code      string   `json:"code"`
@@ -558,6 +572,7 @@ func vectorFile[T any](name string) TypedVector {
 // （vectors 子命令与测试用它）都从这张表取；新增向量文件在这里加一行，再加一个类型化入口。
 var typedVectors = []TypedVector{
 	vectorFile[CacheKeyVectors]("caching/keys.json"),
+	vectorFile[HTTPDeadlineVectors]("context/http-deadline.json"),
 	vectorFile[ManifestVectors]("manifest/manifests.json"),
 	vectorFile[PayloadReasonVectors]("operations/payload-reasons.json"),
 	vectorFile[PipelineOrderingVectors]("pipeline/ordering.json"),
@@ -638,6 +653,11 @@ func HostAddresses() (HostAddressVectors, error) {
 // Deadlines 读取 InvocationMetadata.deadline 的读法、生效的截止时间与写出向量。
 func Deadlines() (DeadlineVectors, error) {
 	return typed[DeadlineVectors]()
+}
+
+// HTTPDeadlines 读取 HTTP 载体上截止时间的读法向量。
+func HTTPDeadlines() (HTTPDeadlineVectors, error) {
+	return typed[HTTPDeadlineVectors]()
 }
 
 // PluginMessages 读取 SDK 运行时与宿主共用的插件消息键向量。

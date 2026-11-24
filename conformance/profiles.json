@@ -85,6 +85,7 @@
         "migration/README.md"
       ],
       "vectors": [
+        "context/http-deadline.json",
         "plugin/deadlines.json",
         "plugin/error-reading.json",
         "plugin/handshake-lines.json",

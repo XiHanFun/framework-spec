@@ -1,6 +1,6 @@
 # RFC-0003 调用上下文与传播
 
-> 状态：已采纳（2026-10-29 修订：调用来源、端点身份；2026-11-01 修订：追踪标志与 Activity 父级、Baggage 在载体编解码处按已登记过滤；同日再修订：第 1 条写明下游写下的取消结果按超时归因；同日第三次修订：截止时间与调用方取消同时触发时报超时；2026-11-16 修订：根调用写出的 trace-flags 与采样位；同日再修订：`traceparent` 的文法、写出只带采样位、插件元数据与消息信封同一取法；同日第三次修订：取消与截止时间只经令牌通知，不强行中止处理器） | 日期：2026-10-21 | 对应 ADR：0002、0043（调用来源）、0048（端点身份）、0065（追踪标志与 Activity 父级）、0088、0092（超时归因）、0233（写出的标志）、0235、0236 | 参考实现：`InvocationContext`、`DeadlineMiddleware`、`InvocationOrigin` | 一致性档：`core`、`host`
+> 状态：已采纳（2026-10-29 修订：调用来源、端点身份；2026-11-01 修订：追踪标志与 Activity 父级、Baggage 在载体编解码处按已登记过滤；同日再修订：第 1 条写明下游写下的取消结果按超时归因；同日第三次修订：截止时间与调用方取消同时触发时报超时；2026-11-16 修订：根调用写出的 trace-flags 与采样位；同日再修订：`traceparent` 的文法、写出只带采样位、插件元数据与消息信封同一取法；同日第三次修订：取消与截止时间只经令牌通知，不强行中止处理器；2026-11-24 修订：截止时间文本的文法（规则 8），HTTP 载体的 `xihan-deadline` 与插件元数据共用） | 日期：2026-10-21 | 对应 ADR：0002、0043（调用来源）、0048（端点身份）、0065（追踪标志与 Activity 父级）、0088、0092（超时归因）、0233（写出的标志）、0235、0236、0276（截止时间的文本） | 参考实现：`InvocationContext`、`DeadlineMiddleware`、`InvocationOrigin` | 一致性档：`core`、`host`
 
 ## 摘要
 
@@ -11,7 +11,7 @@
 | 字段 | 内容 | 跨进程传播 |
 | --- | --- | --- |
 | `CancellationToken` | 取消 | 由载体的连接取消或插件协议取消驱动 |
-| `Deadline` | 绝对截止时间（UTC），基于 `TimeProvider` | `xihan-deadline`（RFC 3339） |
+| `Deadline` | 绝对截止时间（UTC），基于 `TimeProvider` | `xihan-deadline`（文本的文法见规则 8） |
 | `TraceId` / `SpanId` | W3C Trace Context：trace-id 与 parent-id | `traceparent` |
 | `TraceFlags` | W3C trace-flags（采样位 `01`）；没有上游时为空，这次调用是链路的根 | `traceparent` |
 | `Baggage` | 已登记的键（`spec/conventions/baggage-keys.md`） | W3C `baggage` |
@@ -48,6 +48,12 @@
      - 上下文的标志为空、又没有采样器的实现（不带 Observe 阶段的语言 SDK）写 `01`，即按已采样传下去，由下游的采样器决定。
      - 上游给的 `00` 原样传下去。消息信封与插件调用的元数据用同一个取法；以前插件元数据把标志写死为 `01`，上游的「不采样」传不到插件。
    - 向量 `conformance/vectors/primitives/trace-context.json`：合法与不合法的 `traceparent`、解析结果与写出的文本。
+8. 截止时间的文本（2026-11-24 写明，ADR-0276）：截止时间出进程时写成同一种文本，HTTP 载体的 `xihan-deadline` 头（gRPC 的同名元数据、MCP 的 Streamable HTTP 用的也是它）与插件协议的 `InvocationMetadata.deadline` 共用一条文法。以前只有插件协议一侧写了文法（`plugin/invocation.md` §2，ADR-0237），HTTP 载体只写着「RFC 3339，UTC」：.NET 的 HTTP 入口用通用的日期解析，空格代替 `T`、没有偏移、没有秒、只有日期、偏移不带冒号、首尾带空白、HTTP 日期（RFC 1123）与 `11/18/2026` 这样的写法都读得出，没有偏移的当作 UTC，只有时间的补上当天的日期，比 100 纳秒更细的小数四舍五入而不是截断，`9999-12-31T23:59:59.999999999Z` 因此读不出。
+   - 读法：`^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?([Zz]|[+-][0-9]{2}:[0-9]{2})\z`，按整串匹配（RFC-0001「文法的匹配」）；年 `0001`–`9999`、月日按公历（含闰年）、时 `00`–`23`、分 `00`–`59`、秒 `00`–`59`（不认闰秒 `60`）、偏移的时 `00`–`23` 与分 `00`–`59`；换算成 UTC 之后（不计小数）在 `0001-01-01T00:00:00` 到 `9999-12-31T23:59:59` 之间；比实现的时钟精度更细的小数截断，不进位。它是 RFC 3339 `date-time` 的子集：不认闰秒，小数一到九位。
+   - 读不出（不合文法或越界，含空串）就当作没有给出截止时间：不报错，也不换别的格式再试。
+   - 写法：框架写出时一律 UTC、七位小数、`+00:00` 偏移（.NET 的 `O` 格式，如 `2026-11-18T03:25:00.1234567+00:00`），小数不足七位补零，比 100 纳秒更细的部分截断。调用方自己写 `xihan-deadline` 头时，任何合文法的写法都读得出。
+   - 各载体怎样取到这段文本、与载体自己的截止时间怎样并存：HTTP 见 `protocol/http.md`「上下文映射」（与 `grpc-timeout` 的先后见 `protocol/grpc.md`），插件协议见 `plugin/invocation.md` §2（与 gRPC 调用自身的截止时间取较早者）。命令行与 MCP 的 stdio 传输不传文本，用相对的 `--timeout`（`protocol/commandline.md`、`protocol/mcp.md`）。
+   - 向量：`conformance/vectors/plugin/deadlines.json`（合法与不合法的文本、读出的时刻、写出的文本，两个载体共用）、`conformance/vectors/context/http-deadline.json`（HTTP 请求头到截止时间，含 `grpc-timeout`）。
 
 ## .NET 形态
 
@@ -57,4 +63,4 @@
 
 ## 一致性向量
 
-`spec/conformance/vectors/context/*.json`（规划中）：各载体的编码与解码、截止时间与取消的时序、未登记键剥离。目前由各实现移植的测试覆盖；Baggage 键与值的约束在 `primitives/baggage-keys.json`。
+`spec/conformance/vectors/context/http-deadline.json`（2026-11-24 增补，ADR-0276）：HTTP 载体从 `xihan-deadline` 与 `grpc-timeout` 读出的截止时间；截止时间文本的文法在 `plugin/deadlines.json`（规则 8）。`context/` 下其余的向量规划中：各载体其余字段的编码与解码、截止时间与取消的时序、未登记键剥离，目前由各实现移植的测试覆盖；Baggage 键与值的约束在 `primitives/baggage-keys.json`，`traceparent` 在 `primitives/trace-context.json`。

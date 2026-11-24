@@ -1,0 +1,353 @@
+{
+  "$comment": "HTTP 载体读出的截止时间（RFC-0003 规则 8，protocol/http.md「上下文映射」，protocol/grpc.md，ADR-0276）；gRPC 与 MCP 的 Streamable HTTP 复用同一个映射。now 是宿主时钟的当前时刻。每个用例的 headers 是请求头：名字到值的列表，一个头出现几次就有几项，值是 HTTP 解析器去掉首尾可选空白之后交给宿主的文本；deadline 是期望的截止时间（UTC，九位小数；比实现的时钟精度更细的部分截断后比较），null 表示没有截止时间。规则：xihan-deadline 的各个值以逗号并成一个文本，按规则 8 的文法整串匹配，读不出（含空串）当作没有这个头；没有 xihan-deadline 时 grpc-timeout 生效（1 到 8 位十进制数字加单位 H、M、S、m、u、n，相对 now），它同样读不出就当作没有；两个都没有就没有截止时间。期望值由 .NET 参考实现算出：xihan-deadline 合文法的取 plugin/deadlines.json 里同一文本的 utc，走 grpc-timeout 的取 HTTP 入口对只带这个 grpc-timeout 的请求算出的时刻；xihan-deadline 不合文法的按规则当作没有——ADR-0276 落地之前 .NET 的 HTTP 入口用宽松的日期解析，名字是「空格代替 T」「没有偏移」「没有秒」「只有日期」「偏移没有冒号」「十位小数」「开头有空格」「结尾有空格」「斜线分隔的日期」「HTTP 日期（RFC 1123）」的写法它照收，九位小数它四舍五入、「能表示的最晚时刻」它读不出。",
+  "now": "2026-11-18T00:00:00Z",
+  "cases": [
+    {
+      "name": "没有这两个头",
+      "headers": {},
+      "deadline": null
+    },
+    {
+      "name": "Z 结尾",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18T03:25:00Z"
+        ]
+      },
+      "deadline": "2026-11-18T03:25:00.000000000Z"
+    },
+    {
+      "name": "框架写出的形式：七位小数加 +00:00",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18T03:25:00.1234567+00:00"
+        ]
+      },
+      "deadline": "2026-11-18T03:25:00.123456700Z"
+    },
+    {
+      "name": "别的偏移换算成 UTC",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18T11:25:00.5+08:00"
+        ]
+      },
+      "deadline": "2026-11-18T03:25:00.500000000Z"
+    },
+    {
+      "name": "小写的 t 与 z",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18t03:25:00z"
+        ]
+      },
+      "deadline": "2026-11-18T03:25:00.000000000Z"
+    },
+    {
+      "name": "九位小数：比时钟精度细的部分截断，不进位",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18T03:25:00.123456789Z"
+        ]
+      },
+      "deadline": "2026-11-18T03:25:00.123456789Z"
+    },
+    {
+      "name": "能表示的最晚时刻",
+      "headers": {
+        "xihan-deadline": [
+          "9999-12-31T23:59:59.999999999Z"
+        ]
+      },
+      "deadline": "9999-12-31T23:59:59.999999999Z"
+    },
+    {
+      "name": "值为空",
+      "headers": {
+        "xihan-deadline": [
+          ""
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "不是时间",
+      "headers": {
+        "xihan-deadline": [
+          "not-a-deadline"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "空格代替 T",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18 03:25:00Z"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "没有偏移",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18T03:25:00"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "没有秒",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18T03:25Z"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "只有日期",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "偏移没有冒号",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18T03:25:00+0800"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "十位小数",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18T03:25:00.1234567890Z"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "开头有空格",
+      "headers": {
+        "xihan-deadline": [
+          " 2026-11-18T03:25:00Z"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "结尾有空格",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18T03:25:00Z "
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "斜线分隔的日期",
+      "headers": {
+        "xihan-deadline": [
+          "2026/11/18T03:25:00Z"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "HTTP 日期（RFC 1123）",
+      "headers": {
+        "xihan-deadline": [
+          "Wed, 18 Nov 2026 03:25:00 GMT"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "Unix 秒",
+      "headers": {
+        "xihan-deadline": [
+          "1763436300"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "头出现两次：两个值并成一个，不合文法",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18T03:25:00Z",
+          "2026-11-18T03:25:00Z"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "一个值里并了两个时刻",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18T03:25:00Z,2026-11-18T03:25:05Z"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "只有 grpc-timeout：秒",
+      "headers": {
+        "grpc-timeout": [
+          "5S"
+        ]
+      },
+      "deadline": "2026-11-18T00:00:05.000000000Z"
+    },
+    {
+      "name": "只有 grpc-timeout：毫秒",
+      "headers": {
+        "grpc-timeout": [
+          "250m"
+        ]
+      },
+      "deadline": "2026-11-18T00:00:00.250000000Z"
+    },
+    {
+      "name": "只有 grpc-timeout：分",
+      "headers": {
+        "grpc-timeout": [
+          "2M"
+        ]
+      },
+      "deadline": "2026-11-18T00:02:00.000000000Z"
+    },
+    {
+      "name": "只有 grpc-timeout：时",
+      "headers": {
+        "grpc-timeout": [
+          "1H"
+        ]
+      },
+      "deadline": "2026-11-18T01:00:00.000000000Z"
+    },
+    {
+      "name": "只有 grpc-timeout：微秒",
+      "headers": {
+        "grpc-timeout": [
+          "100u"
+        ]
+      },
+      "deadline": "2026-11-18T00:00:00.000100000Z"
+    },
+    {
+      "name": "只有 grpc-timeout：纳秒",
+      "headers": {
+        "grpc-timeout": [
+          "1000000n"
+        ]
+      },
+      "deadline": "2026-11-18T00:00:00.001000000Z"
+    },
+    {
+      "name": "两个头都有：xihan-deadline 优先，比 grpc-timeout 晚也一样",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18T03:25:00Z"
+        ],
+        "grpc-timeout": [
+          "5S"
+        ]
+      },
+      "deadline": "2026-11-18T03:25:00.000000000Z"
+    },
+    {
+      "name": "xihan-deadline 不是时间：grpc-timeout 生效",
+      "headers": {
+        "xihan-deadline": [
+          "not-a-deadline"
+        ],
+        "grpc-timeout": [
+          "5S"
+        ]
+      },
+      "deadline": "2026-11-18T00:00:05.000000000Z"
+    },
+    {
+      "name": "xihan-deadline 是宽松写法：读不出，grpc-timeout 生效",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18 03:25:00Z"
+        ],
+        "grpc-timeout": [
+          "5S"
+        ]
+      },
+      "deadline": "2026-11-18T00:00:05.000000000Z"
+    },
+    {
+      "name": "xihan-deadline 为空：grpc-timeout 生效",
+      "headers": {
+        "xihan-deadline": [
+          ""
+        ],
+        "grpc-timeout": [
+          "250m"
+        ]
+      },
+      "deadline": "2026-11-18T00:00:00.250000000Z"
+    },
+    {
+      "name": "xihan-deadline 出现两次：grpc-timeout 生效",
+      "headers": {
+        "xihan-deadline": [
+          "2026-11-18T03:25:00Z",
+          "2026-11-18T03:25:00Z"
+        ],
+        "grpc-timeout": [
+          "2M"
+        ]
+      },
+      "deadline": "2026-11-18T00:02:00.000000000Z"
+    },
+    {
+      "name": "grpc-timeout 没有单位",
+      "headers": {
+        "grpc-timeout": [
+          "5"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "grpc-timeout 的单位大小写不对",
+      "headers": {
+        "grpc-timeout": [
+          "5s"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "grpc-timeout 九位数字",
+      "headers": {
+        "grpc-timeout": [
+          "123456789S"
+        ]
+      },
+      "deadline": null
+    },
+    {
+      "name": "grpc-timeout 出现两次",
+      "headers": {
+        "grpc-timeout": [
+          "5S",
+          "5S"
+        ]
+      },
+      "deadline": null
+    }
+  ]
+}
