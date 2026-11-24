@@ -17,6 +17,7 @@
         "conventions/batch-first.md",
         "conventions/capability-ids.md",
         "conventions/error-codes.md",
+        "conventions/normative-language.md",
         "conventions/operation-ids.md",
         "conventions/package-ids.md",
         "conventions/vocabulary.md",

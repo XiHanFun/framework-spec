@@ -28,7 +28,7 @@ XiHan Spec 是 XiHan Framework 的语言中立规范：原语语义与线上编�
 | 目录 | 内容 |
 | --- | --- |
 | `rfcs/` | 提案：先 RFC，再 ADR，再实现 |
-| `conventions/` | 规范性：术语表、包 ID、能力 ID、操作 ID、错误码、Baggage 键、批量优先 |
+| `conventions/` | 规范性：规范用语、术语表、包 ID、能力 ID、操作 ID、错误码、Baggage 键、批量优先 |
 | `manifest/` | 规范性：`xihan.manifest.json` 的 JSON Schema |
 | `plugin/` | 规范性：插件协议 `plugin.proto` 与握手、生命周期、调用文本；Wasm 载体 `wasm.md` |
 | `protocol/` | 规范性：HTTP / gRPC / MCP / CloudEvents / 命令行 映射 |
@@ -36,6 +36,8 @@ XiHan Spec 是 XiHan Framework 的语言中立规范：原语语义与线上编�
 | `provider/` | 规范性：远程 Provider 的通用规则与各能力的操作集（`caching.distributed`） |
 | `migration/` | 规范性：`xihan migrate` 的通用约定（命令、标记、报告格式）与各来源版本的规则集 |
 | `conformance/` | 一致性档表（`profiles.json`）、向量（`vectors/`）与黑盒运行器（Go 模块，见 [conformance/README.md](./conformance/README.md)） |
+
+正文里「必须」「不得」「应当」「可以」各有多强的约束力，见 [conventions/normative-language.md](./conventions/normative-language.md)。
 
 ## 安装
 

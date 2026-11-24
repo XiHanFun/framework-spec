@@ -30,7 +30,7 @@ The documents in this repository are written in Chinese.
 | Directory | Content |
 | --- | --- |
 | `rfcs/` | Proposals: RFC first, then ADR, then implementation |
-| `conventions/` | Normative: vocabulary, package IDs, capability IDs, operation IDs, error codes, Baggage keys, batch first |
+| `conventions/` | Normative: requirement words, vocabulary, package IDs, capability IDs, operation IDs, error codes, Baggage keys, batch first |
 | `manifest/` | Normative: JSON Schema for `xihan.manifest.json` |
 | `plugin/` | Normative: plugin protocol `plugin.proto` with the handshake, lifecycle and invocation documents; Wasm carrier `wasm.md` |
 | `protocol/` | Normative: HTTP / gRPC / MCP / CloudEvents / command-line mappings |
@@ -38,6 +38,8 @@ The documents in this repository are written in Chinese.
 | `provider/` | Normative: general rules for remote providers and the operation set of each capability (`caching.distributed`) |
 | `migration/` | Normative: general conventions of `xihan migrate` (command, markers, report format) and the rule set for each source version |
 | `conformance/` | Conformance profiles (`profiles.json`), vectors (`vectors/`) and the black-box runner (Go module, see [conformance/README.md](./conformance/README.md)) |
+
+How binding the words 必须 (MUST), 不得 (MUST NOT), 应当 (SHOULD) and 可以 (MAY) are in the spec text is defined in [conventions/normative-language.md](./conventions/normative-language.md).
 
 ## Installation
 
