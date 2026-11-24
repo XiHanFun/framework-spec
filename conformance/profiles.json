@@ -159,7 +159,11 @@
       "title": "子系统：消息目录、区域协商与本地化 Provider（模板与消息键在 core）",
       "stability": "stable",
       "documents": ["rfcs/0010-localization.md"],
-      "vectors": [],
+      "vectors": [
+        "localization/catalog-resolution.json",
+        "localization/locale-names.json",
+        "localization/locale-negotiation.json"
+      ],
       "runner": []
     },
     {

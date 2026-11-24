@@ -1,6 +1,6 @@
 # RFC-0010 本地化
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域、目录名冲突与区域名错误的报告方式；2026-11-14 修订：数据库翻译的跨实例重新加载；2026-11-16 修订：模板文法、可移植的格式说明符与值的文本形式；同日再修订：浮点的全部写法、说明符的大小写与精度、`Describe` 按名字排序；同日第三次修订：值模型、数组与对象的文本、可移植说明符的文法、区域的数字符号；2026-11-23 修订：按归属登记与撤回的目录） | 日期：2026-10-21 | 对应 ADR：0038、0070、0233（模板与值的文本形式）、0235、0236、0252（归属目录） | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/primitives/message-templates.json` | 一致性档：`core`、`localization`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：区域名长度上限与存储列长、调用链作用域用协商后的区域、目录名冲突与区域名错误的报告方式；2026-11-14 修订：数据库翻译的跨实例重新加载；2026-11-16 修订：模板文法、可移植的格式说明符与值的文本形式；同日再修订：浮点的全部写法、说明符的大小写与精度、`Describe` 按名字排序；同日第三次修订：值模型、数组与对象的文本、可移植说明符的文法、区域的数字符号；2026-11-23 修订：按归属登记与撤回的目录；2026-11-24 修订：`localization` 档的一致性向量） | 日期：2026-10-21 | 对应 ADR：0038、0070、0233（模板与值的文本形式）、0235、0236、0252（归属目录）、0277（`localization` 档的向量） | 参考实现：`XiHan.Framework.Localization.Abstractions`、`XiHan.Framework.Localization.InMemory`；原语在 `XiHan.Framework.Primitives` | 一致性：`conformance/vectors/primitives/message-templates.json`（档 `core`）、`conformance/vectors/localization/`（档 `localization`） | 一致性档：`core`、`localization`
 
 ## 摘要
 
@@ -129,6 +129,18 @@ Segment    = [a-z][a-z0-9_]*
 - `XiHan:Localization:DefaultLocale`（默认 `en-US`）与 `XiHan:Localization:Locales`（逗号分隔，默认内置 10 种）可改默认与启用列表，默认区域必须在列表里。
 - Problem Details：`detail` 是 `IMessageLocalizer.Resolve(error, locale)` 的文案，`Content-Language` 是实际命中的区域；没有装配本地化或自由文本错误时 `detail` 是 `Error.Message`。
 - `Profiles.Minimal` 与 `Profiles.Standard` 都装配 `InMemoryLocalizationFeature`（`role: default`，`localization.resources@1`）。
+
+## 一致性向量
+
+模板与消息键的向量在档 `core`（`conformance/vectors/primitives/message-templates.json`）。档 `localization` 的向量在 `conformance/vectors/localization/`（2026-11-24，ADR-0277，以前这个档没有向量）：
+
+| 文件 | 内容 |
+| --- | --- |
+| `locale-names.json` | 区域名的文法、规范形式与语言子标签，内置的 10 种区域 |
+| `locale-negotiation.json` | 区域的协商（「协商与宿主」）与取文案的回退链（「解析」） |
+| `catalog-resolution.json` | 目录的合并与冲突（「语言文件」）、按回退链的查找与实际命中的区域 |
+
+向量不收的：文字与地区之外的子标签的规范形式；`Accept-Language` 的权重怎么解析（正文只说「按权重取候选」）；请求区域不合文法时的回退链；后注册的目录有请求区域、先注册的目录只有回退区域时谁优先（.NET 先按区域、再按目录）；按归属登记的目录与数据库翻译（有状态，由 `Localization.Conformance` 核对）。
 
 ## 错误码
 

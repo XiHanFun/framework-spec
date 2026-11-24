@@ -573,6 +573,9 @@ func vectorFile[T any](name string) TypedVector {
 var typedVectors = []TypedVector{
 	vectorFile[CacheKeyVectors]("caching/cache-keys.json"),
 	vectorFile[HTTPDeadlineVectors]("context/http-deadline.json"),
+	vectorFile[CatalogResolutionVectors]("localization/catalog-resolution.json"),
+	vectorFile[LocaleNameVectors]("localization/locale-names.json"),
+	vectorFile[LocaleNegotiationVectors]("localization/locale-negotiation.json"),
 	vectorFile[ManifestVectors]("manifest/manifests.json"),
 	vectorFile[CloudEventEnvelopeVectors]("messaging/cloudevents-envelopes.json"),
 	vectorFile[EnvelopeExtensionVectors]("messaging/envelope-extensions.json"),

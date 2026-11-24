@@ -275,4 +275,57 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 		}
 		return events
 	},
+	"localization/locale-names.json": func(t *testing.T) any {
+		names, err := conformance.LocaleNames()
+		if err != nil || names.MaxLength != 35 || names.Default == "" || len(names.BuiltIn) != 10 || len(names.Valid) == 0 || names.Longest == "" || len(names.Invalid) == 0 {
+			t.Errorf("locale names: %v", err)
+		}
+		return names
+	},
+	"localization/locale-negotiation.json": func(t *testing.T) any {
+		negotiation, err := conformance.LocaleNegotiation()
+		if err != nil || len(negotiation.Negotiation) == 0 || len(negotiation.Fallback) == 0 {
+			t.Errorf("locale negotiation: %v", err)
+		}
+		var names []string
+		for _, c := range negotiation.Negotiation {
+			names = append(names, c.Name)
+			if len(c.Enabled) == 0 || c.Default == "" || c.Candidates == nil || c.Locale == "" {
+				t.Errorf("negotiation case %q is incomplete", c.Name)
+			}
+		}
+		uniqueNames(t, "locale negotiation", names)
+		names = nil
+		for _, c := range negotiation.Fallback {
+			names = append(names, c.Name)
+			if len(c.Enabled) == 0 || c.Default == "" || c.Locale == "" || len(c.Chain) == 0 {
+				t.Errorf("fallback case %q is incomplete", c.Name)
+			}
+		}
+		uniqueNames(t, "locale fallback", names)
+		return negotiation
+	},
+	"localization/catalog-resolution.json": func(t *testing.T) any {
+		resolution, err := conformance.CatalogResolution()
+		if err != nil || resolution.Code == "" || len(resolution.Cases) == 0 {
+			t.Errorf("catalog resolution: %v", err)
+		}
+		var names []string
+		conflicting, missing := false, false
+		for _, c := range resolution.Cases {
+			names = append(names, c.Name)
+			if c.Default == "" || len(c.Catalogs) == 0 || c.Requests == nil || (c.Conflict && len(c.Requests) != 0) || (!c.Conflict && len(c.Requests) == 0) {
+				t.Errorf("catalog resolution case %q must have catalogs and either a conflict or lookups", c.Name)
+			}
+			conflicting = conflicting || c.Conflict
+			for _, request := range c.Requests {
+				missing = missing || request.Expected == nil
+			}
+		}
+		if !conflicting || !missing {
+			t.Error("catalog resolution must keep a conflicting case and a lookup that finds nothing")
+		}
+		uniqueNames(t, "catalog resolution", names)
+		return resolution
+	},
 }

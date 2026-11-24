@@ -1,0 +1,336 @@
+{
+  "$comment": "消息目录的合并与文案的查找（RFC-0010「语言文件」「解析」，ADR-0277）。每项的 catalogs 是按次序注册的目录：name 是目录名，messages 是区域到「键 → 模板」的对象；启用列表是内置的 10 种区域，default 是默认区域（不写即 en-US）。同名的目录合并成一份：内容相同什么都不变，互为补充时区域与键取并集；同一键同一区域的模板不同即冲突——conflict 为真的项注册必须以 code 失败（应用启动失败），任何一份都不会被静默丢弃。不同名的目录不合并，同一键同一区域先注册的优先。requests 是合并之后的查找：按 localization/locale-negotiation.json 的回退链依次找，expected 是文案与实际命中的区域，null 表示哪一级都没有这个键（调用方退回键与参数的描述）。模板都不带占位符，格式化见 primitives/message-templates.json。后注册的目录有请求区域、先注册的目录只有回退区域时谁优先，正文没有写，不在这张表里。期望值由 .NET 参考实现（AddMessageCatalog、InMemoryMessageLocalizer.Resolve）算出。",
+  "code": "LOCALIZATION_CONFLICT_001",
+  "cases": [
+    {
+      "name": "回退：请求区域、同语言的区域、默认区域",
+      "default": "en-US",
+      "catalogs": [
+        {
+          "name": "app",
+          "messages": {
+            "en-US": {
+              "app.greeting": "Hello",
+              "app.farewell": "Goodbye"
+            },
+            "zh-CN": {
+              "app.greeting": "你好"
+            }
+          }
+        }
+      ],
+      "conflict": false,
+      "requests": [
+        {
+          "key": "app.greeting",
+          "locale": "zh-CN",
+          "expected": {
+            "text": "你好",
+            "locale": "zh-CN"
+          }
+        },
+        {
+          "key": "app.greeting",
+          "locale": "zh-TW",
+          "expected": {
+            "text": "你好",
+            "locale": "zh-CN"
+          }
+        },
+        {
+          "key": "app.greeting",
+          "locale": "zh-HK",
+          "expected": {
+            "text": "你好",
+            "locale": "zh-CN"
+          }
+        },
+        {
+          "key": "app.greeting",
+          "locale": "ja-JP",
+          "expected": {
+            "text": "Hello",
+            "locale": "en-US"
+          }
+        },
+        {
+          "key": "app.farewell",
+          "locale": "zh-CN",
+          "expected": {
+            "text": "Goodbye",
+            "locale": "en-US"
+          }
+        },
+        {
+          "key": "app.greeting",
+          "locale": "en-US",
+          "expected": {
+            "text": "Hello",
+            "locale": "en-US"
+          }
+        },
+        {
+          "key": "app.missing",
+          "locale": "zh-CN",
+          "expected": null
+        }
+      ]
+    },
+    {
+      "name": "默认区域不是 en-US：先默认区域，再 en-US",
+      "default": "de-DE",
+      "catalogs": [
+        {
+          "name": "app",
+          "messages": {
+            "en-US": {
+              "app.greeting": "Hello",
+              "app.farewell": "Goodbye"
+            },
+            "de-DE": {
+              "app.greeting": "Hallo"
+            }
+          }
+        }
+      ],
+      "conflict": false,
+      "requests": [
+        {
+          "key": "app.greeting",
+          "locale": "ja-JP",
+          "expected": {
+            "text": "Hallo",
+            "locale": "de-DE"
+          }
+        },
+        {
+          "key": "app.farewell",
+          "locale": "ja-JP",
+          "expected": {
+            "text": "Goodbye",
+            "locale": "en-US"
+          }
+        },
+        {
+          "key": "app.greeting",
+          "locale": "en-US",
+          "expected": {
+            "text": "Hello",
+            "locale": "en-US"
+          }
+        }
+      ]
+    },
+    {
+      "name": "同名目录互为补充：区域与键取并集",
+      "default": "en-US",
+      "catalogs": [
+        {
+          "name": "plugin",
+          "messages": {
+            "en-US": {
+              "plugin.hello": "Hello"
+            },
+            "zh-CN": {
+              "plugin.hello": "你好"
+            }
+          }
+        },
+        {
+          "name": "plugin",
+          "messages": {
+            "en-US": {
+              "plugin.bye": "Bye"
+            },
+            "ja-JP": {
+              "plugin.hello": "こんにちは"
+            }
+          }
+        }
+      ],
+      "conflict": false,
+      "requests": [
+        {
+          "key": "plugin.hello",
+          "locale": "ja-JP",
+          "expected": {
+            "text": "こんにちは",
+            "locale": "ja-JP"
+          }
+        },
+        {
+          "key": "plugin.hello",
+          "locale": "zh-CN",
+          "expected": {
+            "text": "你好",
+            "locale": "zh-CN"
+          }
+        },
+        {
+          "key": "plugin.bye",
+          "locale": "zh-CN",
+          "expected": {
+            "text": "Bye",
+            "locale": "en-US"
+          }
+        }
+      ]
+    },
+    {
+      "name": "同名目录内容相同：什么都不变",
+      "default": "en-US",
+      "catalogs": [
+        {
+          "name": "app",
+          "messages": {
+            "en-US": {
+              "app.greeting": "Hello",
+              "app.farewell": "Goodbye"
+            },
+            "zh-CN": {
+              "app.greeting": "你好"
+            }
+          }
+        },
+        {
+          "name": "app",
+          "messages": {
+            "en-US": {
+              "app.greeting": "Hello",
+              "app.farewell": "Goodbye"
+            },
+            "zh-CN": {
+              "app.greeting": "你好"
+            }
+          }
+        }
+      ],
+      "conflict": false,
+      "requests": [
+        {
+          "key": "app.greeting",
+          "locale": "zh-CN",
+          "expected": {
+            "text": "你好",
+            "locale": "zh-CN"
+          }
+        }
+      ]
+    },
+    {
+      "name": "同名目录在同一键同一区域的模板不同：冲突",
+      "default": "en-US",
+      "catalogs": [
+        {
+          "name": "app",
+          "messages": {
+            "en-US": {
+              "app.greeting": "Hello",
+              "app.farewell": "Goodbye"
+            },
+            "zh-CN": {
+              "app.greeting": "你好"
+            }
+          }
+        },
+        {
+          "name": "app",
+          "messages": {
+            "zh-CN": {
+              "app.greeting": "您好"
+            }
+          }
+        }
+      ],
+      "conflict": true,
+      "requests": []
+    },
+    {
+      "name": "同名目录的同一键只在不同区域不同：不冲突",
+      "default": "en-US",
+      "catalogs": [
+        {
+          "name": "app",
+          "messages": {
+            "en-US": {
+              "app.greeting": "Hello",
+              "app.farewell": "Goodbye"
+            },
+            "zh-CN": {
+              "app.greeting": "你好"
+            }
+          }
+        },
+        {
+          "name": "app",
+          "messages": {
+            "zh-TW": {
+              "app.greeting": "您好"
+            }
+          }
+        }
+      ],
+      "conflict": false,
+      "requests": [
+        {
+          "key": "app.greeting",
+          "locale": "zh-TW",
+          "expected": {
+            "text": "您好",
+            "locale": "zh-TW"
+          }
+        },
+        {
+          "key": "app.greeting",
+          "locale": "zh-CN",
+          "expected": {
+            "text": "你好",
+            "locale": "zh-CN"
+          }
+        }
+      ]
+    },
+    {
+      "name": "不同名的目录有同一键同一区域：先注册的优先，不算冲突",
+      "default": "en-US",
+      "catalogs": [
+        {
+          "name": "host",
+          "messages": {
+            "en-US": {
+              "shared.title": "Host title"
+            }
+          }
+        },
+        {
+          "name": "addon",
+          "messages": {
+            "en-US": {
+              "shared.title": "Addon title",
+              "addon.only": "Addon"
+            }
+          }
+        }
+      ],
+      "conflict": false,
+      "requests": [
+        {
+          "key": "shared.title",
+          "locale": "en-US",
+          "expected": {
+            "text": "Host title",
+            "locale": "en-US"
+          }
+        },
+        {
+          "key": "addon.only",
+          "locale": "en-US",
+          "expected": {
+            "text": "Addon",
+            "locale": "en-US"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -478,3 +478,94 @@ func JobRetryDelays() (JobRetryDelayVectors, error) {
 func SchedulingEventTopics() (SchedulingEventTopicVectors, error) {
 	return typed[SchedulingEventTopicVectors]()
 }
+
+// LocaleNameCase 是一个合法的区域名、它的规范形式与语言子标签。
+type LocaleNameCase struct {
+	Text      string `json:"text"`
+	Canonical string `json:"canonical"`
+	Language  string `json:"language"`
+}
+
+// LocaleNameVectors 对应 localization/locale-names.json（RFC-0010「区域」，ADR-0277）：
+// BuiltIn 是内置的区域，Default 是缺省的默认区域，Longest 是正好到长度上限的合法区域名。
+type LocaleNameVectors struct {
+	MaxLength int              `json:"maxLength"`
+	Default   string           `json:"default"`
+	BuiltIn   []string         `json:"builtIn"`
+	Valid     []LocaleNameCase `json:"valid"`
+	Longest   string           `json:"longest"`
+	Invalid   []string         `json:"invalid"`
+}
+
+// LocaleNegotiationCase 是一次区域协商：Candidates 是调用方给出的候选，Locale 是协商出的区域。
+type LocaleNegotiationCase struct {
+	Name       string   `json:"name"`
+	Enabled    []string `json:"enabled"`
+	Default    string   `json:"default"`
+	Candidates []string `json:"candidates"`
+	Locale     string   `json:"locale"`
+}
+
+// LocaleFallbackCase 是一次取文案的回退链：Locale 是请求的区域，Chain 是依次查找的区域。
+type LocaleFallbackCase struct {
+	Name    string   `json:"name"`
+	Enabled []string `json:"enabled"`
+	Default string   `json:"default"`
+	Locale  string   `json:"locale"`
+	Chain   []string `json:"chain"`
+}
+
+// LocaleNegotiationVectors 对应 localization/locale-negotiation.json（RFC-0010「协商与宿主」「解析」，ADR-0277）。
+type LocaleNegotiationVectors struct {
+	Negotiation []LocaleNegotiationCase `json:"negotiation"`
+	Fallback    []LocaleFallbackCase    `json:"fallback"`
+}
+
+// CatalogDefinition 是一份消息目录：Messages 是区域到「键 → 模板」的对象。
+type CatalogDefinition struct {
+	Name     string                       `json:"name"`
+	Messages map[string]map[string]string `json:"messages"`
+}
+
+// CatalogLookupExpectation 是查到的文案与实际命中的区域。
+type CatalogLookupExpectation struct {
+	Text   string `json:"text"`
+	Locale string `json:"locale"`
+}
+
+// CatalogLookup 是一次查找：Expected 为 nil 表示哪一级都没有这个键。
+type CatalogLookup struct {
+	Key      string                    `json:"key"`
+	Locale   string                    `json:"locale"`
+	Expected *CatalogLookupExpectation `json:"expected"`
+}
+
+// CatalogResolutionCase 是按次序注册的一组目录：Conflict 为真表示注册必须失败，否则 Requests 是合并之后的查找。
+type CatalogResolutionCase struct {
+	Name     string              `json:"name"`
+	Default  string              `json:"default"`
+	Catalogs []CatalogDefinition `json:"catalogs"`
+	Conflict bool                `json:"conflict"`
+	Requests []CatalogLookup     `json:"requests"`
+}
+
+// CatalogResolutionVectors 对应 localization/catalog-resolution.json（RFC-0010「语言文件」「解析」，ADR-0277）：Code 是冲突时的错误码。
+type CatalogResolutionVectors struct {
+	Code  string                  `json:"code"`
+	Cases []CatalogResolutionCase `json:"cases"`
+}
+
+// LocaleNames 读取区域名文法与规范形式的向量。
+func LocaleNames() (LocaleNameVectors, error) {
+	return typed[LocaleNameVectors]()
+}
+
+// LocaleNegotiation 读取区域协商与回退链的向量。
+func LocaleNegotiation() (LocaleNegotiationVectors, error) {
+	return typed[LocaleNegotiationVectors]()
+}
+
+// CatalogResolution 读取消息目录的合并与查找的向量。
+func CatalogResolution() (CatalogResolutionVectors, error) {
+	return typed[CatalogResolutionVectors]()
+}

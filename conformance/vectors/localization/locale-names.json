@@ -1,0 +1,119 @@
+{
+  "$comment": "区域名的文法与规范形式（RFC-0010「区域」，ADR-0277）：^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$，最长 maxLength 个字符，按整串匹配；比较不区分大小写；规范形式是语言小写、地区（两个字母）大写、文字（四个字母）首字母大写其余小写。builtIn 是内置的 10 种区域（也是缺省的启用列表，按这个次序），default 是缺省的默认区域与语言文件的基准。valid 必须接受：text 是原文，canonical 是它的规范形式，language 是语言子标签（小写）；longest 是正好 35 个字符的合法区域名（只核对文法）。invalid 必须拒绝（外部输入里的在协商中忽略，不报错）；末项是 36 个字符、别处都合文法。文字与地区之外的子标签（变体、扩展）的规范形式正文没有写，不在这张表里。期望值由 .NET 参考实现（LocaleName.IsValid、LocaleName.Normalize、LocaleName.LanguageOf、SupportedLocales）算出。",
+  "maxLength": 35,
+  "default": "en-US",
+  "builtIn": [
+    "en-US",
+    "zh-CN",
+    "zh-TW",
+    "ja-JP",
+    "ko-KR",
+    "de-DE",
+    "es-ES",
+    "fr-FR",
+    "pt-BR",
+    "ru-RU"
+  ],
+  "valid": [
+    {
+      "text": "en",
+      "canonical": "en",
+      "language": "en"
+    },
+    {
+      "text": "EN",
+      "canonical": "en",
+      "language": "en"
+    },
+    {
+      "text": "en-US",
+      "canonical": "en-US",
+      "language": "en"
+    },
+    {
+      "text": "en-us",
+      "canonical": "en-US",
+      "language": "en"
+    },
+    {
+      "text": "EN-us",
+      "canonical": "en-US",
+      "language": "en"
+    },
+    {
+      "text": "zh-CN",
+      "canonical": "zh-CN",
+      "language": "zh"
+    },
+    {
+      "text": "ZH-cn",
+      "canonical": "zh-CN",
+      "language": "zh"
+    },
+    {
+      "text": "zh-Hant",
+      "canonical": "zh-Hant",
+      "language": "zh"
+    },
+    {
+      "text": "zh-hant-tw",
+      "canonical": "zh-Hant-TW",
+      "language": "zh"
+    },
+    {
+      "text": "ZH-HANS-CN",
+      "canonical": "zh-Hans-CN",
+      "language": "zh"
+    },
+    {
+      "text": "sr-latn-rs",
+      "canonical": "sr-Latn-RS",
+      "language": "sr"
+    },
+    {
+      "text": "fil",
+      "canonical": "fil",
+      "language": "fil"
+    },
+    {
+      "text": "FIL-ph",
+      "canonical": "fil-PH",
+      "language": "fil"
+    },
+    {
+      "text": "es-419",
+      "canonical": "es-419",
+      "language": "es"
+    },
+    {
+      "text": "pt-BR",
+      "canonical": "pt-BR",
+      "language": "pt"
+    }
+  ],
+  "longest": "en-abcdefgh-abcdefgh-abcdefgh-abcde",
+  "invalid": [
+    "",
+    "e",
+    "engl",
+    "en_US",
+    "en-",
+    "-US",
+    "en--US",
+    "en-U",
+    "en-abcdefghi",
+    "en US",
+    " en-US",
+    "en-US ",
+    "en-US\n",
+    "12-US",
+    "e1-US",
+    "en-US;q=0.8",
+    "en-US,zh-CN",
+    "*",
+    "中文",
+    "ｅn-US",
+    "français",
+    "en-abcdefgh-abcdefgh-abcdefgh-abcdef"
+  ]
+}

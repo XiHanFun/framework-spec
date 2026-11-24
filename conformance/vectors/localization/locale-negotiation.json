@@ -1,0 +1,494 @@
+{
+  "$comment": "区域的协商与文案的回退链（RFC-0010「协商与宿主」「解析」，ADR-0277）。每项的 enabled 是启用列表（XiHan:Localization:Locales，按配置的次序），default 是默认区域（必须在启用列表里）。negotiation：candidates 是调用方给出的候选区域（Baggage xihan.locale 的一个值，或 Accept-Language 按权重排好的各项），locale 是协商出的区域——候选里第一个精确命中启用列表的（不区分大小写）；都没有时，按候选的次序取启用列表里第一个同语言的区域；再没有取默认区域；不合文法的候选忽略，不报错。结果总是启用列表里的写法。fallback：locale 是取文案时请求的区域，chain 是依次查找的区域——请求区域（写成规范形式，不在启用列表里也排在最前）、启用列表里同语言的区域（按列表的次序）、默认区域、en-US，重合的只出现一次。Accept-Language 的权重怎么解析、请求区域不合文法时的回退链正文没有写，不在这张表里。期望值由 .NET 参考实现（LocalizationOptions.Negotiate、LocalizationOptions.FallbackChain）算出。",
+  "negotiation": [
+    {
+      "name": "精确命中",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "candidates": [
+        "zh-CN"
+      ],
+      "locale": "zh-CN"
+    },
+    {
+      "name": "精确命中不区分大小写，结果取启用列表里的写法",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "candidates": [
+        "ZH-cn"
+      ],
+      "locale": "zh-CN"
+    },
+    {
+      "name": "没有精确命中时按语言命中第一个同语言的区域",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "candidates": [
+        "zh-HK"
+      ],
+      "locale": "zh-CN"
+    },
+    {
+      "name": "只有语言子标签",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "candidates": [
+        "zh"
+      ],
+      "locale": "zh-CN"
+    },
+    {
+      "name": "同语言不同地区",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "candidates": [
+        "pt-PT"
+      ],
+      "locale": "pt-BR"
+    },
+    {
+      "name": "带文字子标签的候选按语言命中",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "candidates": [
+        "zh-Hant-HK"
+      ],
+      "locale": "zh-CN"
+    },
+    {
+      "name": "都不命中取默认区域",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "candidates": [
+        "it-IT"
+      ],
+      "locale": "en-US"
+    },
+    {
+      "name": "没有候选取默认区域",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "candidates": [],
+      "locale": "en-US"
+    },
+    {
+      "name": "候选按给出的次序：第一个精确命中的",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "candidates": [
+        "it-IT",
+        "ja-JP",
+        "de-DE"
+      ],
+      "locale": "ja-JP"
+    },
+    {
+      "name": "精确命中先于按语言命中：后面的候选精确命中时不取前面候选的同语言区域",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "candidates": [
+        "zh-HK",
+        "de-DE"
+      ],
+      "locale": "de-DE"
+    },
+    {
+      "name": "都没有精确命中时按候选的次序按语言命中",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "candidates": [
+        "it-IT",
+        "fr-CA",
+        "zh-HK"
+      ],
+      "locale": "fr-FR"
+    },
+    {
+      "name": "不合文法的候选忽略",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "candidates": [
+        "not a locale",
+        "fr-FR"
+      ],
+      "locale": "fr-FR"
+    },
+    {
+      "name": "候选全都不合文法取默认区域",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "candidates": [
+        "zh_CN",
+        "*",
+        ""
+      ],
+      "locale": "en-US"
+    },
+    {
+      "name": "自定义的启用列表：按语言命中的是列表里的第一个",
+      "enabled": [
+        "zh-TW",
+        "zh-CN",
+        "en-US",
+        "pt-BR"
+      ],
+      "default": "zh-TW",
+      "candidates": [
+        "zh-HK"
+      ],
+      "locale": "zh-TW"
+    },
+    {
+      "name": "自定义的启用列表：不在列表里的内置区域不命中",
+      "enabled": [
+        "zh-TW",
+        "zh-CN",
+        "en-US",
+        "pt-BR"
+      ],
+      "default": "zh-TW",
+      "candidates": [
+        "ja-JP"
+      ],
+      "locale": "zh-TW"
+    },
+    {
+      "name": "自定义的默认区域",
+      "enabled": [
+        "zh-TW",
+        "zh-CN",
+        "en-US",
+        "pt-BR"
+      ],
+      "default": "pt-BR",
+      "candidates": [
+        "de-DE"
+      ],
+      "locale": "pt-BR"
+    }
+  ],
+  "fallback": [
+    {
+      "name": "请求区域在启用列表里：它，同语言的其余区域，默认区域",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "locale": "zh-CN",
+      "chain": [
+        "zh-CN",
+        "zh-TW",
+        "en-US"
+      ]
+    },
+    {
+      "name": "同语言的区域按启用列表的次序",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "locale": "zh-TW",
+      "chain": [
+        "zh-TW",
+        "zh-CN",
+        "en-US"
+      ]
+    },
+    {
+      "name": "请求区域不在启用列表里也排在最前",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "locale": "zh-HK",
+      "chain": [
+        "zh-HK",
+        "zh-CN",
+        "zh-TW",
+        "en-US"
+      ]
+    },
+    {
+      "name": "没有同语言的区域",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "locale": "ja-JP",
+      "chain": [
+        "ja-JP",
+        "en-US"
+      ]
+    },
+    {
+      "name": "请求的就是默认区域",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "locale": "en-US",
+      "chain": [
+        "en-US"
+      ]
+    },
+    {
+      "name": "请求区域先写成规范形式",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "en-US",
+      "locale": "ZH-cn",
+      "chain": [
+        "zh-CN",
+        "zh-TW",
+        "en-US"
+      ]
+    },
+    {
+      "name": "默认区域不是 en-US 时 en-US 仍是最后一道",
+      "enabled": [
+        "en-US",
+        "zh-CN",
+        "zh-TW",
+        "ja-JP",
+        "ko-KR",
+        "de-DE",
+        "es-ES",
+        "fr-FR",
+        "pt-BR",
+        "ru-RU"
+      ],
+      "default": "de-DE",
+      "locale": "fr-CA",
+      "chain": [
+        "fr-CA",
+        "fr-FR",
+        "de-DE",
+        "en-US"
+      ]
+    },
+    {
+      "name": "en-US 不在启用列表里也是最后一道",
+      "enabled": [
+        "zh-CN",
+        "zh-TW"
+      ],
+      "default": "zh-CN",
+      "locale": "zh-TW",
+      "chain": [
+        "zh-TW",
+        "zh-CN",
+        "en-US"
+      ]
+    },
+    {
+      "name": "各级重合时只出现一次",
+      "enabled": [
+        "zh-CN"
+      ],
+      "default": "zh-CN",
+      "locale": "zh-CN",
+      "chain": [
+        "zh-CN",
+        "en-US"
+      ]
+    }
+  ]
+}
