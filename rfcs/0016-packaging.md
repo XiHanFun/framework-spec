@@ -1,6 +1,6 @@
 # RFC-0016 应用清单与打包
 
-> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`；2026-11-01 修订：绑定的凭据属性覆盖配置节；2026-11-01 修订：Kustomize 不起 Kafka 与 Nacos 定为规则；2026-11-01 修订：`blob` 的依赖服务由 MinIO 换成 RustFS；2026-11-01 修订：连 `blob` 依赖服务要配条件写入的探测桶；2026-11-02 修订：探测桶不存在与凭据被拒启动失败；2026-11-10 修订：`Messaging.Redis` 的绑定；2026-11-24 修订：应用清单 Schema 收紧到与字段表一致，`secret` 与 `lease` 写明是 DNS 标签） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup）、ADR-0082（凭据属性）、ADR-0083（Kustomize 不起依赖服务）、ADR-0086（`blob` 的依赖服务）、ADR-0089（条件写入探测）、ADR-0093（被拒绝与缺桶启动失败）、ADR-0130（`Messaging.Redis` 的绑定）、ADR-0276（应用清单 Schema 与正文对照） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json` | 一致性档：`host`
+> 状态：已采纳（2026-11-01 修订：绑定类型词表与 Provider 声明的对照；2026-11-01 修订：挂载配置目录的位置；2026-11-01 修订：资源绑定优先于配置节；2026-11-01 修订：Kafka `stream` 与 Nacos `configuration:remote` 绑定可打包；2026-11-01 修订：工具链的 `xihan mcp` 知识库服务与 `xihan setup`；2026-11-01 修订：绑定的凭据属性覆盖配置节；2026-11-01 修订：Kustomize 不起 Kafka 与 Nacos 定为规则；2026-11-01 修订：`blob` 的依赖服务由 MinIO 换成 RustFS；2026-11-01 修订：连 `blob` 依赖服务要配条件写入的探测桶；2026-11-02 修订：探测桶不存在与凭据被拒启动失败；2026-11-10 修订：`Messaging.Redis` 的绑定；2026-11-24 修订：应用清单 Schema 收紧到与字段表一致，`secret` 与 `lease` 写明是 DNS 标签；同日再修订：下发给隔离运行的插件的绑定按同一套规则、在配置插件时解析） | 日期：2026-10-23 | 对应 ADR：ADR-0075（挂载配置目录的位置、资源绑定优先）、ADR-0076（Kafka 与 Nacos 绑定可打包、xihan mcp / setup）、ADR-0082（凭据属性）、ADR-0083（Kustomize 不起依赖服务）、ADR-0086（`blob` 的依赖服务）、ADR-0089（条件写入探测）、ADR-0093（被拒绝与缺桶启动失败）、ADR-0130（`Messaging.Redis` 的绑定）、ADR-0268（下发给插件的绑定）、ADR-0276（应用清单 Schema 与正文对照） | 参考实现：`XiHan.Framework.Cli`（`xihan pack`） | 规范性文本：`spec/packaging/app-manifest.md`、`spec/packaging/app.schema.json` | 一致性档：`host`
 
 ## 摘要
 
@@ -26,6 +26,7 @@
 3. 凭据不进日志、错误与异常消息：Provider 报告连接或凭据不合法时只说明哪一项不合法，不带凭据的值（含连接字符串与 URI 里的密码）。
 4. 属性名区分大小写，按下表书写（目录来源是文件名，配置来源是 `XiHan:Bindings:<名字>:<属性>` 的子键，环境变量写作 `XiHan__Bindings__<名字>__<属性>`）。
 5. 绑定整体来自一个来源（目录或配置节），同名时配置节整体覆盖目录来源，不逐属性合并（RFC-0002 的绑定解析）。
+6. 下发给隔离运行的插件（进程外、Wasm）的绑定按同一套规则解析，用同一个根目录，在配置插件时解析，不用应用装配时解析的那一份（`plugin/lifecycle.md` §2；2026-11-24 写明，ADR-0268，以前 .NET 的插件宿主只读配置节）。应用装配时的那一份此后不变，所以两者可以不同。.NET 的特性经 `FeatureContext.ServiceBindingRoot` 取应用指定的根目录（没有指定时为空，根目录取环境变量）。
 
 框架 Provider 的对照：
 

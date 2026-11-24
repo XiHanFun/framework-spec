@@ -24,6 +24,7 @@
 
 1. `Configure`：`configuration` 是清单 `contributes.config.section` 节的 JSON 对象（宿主配置源经 `IConfiguration` 展开后再序列化；没有声明配置节为 `{}`）；`granted_permissions` 等于清单 `permissions`；`bindings` 只含清单声明的绑定；`work_directory` 是宿主为该插件创建的可写目录（宿主停止时不删除）。配置变更时宿主不重新调用 `Configure`，而是以 `reason: restart` 停止后重新启动进程。
    - 宿主写出的配置节（参考实现 `PluginJson.SerializeSection`，2026-11-18 写明，ADR-0237）：根总是对象；叶子是 `IConfiguration` 的值，一律写成 JSON 字符串，值为 null 的键写 `null`；子项名恰好是从 `0` 起连续整数的节写成数组，其余写成对象，成员按 `IConfiguration` 列出子项的顺序。插件怎样读见 §7.2。
+   - `bindings` 的解析（2026-11-24 写明，ADR-0268；以前只写「只含清单声明的绑定」，.NET 只读配置节 `XiHan:Bindings`，只经 Service Binding 目录给出的绑定到不了插件）：宿主在每次组装 `Configure` 请求时按 RFC-0016「资源绑定与配置节」解析（`SERVICE_BINDING_ROOT` 目录与 `XiHan:Bindings:<名字>`，同名时配置节整体覆盖目录），不用宿主启动时解析的那一份，重启与运行期加载的插件拿到的是那一刻的值；应用指定了绑定根目录时用同一个。只读、只下发清单声明的绑定，按清单的顺序：`name` 是清单里的名字，`value` 是主值，`type` 是来源声明的类型、来源没有声明时取清单声明的类型。其余属性不下发；没有主值的绑定不下发，宿主记一条不带值的 Warning 日志。清单声明的绑定读失败（目录在、文件读不出来）时不发 `Configure`，按这一步失败处理（`PLUGINS_UNEXPECTED_001` + `plugins.process.failed`，`phase` 为 `configure`，`reason` 为异常类型的全名），插件进入 `Failed` 并按 §6 重试；清单没有声明的绑定读不出来不影响这个插件，根目录不存在只是没有目录来源、不是失败。
    - 隔离运行的插件（进程外、Wasm）读宿主配置与绑定要运营方授予（2026-11-12 修订，ADR-0177）：清单的 `contributes.config.section` 要求宿主授予 `config:<配置节>`（与清单逐字相同），`bindings` 的每一项要求授予 `binding:<绑定名>`；没有授予即在发现时以 `PLUGINS_DENIED_001` 拒绝，与清单声明而未授予的权限同一处理，不启动插件代码。配置节里常有密钥、连接串与签名密钥，插件不能自己点名拿到。进程内插件是受信代码，不受此限。
 2. `Start`：返回 `ok` 后宿主才登记代理操作与事件订阅；在此之前到达的调用按 `PLUGINS_UNAVAILABLE_001` 失败。
 3. 每一步都带 `StartTimeout`（默认 30 秒）的截止时间；超时为 `PLUGINS_TIMEOUT_001`，宿主终止进程。
