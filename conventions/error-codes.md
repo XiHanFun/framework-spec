@@ -112,6 +112,10 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `MESSAGING_VALIDATION_004` | 领域事件类型重复登记或登记表已满（以异常抛出） |
 | `MESSAGING_UNAVAILABLE_001` | 消息代理不可达或操作失败 |
 | `MESSAGING_UNAVAILABLE_002` | 队列已满 |
+| `MESSAGING_UNAVAILABLE_004` | 发件箱的积压超过健康阈值：未投递的行数超过 `HealthMaxPending`，或最老一条的等待时间超过 `HealthMaxPendingAge`（健康项 `messaging.outbox.backlog` 降级的原因，参数 `pending`、`maxPending`、`oldestSeconds`、`maxOldestSeconds`；RFC-0009「发件箱」，ADR-0272） |
+| `MESSAGING_UNAVAILABLE_005` | 发件箱的死信行数超过健康阈值 `HealthMaxDeadLettered`（健康项 `messaging.outbox.backlog` 降级的原因，参数 `deadLettered`、`maxDeadLettered`；积压同时超过时报告 `MESSAGING_UNAVAILABLE_004`；ADR-0272） |
+| `MESSAGING_NOTFOUND_001` | 发件箱消息不存在：重投死信时哪个库里都没有这一行（逐项结果，参数 `id`；ADR-0272） |
+| `MESSAGING_CONFLICT_001` | 发件箱消息不在死信里：重投只对死信行，待投递、退避中或已投递的行不改动（逐项结果，参数 `id`；ADR-0272） |
 | `MESSAGING_UNEXPECTED_001` | 处理器抛出未处理异常（代理侧记录） |
 | `LOCALIZATION_VALIDATION_002` | 消息目录不合法（JSON、键或区域名错误） |
 | `LOCALIZATION_CONFLICT_001` | 同名消息目录里同一键同一区域的模板不一致（注册时抛出，启动失败；运行期按归属登记时整组不登记；同名目录的其余情形合并为一份） |
