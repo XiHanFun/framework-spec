@@ -4,12 +4,17 @@
 
 Wasm 插件与进程外插件共用同一套消息；本文只定义载体：模块形态、内存约定、导出与导入、沙箱、生命周期映射与中间件钩子。
 
+Wasm 插件可以贡献操作、事件处理器与中间件，不能贡献协议适配器、宿主与 Provider。ABI v1 以 Experimental 发布：只增不改，但不承诺同一大版本内不升版本。
+
+> 2026-11-24：原先只写在 RFC-0018 里的几条规则并入本文（ADR-0276），内容不变：可贡献的范围与 ABI 的演进（上一段）、可用的 WebAssembly 提案（§1）、握手应答的核对（§3）、单条日志的上限、`net.outbound:` 声明即被拒与再入计入嵌套深度（§4）、表的元素数上限、健康轮询与崩溃细节的写法（§5）。RFC-0018 在这些地方改为引用本文。
+
 ## 1. 模块形态
 
 - 目标 `wasm32`，WASI preview 1（`wasi_snapshot_preview1`）reactor：可选导出 `_initialize`（有则实例化后调用一次）；导出 `_start` 的命令式模块不被接受。
 - 必须导出线性内存 `memory`。
 - 清单 `isolation` 为 `wasm`，`entry` 指向插件目录里的 `.wasm`（二进制格式）；宿主可额外接受 `.wat` 文本，文本格式不是规范性内容。
 - 一个插件一个模块；宿主在加载时编译，每个插件一个长期存活的实例。
+- 宿主不启用 threads、SIMD 以外的实验性提案；bulk memory、multi-value、reference types 按 wasmtime 默认开启。
 
 ## 2. 编码与内存约定
 
@@ -39,6 +44,7 @@ Wasm 插件与进程外插件共用同一套消息；本文只定义载体：模
 - 没有 `WatchHealth` 与 `InvokeStream`：健康只轮询；声明 `streaming: true` 的操作在握手时按 `PLUGINS_VALIDATION_004` 拒绝。
 - 未声明的操作：`xihan_invoke` 返回 `Status.error` 为 `KERNEL_NOTFOUND_001` 的应答（没有 gRPC `Unimplemented`）。
 - 握手请求的 `hostEndpoint` 为空：回调经 §4 的导入函数。
+- 握手应答的核对规则与 `handshake.md` §3 相同（清单一致、操作在 `contributes.operations`、健康项在 `contributes.health`、中间件在 `contributes.pipeline`）。
 
 ## 4. 导入（宿主提供，模块名 `xihan`）
 
@@ -49,21 +55,23 @@ Wasm 插件与进程外插件共用同一套消息；本文只定义载体：模
 | `publish` | `(ptr: i32, len: i32) -> i64` | `capability:messaging.queue` | `PublishRequest` → `PublishResponse`，语义同 `Host.Publish` |
 
 - 导入函数的响应由宿主经 `xihan_alloc` 写入客体内存并返回 `(ptr << 32) | len`。
+- `log` 一条最多读 16384 字节，超过的部分不读，宿主另记一条告警（ADR-0186）。
 - 权限判定同 `invocation.md` §5：须在清单声明且已被授予，授予而未声明的不放行；未声明或未授予不陷阱，返回 `Status.error = PLUGINS_DENIED_002`。
 - 租户判定同 `invocation.md` §5：调用串行，`invoke` 元数据的 `xihan.tenant` 与 `publish` 信封的 `xihantenant` 只能是当前调用的租户，没有当前调用（实例化期间的 `_initialize`）时不能带租户；越界不陷阱，返回 `PLUGINS_DENIED_002`（2026-11-12 修订，ADR-0195）。
 - 回调在当前调用的截止时间内完成，并随当前调用取消：`invoke` 发起的新调用，截止时间取请求 `metadata.deadline` 与当前调用截止时间中较早者（请求没给时就是当前调用的截止时间），取消令牌随当前调用；`publish` 同样以当前调用的截止时间与取消约束。当前调用是宿主进入模块的那次导出调用（操作与事件为调用上下文的截止时间，没有时取调用时限；中间件为中间件时限；生命周期调用为宿主的调用时限），再入不另设截止时间。到期时宿主不再等待，导入函数返回 `KERNEL_TIMEOUT_001`（截止时间到达之前被取消为 `KERNEL_CANCELLED_001`；回调的计时器已触发或时钟已过截止时间即超时，当前调用同时被取消也一样，不再等待与回调已返回两条路径同一判断）：`invoke` 为 `Status.error`，`publish` 为尚未完成的各项。嵌套深度上限 8，超过返回 `PLUGINS_UNAVAILABLE_002`。
 - WASI：时钟与随机数可用；stdin 为空；stdout / stderr 写入即丢弃（2026-11-12 修订，ADR-0186；以前写到插件工作目录下的 `stdout.log` / `stderr.log`，文件大小没有上限），日志走 `xihan.log`；`poll_oneoff` 与 `clock_time_get` 由宿主实现：睡眠最多到当前调用的截止时间，调用被取消时立即醒来，没睡到订阅的时刻就以 epoch 中断结束这次调用（`KERNEL_TIMEOUT_001`），文件描述符订阅立即就绪；无参数；环境变量只有 `XIHAN_PLUGIN_PRIMITIVES`、`XIHAN_PLUGIN_PROTOCOL_VERSIONS`、`XIHAN_PLUGIN_INSTANCE`、`XIHAN_PLUGIN_LOCALE`。
 - 文件系统：`fs.read:<客体路径>` / `fs.write:<客体路径>` 各预开放一个目录（只读 / 可写）；宿主侧目录由宿主配置映射，未映射视为未授予（`PLUGINS_DENIED_001`）。
-- 网络：ABI v1 不提供套接字；`net.outbound:` 永不授予。
-- 再入：插件回调宿主期间，宿主可能在导入函数返回前再次调用该模块的导出（它自己贡献的中间件、操作或事件处理）；再入在同一线程上同步完成、受外层调用的截止时间约束。模块跨导入调用不得持有不可重入的借用或锁。
+- 网络：ABI v1 不提供套接字；`net.outbound:` 永不授予，清单声明了它即加载失败（`PLUGINS_DENIED_001`）。
+- 再入：插件回调宿主期间，宿主可能在导入函数返回前再次调用该模块的导出（它自己贡献的中间件、操作或事件处理）；再入在同一线程上同步完成、受外层调用的截止时间约束，再入的嵌套深度计入回调的嵌套深度上限。模块跨导入调用不得持有不可重入的借用或锁。
 
 ## 5. 实例、沙箱与生命周期
 
 - 每插件一个实例，调用串行；并发到达的调用排队，排队时间计入截止时间。
-- 内存与栈有上限（宿主配置；参考实现默认 64 MiB / 1 MiB）；超限表现为 `memory.grow` 失败或陷阱。
+- 内存与栈有上限（宿主配置；参考实现默认 64 MiB / 1 MiB）；超限表现为 `memory.grow` 失败或陷阱。每个表的元素数也有上限（宿主配置；参考实现默认 100000），`table.grow` 超过即失败（返回 -1）（ADR-0186）。
 - CPU：宿主按截止时间中断（epoch 中断）：生命周期调用用宿主的调用时限，中间件用中间件时限，操作与事件用调用上下文的截止时间（没有时取调用时限）；中断后调用方得到 `KERNEL_TIMEOUT_001`，实例重建。
 - 状态机同 `lifecycle.md`：实例化（含 `_initialize`）+ `xihan_handshake` → `Resolved`；`xihan_configure` → `Configured`；`xihan_start` → `Started` → `Ready`；健康轮询 `xihan_health`；`xihan_stop` 后丢弃实例 → `Stopped`。
-- 崩溃：任何陷阱或 `xihan_*` 返回 `0`：插件 `Failed`（`PLUGINS_UNEXPECTED_002`，细节含陷阱种类），宿主 `Degraded`，按 `lifecycle.md` §6 退避重建实例并重走握手、配置、启动；重建后的握手声明必须与首次一致。
+- 健康：宿主按配置的间隔轮询 `xihan_health`，连续失败达到阈值视为失效。
+- 崩溃：任何陷阱（含栈溢出、内存超限与未处理的 panic）或 `xihan_*` 返回 `0`：插件 `Failed`（`PLUGINS_UNEXPECTED_002`；细节 `trap` 只写陷阱种类或异常类型，陷阱原文只进日志，ADR-0115），宿主 `Degraded`，按 `lifecycle.md` §6 退避重建实例并重走握手、配置、启动；重建后的握手声明必须与首次一致。
 - 发现时被拒（清单、权限、模块文件不存在）同 `lifecycle.md` §1：以 `Failed` 登记、是健康条目、记日志、不重试。
 - 消息目录、代理操作与清单声明的权限码的登记同 `invocation.md` §1：一个插件的目录、权限码与操作全进或全不进，同名目录的模板冲突、声明的权限码与已登记的重复、与已有操作重名、引用了未登记的权限码或不存在的策略，配置阶段发现的启动失败，运行期 `LoadAsync` 返回失败、不留下任何目录、权限码与代理操作。卸载（`UnloadAsync`）按归属撤回插件登记的代理操作、权限码、消息目录与贡献的中间件，之后可以直接再加载（`invocation.md` §1、本文 §6）。
 - 激活：`onStartup` 加载时实例化并启动；`onOperation:` / `onEvent:` 在加载时实例化、握手后丢弃实例，首次调用或投递时再实例化。
