@@ -57,6 +57,8 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `localization/catalog-resolution.json` | 消息目录的合并（同名取并集、同一键同一区域不同即冲突）与按回退链的查找（文案与实际命中的区域），期望值由 .NET 算出 | RFC-0010「语言文件」「解析」 |
 | `configuration/secret-names.json` | 密钥名文法的合法与不合法样例（`..`、`//`、结尾的 `/`，256 个字符的上限两侧），期望值由 .NET 算出 | RFC-0014「密钥」 |
 | `configuration/remote-documents.json` | 远程配置文档展平成配置键值（JSON 按 `:` 展平、数组按下标、`null` 保留；properties 的 `.` 换成 `:`、注释行）与 Nacos 的内容版本（UTF-8 的 MD5），期望值由 .NET 算出 | RFC-0014「远程配置」「Nacos Provider」 |
+| `persistence/index-names.json` | 索引名的推算：前缀、表名、每列的缩写（按词取前两个字符），63 个字符的上限两侧，显式名字的文法；期望值由 .NET 算出 | RFC-0005「索引声明」 |
+| `persistence/snowflake-ids.json` | 雪花标识的位布局：由毫秒数、机器位与序列合成标识，由标识还原三段与时刻（含超过 2^53 的值），超出范围的三段；期望值由 .NET 算出 | RFC-0005「雪花标识」 |
 | `security/webauthn.json` | WebAuthn 注册与认证的样例响应、存储的凭据与期望结果（成功的凭据与签名计数，失败的错误码与 `reason`） | RFC-0008「WebAuthn」 |
 | `provider/caching-distributed.json` | `caching.distributed@1` 远程 Provider 的操作 ID（含批量）、请求 / 响应样例、非法键与选项 | `provider/caching-distributed.md` |
 
@@ -76,6 +78,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `rules/scheduling.go`、`rules/cron.go` | 调度里的名字（`IsJobName`）、重试的等待与取值范围（`JobRetryWait`、`IsJobRetryPolicy`）、事件主题（`SchedulingEventTopics`）；cron 的解析与下一次触发（`ParseCron`、`CronExpression.Next`、`IsCronExpression`，与 .NET 独立实现、回放同一份向量） |
 | `rules/localization.go` | 区域名（`IsLocaleName`、`NormalizeLocaleName`、`LocaleLanguage`）、协商与回退链（`NegotiateLocale`、`LocaleFallbackChain`）、目录的合并与查找（`MergeMessageCatalogs`、`FindMessage`）；消息键与模板在 `rules/messages.go` |
 | `rules/configuration.go` | 密钥名（`IsSecretName`）、远程配置文档的展平（`FlattenJSONConfiguration`、`FlattenPropertiesConfiguration`）与 Nacos 的内容版本（`ConfigurationContentVersion`） |
+| `rules/persistence.go` | 索引名（`IndexColumnAbbreviation`、`IndexName`、`IsExplicitIndexName`）、雪花标识（`ComposeSnowflakeID`、`ParseSnowflakeID`、`SnowflakeTime`、`SnowflakeWorkerLockResource`） |
 
 ## 黑盒运行器（`cmd/xihan-conformance`）
 

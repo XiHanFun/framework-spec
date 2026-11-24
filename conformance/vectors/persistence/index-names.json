@@ -1,0 +1,213 @@
+{
+  "$comment": "索引的名字（RFC-0005「索引声明」，ADR-0072、ADR-0249、ADR-0277）：两个关系型 Provider 对同一个声明要建出同名的索引，名字由共用的规则推出。推出的名字是前缀（普通索引 prefix，唯一索引 uniquePrefix）加表名、再加每列一段缩写，以 _ 连接。abbreviations：一个属性名的缩写是它每个词的前两个字符——词从首字符、小写或数字之后的大写字母、连续大写里后跟小写的那个大写字母开始，_ 只分词不计入。names：table 是 Provider 映射出的表名（字母、数字、_ 以外的字符换成 _），properties 是声明的列（按声明的次序），unique 是不是唯一索引，index 是推出的名字；名字超过 maxLength 个字符（PostgreSQL 标识符的上限）是声明错误、不截断，这时 index 为 null。explicitNames：声明里给了名字时用它、不推，名字以字母开头、只含 ASCII 字母、数字与 _、同样不超过 maxLength 个字符；valid 必须接受，invalid 必须拒绝，valid 的末项正好 63 个字符，invalid 的末项是 64 个字符、别处都合文法。属性名都用 ASCII：非 ASCII 字母的大小写怎么判断正文没有写。期望值由 .NET 参考实现（EntityIndexes 的名字推算与显式名字的核对）算出。",
+  "maxLength": 63,
+  "prefix": "IX_",
+  "uniquePrefix": "UX_",
+  "abbreviations": [
+    {
+      "property": "TenantId",
+      "abbreviation": "TeId"
+    },
+    {
+      "property": "NextFireAt",
+      "abbreviation": "NeFiAt"
+    },
+    {
+      "property": "HTTPServerName",
+      "abbreviation": "HTSeNa"
+    },
+    {
+      "property": "Name",
+      "abbreviation": "Na"
+    },
+    {
+      "property": "Id",
+      "abbreviation": "Id"
+    },
+    {
+      "property": "X",
+      "abbreviation": "X"
+    },
+    {
+      "property": "IsDeleted",
+      "abbreviation": "IsDe"
+    },
+    {
+      "property": "CreatedAt",
+      "abbreviation": "CrAt"
+    },
+    {
+      "property": "DispatchedAt",
+      "abbreviation": "DiAt"
+    },
+    {
+      "property": "URL",
+      "abbreviation": "UR"
+    },
+    {
+      "property": "OrderID",
+      "abbreviation": "OrID"
+    },
+    {
+      "property": "IOStream",
+      "abbreviation": "IOSt"
+    },
+    {
+      "property": "Address2Line",
+      "abbreviation": "AdLi"
+    },
+    {
+      "property": "Line2",
+      "abbreviation": "Li"
+    },
+    {
+      "property": "A1Bc",
+      "abbreviation": "A1Bc"
+    },
+    {
+      "property": "Order_No",
+      "abbreviation": "OrNo"
+    },
+    {
+      "property": "order_no",
+      "abbreviation": "orno"
+    },
+    {
+      "property": "userName",
+      "abbreviation": "usNa"
+    },
+    {
+      "property": "_Hidden",
+      "abbreviation": "Hi"
+    }
+  ],
+  "names": [
+    {
+      "name": "普通索引：前缀 IX_",
+      "table": "Orders",
+      "properties": [
+        "TenantId",
+        "OrderNo"
+      ],
+      "unique": false,
+      "index": "IX_Orders_TeId_OrNo"
+    },
+    {
+      "name": "唯一索引：前缀 UX_",
+      "table": "Orders",
+      "properties": [
+        "TenantId",
+        "OrderNo"
+      ],
+      "unique": true,
+      "index": "UX_Orders_TeId_OrNo"
+    },
+    {
+      "name": "一列",
+      "table": "Orders",
+      "properties": [
+        "CreatedAt"
+      ],
+      "unique": false,
+      "index": "IX_Orders_CrAt"
+    },
+    {
+      "name": "列按声明的次序",
+      "table": "OutboxMessage",
+      "properties": [
+        "DispatchedAt",
+        "DeadLetteredAt",
+        "CreatedAt"
+      ],
+      "unique": false,
+      "index": "IX_OutboxMessage_DiAt_DeLeAt_CrAt"
+    },
+    {
+      "name": "表名里的下划线保留",
+      "table": "xihan_job_runs",
+      "properties": [
+        "Name",
+        "ScheduledAt"
+      ],
+      "unique": false,
+      "index": "IX_xihan_job_runs_Na_ScAt"
+    },
+    {
+      "name": "表名里字母、数字、下划线以外的字符换成下划线",
+      "table": "sales.order-lines 2026",
+      "properties": [
+        "OrderId"
+      ],
+      "unique": false,
+      "index": "IX_sales_order_lines_2026_OrId"
+    },
+    {
+      "name": "表名里的非 ASCII 字符换成下划线",
+      "table": "订单Orders",
+      "properties": [
+        "Id"
+      ],
+      "unique": true,
+      "index": "UX___Orders_Id"
+    },
+    {
+      "name": "正好 63 个字符",
+      "table": "Tabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijklmnop",
+      "properties": [
+        "Id"
+      ],
+      "unique": false,
+      "index": "IX_Tabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijklmnop_Id"
+    },
+    {
+      "name": "64 个字符：超长，是声明错误，不截断",
+      "table": "Tabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijklmnopo",
+      "properties": [
+        "Id"
+      ],
+      "unique": false,
+      "index": null
+    },
+    {
+      "name": "列多了超长",
+      "table": "WorkflowInstances",
+      "properties": [
+        "TenantId",
+        "DefinitionName",
+        "DefinitionVersion",
+        "BusinessKey",
+        "State",
+        "CreatedAt",
+        "CompletedAt",
+        "ParentInstanceId",
+        "ModifiedAt"
+      ],
+      "unique": true,
+      "index": null
+    }
+  ],
+  "explicitNames": {
+    "valid": [
+      "IX_Legacy_Orders",
+      "ux_orders_no",
+      "a",
+      "A",
+      "idx1",
+      "Orders__ByTenant",
+      "IX_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    ],
+    "invalid": [
+      "",
+      "1orders",
+      "_orders",
+      "IX-Orders",
+      "IX Orders",
+      "IX.Orders",
+      "IX_Orders\n",
+      "索引",
+      "IX_订单",
+      "ordersé",
+      "IX_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    ]
+  }
+}

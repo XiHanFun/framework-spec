@@ -358,4 +358,37 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 		uniqueNames(t, "remote documents", names)
 		return documents
 	},
+	"persistence/index-names.json": func(t *testing.T) any {
+		names, err := conformance.IndexNames()
+		if err != nil || names.MaxLength != 63 || names.Prefix == "" || names.UniquePrefix == "" || len(names.Abbreviations) == 0 || len(names.Names) == 0 || len(names.ExplicitNames.Valid) == 0 || len(names.ExplicitNames.Invalid) == 0 {
+			t.Errorf("index names: %v", err)
+		}
+		var cases []string
+		for _, c := range names.Names {
+			cases = append(cases, c.Name)
+			if c.Table == "" || len(c.Properties) == 0 {
+				t.Errorf("index name case %q must have a table and properties", c.Name)
+			}
+		}
+		uniqueNames(t, "index names", cases)
+		return names
+	},
+	"persistence/snowflake-ids.json": func(t *testing.T) any {
+		ids, err := conformance.SnowflakeIDs()
+		if err != nil || ids.DefaultEpoch == "" || ids.TimestampBits != 41 || ids.WorkerBits != 10 || ids.SequenceBits != 12 || ids.MaxWorker != 1023 || ids.MaxSequence != 4095 || ids.WorkerLockPrefix == "" || len(ids.Cases) == 0 || len(ids.OutOfRange) == 0 {
+			t.Errorf("snowflake ids: %v", err)
+		}
+		var cases []string
+		for _, c := range ids.Cases {
+			cases = append(cases, c.Name)
+			if c.Epoch == "" || c.Value == "" || c.Milliseconds == "" || c.Time == "" {
+				t.Errorf("snowflake case %q is incomplete", c.Name)
+			}
+		}
+		for _, c := range ids.OutOfRange {
+			cases = append(cases, c.Name)
+		}
+		uniqueNames(t, "snowflake ids", cases)
+		return ids
+	},
 }

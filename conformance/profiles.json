@@ -109,7 +109,10 @@
       "title": "子系统：领域协议与持久化",
       "stability": "stable",
       "documents": ["rfcs/0005-persistence.md"],
-      "vectors": [],
+      "vectors": [
+        "persistence/index-names.json",
+        "persistence/snowflake-ids.json"
+      ],
       "runner": []
     },
     {

@@ -610,3 +610,76 @@ func SecretNames() (SecretNameVectors, error) {
 func RemoteConfigurationDocuments() (RemoteDocumentVectors, error) {
 	return typed[RemoteDocumentVectors]()
 }
+
+// IndexAbbreviationCase 是一个属性名与它在索引名里的缩写。
+type IndexAbbreviationCase struct {
+	Property     string `json:"property"`
+	Abbreviation string `json:"abbreviation"`
+}
+
+// IndexNameCase 是一个索引声明与推出的名字：Index 为 nil 表示名字超长，是声明错误。
+type IndexNameCase struct {
+	Name       string   `json:"name"`
+	Table      string   `json:"table"`
+	Properties []string `json:"properties"`
+	Unique     bool     `json:"unique"`
+	Index      *string  `json:"index"`
+}
+
+// ExplicitIndexNames 是声明里给出的索引名的合法与不合法样例。
+type ExplicitIndexNames struct {
+	Valid   []string `json:"valid"`
+	Invalid []string `json:"invalid"`
+}
+
+// IndexNameVectors 对应 persistence/index-names.json（RFC-0005「索引声明」，ADR-0277）。
+type IndexNameVectors struct {
+	MaxLength     int                     `json:"maxLength"`
+	Prefix        string                  `json:"prefix"`
+	UniquePrefix  string                  `json:"uniquePrefix"`
+	Abbreviations []IndexAbbreviationCase `json:"abbreviations"`
+	Names         []IndexNameCase         `json:"names"`
+	ExplicitNames ExplicitIndexNames      `json:"explicitNames"`
+}
+
+// SnowflakeIDCase 是一个雪花标识与它的三段：Value 与 Milliseconds 是十进制字符串（值会超过 2^53），Time 是 Epoch 加毫秒数的时刻。
+type SnowflakeIDCase struct {
+	Name         string `json:"name"`
+	Epoch        string `json:"epoch"`
+	Value        string `json:"value"`
+	Milliseconds string `json:"milliseconds"`
+	Worker       int    `json:"worker"`
+	Sequence     int    `json:"sequence"`
+	Time         string `json:"time"`
+}
+
+// SnowflakePartsCase 是合成时必须拒绝的三段。
+type SnowflakePartsCase struct {
+	Name         string `json:"name"`
+	Milliseconds string `json:"milliseconds"`
+	Worker       int    `json:"worker"`
+	Sequence     int    `json:"sequence"`
+}
+
+// SnowflakeIDVectors 对应 persistence/snowflake-ids.json（RFC-0005「雪花标识」，ADR-0277）。
+type SnowflakeIDVectors struct {
+	DefaultEpoch     string               `json:"defaultEpoch"`
+	TimestampBits    int                  `json:"timestampBits"`
+	WorkerBits       int                  `json:"workerBits"`
+	SequenceBits     int                  `json:"sequenceBits"`
+	MaxWorker        int                  `json:"maxWorker"`
+	MaxSequence      int                  `json:"maxSequence"`
+	WorkerLockPrefix string               `json:"workerLockPrefix"`
+	Cases            []SnowflakeIDCase    `json:"cases"`
+	OutOfRange       []SnowflakePartsCase `json:"outOfRange"`
+}
+
+// IndexNames 读取索引名的向量。
+func IndexNames() (IndexNameVectors, error) {
+	return typed[IndexNameVectors]()
+}
+
+// SnowflakeIDs 读取雪花标识位布局的向量。
+func SnowflakeIDs() (SnowflakeIDVectors, error) {
+	return typed[SnowflakeIDVectors]()
+}

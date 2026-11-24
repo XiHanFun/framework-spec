@@ -1,0 +1,149 @@
+{
+  "$comment": "雪花标识的位布局（RFC-0005「雪花标识」，ADR-0277）：64 位有符号整数，符号位恒为 0；第 62–22 位（timestampBits 位）是自 epoch 起的毫秒数，第 21–12 位（workerBits 位）是机器位，第 11–0 位（sequenceBits 位）是同一毫秒内的序列。defaultEpoch 是 epoch 的缺省值；workerLockPrefix 加机器位的十进制写法，是租约分配机器位时锁的资源名。cases 的每项：value 是标识，milliseconds、worker、sequence 是它的三段，time 是 epoch 加毫秒数的时刻（UTC）——由三段合成 value、由 value 还原三段与时刻，两个方向都要对。value 与 milliseconds 写成十进制字符串：值会超过 2^53，JSON 数字在有的语言里读不准（线上的标识仍是 JSON number，RFC-0005）。outOfRange 是合成时必须拒绝的三段：机器位不在 0 到 maxWorker 之间、序列不在 0 到 maxSequence 之间、毫秒数为负或超过 41 位。期望值由 .NET 参考实现（SnowflakeId.Compose、SnowflakeId.Parse）算出，并与正文的位布局逐条对过。",
+  "defaultEpoch": "2026-01-01T00:00:00Z",
+  "timestampBits": 41,
+  "workerBits": 10,
+  "sequenceBits": 12,
+  "maxWorker": 1023,
+  "maxSequence": 4095,
+  "workerLockPrefix": "persistence:snowflake:worker:",
+  "cases": [
+    {
+      "name": "全零",
+      "epoch": "2026-01-01T00:00:00Z",
+      "value": "0",
+      "milliseconds": "0",
+      "worker": 0,
+      "sequence": 0,
+      "time": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "序列 1",
+      "epoch": "2026-01-01T00:00:00Z",
+      "value": "1",
+      "milliseconds": "0",
+      "worker": 0,
+      "sequence": 1,
+      "time": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "机器位 1",
+      "epoch": "2026-01-01T00:00:00Z",
+      "value": "4096",
+      "milliseconds": "0",
+      "worker": 1,
+      "sequence": 0,
+      "time": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "1 毫秒",
+      "epoch": "2026-01-01T00:00:00Z",
+      "value": "4194304",
+      "milliseconds": "1",
+      "worker": 0,
+      "sequence": 0,
+      "time": "2026-01-01T00:00:00.001Z"
+    },
+    {
+      "name": "机器位与序列到上限",
+      "epoch": "2026-01-01T00:00:00Z",
+      "value": "4194303",
+      "milliseconds": "0",
+      "worker": 1023,
+      "sequence": 4095,
+      "time": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "一般的值",
+      "epoch": "2026-01-01T00:00:00Z",
+      "value": "118863220432850953",
+      "milliseconds": "28339200123",
+      "worker": 37,
+      "sequence": 9,
+      "time": "2026-11-25T00:00:00.123Z"
+    },
+    {
+      "name": "一天之后",
+      "epoch": "2026-01-01T00:00:00Z",
+      "value": "362387867699200",
+      "milliseconds": "86400000",
+      "worker": 512,
+      "sequence": 2048,
+      "time": "2026-01-02T00:00:00.000Z"
+    },
+    {
+      "name": "超过 2^53",
+      "epoch": "2026-01-01T00:00:00Z",
+      "value": "9007199254745089",
+      "milliseconds": "2147483648",
+      "worker": 1,
+      "sequence": 1,
+      "time": "2026-01-25T20:31:23.648Z"
+    },
+    {
+      "name": "毫秒数到 41 位的上限",
+      "epoch": "2026-01-01T00:00:00Z",
+      "value": "9223372036850581504",
+      "milliseconds": "2199023255551",
+      "worker": 0,
+      "sequence": 0,
+      "time": "2095-09-07T15:47:35.551Z"
+    },
+    {
+      "name": "三段都到上限：63 位全 1",
+      "epoch": "2026-01-01T00:00:00Z",
+      "value": "9223372036854775807",
+      "milliseconds": "2199023255551",
+      "worker": 1023,
+      "sequence": 4095,
+      "time": "2095-09-07T15:47:35.551Z"
+    },
+    {
+      "name": "换一个 epoch：同一个值的时间戳随之平移",
+      "epoch": "2020-01-01T00:00:00Z",
+      "value": "118863220432850953",
+      "milliseconds": "28339200123",
+      "worker": 37,
+      "sequence": 9,
+      "time": "2020-11-24T00:00:00.123Z"
+    }
+  ],
+  "outOfRange": [
+    {
+      "name": "机器位 1024",
+      "milliseconds": "0",
+      "worker": 1024,
+      "sequence": 0
+    },
+    {
+      "name": "机器位为负",
+      "milliseconds": "0",
+      "worker": -1,
+      "sequence": 0
+    },
+    {
+      "name": "序列 4096",
+      "milliseconds": "0",
+      "worker": 0,
+      "sequence": 4096
+    },
+    {
+      "name": "序列为负",
+      "milliseconds": "0",
+      "worker": 0,
+      "sequence": -1
+    },
+    {
+      "name": "毫秒数超过 41 位",
+      "milliseconds": "2199023255552",
+      "worker": 0,
+      "sequence": 0
+    },
+    {
+      "name": "毫秒数为负",
+      "milliseconds": "-1",
+      "worker": 0,
+      "sequence": 0
+    }
+  ]
+}

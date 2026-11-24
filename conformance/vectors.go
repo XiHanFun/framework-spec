@@ -595,6 +595,8 @@ var typedVectors = []TypedVector{
 	vectorFile[MultipartPartVectors]("objectstorage/multipart-parts.json"),
 	vectorFile[BlobStoreDefinitionVectors]("objectstorage/store-definitions.json"),
 	vectorFile[PayloadReasonVectors]("operations/payload-reasons.json"),
+	vectorFile[IndexNameVectors]("persistence/index-names.json"),
+	vectorFile[SnowflakeIDVectors]("persistence/snowflake-ids.json"),
 	vectorFile[PipelineOrderingVectors]("pipeline/ordering.json"),
 	vectorFile[CallbackStatusVectors]("plugin/callback-status.json"),
 	vectorFile[DeadlineVectors]("plugin/deadlines.json"),
