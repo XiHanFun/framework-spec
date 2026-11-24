@@ -1,0 +1,519 @@
+{
+  "$comment": "工作流表达式的上限与错误里带出的文本（RFC-0021「表达式」的「长度与上限」，ADR-0120、ADR-0182、ADR-0287）。长度都按 UTF-16 码元计，基本多文种平面以外的字符算两个。lengths、nestings 与 chains 的表达式由重复的片段拼出来，不直接写出：lengths 的表达式是 head 接 count 个 padding 再接 tail，length 是它的长度，valid 为假表示只校验语法就以 workflow.expression.too_long 失败（参数 length 与 max = maxLength），先于其他任何检查；nestings 的表达式是 levels 个 open、leaf、levels 个 close，valid 为假表示以 workflow.expression.too_deep 失败（参数 max = maxDepth），为真表示能解析并求值——括号、函数的实参表、索引与一元运算符各算一层，算进同一个计数；chains 的表达式是 head 接 count 个 link，链不算嵌套，求值成功，type 与 text 是结果。blocks 给出两个很长的字符串变量：variable 的值是 repeat 个 unit（各 1048576 个码元）；它们与 variables 合起来是求值时的实例变量。concatenations：expression 求值，valid 为真表示成功、结果是长度为 length 的字符串，为假表示以 workflow.expression.string_too_long 失败（参数 length、max = maxStringLength），length 是使它超过的那一次拼接两侧的长度之和。renderings：template 渲染，valid 为真表示成功、文本的长度是 length，为假表示以 workflow.expression.string_too_long 失败，length 是接上使它超过的那一段（字面文本或占位的文本）之后的长度。echoes：source 按 mode 求值（evaluate）、当条件求值（condition）或当模板渲染（render），以 messageKey 失败，arguments 是全部参数，含 expression——错误里带出的文本最多 maxEchoLength 个码元，超过的截断后接 U+2026，第 200 个码元是代理对的前一半时只取 199 个；not_date 的 value 同样。期望值由 .NET 参考实现（WorkflowExpressionEvaluator）算出。",
+  "errorCode": "WORKFLOW_VALIDATION_003",
+  "maxLength": 4000,
+  "maxDepth": 64,
+  "maxStringLength": 4194304,
+  "maxEchoLength": 200,
+  "variables": {
+    "x": [
+      0
+    ],
+    "t": true
+  },
+  "blocks": [
+    {
+      "variable": "k",
+      "unit": "ab",
+      "repeat": 524288
+    },
+    {
+      "variable": "e",
+      "unit": "😀",
+      "repeat": 524288
+    }
+  ],
+  "lengths": [
+    {
+      "name": "正好 4000，空白也算",
+      "head": "1",
+      "padding": " ",
+      "count": 3999,
+      "tail": "",
+      "length": 4000,
+      "valid": true
+    },
+    {
+      "name": "4001",
+      "head": "1",
+      "padding": " ",
+      "count": 4000,
+      "tail": "",
+      "length": 4001,
+      "valid": false
+    },
+    {
+      "name": "4000 个数字相加",
+      "head": "1",
+      "padding": "+1",
+      "count": 1999,
+      "tail": " ",
+      "length": 4000,
+      "valid": true
+    },
+    {
+      "name": "4001 个字符的加法链",
+      "head": "1",
+      "padding": "+1",
+      "count": 2000,
+      "tail": "",
+      "length": 4001,
+      "valid": false
+    },
+    {
+      "name": "超长先于空表达式",
+      "head": "",
+      "padding": " ",
+      "count": 4001,
+      "tail": "",
+      "length": 4001,
+      "valid": false
+    },
+    {
+      "name": "超长先于语法错误",
+      "head": "",
+      "padding": "(",
+      "count": 4001,
+      "tail": "",
+      "length": 4001,
+      "valid": false
+    },
+    {
+      "name": "汉字每个算一个：正好 4000",
+      "head": "'",
+      "padding": "中",
+      "count": 3998,
+      "tail": "'",
+      "length": 4000,
+      "valid": true
+    },
+    {
+      "name": "汉字每个算一个：4001",
+      "head": "'",
+      "padding": "中",
+      "count": 3999,
+      "tail": "'",
+      "length": 4001,
+      "valid": false
+    },
+    {
+      "name": "基本多文种平面以外的字符每个算两个：正好 4000",
+      "head": "'",
+      "padding": "😀",
+      "count": 1999,
+      "tail": "'",
+      "length": 4000,
+      "valid": true
+    },
+    {
+      "name": "基本多文种平面以外的字符每个算两个：4002",
+      "head": "'",
+      "padding": "😀",
+      "count": 2000,
+      "tail": "'",
+      "length": 4002,
+      "valid": false
+    }
+  ],
+  "nestings": [
+    {
+      "name": "括号 64 层",
+      "open": "(",
+      "leaf": "1",
+      "close": ")",
+      "levels": 64,
+      "valid": true
+    },
+    {
+      "name": "括号 65 层",
+      "open": "(",
+      "leaf": "1",
+      "close": ")",
+      "levels": 65,
+      "valid": false
+    },
+    {
+      "name": "逻辑非 64 层",
+      "open": "!",
+      "leaf": "true",
+      "close": "",
+      "levels": 64,
+      "valid": true
+    },
+    {
+      "name": "逻辑非 65 层",
+      "open": "!",
+      "leaf": "true",
+      "close": "",
+      "levels": 65,
+      "valid": false
+    },
+    {
+      "name": "一元负 64 层",
+      "open": "-",
+      "leaf": "1",
+      "close": "",
+      "levels": 64,
+      "valid": true
+    },
+    {
+      "name": "一元负 65 层",
+      "open": "-",
+      "leaf": "1",
+      "close": "",
+      "levels": 65,
+      "valid": false
+    },
+    {
+      "name": "带空白的一元负 65 层",
+      "open": "- ",
+      "leaf": "1",
+      "close": "",
+      "levels": 65,
+      "valid": false
+    },
+    {
+      "name": "函数的实参表 64 层",
+      "open": "abs(",
+      "leaf": "1",
+      "close": ")",
+      "levels": 64,
+      "valid": true
+    },
+    {
+      "name": "函数的实参表 65 层",
+      "open": "abs(",
+      "leaf": "1",
+      "close": ")",
+      "levels": 65,
+      "valid": false
+    },
+    {
+      "name": "第二个实参里再嵌套 64 层",
+      "open": "min(1,",
+      "leaf": "1",
+      "close": ")",
+      "levels": 64,
+      "valid": true
+    },
+    {
+      "name": "第二个实参里再嵌套 65 层",
+      "open": "min(1,",
+      "leaf": "1",
+      "close": ")",
+      "levels": 65,
+      "valid": false
+    },
+    {
+      "name": "索引 64 层",
+      "open": "x[",
+      "leaf": "0",
+      "close": "]",
+      "levels": 64,
+      "valid": true
+    },
+    {
+      "name": "索引 65 层",
+      "open": "x[",
+      "leaf": "0",
+      "close": "]",
+      "levels": 65,
+      "valid": false
+    },
+    {
+      "name": "括号、函数与一元负交替，合计 63 层",
+      "open": "(abs(-",
+      "leaf": "1",
+      "close": "))",
+      "levels": 21,
+      "valid": true
+    },
+    {
+      "name": "括号、函数与一元负交替，合计 66 层",
+      "open": "(abs(-",
+      "leaf": "1",
+      "close": "))",
+      "levels": 22,
+      "valid": false
+    },
+    {
+      "name": "括号套逻辑非，合计 64 层",
+      "open": "(!",
+      "leaf": "true",
+      "close": ")",
+      "levels": 32,
+      "valid": true
+    },
+    {
+      "name": "括号套逻辑非，合计 66 层",
+      "open": "(!",
+      "leaf": "true",
+      "close": ")",
+      "levels": 33,
+      "valid": false
+    },
+    {
+      "name": "几千层括号在长度以内也只报过深",
+      "open": "(",
+      "leaf": "1",
+      "close": ")",
+      "levels": 1900,
+      "valid": false
+    }
+  ],
+  "chains": [
+    {
+      "name": "并列的括号与函数不累加",
+      "head": "0",
+      "link": "+(abs(1))",
+      "count": 100,
+      "type": "number",
+      "text": "100"
+    },
+    {
+      "name": "并列的索引不累加",
+      "head": "0",
+      "link": "+x[x[0]]",
+      "count": 100,
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "长度以内最长的加法链",
+      "head": "1",
+      "link": "+1",
+      "count": 1999,
+      "type": "number",
+      "text": "2000"
+    },
+    {
+      "name": "长度以内最长的成员链",
+      "head": "null",
+      "link": ".x",
+      "count": 1998,
+      "type": "null",
+      "text": ""
+    },
+    {
+      "name": "长度以内最长的逻辑或链",
+      "head": "true",
+      "link": "||true",
+      "count": 666,
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "长度以内最长的逻辑与链",
+      "head": "true",
+      "link": "&&true",
+      "count": 666,
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "长度以内最长的比较链",
+      "head": "1",
+      "link": "<2",
+      "count": 1999,
+      "type": "boolean",
+      "text": "false"
+    }
+  ],
+  "concatenations": [
+    {
+      "name": "拼出正好 4194304",
+      "expression": "k + k + k + k",
+      "valid": true,
+      "length": 4194304
+    },
+    {
+      "name": "接上空串不变长",
+      "expression": "k + k + k + k + ''",
+      "valid": true,
+      "length": 4194304
+    },
+    {
+      "name": "再接一个字符就超过",
+      "expression": "k + k + k + k + 'a'",
+      "valid": false,
+      "length": 4194305
+    },
+    {
+      "name": "超过的那一段在最前面时，到最后一次拼接才超过",
+      "expression": "'a' + k + k + k + k",
+      "valid": false,
+      "length": 4194305
+    },
+    {
+      "name": "数字的文本也算长度",
+      "expression": "k + k + k + k + 1",
+      "valid": false,
+      "length": 4194305
+    },
+    {
+      "name": "超过之后不再往下拼：长度是超过的那一次",
+      "expression": "k + k + k + k + k + k + k",
+      "valid": false,
+      "length": 5242880
+    },
+    {
+      "name": "括号里先拼的两段各自不超过，合起来超过",
+      "expression": "(k + k + k) + (k + k)",
+      "valid": false,
+      "length": 5242880
+    },
+    {
+      "name": "基本多文种平面以外的字符每个算两个：正好 4194304",
+      "expression": "e + e + e + e",
+      "valid": true,
+      "length": 4194304
+    },
+    {
+      "name": "基本多文种平面以外的字符每个算两个：超过",
+      "expression": "e + e + e + e + e",
+      "valid": false,
+      "length": 5242880
+    }
+  ],
+  "renderings": [
+    {
+      "name": "渲染出正好 4194304",
+      "template": "{{k}}{{k}}{{k}}{{k}}",
+      "valid": true,
+      "length": 4194304
+    },
+    {
+      "name": "空的占位结果不变长",
+      "template": "{{k}}{{k}}{{k}}{{k}}{{ null }}",
+      "valid": true,
+      "length": 4194304
+    },
+    {
+      "name": "字面文本与占位合计不超过",
+      "template": "ab{{k}}{{k}}{{k}}cd",
+      "valid": true,
+      "length": 3145732
+    },
+    {
+      "name": "最后的字面文本使它超过",
+      "template": "{{k}}{{k}}{{k}}{{k}}a",
+      "valid": false,
+      "length": 4194305
+    },
+    {
+      "name": "前面的字面文本算在内，最后一个占位使它超过",
+      "template": "a{{k}}{{k}}{{k}}{{k}}",
+      "valid": false,
+      "length": 4194305
+    },
+    {
+      "name": "数字的占位使它超过",
+      "template": "{{k}}{{k}}{{k}}{{k}}{{ 1 }}",
+      "valid": false,
+      "length": 4194305
+    },
+    {
+      "name": "超过之后不再往下渲染：长度是超过的那一次",
+      "template": "{{k}}{{k}}{{k}}{{k}}{{k}}{{k}}{{ nope }}",
+      "valid": false,
+      "length": 5242880
+    },
+    {
+      "name": "基本多文种平面以外的字符每个算两个",
+      "template": "{{e}}{{e}}{{e}}{{e}}{{e}}",
+      "valid": false,
+      "length": 5242880
+    }
+  ],
+  "echoes": [
+    {
+      "name": "正好 200 个码元时原样带出",
+      "mode": "evaluate",
+      "source": "nope                                                                                                                                                                                                    ",
+      "messageKey": "workflow.expression.unknown_variable",
+      "arguments": {
+        "expression": "nope                                                                                                                                                                                                    ",
+        "name": "nope"
+      }
+    },
+    {
+      "name": "201 个码元时截到 200 再接省略号",
+      "mode": "evaluate",
+      "source": "nope                                                                                                                                                                                                     ",
+      "messageKey": "workflow.expression.unknown_variable",
+      "arguments": {
+        "expression": "nope                                                                                                                                                                                                    …",
+        "name": "nope"
+      }
+    },
+    {
+      "name": "第 200 个码元是代理对的前一半时只取 199 个",
+      "mode": "evaluate",
+      "source": "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa😀' + nope",
+      "messageKey": "workflow.expression.unknown_variable",
+      "arguments": {
+        "expression": "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…",
+        "name": "nope"
+      }
+    },
+    {
+      "name": "代理对整个在 200 个码元以内时保留",
+      "mode": "evaluate",
+      "source": "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa😀' + nope",
+      "messageKey": "workflow.expression.unknown_variable",
+      "arguments": {
+        "expression": "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa😀…",
+        "name": "nope"
+      }
+    },
+    {
+      "name": "语法错误同样截断",
+      "mode": "evaluate",
+      "source": "1 +                                                                                                                                                                                                                                                          )",
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "expression": "1 +                                                                                                                                                                                                     …",
+        "character": ")",
+        "position": 254
+      }
+    },
+    {
+      "name": "不是时间的文本同样截断",
+      "mode": "evaluate",
+      "source": "date('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')",
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "expression": "date('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…",
+        "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…"
+      }
+    },
+    {
+      "name": "条件的结果不是布尔时同样截断",
+      "mode": "condition",
+      "source": "1                                                                                                                                                                                                                                                          ",
+      "messageKey": "workflow.expression.not_boolean",
+      "arguments": {
+        "expression": "1                                                                                                                                                                                                       …"
+      }
+    },
+    {
+      "name": "占位没有结束时带出的是模板，同样截断",
+      "mode": "render",
+      "source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{{ t",
+      "messageKey": "workflow.expression.unterminated_placeholder",
+      "arguments": {
+        "expression": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…"
+      }
+    },
+    {
+      "name": "占位里的表达式超过 200 个码元时同样截断",
+      "mode": "render",
+      "source": "{{ 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' + nope }}",
+      "messageKey": "workflow.expression.unknown_variable",
+      "arguments": {
+        "expression": "'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb…",
+        "name": "nope"
+      }
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # RFC-0021 工作流：持久化执行
 
-> 状态：已采纳 | 日期：2026-10-26，同日修订（ADR-0020：`Workflow.Database`、触发式启动、事件网关、外部任务、HTTP 活动、补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；2026-11-01 修订：外部任务领取的条数上限与下推、重用策略查重与创建原子、定义按租户隔离、实例按租户隔离；2026-11-01 修订：引擎写入随调用方事务、分区隔离与随租户分库（平台与租户互不可见，取消全局定义），待办查询的过滤、排序与分页下推到存储并带总数；2026-11-01 修订：只读调用里的写入是 500 类缺陷；2026-11-01 修订：实例查询与清理的分页越界返回校验错误；2026-11-01 修订：租约表可以指定命名连接，SQLite 上放到另一个库文件；2026-11-01 修订：应用不在服务状态时不持有轮询领导权；2026-11-01 修订：EF Core 上的租约表连接；2026-11-01 修订：轮询周期中途进入排空即停下、不告警；2026-11-02 修订：HTTP 活动的超时按引擎时钟计时、按令牌归因；2026-11-02 修订：定义列表按关键字、名字、分类与状态在存储里分页并带总数，返回摘要；实例查询可给一组关联 ID、只取顶层与标题关键字；待办查询按任务标题或实例标题的关键字过滤；引擎按实例列出全部等待点的摘要；一致性套件在代理一侧记录事件，装了发件箱的宿主照样通过；2026-11-02 修订：定义的关键字匹配名字、显示名与说明，实例另匹配关联 ID，待办另匹配定义名与关联 ID；2026-11-02 修订：内存实现同样在只读调用里拒绝写入；2026-11-02 修订：关键字只做小写折叠，`%`、`_`、`[`、`\` 不再换成全角；2026-11-02 修订：关键字查询列改名定为已定；2026-11-02 修订：兼容库上的关键字随持久化维持按通配匹配定为已定；2026-11-02 修订：EF Core 在 SQLite 上的包含同样译成 `LIKE`，小写折叠的理由随之改写；2026-11-02 修订：定义与实例查询可选排序字段与方向（白名单），定义查询可按创建时间区间过滤；2026-11-02 修订：按状态排序按生命周期的先后；2026-11-03 修订：定义与实例查询支持多字段排序，`SortBy` / `Descending` 换成有序的排序项列表 `Sorts`；2026-11-03 修订：故障原因用消息键与参数表示，按调用的区域本地化；2026-11-03 修订：定义校验与表达式的诊断、`lastError` 变量、活动描述符与状态名也用消息键与参数；2026-11-03 再修订：定义 JSON 里模型会拒绝的值在读入时按同一份规则核对；2026-11-03 修订：定义 JSON 里没写的成员取模型的初值；2026-11-03 修订：一致性套件的记录器只解析工作流事件，宿主里别的发布端的消息照常确认；2026-11-04 修订：活动抛出与 HTTP 连接失败的 `reason` 只写异常类型；同日再修订：`Http` 活动的缺省客户端过出站地址策略，新增消息键 `workflow.http.address_denied`，一致性用例 42；同日再修订：表达式的长度与嵌套上限；2026-11-12 修订：`Http` 活动的正文读到上限即停，`TimeoutSeconds` 不超过引擎选项 `MaxHttpTimeoutSeconds`；同日再修订：`ForEach` 的项数、实例变量的大小与 `+` 拼出的字符串有上限，级联覆盖全部子实例；2026-11-24 修订：一致性向量） | 对应 ADR：ADR-0182、ADR-0181、ADR-0120、ADR-0117、ADR-0016、ADR-0020、ADR-0066、ADR-0077、ADR-0081、ADR-0082、ADR-0084、ADR-0087、ADR-0096、ADR-0097、ADR-0099、ADR-0101、ADR-0102、ADR-0103、ADR-0104、ADR-0105、ADR-0106、ADR-0107、ADR-0115、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.Workflow.Abstractions`、`XiHan.Framework.Workflow.InMemory`、`XiHan.Framework.Workflow.Database` | 一致性：`XiHan.Framework.Workflow.Conformance`，向量 `conformance/vectors/workflow/` | 一致性档：`workflow`
+> 状态：已采纳 | 日期：2026-10-26，同日修订（ADR-0020：`Workflow.Database`、触发式启动、事件网关、外部任务、HTTP 活动、补偿活动、跳转与迁移、认领 / 退回 / 催办、提醒与审批阈值、保留期清理；2026-11-01 修订：外部任务领取的条数上限与下推、重用策略查重与创建原子、定义按租户隔离、实例按租户隔离；2026-11-01 修订：引擎写入随调用方事务、分区隔离与随租户分库（平台与租户互不可见，取消全局定义），待办查询的过滤、排序与分页下推到存储并带总数；2026-11-01 修订：只读调用里的写入是 500 类缺陷；2026-11-01 修订：实例查询与清理的分页越界返回校验错误；2026-11-01 修订：租约表可以指定命名连接，SQLite 上放到另一个库文件；2026-11-01 修订：应用不在服务状态时不持有轮询领导权；2026-11-01 修订：EF Core 上的租约表连接；2026-11-01 修订：轮询周期中途进入排空即停下、不告警；2026-11-02 修订：HTTP 活动的超时按引擎时钟计时、按令牌归因；2026-11-02 修订：定义列表按关键字、名字、分类与状态在存储里分页并带总数，返回摘要；实例查询可给一组关联 ID、只取顶层与标题关键字；待办查询按任务标题或实例标题的关键字过滤；引擎按实例列出全部等待点的摘要；一致性套件在代理一侧记录事件，装了发件箱的宿主照样通过；2026-11-02 修订：定义的关键字匹配名字、显示名与说明，实例另匹配关联 ID，待办另匹配定义名与关联 ID；2026-11-02 修订：内存实现同样在只读调用里拒绝写入；2026-11-02 修订：关键字只做小写折叠，`%`、`_`、`[`、`\` 不再换成全角；2026-11-02 修订：关键字查询列改名定为已定；2026-11-02 修订：兼容库上的关键字随持久化维持按通配匹配定为已定；2026-11-02 修订：EF Core 在 SQLite 上的包含同样译成 `LIKE`，小写折叠的理由随之改写；2026-11-02 修订：定义与实例查询可选排序字段与方向（白名单），定义查询可按创建时间区间过滤；2026-11-02 修订：按状态排序按生命周期的先后；2026-11-03 修订：定义与实例查询支持多字段排序，`SortBy` / `Descending` 换成有序的排序项列表 `Sorts`；2026-11-03 修订：故障原因用消息键与参数表示，按调用的区域本地化；2026-11-03 修订：定义校验与表达式的诊断、`lastError` 变量、活动描述符与状态名也用消息键与参数；2026-11-03 再修订：定义 JSON 里模型会拒绝的值在读入时按同一份规则核对；2026-11-03 修订：定义 JSON 里没写的成员取模型的初值；2026-11-03 修订：一致性套件的记录器只解析工作流事件，宿主里别的发布端的消息照常确认；2026-11-04 修订：活动抛出与 HTTP 连接失败的 `reason` 只写异常类型；同日再修订：`Http` 活动的缺省客户端过出站地址策略，新增消息键 `workflow.http.address_denied`，一致性用例 42；同日再修订：表达式的长度与嵌套上限；2026-11-12 修订：`Http` 活动的正文读到上限即停，`TimeoutSeconds` 不超过引擎选项 `MaxHttpTimeoutSeconds`；同日再修订：`ForEach` 的项数、实例变量的大小与 `+` 拼出的字符串有上限，级联覆盖全部子实例；2026-11-24 修订：一致性向量；同日再修订：表达式小语言的词法、文法、每个运算符与函数的语义、数字与时间的文本、模板、上限与错误逐条写明，数字的文本、时间、容器的文本、求值的先后与溢出等处修订，新增消息键 `workflow.expression.number_out_of_range`，表达式的一致性向量） | 对应 ADR：ADR-0182、ADR-0181、ADR-0120、ADR-0117、ADR-0016、ADR-0020、ADR-0066、ADR-0077、ADR-0081、ADR-0082、ADR-0084、ADR-0087、ADR-0096、ADR-0097、ADR-0099、ADR-0101、ADR-0102、ADR-0103、ADR-0104、ADR-0105、ADR-0106、ADR-0107、ADR-0115、ADR-0277（一致性向量）、ADR-0287（表达式） | 参考实现：`XiHan.Framework.Workflow.Abstractions`、`XiHan.Framework.Workflow.InMemory`、`XiHan.Framework.Workflow.Database` | 一致性：`XiHan.Framework.Workflow.Conformance`，向量 `conformance/vectors/workflow/` | 一致性档：`workflow`
 
 ## 摘要
 
@@ -98,7 +98,7 @@ Provider 实现 `IWorkflowDefinitionStore`、`IWorkflowInstanceStore`、`IWorkfl
 - **故障原因的本地化**（2026-11-03 修订，ADR-0105）：实例与节点实例上的 `Fault`（`WorkflowFault`）以及事件载荷里的 `fault` 存错误码 `Code`、消息键 `MessageKey`、参数 `Arguments`（值按不变文化转成字符串，与幂等记录同一做法）、内层原因 `Inner`（子流程的故障、存储不可达的根因），以及按进程默认区域渲染的 `Message`（日志用）。面向人的文案不存进库：展示用 `Fault.Localize()`——按当前消息作用域（调用链里是调用方的区域，RFC-0010）渲染消息键与参数，有内层原因时以 `workflow.fault.caused_by`（参数 `message`、`cause`）接上内层的文案；返回给调用方用 `Fault.ToError()`——带键、参数与内层的错误，由宿主在 Egress 翻译成调用方的语言。没有消息键的故障（自由文本，或升级前写入的）按 `Message` 原文展示。
   - 引擎与内置活动的失败原因全部是消息键与参数，参数里不再放英文句子：节点超时 `workflow.node.timed_out`（参数 `node`），活动属性不合法按种类各有键（`workflow.activity.property_not_seconds`、`property_not_datetime`、`property_empty`、`property_not_cron`、`property_not_time_zone`、`property_cron_exhausted`、`property_no_signal`、`property_needs_correlation`、`property_not_array`、`property_not_url`、`property_not_http_method`、`property_header_invalid`、`property_not_media_type`、`property_not_expression`、`property_not_workflow_name`、`property_unknown_value`、`property_not_threshold`、`property_not_integer`），指派规则（`workflow.assignee.rules_not_array`、`rule_type_missing`、`expression_count`、`users_missing`），表达式的结果不是布尔与模板占位符没闭合（`workflow.expression.not_boolean`、`unterminated_placeholder`），HTTP 超时 `workflow.http.timed_out`，`Fault` 节点 `workflow.activity.fault_raised`，没有开始节点 `workflow.definition.start_missing`，引擎自己开的调用没有工作单元 `workflow.store.unit_of_work_missing`，待办与外部任务的输入（`workflow.task.query_target_missing`、`workflow.external.lock_duration_invalid`、`max_tasks_invalid`（参数 `count`、`max`）、`retry_after_negative`）。只承载英文原因的 `workflow.task.query_invalid` 与 `workflow.assignee.rule_invalid` 删除，没有别的调用点；自定义指派规则用应用自己的消息键。
   - 应用或第三方给的文本原样放在参数里，外层的概括键照常本地化：HTTP 应答的原因短语（`workflow.http.failed` 的 `reason`）、外部任务工作者报的错误（`workflow.external.failed` 的 `reason`）、`Fault` 节点作者写的消息（`workflow.activity.fault_raised` 的 `message`）、存储与驱动的异常（`workflow.store.unavailable` 的 `reason`）、自定义活动经 `ActivityContext.PropertyInvalid(name, reason)` 给的原因。活动抛出（`workflow.activity.failed`）与 HTTP 连接失败（`workflow.http.failed`）的 `reason` 只写异常类型的全名，完整异常进日志（2026-11-04，ADR-0115）：故障会存进实例、经接口返回，异常消息常带内部主机与端口；要让调用方看到说明，活动返回失败，不靠抛异常。
-  - 设计期诊断（2026-11-03 修订，ADR-0106）：定义校验的逐条问题见上文「校验」，每条有自己的消息键（结构问题 `workflow.definition.*`，属性问题沿用 `workflow.activity.property_*`，指派规则问题是 Provider 给的错误，`AssigneeResolver.Validate` 返回错误列表）；表达式的语法与求值诊断每种一个键（`workflow.expression.empty`、`unexpected_character`、`token_expected`、`member_expected`、`unexpected_end`、`unterminated_string`、`unknown_variable`、`unknown_function`、`argument_count`、`argument_range`、`member_of_non_object`、`index_out_of_range`、`index_of_scalar`、`operands_not_scalar`、`operands_not_boolean`、`operands_not_numeric`、`not_number`、`not_date`、`division_by_zero`，参数都有 `expression`，位置从 1 起），错误码仍是 `WORKFLOW_VALIDATION_003`，`workflow.expression.invalid` 删除；`WorkflowJson.DeserializeDefinition` 的错误：JSON 为 `null` 是 `workflow.definition.json_null`；语法错误与值的类型不符是 `json_malformed`（参数 `path`、`line`、`position`）；模型会拒绝的值在构造模型之前按与模型同一份规则核对（2026-11-03 再修订，ADR-0106）——缺少必填成员（取自序列化器的元数据；非必填成员没写时取模型的初值，不报，ADR-0107）`member_missing`（参数 `member`）、名字 `name_invalid`、定义 ID `id_empty`、版本 `version_invalid`、分类长度 `category_too_long`、定义与节点的超时 `timeout_invalid`、节点 ID `node_id_invalid`、活动类型 `activity_type_invalid`、转移 ID `transition_id_invalid`、变量名 `variable_name_empty`、重试策略 `retry_attempts_invalid`、`retry_delay_negative`、`retry_backoff_invalid`（都在 `workflow.definition.` 下），以 `workflow.definition.invalid`（参数 `count`）与 `details.errors` 的违规列表返回，形状同发布时的校验；核对通过的文档构造模型不再抛出，模型自己的英文异常只兜住编程错误；`json_value_invalid` 删除。
+  - 设计期诊断（2026-11-03 修订，ADR-0106）：定义校验的逐条问题见上文「校验」，每条有自己的消息键（结构问题 `workflow.definition.*`，属性问题沿用 `workflow.activity.property_*`，指派规则问题是 Provider 给的错误，`AssigneeResolver.Validate` 返回错误列表）；表达式的语法与求值诊断每种一个键（`workflow.expression.empty`、`unexpected_character`、`token_expected`、`member_expected`、`unexpected_end`、`unterminated_string`、`unknown_variable`、`unknown_function`、`argument_count`、`argument_range`、`member_of_non_object`、`index_out_of_range`、`index_of_scalar`、`operands_not_scalar`、`operands_not_boolean`、`operands_not_numeric`、`not_number`、`not_date`、`division_by_zero`，以及后来加的 `too_long`、`too_deep`、`string_too_long`、`number_out_of_range`，参数都有 `expression`，位置从 1 起；全部的键、参数与何时报出见「表达式」的「错误」），错误码仍是 `WORKFLOW_VALIDATION_003`，`workflow.expression.invalid` 删除；`WorkflowJson.DeserializeDefinition` 的错误：JSON 为 `null` 是 `workflow.definition.json_null`；语法错误与值的类型不符是 `json_malformed`（参数 `path`、`line`、`position`）；模型会拒绝的值在构造模型之前按与模型同一份规则核对（2026-11-03 再修订，ADR-0106）——缺少必填成员（取自序列化器的元数据；非必填成员没写时取模型的初值，不报，ADR-0107）`member_missing`（参数 `member`）、名字 `name_invalid`、定义 ID `id_empty`、版本 `version_invalid`、分类长度 `category_too_long`、定义与节点的超时 `timeout_invalid`、节点 ID `node_id_invalid`、活动类型 `activity_type_invalid`、转移 ID `transition_id_invalid`、变量名 `variable_name_empty`、重试策略 `retry_attempts_invalid`、`retry_delay_negative`、`retry_backoff_invalid`（都在 `workflow.definition.` 下），以 `workflow.definition.invalid`（参数 `count`）与 `details.errors` 的违规列表返回，形状同发布时的校验；核对通过的文档构造模型不再抛出，模型自己的英文异常只兜住编程错误；`json_value_invalid` 删除。
   - 状态名（2026-11-03 修订，ADR-0106）：模型、查询结果、事件与回调输入里的状态是枚举值，不变；给人看的文案里不放状态名——状态不允许操作按状态各一个键（`workflow.instance.is_running` … `is_terminated`、`workflow.definition.is_draft` … `is_archived`，参数 `id`、`status`，`workflow.instance.status` 与 `workflow.definition.status` 删除），状态的展示名是 `workflow.instance_status.*`、`workflow.node_status.*`、`workflow.definition_status.*`（`WorkflowStatusMessages.KeyOf` / `Localize`）。
 - **实例的分区**：实例属于启动它的调用的分区（`TenantId`，之后不变；子流程与父实例同分区）。调用只看得到、操作得了自己分区的实例与书签，别的分区的一律按不存在处理，不暴露它们是否存在：按实例 ID 的控制（`SuspendAsync`、`ResumeInstancesAsync`、`CancelAsync`、`TerminateAsync`、`RetryAsync`、`SetVariablesAsync`、`JumpAsync`、`MigrateAsync`）与实例查询 → `WORKFLOW_NOTFOUND_002`；按书签 ID 的 `ResumeAsync`（含定义级定时书签）与用户任务、外部任务的操作 → `WORKFLOW_NOTFOUND_003`；`PurgeAsync` 只清自己分区的实例；信号只消费自己分区的书签、只启动自己分区的定义。平台与租户对等：平台调用同样看不到、操作不了任何租户的实例。引擎内部的接续（轮询恢复、子流程启动与回调、级联取消）在实例的分区里进行：轮询器以书签的租户开调用。
 - **查询**：`FindInstanceAsync(id)`、`ListInstancesAsync(query)`、`CountInstancesAsync(query)`、`NodeInstancesAsync(instanceId)`、`BookmarksAsync(instanceId)` 只查调用方的分区；`WorkflowInstanceQuery` 没有租户字段——平台调用查到的就是平台的实例（原来"租户为空即不过滤全部租户"的语义取消），没有跨租户的查询。按 ID 找不到或在别的分区为无值 / `WORKFLOW_NOTFOUND_002`。`WorkflowInstanceQuery` 的分页（`Skip` ≥ 0、`Take` 1～`MaxTake`（1000），默认 0 与 100）不在构造时抛出：越界时 `ListInstancesAsync` 返回 `WORKFLOW_VALIDATION_002`（HTTP 400，消息键 `workflow.instance.query_page_invalid`，参数 `skip`、`take`、`max`），与待办查询一致——查询常由请求绑定，越界是调用方可以改正的输入（2026-11-01 修订，ADR-0082）；`CountInstancesAsync` 不看分页，不校验。`BookmarksAsync(instanceId)`（2026-11-02 修订，ADR-0096）是面向应用的只读查询，列出实例的全部等待点（全部书签种类）的摘要 `WorkflowBookmarkSummary`（`Id`、`InstanceId`、`NodeId`、`NodeInstanceId`、`Kind`、`Key`、`DueAt`、`CorrelationId`、`CreatedAt`；不含载荷），创建时间升序，应用的实例详情用它而不必经存储契约；实例不存在或在别的分区 → `WORKFLOW_NOTFOUND_002`（定义 ID 也是，定义级定时书签不经它列出）。过滤项（2026-11-02 修订，ADR-0096）：`Status` / `Statuses`、`DefinitionName`、`CorrelationIds`、`ParentInstanceId`、`TopLevelOnly`、`StarterId`、`Keyword`、`CreatedFrom` / `CreatedTo`、`EndedBefore`，同时给出的取交集。`CorrelationIds`（取代单个的 `CorrelationId`）：实例的关联 ID 是其中之一即匹配，`null` 不过滤，空集合不匹配任何实例（列表为空、计数为 0，不进存储——与 `Statuses` 的空集合视同未限定不同，免得一页没有单据时查出全部实例），重复的只算一个；最多 `MaxCorrelationIds`（1000）个且不能有空白的 ID，否则 `ListInstancesAsync` 与 `CountInstancesAsync` 都返回 `WORKFLOW_VALIDATION_002`（消息键 `workflow.instance.query_correlations_invalid`，参数 `count`、`max`），不进存储。`TopLevelOnly`：只取 `ParentInstanceId` 为空的实例（子流程继承父实例的发起人与关联 ID，「我发起的」与按单据查进度要用它排除子流程）。`Keyword`：匹配实例标题 `Title`（启动时给的 `DisplayName`，没给取定义的显示名，再没有取定义名）或关联 ID `CorrelationId`（2026-11-02 修订，ADR-0099），规则见「定义」一节的「关键字」。排序：有序的排序项列表 `Sorts`（字段 `CreatedAt`、`EndedAt`、`Status`、`DefinitionName`、`Title` 加方向，空或没给时创建时间降序），规则见「定义」一节的「列表排序」（2026-11-02 修订，ADR-0102；2026-11-03 修订，ADR-0104）。过滤、排序、分页与计数都由存储执行。
@@ -141,9 +141,185 @@ ADR-0077：引擎、定义目录、任务服务与外部任务服务的每个操
 
 ## 表达式
 
-长度上限 4000 个字符（空白也算），嵌套上限 64 层（括号、函数实参、索引 `[]`、一元 `!` 与 `-` 算进同一个计数，并列的不累加）。解析是递归下降，栈溢出接不住，进程直接退出，所以这两个上限在解析时判（2026-11-04 修订，ADR-0120）。超限是 `WORKFLOW_VALIDATION_003`，消息键 `workflow.expression.too_long`（`length`、`max`）与 `workflow.expression.too_deep`（`max`）。`+` 拼出的字符串不超过 4194304 个字符，在分配之前按两侧长度核对，超过同为 `WORKFLOW_VALIDATION_003`，消息键 `workflow.expression.string_too_long`（`length`、`max`；2026-11-12 修订，ADR-0182）：`s + s` 每求值一次长度翻倍。错误里的 `expression` 参数最多 200 个字符。链（`a + b + c`、`a.b.c`）不算嵌套。
+转移条件、输出映射、`SetVariable` 的 `Expressions`、`SubWorkflow` 的 `VariableExpressions`、表达式指派、当表达式求值的节点属性与 `{{ 表达式 }}` 模板共用一个无依赖的小语言。它没有赋值、循环与副作用：同一段文本、同一组变量与同一个时刻，在任何实现上求出同一个结果或同一个错误。下面各小节是它的全部规定（2026-11-24 写明，ADR-0287；以前这一节只列了运算符与函数的名字，细节只在 .NET 的实现里）；标「修订」的是这次连 .NET 一起改了的地方，没有标的照 .NET 原来的行为写下。
 
-`IWorkflowExpressionEvaluator`：`Evaluate(expression, scope)` → `Result<Maybe<JsonNode>>`（结果是 `null`——字面量 `null`、缺少的成员或键、值为 null 的变量——时是成功的无值，不是失败；ADR-0059）、`EvaluateCondition` → `Result<bool>`（结果不是 bool 即失败，无值也算不是 bool）、`Render(template, scope)` → `Result<string>`（`{{ 表达式 }}` 占位，引号内的 `}}` 不算结束，无值渲染成空串）。活动里的 `ActivityContext.EvaluateProperty(name)` 同样返回 `Result<Maybe<JsonNode>>`：没有这个属性是无值，字符串属性当表达式求值，其余属性原样作为有值。默认实现是无依赖的小语言：`||`、`&&`、`== !=`、`< <= > >=`、`+ -`、`* / %`、一元 `! -`、成员 `.x` 与索引 `[i]`、字面量（数字为 decimal、单双引号字符串、`true` / `false` / `null`）、标识符与函数调用；`+` 任一侧是字符串即拼接；`==` 跨数字类型宽松、字符串序数比较；未知根变量是错误（不是 null），缺少的成员或键是 null；函数 `len`、`contains`、`startsWith`、`endsWith`、`upper`、`lower`、`trim`、`isNullOrEmpty`、`abs`、`min`、`max`、`round`、`toNumber`、`toString`、`now`、`date`（名字不区分大小写）。语法或求值失败 → `WORKFLOW_VALIDATION_003`。已解析的表达式按文本缓存，上限 `ExpressionCacheSize`。
+`IWorkflowExpressionEvaluator`：`Validate(expression)`（只解析：语法、函数名与实参个数）、`Evaluate(expression, scope)` → `Result<Maybe<JsonNode>>`（结果是 `null`——字面量 `null`、缺少的成员或键、值为 null 的变量——时是成功的无值，不是失败；ADR-0059）、`EvaluateCondition` → `Result<bool>`（见「条件」）、`Render(template, scope)` → `Result<string>`（见「模板」）。活动里的 `ActivityContext.EvaluateProperty(name)` 同样返回 `Result<Maybe<JsonNode>>`：没有这个属性是无值，字符串属性当表达式求值，其余属性原样作为有值。语法或求值失败 → `WORKFLOW_VALIDATION_003`，消息键见「错误」。已解析的表达式按文本缓存，上限 `ExpressionCacheSize`。
+
+### 长度与上限
+
+- 长度与位置都按 UTF-16 码元计，与 .NET、JavaScript、Java 的字符串长度相同，基本多文种平面以外的字符算两个（2026-11-24 写明，ADR-0287；以前写「字符」，没说单位）。
+- 表达式最长 4000（空白也算），超过 → `workflow.expression.too_long`（`length`、`max`），先于其他任何检查。
+- 嵌套最多 64 层：括号、函数的实参表（不论几个实参只算一层，没有实参不算）、索引 `[]`、一元 `!` 与 `-` 各算一层，算进同一个计数；并列的不累加，链（`a + b + c`、`a.b.c`）不算嵌套。进到第 65 层 → `workflow.expression.too_deep`（`max`）。解析是递归下降，栈溢出接不住，进程直接退出，所以这两个上限在解析时判（2026-11-04 修订，ADR-0120）。实现必须能求值长度以内最长的链（两千个操作数的 `1+1+…`）。
+- `+` 拼出的字符串不超过 4194304，在分配之前按两侧长度核对，超过 → `workflow.expression.string_too_long`（`length` 是两侧长度之和，`max`；2026-11-12 修订，ADR-0182）：`s + s` 每求值一次长度翻倍。模板渲染出的文本同一个上限（见「模板」）。
+- 没有另设求值步数的上限：没有循环与递归，一次求值的运算次数不超过表达式的长度，每一步的结果都受上面的上限与实例变量的大小约束。
+- 错误里带出的文本——每个错误的 `expression` 参数与 `not_date` 的 `value`——最多 200：超过的取前 200 个码元再接 `…`（U+2026）；第 200 个码元是代理对的前一半时只取 199 个，不留下半个字符（2026-11-24 修订，ADR-0287；以前会把代理对从中间切开，`not_date` 的 `value`、`not_boolean` 与 `unterminated_placeholder` 的 `expression` 不截断）。
+
+### 值
+
+值模型是 JSON（「名字与值」）：`null`、布尔、数字、字符串、数组、对象。下文「标量」指布尔、数字与字符串，「容器」指数组与对象。字符串是合法的 Unicode（RFC-0001「JSON 文本」，含孤立代理项的字符串不在规定之内），容器的嵌套不超过 64 层。没有单独的时间类型：时间是字符串（见「时间」）。.NET 里由 CLR 类型构造、还没有过存储的值（`double`、`DateTimeOffset`、`Guid` 等）按它写成 JSON 之后的形式参与求值，与写进存储再读回来的值相同。
+
+**数字**是十进制定点数 m × 10^(−s)：m 是绝对值不超过 2^96 − 1（79228162514264337593543950335）的整数，s 是 0 到 28 的整数。只看数值：`1.50` 与 `1.5` 是同一个数，没有负零、无穷与非数。
+
+- **放进数字**：一个精确的数学值 v 放进数字，是取最大的 s（不超过 28）使 v × 10^s 按「一半取偶」舍入成整数之后绝对值不超过 2^96 − 1，结果是这个整数 × 10^(−s)；s 取到 0 仍然超过就是放不下。能精确表示的值不变；整数位越多，留得下的小数位越少：1 / 3 是 28 位小数的 `0.3333333333333333333333333333`，100 / 3 是 27 位小数，80 / 9 的 29 位有效数字放不下，是 `8.888888888888888888888888889`。数值上它就是 .NET 的 `decimal`（96 位整数加 0 到 28 的小数位数）的四则运算的结果。
+- **数字文本**：字符串当数字用时（算术、比较、相等、下标与下面的数字函数）按这条文法读，整串匹配：`^[\t\n\v\f\r ]*[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?[\t\n\v\f\r ]*$`——首尾的空白只认 U+0009–U+000D 与 U+0020，数字只认 ASCII 的，没有千分位、十六进制、`Infinity` 与 `NaN`。它的数学值放进数字，放不下的不是数字文本；指数写多长都按数学值：`1e-400` 与 `0e99999999999999999999` 是 0，`1e400` 不是数字文本（2026-11-24 修订，ADR-0287；以前交给 .NET 的数字解析：结尾带 NUL 字符的字符串也读得出，位数与指数都上千时读出的不是数学值）。
+- 下文「能当数字」指：值是数字，或是数字文本的字符串。布尔、`null` 与容器都不能当数字。
+- 变量里的 JSON 数字按它的十进制写法的数学值放进数字：`1e2` 是 100，`1.50` 是 1.5，位数超出的照上面舍入。放不下的 JSON 数字（如 `1e40`）在表达式里怎样表现实现自定。
+- **数字的文本**：十进制，不用指数；有小数部分时写小数点与小数位，不带结尾的零，没有小数部分时不写小数点；负数以 `-` 开头；零写 `0`。如 `1.5`、`-0.25`、`100`、`0.0000000000000000000000000001`（2026-11-24 修订，ADR-0287；以前 .NET 照 `decimal` 内部记着的小数位数写出：`1.50` 写成 `1.50`，`1.5 + 1.5` 写成 `3.0`，`2.50 * 2` 写成 `5.00`，同一个数值因来历不同写出不同的文本，别的语言也无从得知这个位数）。
+
+**值的文本**——拼接、模板、`toString` 与各字符串函数把值当文本用时：
+
+- `null` 是空串；布尔是 `true` / `false`；数字是数字的文本；字符串是它自己。
+- 数组与对象是紧凑的 JSON 文本，写法与消息模板里的容器相同（RFC-0010「模板」）：没有空白；对象的成员按名字的序数顺序（逐个 UTF-16 码元比较）；里面的 `null` 写 `null`，布尔写 `true` / `false`，数字写数字的文本；字符串按 RFC-0010 的 JSON 字符串写法（只转义 `"`、`\` 与 U+0000–U+001F，非 ASCII 字符与 `<`、`>`、`&`、`'`、`+`、`/` 原样）；超过 64 层的容器写成 `null`（2026-11-24 修订，ADR-0287；以前是 System.Text.Json 的缺省写法：非 ASCII 字符与 `<`、`>`、`&`、`'`、`+`、`"` 写成 `\uXXXX`，数字照读入时的原文（`2.50`、`1e2`），成员照原来的顺序）。
+
+### 词法
+
+- 空白是 RFC-0001「空白字符」的 25 个码位，可以出现在任意两个记号之间，没有别的作用；字符串字面量里的空白是内容。没有注释。
+- **数字字面量**：从一个十进制数字、或后面紧跟十进制数字的 `.` 开始，取尽连续的十进制数字与 `.`；取到的文本必须合 `[0-9]+(\.[0-9]*)?|\.[0-9]+`（`007`、`1.`、`.5` 都合法），它的数值放进数字，不合文法或放不下 → `workflow.expression.not_number`（`value` 是取到的文本），如 `1.2.3`、`1.5.x`（取到的是 `1.5.`）、`79228162514264337593543950336`。取文本时「十进制数字」按 Unicode 一般类别 Nd 判，所以 `٣`、`１２` 这样的非 ASCII 数字也走到这条错误。没有符号（`-5` 是一元 `-` 作用于 `5`）、指数（`1e3` 是 `1` 后面多出 `e`）、十六进制与分隔符。
+- **字符串字面量**：`'…'` 或 `"…"`，到同一种引号为止。里面 `\n`、`\t`、`\r` 是换行、制表符与回车，`\` 后面跟别的任何一个字符表示那个字符本身（`\\`、`\'`、`\"`；`\u0041` 是 `u0041` 五个字符，没有 Unicode 转义）；其余字符（含换行与另一种引号）是内容。到结尾还没闭合（含以单个 `\` 结尾）→ `workflow.expression.unterminated_string`。
+- **标识符**：字母或 `_` 开头，后接字母、十进制数字或 `_`，区分大小写。字母是 Unicode 一般类别 L（Lu、Ll、Lt、Lm、Lo），十进制数字是 Nd，都只看基本多文种平面——平面以外的字符不是字母也不是数字；汉字、带重音的字母都能作变量名。类别取自实现所带的 Unicode 数据，新近收录、各版本判得不一样的字符算不算字母实现自定。
+- 关键字 `true`、`false`、`null` 只认小写；`True`、`NULL` 是普通标识符。
+- 运算符与标点：`||`、`&&`、`==`、`!=`、`<=`、`>=`、`<`、`>`、`+`、`-`、`*`、`/`、`%`、`!`、`.`、`[`、`]`、`(`、`)`、`,`。`<`、`>`、`!` 后面紧跟 `=` 时总读成两个字符的运算符（`!=a` 不是 `!` 接 `=a`）；两个字符的运算符中间不能有空白；单独的 `=`、`&`、`|` 不是记号。
+
+### 文法
+
+```text
+expression     = or ;
+or             = and { "||" and } ;
+and            = equality { "&&" equality } ;
+equality       = comparison { ( "==" | "!=" ) comparison } ;
+comparison     = additive { ( "<=" | ">=" | "<" | ">" ) additive } ;
+additive       = multiplicative { ( "+" | "-" ) multiplicative } ;
+multiplicative = unary { ( "*" | "/" | "%" ) unary } ;
+unary          = ( "!" | "-" ) unary | postfix ;
+postfix        = primary { "." identifier | "[" expression "]" } ;
+primary        = "(" expression ")" | number | string | "true" | "false" | "null"
+               | identifier [ "(" [ expression { "," expression } ] ")" ] ;
+```
+
+- 整段文本正好是一个 `expression`。优先级从低到高就是上面的次序，二元运算符都左结合：`10 - 4 - 3` 是 3，`1 < 2 < 3` 是 `(1 < 2) < 3`。
+- `.` 后面的成员名是标识符，关键字的拼写也可以（`a.null` 读名为 `null` 的成员）；别的名字用索引取：`a['0']`、`a["with space"]`。
+- 标识符后面（可以隔着空白）是 `(` 即函数调用，否则是变量；变量与函数可以同名。后缀只接在原子之后：`(a).b[0]` 合法，`a.b(1)` 不合法。
+- 解析时的错误，`Validate` 就能报出，报最先遇到的一个：
+
+  | 情形 | 消息键（都在 `workflow.expression.` 下）与参数 |
+  | --- | --- |
+  | 去掉空白之后什么都没有 | `empty` |
+  | 该是原子的地方已经到结尾，如 `1 +`、`(`、`len(` | `unexpected_end` |
+  | 该是原子的地方是别的字符（`+1`、`()`、`[1]`），或一个完整的表达式之后还有字符（`1 2`、`1)`、`a = b`、`1e3`） | `unexpected_character`：`character` 是那个字符（基本多文种平面以外的是整个字符），`position` 是它的位置，从 1 起 |
+  | 括号、实参表或索引没有等到 `)`、`]` | `token_expected`：`token` 是 `)` 或 `]`，`position` 是它该出现的位置（跳过空白之后；到了结尾是长度加 1） |
+  | `.` 后面不是标识符 | `member_expected`：`position` 是该出现成员名的位置（跳过空白之后） |
+  | 数字字面量、字符串字面量、长度与嵌套 | `not_number`、`unterminated_string`、`too_long`、`too_deep`，见上文 |
+  | 函数名不认识 | `unknown_function`：`function` 是原样的拼写 |
+  | 实参个数不对 | 个数固定的函数是 `argument_count`（`function`、`count`），个数是一个范围的是 `argument_range`（`function`、`min`、`max`） |
+
+  函数名与实参个数在读完这次调用的 `)` 时核对，先核对名字：实参里的错误先报，`nope(1 +)` 是 `unexpected_character`；`nope(1) +` 是 `unknown_function`；没等到 `)` 的 `nope(1` 是 `token_expected`。
+
+### 求值
+
+- **作用域**：标识符按名字（区分大小写）查，先查引擎为这次求值临时加的名字，再查实例变量。临时的名字只有输出映射里的 `outputs`（本节点的输出）；没有别的内置名字。查不到 → `unknown_variable`（`name`），不是 `null`；查到而值是 `null` 就是 `null`。
+- **次序**（2026-11-24 修订，ADR-0287；以前 `/` 与 `%` 先求值右操作数并先看除数，`-`、`*` 核对完左操作数才求值右操作数，`round` 先求值第二个实参）：二元运算符先求值左操作数、再求值右操作数，两个都求值之后才核对类型（先左后右），除法与取余最后才看除数是不是零；函数的实参从左到右全部求值之后才核对；索引先求值被索引的值、再求值下标。`&&` 与 `||` 例外，见下。遇到第一个错误即停：`nope / 0` 是 `unknown_variable`，`'x' / 0` 是 `operands_not_numeric`，`'x' - nope` 是 `unknown_variable`。
+
+### 运算符
+
+| 运算符 | 操作数 | 结果 |
+| --- | --- | --- |
+| `\|\|`、`&&` | 布尔 | 布尔。先求值左操作数，它必须是布尔；`\|\|` 的左操作数为真、`&&` 的左操作数为假时结果就是它，右操作数不求值也不核对（`true \|\| nope`、`false && 1` 都成功）；否则求值右操作数，它也必须是布尔，结果是它 |
+| `!` | 布尔 | 取反 |
+| `==`、`!=` | 任意 | 布尔，见下；`!=` 是 `==` 的否定 |
+| `<`、`<=`、`>`、`>=` | 两个标量 | 布尔，见下 |
+| `+` | 见右 | 任一侧是字符串时是拼接：两侧各取值的文本接起来（`1 + '2'` 是 `'12'`，`'a' + null` 是 `'a'`，`'' + 1.50` 是 `'1.5'`）；否则两侧都必须是数字，结果是和放进数字 |
+| `-`、`*`、`/`、`%` | 两侧都能当数字 | 差、积、商放进数字；`%` 是截断除法的余数（a − b × trunc(a / b)），符号随被除数，总是精确的：`-7 % 3` 是 −1，`7 % -3` 是 1，`5.5 % 2` 是 1.5。除数是零 → `division_by_zero` |
+| 一元 `-` | 能当数字 | 相反数（`-'5'` 是 −5，`-0` 是 0） |
+
+- 「布尔」只指 JSON 的 `true` 与 `false`：字符串 `'true'`、数字与 `null` 都不是。操作数不是布尔 → `operands_not_boolean`（`operator` 是 `||`、`&&` 或 `!`）。
+- 算术的操作数不能当数字 → `operands_not_numeric`（`operator` 是 `+`、`-`、`*`、`/`、`%`，一元负也是 `-`）。注意 `+` 只在两侧都不是字符串时才是加法，这时数字文本不出现（它是字符串，走拼接）。
+- 和、差、积、商放不下 → `number_out_of_range`（`operator`；2026-11-24 修订，ADR-0287：以前 .NET 的溢出异常直接逃出求值器）。
+- **相等**：
+  1. 有一侧是 `null`：两侧都是 `null` 才相等。
+  2. 两侧都是标量：都是布尔，按值；否则两侧都能当数字，按数值（`1 == 1.0`、`1 == '1'`、`1000 == '1e3'`、`'007' == '7'` 都为真）；否则按两侧值的文本的序数比较（`true == 'true'` 为真，`'abc' == 'ABC'`、`1 == 'one'`、`true == 1` 为假）。字符串不做 Unicode 规范化；时间文本不按时刻比（时刻相同、写法不同的两段文本不相等，要按时刻比先各自过 `date()`）。
+  3. 其余（至少一侧是容器）：按结构深比较——数组长度相同且逐项相等，对象成员名相同且各成员相等（不看成员的顺序），容器里的标量不做上面的转换：类型相同才可能相等，数字按放进数字之后的数值，字符串逐个码元；容器与标量不相等（`[1, 2]` 不等于它的文本 `'[1,2]'`）。
+- **比较**：两侧必须都是标量，有一侧是 `null` 或容器 → `operands_not_scalar`（`operator`）。两侧都能当数字时按数值（`'10' > '9'`、`'10' > 9` 为真）；否则两侧都是合「时间」文法的字符串时按时刻；否则按两侧值的文本的序数——逐个 UTF-16 码元比较，较短的是较长的前缀时较短的在前（`'a' < 'B'` 为假，`10 < '9a'` 为真，`true > false` 为真）。
+
+### 成员与索引
+
+- `a.name`：`a` 是对象时取名为 `name` 的成员，没有这个成员是 `null`；`a` 是 `null` 时是 `null`（所以 `a.b.c` 在中途缺少成员时一路是 `null`）；`a` 是标量或数组 → `member_of_non_object`（`member`）。成员名与变量名一样按序数比较、区分大小写（2026-11-24 修订，ADR-0287；以前 .NET 里区不区分取决于对象是怎样造出来的：按不区分大小写的选项反序列化出来的对象不区分，写进存储再读回来又区分）。
+- `a[i]`，先求值 `a` 再求值 `i`：
+  - `a` 是 `null`：结果是 `null`，不看 `i` 的类型。
+  - `a` 是数组：`i` 必须能当数字，否则 `operands_not_numeric`（`operator` 是 `[]`）；下标截去小数部分（向零取整，`arr[1.9]` 是 `arr[1]`），从 0 起；小于 0 或不小于长度 → `index_out_of_range`（`index` 是截去小数之后的下标，`length` 是数组的长度；2026-11-24 修订，ADR-0287：以前下标超出 32 位整数时 .NET 的转换异常逃出求值器）。
+  - `a` 是对象：取名为 `i` 的值的文本的成员（`obj[0]` 取名为 `0` 的成员，`obj[null]` 取名为空串的成员），没有是 `null`。
+  - `a` 是标量 → `index_of_scalar`。
+
+### 内置函数
+
+函数名不区分 ASCII 字母的大小写（`LEN`、`isnullorempty`）。实参个数在解析时核对。下表的「文本」指值的文本，「数字」指能当数字的值——不能当数字 → `operands_not_numeric`，`operator` 是表里写的函数名。
+
+| 函数 | 结果 |
+| --- | --- |
+| `len(x)` | 数字：`null` 是 0，数组是元素个数，对象是成员个数，标量是它的文本的长度（UTF-16 码元：`len(12345)` 是 5，`len(1.50)` 是 3，`len('😀')` 是 2） |
+| `contains(x, y)` | 布尔：`x` 是数组时，有没有一个元素与 `y` 相等（「相等」的规则，只看这一层）；否则 `x` 的文本是否包含 `y` 的文本，按序数（任何文本都包含空串，所以 `contains(x, null)` 在 `x` 不是数组时为真） |
+| `startsWith(x, y)`、`endsWith(x, y)` | 布尔：`x` 的文本是否以 `y` 的文本开头 / 结尾，按序数 |
+| `upper(x)`、`lower(x)` | 字符串：`x` 的文本逐个码位按 Unicode 的简单大小写映射转换（一个码位对一个码位，不随区域、不看上下文：`ß` 的大写仍是 `ß`，`Σ` 的小写总是 `σ`）。映射取自实现所带的 Unicode 数据；U+0130 与 U+0131 怎样转换实现自定（.NET 的不变文化不转换它们） |
+| `trim(x)` | 字符串：`x` 的文本去掉首尾的空白（RFC-0001「空白字符」） |
+| `isNullOrEmpty(x)` | 布尔：`null`、空串、空数组、空对象为真，其余为假（`0`、`false`、只有空格的字符串都为假） |
+| `abs(x)` | 数字的绝对值 |
+| `min(x, y)`、`max(x, y)` | 两个数字里较小 / 较大的 |
+| `round(x)`、`round(x, n)` | 数字 `x` 舍入到 `n` 位小数（缺省 0），正好一半时远离零（`round(2.5)` 是 3，`round(-2.5)` 是 −3，`round(1.005, 2)` 是 1.01）。`n` 是数字，截去小数部分之后必须在 0 到 28 之间，否则 `number_out_of_range`（`operator` 是 `round`；2026-11-24 修订，ADR-0287：以前 .NET 的参数异常逃出求值器） |
+| `toNumber(x)` | 数字：`x` 能当数字时是它的数值 |
+| `toString(x)` | 字符串：`x` 的文本（`null` 是空串） |
+| `now()` | 字符串：求值时的时刻的时间文本 |
+| `date(x)` | 字符串：`x` 的文本按「时间」的文法读出的时刻，写成时间文本；读不出 → `not_date`（`value` 是 `x` 的文本） |
+
+`operands_not_numeric` 的 `operator` 取值：`abs`、`min`、`max`、`round`、`toNumber`。
+
+### 时间
+
+- **时间文本的读法**（比较与 `date()` 用；2026-11-24 修订，ADR-0287）：`^[0-9]{4}-[0-9]{2}-[0-9]{2}([Tt ][0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]{1,9})?)?([Zz]|[+-][0-9]{2}:[0-9]{2})?)?$`，按整串匹配，首尾的空白不裁剪。只有日期是当天零点；没有秒是零秒；没有偏移是 UTC；日期与时间之间是 `T`、`t` 或一个空格。取值范围与截止时间的文本相同（RFC-0003 规则 8）：年 `0001`–`9999`、月日按公历（含闰年）、时 `00`–`23`、分与秒 `00`–`59`（不认闰秒）、偏移的时 `00`–`23` 与分 `00`–`59`，换算成 UTC 之后在 `0001-01-01T00:00:00` 到 `9999-12-31T23:59:59` 之间；比 100 纳秒更细的小数截断，不进位。它是 RFC-0003 规则 8 的读法的超集。以前交给 .NET 的日期解析：月份名、斜线日期（`01/02/2026`）、不补零的月日、只有年月都读得出，只有时间的（`12:30`）补上机器当天的日期——同一段文本在不同的日子读出不同的时刻，两个这样的字符串比大小的结果也跟着变。
+- **时间文本的写法**（`now()` 与 `date()` 的结果）：与截止时间相同（RFC-0003 规则 8）——UTC、七位小数、`+00:00`，如 `2026-01-02T03:04:05.0000000+00:00`，时钟精度不足的补零，比 100 纳秒更细的截断。它定宽 33 个字符，同一个时刻只有一种写法：两个这样的文本按序数比较的先后就是时刻的先后，`date(a) == date(b)` 就是按时刻比相等。
+- `now()` 与 `date()` 的结果是字符串（2026-11-24 修订，ADR-0287；以前 .NET 返回进程内的时间值：它的文本带七位小数，写进变量、过一遍存储之后成了不带多余小数位的字符串，同一个值前后写出不同的文本）。
+
+### 条件
+
+`EvaluateCondition`（转移条件）：求值的结果必须是布尔，否则——含 `null`、字符串 `'true'`、数字——→ `workflow.expression.not_boolean`；求值本身失败时是那个错误。
+
+### 模板
+
+`Render(template, scope)` 把模板里的每个 `{{ 表达式 }}` 换成表达式结果的文本，结果总是字符串（整个模板只有一个占位时也是：`{{ 1 + 1 }}` 渲染成字符串 `2`）：
+
+1. 从左到右找下一个 `{{`。没有：余下的文本原样写出，结束。
+2. `{{` 之前的文本原样写出。从 `{{` 之后逐个字符找结束的 `}}`：不在引号里时，`'` 或 `"` 进入这种引号，相邻的两个 `}` 就是结束；在引号里时，`\` 连同它后面的一个字符一起跳过，同一种引号退出。找到结尾还没有 → `unterminated_placeholder`（`expression` 是模板）。
+3. `{{` 与 `}}` 之间的文本去掉首尾的空白，当表达式求值（为空是 `empty`），把结果的文本写出：`null` 是空串，字符串原样、不加引号也不转义，数字是数字的文本，容器是紧凑的 JSON。求值失败即渲染失败，`expression` 参数是这段去掉首尾空白的文本，位置按它算。
+4. 从 `}}` 之后继续。写出的文本不再解释：结果里的 `{{` 不是占位。
+
+占位之外的 `{`、`}`、`}}` 与 `\` 都是普通文本；要写出字面的 `{{` 用 `{{ '{{' }}`。`{{ name }}}` 是占位后面跟一个 `}`；`{{{ name }}}` 的第三个 `{` 进了表达式，是 `unexpected_character`。模板本身不限长（它是定义里的属性值），每个占位里的表达式各自受 4000 的上限；写出的文本累计不超过 4194304——每接上一段字面文本或一个占位的文本之前按累计长度核对，超过 → `string_too_long`（`length` 是接上这一段之后的长度，`max`，`expression` 是模板；2026-11-24 修订，ADR-0287：以前渲染的结果没有上限，占位可以是整个变量的 JSON 文本，一个不长的模板能渲染出几个 GB）。
+
+### 错误
+
+错误码都是 `WORKFLOW_VALIDATION_003`，消息键在 `workflow.expression.` 下，每个错误都带 `expression` 参数（出错的表达式，按「长度与上限」截断；模板的 `unterminated_placeholder` 与 `string_too_long` 带的是模板）：
+
+| 消息键 | 其余参数 | 何时 |
+| --- | --- | --- |
+| `empty`、`unexpected_end`、`unterminated_string` | | 解析 |
+| `unexpected_character` | `character`、`position` | 解析 |
+| `token_expected` | `token`、`position` | 解析 |
+| `member_expected` | `position` | 解析 |
+| `not_number` | `value` | 解析 |
+| `too_long` | `length`、`max` | 解析 |
+| `too_deep` | `max` | 解析 |
+| `unknown_function` | `function` | 解析 |
+| `argument_count` | `function`、`count` | 解析 |
+| `argument_range` | `function`、`min`、`max` | 解析 |
+| `unknown_variable` | `name` | 求值 |
+| `operands_not_boolean`、`operands_not_numeric`、`operands_not_scalar` | `operator` | 求值 |
+| `division_by_zero`、`index_of_scalar` | | 求值 |
+| `number_out_of_range` | `operator`（`+`、`-`、`*`、`/` 或 `round`） | 求值（2026-11-24 新增，ADR-0287） |
+| `member_of_non_object` | `member` | 求值 |
+| `index_out_of_range` | `index`、`length` | 求值 |
+| `not_date` | `value` | 求值 |
+| `string_too_long` | `length`、`max` | 求值、渲染 |
+| `not_boolean` | | 条件 |
+| `unterminated_placeholder` | | 渲染 |
+
+「解析」的错误只校验语法（`Validate`、定义校验）就报出；其余的语法合法，求值时才报。
 
 ## 存储契约
 
@@ -174,8 +350,15 @@ Provider 继承 `WorkflowStoreConformance`（三个存储的查询、排序、�
 | `status-order.json` | 定义与实例的状态按生命周期先后的次序 |
 | `keyword-matching.json` | 列表查询的关键字：折叠与按字面的包含匹配 |
 | `workflow-event-topics.json` | 引擎发布的 25 个事件主题与信封的 `source` |
+| `expression-syntax.json` | 表达式的词法与文法：字面量、空白、标识符、优先级与结合性、成员与索引与调用的写法，解析时的每一种错误与位置 |
+| `expression-operators.json` | 每个运算符与每种操作数的组合，数字的舍入与范围，数字文本，除以零与求值的先后，拼接，相等，比较，逻辑的短路，成员与索引 |
+| `expression-functions.json` | 16 个内置函数的结果与错误，数字文本与时间文本的合法与不合法写法 |
+| `expression-templates.json` | 模板的渲染与失败，条件 |
+| `expression-limits.json` | 长度、嵌套、拼接与渲染的上限两侧，链不算嵌套，错误里带出的文本的截断 |
 
-向量不收的：表达式小语言（「表达式」）是这个档里最适合写成向量的部分——文法、运算符的优先级、`+` 的拼接、`==` 的宽松比较、内置函数与三个上限都是纯函数——但各函数的语义、decimal 除法的写法与数字转文本的形式正文还没有逐条写出，一致性模块也要有一个独立实现的求值器才能回放，留待单独一轮；定义的校验、实例的执行、书签与待办（有状态，由 `WorkflowStoreConformance` 与引擎的行为套件核对）。
+表达式的五个文件是 2026-11-24 加的（ADR-0287；ADR-0277 那一轮因为正文没有逐条写出而没有收）：期望值全部由 .NET 的求值器算出，`workflow.expression.` 下的每个消息键至少有一条用例。Go 一致性模块只读取并核对这五个文件的结构，不另实现一个求值器；实现的回放照向量文件顶部的说明。
+
+向量不收的：表达式里标了实现自定的几处（放不下的 JSON 数字、U+0130 与 U+0131 的大小写、新近收录的字符算不算字母）与含孤立代理项的字符串；定义的校验、实例的执行、书签与待办（有状态，由 `WorkflowStoreConformance` 与引擎的行为套件核对）。
 
 ## 错误码
 

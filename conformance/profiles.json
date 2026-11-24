@@ -229,6 +229,11 @@
       "stability": "stable",
       "documents": ["rfcs/0021-workflow.md"],
       "vectors": [
+        "workflow/expression-functions.json",
+        "workflow/expression-limits.json",
+        "workflow/expression-operators.json",
+        "workflow/expression-syntax.json",
+        "workflow/expression-templates.json",
         "workflow/keyword-matching.json",
         "workflow/status-order.json",
         "workflow/workflow-event-topics.json",

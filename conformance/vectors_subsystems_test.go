@@ -501,6 +501,63 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 		}
 		return events
 	},
+	"workflow/expression-syntax.json": func(t *testing.T) any {
+		syntax, err := conformance.WorkflowExpressionSyntax()
+		if err != nil || syntax.ErrorCode == "" || len(syntax.Variables) == 0 || len(syntax.Values) == 0 || len(syntax.Errors) == 0 {
+			t.Errorf("workflow expression syntax: %v", err)
+		}
+		return syntax
+	},
+	"workflow/expression-operators.json": func(t *testing.T) any {
+		operators, err := conformance.WorkflowExpressionOperators()
+		if err != nil || operators.ErrorCode == "" || len(operators.Variables) == 0 || len(operators.Values) == 0 || len(operators.Errors) == 0 {
+			t.Errorf("workflow expression operators: %v", err)
+		}
+		return operators
+	},
+	"workflow/expression-functions.json": func(t *testing.T) any {
+		functions, err := conformance.WorkflowExpressionFunctions()
+		if err != nil || functions.ErrorCode == "" || functions.Now == "" || len(functions.Variables) == 0 || len(functions.Values) == 0 || len(functions.Errors) == 0 {
+			t.Errorf("workflow expression functions: %v", err)
+		}
+		return functions
+	},
+	"workflow/expression-templates.json": func(t *testing.T) any {
+		templates, err := conformance.WorkflowExpressionTemplates()
+		if err != nil || templates.ErrorCode == "" || templates.Now == "" || len(templates.Variables) == 0 ||
+			len(templates.Renders) == 0 || len(templates.RenderErrors) == 0 || len(templates.Conditions) == 0 || len(templates.ConditionErrors) == 0 {
+			t.Errorf("workflow expression templates: %v", err)
+		}
+		return templates
+	},
+	"workflow/expression-limits.json": func(t *testing.T) any {
+		limits, err := conformance.WorkflowExpressionLimits()
+		if err != nil || limits.ErrorCode == "" || limits.MaxLength <= 0 || limits.MaxDepth <= 0 || limits.MaxStringLength <= 0 || limits.MaxEchoLength <= 0 || len(limits.Variables) == 0 ||
+			len(limits.Blocks) == 0 || len(limits.Lengths) == 0 || len(limits.Nestings) == 0 || len(limits.Chains) == 0 || len(limits.Concatenations) == 0 || len(limits.Renderings) == 0 || len(limits.Echoes) == 0 {
+			t.Errorf("workflow expression limits: %v", err)
+		}
+		var names []string
+		for _, c := range limits.Lengths {
+			names = append(names, c.Name)
+		}
+		for _, c := range limits.Nestings {
+			names = append(names, c.Name)
+		}
+		for _, c := range limits.Chains {
+			names = append(names, c.Name)
+		}
+		for _, c := range limits.Concatenations {
+			names = append(names, c.Name)
+		}
+		for _, c := range limits.Renderings {
+			names = append(names, c.Name)
+		}
+		for _, c := range limits.Echoes {
+			names = append(names, c.Name)
+		}
+		uniqueNames(t, "workflow expression limits", names)
+		return limits
+	},
 	"observability/host-usage.json": func(t *testing.T) any {
 		usage, err := conformance.HostUsage()
 		if err != nil || usage.SampleInterval.DefaultMs <= 0 || usage.SampleInterval.MaxMs <= 0 || len(usage.SampleInterval.Valid) == 0 || len(usage.SampleInterval.Invalid) == 0 ||

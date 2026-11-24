@@ -856,6 +856,171 @@ type WorkflowEventTopicVectors struct {
 	Topics []string `json:"topics"`
 }
 
+// WorkflowExpressionValue 是一条求值成功的表达式用例（RFC-0021「表达式」，ADR-0287）：Type 是结果的类型
+// （null、boolean、number、string、array、object 之一），Text 是结果的文本（「值的文本」）。
+type WorkflowExpressionValue struct {
+	Name       string `json:"name"`
+	Expression string `json:"expression"`
+	Type       string `json:"type"`
+	Text       string `json:"text"`
+}
+
+// WorkflowExpressionError 是一条求值失败的表达式用例：Syntax 为真表示解析时就报出，
+// Arguments 是错误的参数，不含 expression（它就是 Expression，超过 200 个码元时截断）。
+type WorkflowExpressionError struct {
+	Name       string         `json:"name"`
+	Expression string         `json:"expression"`
+	Syntax     bool           `json:"syntax"`
+	MessageKey string         `json:"messageKey"`
+	Arguments  map[string]any `json:"arguments"`
+}
+
+// WorkflowExpressionCases 是表达式向量文件共有的部分：错误码、求值时的实例变量（原样的 JSON 文本，
+// 数字的写法不经 float64 走样）、求值成功的用例与求值失败的用例。
+type WorkflowExpressionCases struct {
+	ErrorCode string                    `json:"errorCode"`
+	Variables json.RawMessage           `json:"variables"`
+	Values    []WorkflowExpressionValue `json:"values"`
+	Errors    []WorkflowExpressionError `json:"errors"`
+}
+
+// WorkflowExpressionSyntaxVectors 对应 workflow/expression-syntax.json（RFC-0021「表达式」的「词法」「文法」，ADR-0287）。
+type WorkflowExpressionSyntaxVectors struct {
+	WorkflowExpressionCases
+}
+
+// WorkflowExpressionOperatorVectors 对应 workflow/expression-operators.json（RFC-0021「表达式」的「运算符」「成员与索引」，ADR-0287）。
+type WorkflowExpressionOperatorVectors struct {
+	WorkflowExpressionCases
+}
+
+// WorkflowExpressionFunctionVectors 对应 workflow/expression-functions.json（RFC-0021「表达式」的「内置函数」「时间」，ADR-0287）：
+// Now 是求值时的时刻。
+type WorkflowExpressionFunctionVectors struct {
+	Now string `json:"now"`
+	WorkflowExpressionCases
+}
+
+// WorkflowTemplateRender 是一条渲染成功的模板用例。
+type WorkflowTemplateRender struct {
+	Name     string `json:"name"`
+	Template string `json:"template"`
+	Text     string `json:"text"`
+}
+
+// WorkflowTemplateRenderError 是一条渲染失败的模板用例：Expression 是错误的 expression 参数
+// （出错的占位里去掉首尾空白的文本；占位没有结束时是整个模板），Arguments 是其余的参数。
+type WorkflowTemplateRenderError struct {
+	Name       string         `json:"name"`
+	Template   string         `json:"template"`
+	MessageKey string         `json:"messageKey"`
+	Expression string         `json:"expression"`
+	Arguments  map[string]any `json:"arguments"`
+}
+
+// WorkflowCondition 是一条条件用例：表达式当条件求值的结果。
+type WorkflowCondition struct {
+	Name       string `json:"name"`
+	Expression string `json:"expression"`
+	Holds      bool   `json:"holds"`
+}
+
+// WorkflowExpressionTemplateVectors 对应 workflow/expression-templates.json（RFC-0021「表达式」的「模板」「条件」，ADR-0287）。
+type WorkflowExpressionTemplateVectors struct {
+	ErrorCode       string                        `json:"errorCode"`
+	Now             string                        `json:"now"`
+	Variables       json.RawMessage               `json:"variables"`
+	Renders         []WorkflowTemplateRender      `json:"renders"`
+	RenderErrors    []WorkflowTemplateRenderError `json:"renderErrors"`
+	Conditions      []WorkflowCondition           `json:"conditions"`
+	ConditionErrors []WorkflowExpressionError     `json:"conditionErrors"`
+}
+
+// WorkflowExpressionBlock 是一个很长的字符串变量：Variable 的值是 Repeat 个 Unit。
+type WorkflowExpressionBlock struct {
+	Variable string `json:"variable"`
+	Unit     string `json:"unit"`
+	Repeat   int    `json:"repeat"`
+}
+
+// WorkflowExpressionLength 是一条长度用例：表达式是 Head 接 Count 个 Padding 再接 Tail，
+// Length 是它的 UTF-16 码元数，Valid 为假表示以 too_long 失败。
+type WorkflowExpressionLength struct {
+	Name    string `json:"name"`
+	Head    string `json:"head"`
+	Padding string `json:"padding"`
+	Count   int    `json:"count"`
+	Tail    string `json:"tail"`
+	Length  int    `json:"length"`
+	Valid   bool   `json:"valid"`
+}
+
+// WorkflowExpressionNesting 是一条嵌套用例：表达式是 Levels 个 Open、Leaf、Levels 个 Close，
+// Valid 为假表示以 too_deep 失败。
+type WorkflowExpressionNesting struct {
+	Name   string `json:"name"`
+	Open   string `json:"open"`
+	Leaf   string `json:"leaf"`
+	Close  string `json:"close"`
+	Levels int    `json:"levels"`
+	Valid  bool   `json:"valid"`
+}
+
+// WorkflowExpressionChain 是一条链的用例：表达式是 Head 接 Count 个 Link，求值成功，Type 与 Text 是结果。
+type WorkflowExpressionChain struct {
+	Name  string `json:"name"`
+	Head  string `json:"head"`
+	Link  string `json:"link"`
+	Count int    `json:"count"`
+	Type  string `json:"type"`
+	Text  string `json:"text"`
+}
+
+// WorkflowExpressionConcatenation 是一条拼接上限的用例：Valid 为真时结果是长度为 Length 的字符串，
+// 为假时以 string_too_long 失败、Length 是错误的 length 参数。
+type WorkflowExpressionConcatenation struct {
+	Name       string `json:"name"`
+	Expression string `json:"expression"`
+	Valid      bool   `json:"valid"`
+	Length     int    `json:"length"`
+}
+
+// WorkflowExpressionRendering 是一条渲染上限的用例：Valid 为真时渲染出长度为 Length 的文本，
+// 为假时以 string_too_long 失败、Length 是错误的 length 参数。
+type WorkflowExpressionRendering struct {
+	Name     string `json:"name"`
+	Template string `json:"template"`
+	Valid    bool   `json:"valid"`
+	Length   int    `json:"length"`
+}
+
+// WorkflowExpressionEcho 是一条错误里带出文本的用例：Source 按 Mode（evaluate、condition、render）求值，
+// 以 MessageKey 失败，Arguments 是全部参数，含截断的 expression。
+type WorkflowExpressionEcho struct {
+	Name       string         `json:"name"`
+	Mode       string         `json:"mode"`
+	Source     string         `json:"source"`
+	MessageKey string         `json:"messageKey"`
+	Arguments  map[string]any `json:"arguments"`
+}
+
+// WorkflowExpressionLimitVectors 对应 workflow/expression-limits.json（RFC-0021「表达式」的「长度与上限」，ADR-0287）。
+type WorkflowExpressionLimitVectors struct {
+	ErrorCode       string                            `json:"errorCode"`
+	MaxLength       int                               `json:"maxLength"`
+	MaxDepth        int                               `json:"maxDepth"`
+	MaxStringLength int                               `json:"maxStringLength"`
+	MaxEchoLength   int                               `json:"maxEchoLength"`
+	Variables       json.RawMessage                   `json:"variables"`
+	Blocks          []WorkflowExpressionBlock         `json:"blocks"`
+	Lengths         []WorkflowExpressionLength        `json:"lengths"`
+	Nestings        []WorkflowExpressionNesting       `json:"nestings"`
+	Chains          []WorkflowExpressionChain         `json:"chains"`
+	Concatenations  []WorkflowExpressionConcatenation `json:"concatenations"`
+	Renderings      []WorkflowExpressionRendering     `json:"renderings"`
+	Echoes          []WorkflowExpressionEcho          `json:"echoes"`
+}
+
 // WorkflowNames 读取工作流名字文法的向量。
 func WorkflowNames() (WorkflowNameVectors, error) {
 	return typed[WorkflowNameVectors]()
@@ -874,6 +1039,31 @@ func WorkflowKeywords() (WorkflowKeywordVectors, error) {
 // WorkflowEventTopics 读取工作流事件主题的向量。
 func WorkflowEventTopics() (WorkflowEventTopicVectors, error) {
 	return typed[WorkflowEventTopicVectors]()
+}
+
+// WorkflowExpressionSyntax 读取表达式词法与文法的向量。
+func WorkflowExpressionSyntax() (WorkflowExpressionSyntaxVectors, error) {
+	return typed[WorkflowExpressionSyntaxVectors]()
+}
+
+// WorkflowExpressionOperators 读取表达式运算符、成员与索引的向量。
+func WorkflowExpressionOperators() (WorkflowExpressionOperatorVectors, error) {
+	return typed[WorkflowExpressionOperatorVectors]()
+}
+
+// WorkflowExpressionFunctions 读取表达式内置函数的向量。
+func WorkflowExpressionFunctions() (WorkflowExpressionFunctionVectors, error) {
+	return typed[WorkflowExpressionFunctionVectors]()
+}
+
+// WorkflowExpressionTemplates 读取模板与条件的向量。
+func WorkflowExpressionTemplates() (WorkflowExpressionTemplateVectors, error) {
+	return typed[WorkflowExpressionTemplateVectors]()
+}
+
+// WorkflowExpressionLimits 读取表达式上限与错误里带出的文本的向量。
+func WorkflowExpressionLimits() (WorkflowExpressionLimitVectors, error) {
+	return typed[WorkflowExpressionLimitVectors]()
 }
 
 // HostSampleIntervalVectors 是采样间隔的缺省值、上限与范围内外的样例（毫秒）。

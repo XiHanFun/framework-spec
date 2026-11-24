@@ -1,9 +1,11 @@
 package rules
 
 import (
+	"math/big"
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf16"
 )
 
 var (
@@ -87,4 +89,86 @@ func WorkflowKeywordMatches(keyword string, fields []*string) bool {
 		}
 	}
 	return false
+}
+
+// 表达式的上限（RFC-0021「表达式」的「长度与上限」）；长度都按 UTF-16 码元计。
+const (
+	// MaxWorkflowExpressionLength 是表达式的最大长度。
+	MaxWorkflowExpressionLength = 4000
+	// MaxWorkflowExpressionDepth 是表达式的最大嵌套层数：括号、函数的实参表、索引与一元运算符各算一层。
+	MaxWorkflowExpressionDepth = 64
+	// MaxWorkflowExpressionStringLength 是 + 拼出的字符串与模板渲染出的文本的最大长度。
+	MaxWorkflowExpressionStringLength = 4194304
+	// MaxWorkflowExpressionEchoLength 是错误里带出的文本的最大长度，超过的截断后接 U+2026。
+	MaxWorkflowExpressionEchoLength = 200
+)
+
+// WorkflowExpressionErrorCode 是表达式语法不合法或求值失败的错误码（RFC-0021「表达式」的「错误」）。
+const WorkflowExpressionErrorCode = "WORKFLOW_VALIDATION_003"
+
+// WorkflowExpressionSyntaxErrors 是解析时就报出的表达式错误的消息键（RFC-0021「表达式」的「错误」）：只校验语法也失败。
+var WorkflowExpressionSyntaxErrors = []string{
+	"workflow.expression.empty", "workflow.expression.unexpected_end", "workflow.expression.unterminated_string",
+	"workflow.expression.unexpected_character", "workflow.expression.token_expected", "workflow.expression.member_expected",
+	"workflow.expression.not_number", "workflow.expression.too_long", "workflow.expression.too_deep",
+	"workflow.expression.unknown_function", "workflow.expression.argument_count", "workflow.expression.argument_range",
+}
+
+// WorkflowExpressionEvaluationErrors 是语法合法、求值（含当条件求值与渲染模板）时才报出的表达式错误的消息键。
+var WorkflowExpressionEvaluationErrors = []string{
+	"workflow.expression.unknown_variable", "workflow.expression.operands_not_boolean", "workflow.expression.operands_not_numeric",
+	"workflow.expression.operands_not_scalar", "workflow.expression.division_by_zero", "workflow.expression.index_of_scalar",
+	"workflow.expression.number_out_of_range", "workflow.expression.member_of_non_object", "workflow.expression.index_out_of_range",
+	"workflow.expression.not_date", "workflow.expression.string_too_long", "workflow.expression.not_boolean",
+	"workflow.expression.unterminated_placeholder",
+}
+
+// WorkflowExpressionFunctions 是表达式的内置函数（RFC-0021「表达式」的「内置函数」）；函数名不区分 ASCII 字母的大小写。
+var WorkflowExpressionFunctions = []string{
+	"len", "contains", "startsWith", "endsWith", "upper", "lower", "trim", "isNullOrEmpty",
+	"abs", "min", "max", "round", "toNumber", "toString", "now", "date",
+}
+
+// WorkflowExpressionValueTypes 是表达式结果的类型，也就是 JSON 的六种值。
+var WorkflowExpressionValueTypes = []string{"null", "boolean", "number", "string", "array", "object"}
+
+// workflowNumberTextPattern 是数字的规范文本的写法：不用指数，小数部分不带结尾的零，最多 28 位小数。
+var workflowNumberTextPattern = regexp.MustCompile(`^-?(0|[1-9][0-9]*)(\.[0-9]{0,27}[1-9])?$`)
+
+// maxWorkflowMantissa 是数字去掉小数点之后的整数的上限 2^96 - 1。
+var maxWorkflowMantissa = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 96), big.NewInt(1))
+
+// WorkflowExpressionLength 返回文本按表达式的算法的长度（RFC-0021「表达式」的「长度与上限」）：
+// UTF-16 码元数，基本多文种平面以外的字符算两个。
+func WorkflowExpressionLength(text string) int { return len(utf16.Encode([]rune(text))) }
+
+// EchoWorkflowExpression 返回错误里带出的文本（RFC-0021「表达式」的「长度与上限」）：不超过 200 个码元的原样；
+// 超过的取前 200 个码元再接 U+2026，第 200 个码元是代理对的前一半时只取 199 个。
+func EchoWorkflowExpression(text string) string {
+	units := utf16.Encode([]rune(text))
+	if len(units) <= MaxWorkflowExpressionEchoLength {
+		return text
+	}
+	length := MaxWorkflowExpressionEchoLength
+	if last := units[length-1]; last >= 0xD800 && last < 0xDC00 {
+		length--
+	}
+	return string(utf16.Decode(units[:length])) + "…"
+}
+
+// IsWorkflowNumberText 判断文本是不是数字的规范文本（RFC-0021「表达式」的「数字」）：十进制、不用指数，
+// 小数部分不带结尾的零，零写 0、没有负零，去掉小数点之后的整数不超过 2^96 - 1。
+func IsWorkflowNumberText(text string) bool {
+	if !workflowNumberTextPattern.MatchString(text) || text == "-0" {
+		return false
+	}
+	mantissa, ok := new(big.Int).SetString(strings.ReplaceAll(strings.TrimPrefix(text, "-"), ".", ""), 10)
+	return ok && mantissa.Cmp(maxWorkflowMantissa) <= 0
+}
+
+// IsWorkflowTimeText 判断文本是不是时间文本的写法（RFC-0021「表达式」的「时间」）：与截止时间的写法相同，
+// UTC、七位小数、+00:00，写出来再读回去不变。
+func IsWorkflowTimeText(text string) bool {
+	instant, ok := ParseDeadline(text)
+	return ok && FormatDeadline(instant) == text
 }

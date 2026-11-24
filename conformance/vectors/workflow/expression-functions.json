@@ -1,0 +1,1894 @@
+{
+  "$comment": "工作流表达式的内置函数（RFC-0021「表达式」的「内置函数」「时间」，ADR-0287）：len、contains、startsWith、endsWith、upper、lower、trim、isNullOrEmpty、abs、min、max、round、toNumber、toString、now、date，函数名不区分 ASCII 字母的大小写。字段的含义与 expression-syntax.json 相同：values 是求值成功的（type 与 text），errors 是以 errorCode 失败的（messageKey、arguments 不含 expression、syntax 为假表示求值时才失败）。now 是求值时的时刻，now() 返回它的规范文本（UTC、七位小数、+00:00，与 RFC-0003 规则 8 的写法相同）。date 读的时间文本：只有日期，或日期加时与分，秒、一到九位的小数与偏移可以省略，日期与时间之间是 T、t 或一个空格，没有偏移当作 UTC，比 100 纳秒更细的小数截断；别的写法都不是时间。upper 与 lower 逐个码位按 Unicode 的简单大小写映射，用例只收 ASCII、拉丁文增补、希腊、西里尔与全角字母：U+0130 与 U+0131 怎样转换实现自定。数字文本的文法与舍入见 expression-operators.json 的说明。期望值由 .NET 参考实现（WorkflowExpressionEvaluator）算出。",
+  "errorCode": "WORKFLOW_VALIDATION_003",
+  "now": "2026-10-26T08:00:00.1234567+00:00",
+  "variables": {
+    "n": null,
+    "t": true,
+    "f": false,
+    "i": 5,
+    "d": 1.50,
+    "s": "Hello",
+    "empty": "",
+    "blank": " ",
+    "padded": "  a b  ",
+    "arr": [
+      1,
+      "a",
+      null,
+      true,
+      2.5,
+      [
+        1,
+        2
+      ],
+      {
+        "k": "v"
+      }
+    ],
+    "pair": [
+      1,
+      2
+    ],
+    "obj": {
+      "name": "请假",
+      "b": 1,
+      "a": [
+        1.0,
+        2.50
+      ]
+    },
+    "emptyArr": [],
+    "emptyObj": {},
+    "at": "2026-01-02T03:04:05+08:00"
+  },
+  "values": [
+    {
+      "name": "len：null 是 0",
+      "expression": "len(n)",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "len：数组的元素个数",
+      "expression": "len(arr)",
+      "type": "number",
+      "text": "7"
+    },
+    {
+      "name": "len：对象的成员个数",
+      "expression": "len(obj)",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "len：空数组",
+      "expression": "len(emptyArr)",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "len：空对象",
+      "expression": "len(emptyObj)",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "len：字符串的长度",
+      "expression": "len(s)",
+      "type": "number",
+      "text": "5"
+    },
+    {
+      "name": "len：空串",
+      "expression": "len(empty)",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "len：汉字每个算一个",
+      "expression": "len('请假')",
+      "type": "number",
+      "text": "2"
+    },
+    {
+      "name": "len：基本多文种平面以外的字符算两个",
+      "expression": "len('😀')",
+      "type": "number",
+      "text": "2"
+    },
+    {
+      "name": "len：数字按它的文本",
+      "expression": "len(12345)",
+      "type": "number",
+      "text": "5"
+    },
+    {
+      "name": "len：小数按规范文本",
+      "expression": "len(1.50)",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "len：负的小数",
+      "expression": "len(-0.5)",
+      "type": "number",
+      "text": "4"
+    },
+    {
+      "name": "len：布尔按它的文本",
+      "expression": "len(false)",
+      "type": "number",
+      "text": "5"
+    },
+    {
+      "name": "len：嵌套数组只数一层",
+      "expression": "len(arr[5])",
+      "type": "number",
+      "text": "2"
+    },
+    {
+      "name": "contains：数组里有这个数字",
+      "expression": "contains(arr, 1)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：数组的元素按相等的规则，数字文本也算",
+      "expression": "contains(arr, '1')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：数组里有这个字符串",
+      "expression": "contains(arr, 'a')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：数组里的字符串区分大小写",
+      "expression": "contains(arr, 'A')",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "contains：数组里有 null",
+      "expression": "contains(arr, null)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：数组里有布尔",
+      "expression": "contains(arr, true)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：布尔与文本相同的字符串相等",
+      "expression": "contains(arr, 'true')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：数字的写法不影响",
+      "expression": "contains(arr, 2.50)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：数组里有这个数组",
+      "expression": "contains(arr, pair)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：数组里没有这个对象",
+      "expression": "contains(arr, obj)",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "contains：数组里没有这个数字",
+      "expression": "contains(arr, 9)",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "contains：空数组里没有 null",
+      "expression": "contains(emptyArr, null)",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "contains：不在嵌套的数组里找",
+      "expression": "contains(arr, 2)",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "contains：字符串包含子串",
+      "expression": "contains(s, 'ell')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：子串区分大小写",
+      "expression": "contains(s, 'ELL')",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "contains：任何字符串都包含空串",
+      "expression": "contains(s, '')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：null 当作空串",
+      "expression": "contains(s, n)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：null 里找 null",
+      "expression": "contains(n, n)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：null 里找非空串",
+      "expression": "contains(n, 'a')",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "contains：数字按文本找",
+      "expression": "contains(12345, 34)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：小数按规范文本找",
+      "expression": "contains(d, '.5')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：规范文本里没有结尾的零",
+      "expression": "contains(d, '.50')",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "contains：布尔按文本找",
+      "expression": "contains(t, 'ru')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：对象按它的 JSON 文本找",
+      "expression": "contains(obj, '\"b\":1')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "contains：对象的 JSON 文本里是规范的数字",
+      "expression": "contains(obj, '[1,2.5]')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "startsWith：前缀",
+      "expression": "startsWith(s, 'He')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "startsWith：区分大小写",
+      "expression": "startsWith(s, 'he')",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "startsWith：空前缀",
+      "expression": "startsWith(s, '')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "startsWith：整个字符串",
+      "expression": "startsWith(s, s)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "startsWith：比原文长",
+      "expression": "startsWith(s, 'Hello!')",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "startsWith：null 当作空串",
+      "expression": "startsWith(n, '')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "startsWith：null 不以非空串开头",
+      "expression": "startsWith(n, 'a')",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "startsWith：数字按文本",
+      "expression": "startsWith(12345, 12)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "startsWith：数组按它的 JSON 文本",
+      "expression": "startsWith(pair, '[1,')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "endsWith：后缀",
+      "expression": "endsWith(s, 'llo')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "endsWith：区分大小写",
+      "expression": "endsWith(s, 'LLO')",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "endsWith：空后缀",
+      "expression": "endsWith(s, '')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "endsWith：数字按文本",
+      "expression": "endsWith(12345, 45)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "endsWith：小数按规范文本",
+      "expression": "endsWith(d, 5)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "endsWith：null 当作空串",
+      "expression": "endsWith(n, n)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "upper：ASCII 字母",
+      "expression": "upper(s)",
+      "type": "string",
+      "text": "HELLO"
+    },
+    {
+      "name": "lower：ASCII 字母",
+      "expression": "lower(s)",
+      "type": "string",
+      "text": "hello"
+    },
+    {
+      "name": "upper：带重音的、西里尔与全角字母",
+      "expression": "upper('é ж ａ')",
+      "type": "string",
+      "text": "É Ж Ａ"
+    },
+    {
+      "name": "lower：带重音的、西里尔与全角字母",
+      "expression": "lower('É Ж Ａ')",
+      "type": "string",
+      "text": "é ж ａ"
+    },
+    {
+      "name": "upper：希腊字母",
+      "expression": "upper('αβσ')",
+      "type": "string",
+      "text": "ΑΒΣ"
+    },
+    {
+      "name": "lower：Σ 总是 σ，不看位置",
+      "expression": "lower('ΑΣ')",
+      "type": "string",
+      "text": "ασ"
+    },
+    {
+      "name": "upper：ß 没有单个字符的大写，不变",
+      "expression": "upper('aßc')",
+      "type": "string",
+      "text": "AßC"
+    },
+    {
+      "name": "upper：数字、标点与汉字不变",
+      "expression": "upper('a1-请假')",
+      "type": "string",
+      "text": "A1-请假"
+    },
+    {
+      "name": "upper：null 是空串",
+      "expression": "upper(n)",
+      "type": "string",
+      "text": ""
+    },
+    {
+      "name": "upper：数字是它的文本",
+      "expression": "upper(d)",
+      "type": "string",
+      "text": "1.5"
+    },
+    {
+      "name": "upper：布尔的文本",
+      "expression": "upper(t)",
+      "type": "string",
+      "text": "TRUE"
+    },
+    {
+      "name": "upper：数组的 JSON 文本",
+      "expression": "upper(arr)",
+      "type": "string",
+      "text": "[1,\"A\",NULL,TRUE,2.5,[1,2],{\"K\":\"V\"}]"
+    },
+    {
+      "name": "lower：结果是字符串",
+      "expression": "lower('ABC') + 1",
+      "type": "string",
+      "text": "abc1"
+    },
+    {
+      "name": "trim：去掉首尾的空格",
+      "expression": "trim(padded)",
+      "type": "string",
+      "text": "a b"
+    },
+    {
+      "name": "trim：制表符与换行",
+      "expression": "trim('\t a \r\n')",
+      "type": "string",
+      "text": "a"
+    },
+    {
+      "name": "trim：不换行空格与表意空格",
+      "expression": "trim('\u00a0\u3000a\u2003\u2028')",
+      "type": "string",
+      "text": "a"
+    },
+    {
+      "name": "trim：只有空白",
+      "expression": "trim(blank)",
+      "type": "string",
+      "text": ""
+    },
+    {
+      "name": "trim：零宽空格不是空白",
+      "expression": "len(trim('\u200ba\u200b'))",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "trim：null 是空串",
+      "expression": "trim(n)",
+      "type": "string",
+      "text": ""
+    },
+    {
+      "name": "trim：数字是它的文本",
+      "expression": "trim(i)",
+      "type": "string",
+      "text": "5"
+    },
+    {
+      "name": "isNullOrEmpty：null",
+      "expression": "isNullOrEmpty(n)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "isNullOrEmpty：空串",
+      "expression": "isNullOrEmpty(empty)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "isNullOrEmpty：只有空格的字符串不算空",
+      "expression": "isNullOrEmpty(blank)",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "isNullOrEmpty：空数组",
+      "expression": "isNullOrEmpty(emptyArr)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "isNullOrEmpty：空对象",
+      "expression": "isNullOrEmpty(emptyObj)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "isNullOrEmpty：非空数组",
+      "expression": "isNullOrEmpty(arr)",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "isNullOrEmpty：非空对象",
+      "expression": "isNullOrEmpty(obj)",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "isNullOrEmpty：零不算空",
+      "expression": "isNullOrEmpty(0)",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "isNullOrEmpty：false 不算空",
+      "expression": "isNullOrEmpty(f)",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "isNullOrEmpty：缺少的成员",
+      "expression": "isNullOrEmpty(obj.missing)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "abs：负数",
+      "expression": "abs(-3)",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "abs：正数",
+      "expression": "abs(3)",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "abs：负的小数",
+      "expression": "abs(-0.50)",
+      "type": "number",
+      "text": "0.5"
+    },
+    {
+      "name": "abs：零",
+      "expression": "abs(0)",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "abs：数字文本",
+      "expression": "abs('-2.5')",
+      "type": "number",
+      "text": "2.5"
+    },
+    {
+      "name": "abs：最小的数字",
+      "expression": "abs(-79228162514264337593543950335)",
+      "type": "number",
+      "text": "79228162514264337593543950335"
+    },
+    {
+      "name": "min：较小的在前",
+      "expression": "min(2, 5)",
+      "type": "number",
+      "text": "2"
+    },
+    {
+      "name": "min：较小的在后",
+      "expression": "min(5, 2)",
+      "type": "number",
+      "text": "2"
+    },
+    {
+      "name": "min：负数",
+      "expression": "min(-1, -2)",
+      "type": "number",
+      "text": "-2"
+    },
+    {
+      "name": "min：数值相同时写法不影响结果",
+      "expression": "min(1.0, 1)",
+      "type": "number",
+      "text": "1"
+    },
+    {
+      "name": "min：数字文本，结果是数字",
+      "expression": "min('3', 2.50)",
+      "type": "number",
+      "text": "2.5"
+    },
+    {
+      "name": "max：较大的在后",
+      "expression": "max(2, 5)",
+      "type": "number",
+      "text": "5"
+    },
+    {
+      "name": "max：较大的在前",
+      "expression": "max(5, 2)",
+      "type": "number",
+      "text": "5"
+    },
+    {
+      "name": "max：数字文本按数值",
+      "expression": "max('10', 9)",
+      "type": "number",
+      "text": "10"
+    },
+    {
+      "name": "max：小数",
+      "expression": "max(0.1, 0.09)",
+      "type": "number",
+      "text": "0.1"
+    },
+    {
+      "name": "round：一半时远离零，正数",
+      "expression": "round(2.5)",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "round：一半时远离零，奇数",
+      "expression": "round(3.5)",
+      "type": "number",
+      "text": "4"
+    },
+    {
+      "name": "round：一半时远离零，负数",
+      "expression": "round(-2.5)",
+      "type": "number",
+      "text": "-3"
+    },
+    {
+      "name": "round：不到一半舍去",
+      "expression": "round(2.4)",
+      "type": "number",
+      "text": "2"
+    },
+    {
+      "name": "round：超过一半进位",
+      "expression": "round(2.6)",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "round：0.5 进到 1",
+      "expression": "round(0.5)",
+      "type": "number",
+      "text": "1"
+    },
+    {
+      "name": "round：-0.4 舍成零，不带负号",
+      "expression": "round(-0.4)",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "round：小数位数写 0",
+      "expression": "round(2.5, 0)",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "round：两位小数",
+      "expression": "round(2.567, 2)",
+      "type": "number",
+      "text": "2.57"
+    },
+    {
+      "name": "round：两位小数的一半远离零",
+      "expression": "round(2.565, 2)",
+      "type": "number",
+      "text": "2.57"
+    },
+    {
+      "name": "round：十进制的 1.005 正好是一半",
+      "expression": "round(1.005, 2)",
+      "type": "number",
+      "text": "1.01"
+    },
+    {
+      "name": "round：负数两位小数的一半远离零",
+      "expression": "round(-2.565, 2)",
+      "type": "number",
+      "text": "-2.57"
+    },
+    {
+      "name": "round：位数比原来的多时不变",
+      "expression": "round(2.5, 5)",
+      "type": "number",
+      "text": "2.5"
+    },
+    {
+      "name": "round：整数不变",
+      "expression": "round(2, 2)",
+      "type": "number",
+      "text": "2"
+    },
+    {
+      "name": "round：除不尽的商取五位",
+      "expression": "round(1 / 3, 5)",
+      "type": "number",
+      "text": "0.33333"
+    },
+    {
+      "name": "round：小数位数的小数部分截去",
+      "expression": "round(2.55, 1.9)",
+      "type": "number",
+      "text": "2.6"
+    },
+    {
+      "name": "round：小数位数是数字文本",
+      "expression": "round(2.55, '1')",
+      "type": "number",
+      "text": "2.6"
+    },
+    {
+      "name": "round：小数位数最多 28",
+      "expression": "round(2.5, 28)",
+      "type": "number",
+      "text": "2.5"
+    },
+    {
+      "name": "round：最大的数字",
+      "expression": "round(79228162514264337593543950335)",
+      "type": "number",
+      "text": "79228162514264337593543950335"
+    },
+    {
+      "name": "round：很大的小数进位",
+      "expression": "round(7922816251426433759354395033.5)",
+      "type": "number",
+      "text": "7922816251426433759354395034"
+    },
+    {
+      "name": "round：数字文本",
+      "expression": "round('2.5')",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "round：-0.9 位截成零位",
+      "expression": "round(2.5, -0.9)",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "toNumber：数字文本",
+      "expression": "toNumber('42')",
+      "type": "number",
+      "text": "42"
+    },
+    {
+      "name": "toNumber：首尾的空白",
+      "expression": "toNumber(' 42 ')",
+      "type": "number",
+      "text": "42"
+    },
+    {
+      "name": "toNumber：制表符、换行、垂直制表符与换页",
+      "expression": "toNumber('\t\u000b42\f\r\n')",
+      "type": "number",
+      "text": "42"
+    },
+    {
+      "name": "toNumber：结尾的零不影响数值",
+      "expression": "toNumber('1.50')",
+      "type": "number",
+      "text": "1.5"
+    },
+    {
+      "name": "toNumber：指数",
+      "expression": "toNumber('1e3')",
+      "type": "number",
+      "text": "1000"
+    },
+    {
+      "name": "toNumber：大写的 E 与负指数",
+      "expression": "toNumber('1E-3')",
+      "type": "number",
+      "text": "0.001"
+    },
+    {
+      "name": "toNumber：指数带正号与前导零",
+      "expression": "toNumber('2.5e+02')",
+      "type": "number",
+      "text": "250"
+    },
+    {
+      "name": "toNumber：正号",
+      "expression": "toNumber('+5')",
+      "type": "number",
+      "text": "5"
+    },
+    {
+      "name": "toNumber：负号与省略的整数部分",
+      "expression": "toNumber('-.5')",
+      "type": "number",
+      "text": "-0.5"
+    },
+    {
+      "name": "toNumber：小数点后没有数字",
+      "expression": "toNumber('5.')",
+      "type": "number",
+      "text": "5"
+    },
+    {
+      "name": "toNumber：前导零",
+      "expression": "toNumber('007')",
+      "type": "number",
+      "text": "7"
+    },
+    {
+      "name": "toNumber：负零是零",
+      "expression": "toNumber('-0.0')",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "toNumber：最大的数字",
+      "expression": "toNumber('79228162514264337593543950335')",
+      "type": "number",
+      "text": "79228162514264337593543950335"
+    },
+    {
+      "name": "toNumber：小数不到一半时舍去",
+      "expression": "toNumber('79228162514264337593543950335.4')",
+      "type": "number",
+      "text": "79228162514264337593543950335"
+    },
+    {
+      "name": "toNumber：第 29 位小数一半取偶，舍去",
+      "expression": "toNumber('0.00000000000000000000000000005')",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "toNumber：一半之后还有非零数字时进位",
+      "expression": "toNumber('0.000000000000000000000000000050000000000000000000000000000000001')",
+      "type": "number",
+      "text": "0.0000000000000000000000000001"
+    },
+    {
+      "name": "toNumber：第 29 位小数一半取偶，进位",
+      "expression": "toNumber('0.00000000000000000000000000015')",
+      "type": "number",
+      "text": "0.0000000000000000000000000002"
+    },
+    {
+      "name": "toNumber：29 位有效数字的一半取偶，进位",
+      "expression": "toNumber('1.23456789012345678901234567895')",
+      "type": "number",
+      "text": "1.234567890123456789012345679"
+    },
+    {
+      "name": "toNumber：29 位有效数字的一半取偶，不动",
+      "expression": "toNumber('1.23456789012345678901234567885')",
+      "type": "number",
+      "text": "1.2345678901234567890123456788"
+    },
+    {
+      "name": "toNumber：整数部分 29 位的一半取偶",
+      "expression": "toNumber('12345678901234567890123456788.5')",
+      "type": "number",
+      "text": "12345678901234567890123456788"
+    },
+    {
+      "name": "toNumber：很小的数是零",
+      "expression": "toNumber('1e-400')",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "toNumber：尾数是零时指数再大也是零",
+      "expression": "toNumber('0e400')",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "toNumber：指数的位数再多也按数值，很小的是零",
+      "expression": "toNumber('1e-99999999999999999999')",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "toNumber：位数很多而指数把它拉回来",
+      "expression": "toNumber('0.000000000000000000000000000000000000000000000000001e50')",
+      "type": "number",
+      "text": "0.1"
+    },
+    {
+      "name": "toNumber：很多个零加负指数",
+      "expression": "toNumber('1000000000000000000000000000000000000000000000000000e-50')",
+      "type": "number",
+      "text": "10"
+    },
+    {
+      "name": "toNumber：数字原样",
+      "expression": "toNumber(i)",
+      "type": "number",
+      "text": "5"
+    },
+    {
+      "name": "toNumber：变量里的小数",
+      "expression": "toNumber(d)",
+      "type": "number",
+      "text": "1.5"
+    },
+    {
+      "name": "toString：null 是空串",
+      "expression": "toString(n)",
+      "type": "string",
+      "text": ""
+    },
+    {
+      "name": "toString：整数",
+      "expression": "toString(5)",
+      "type": "string",
+      "text": "5"
+    },
+    {
+      "name": "toString：结尾的零去掉",
+      "expression": "toString(1.50)",
+      "type": "string",
+      "text": "1.5"
+    },
+    {
+      "name": "toString：整数值的小数不写小数点",
+      "expression": "toString(3.0)",
+      "type": "string",
+      "text": "3"
+    },
+    {
+      "name": "toString：负的小数",
+      "expression": "toString(-0.50)",
+      "type": "string",
+      "text": "-0.5"
+    },
+    {
+      "name": "toString：一百不用指数",
+      "expression": "toString(100)",
+      "type": "string",
+      "text": "100"
+    },
+    {
+      "name": "toString：很小的小数不用指数",
+      "expression": "toString(0.000001)",
+      "type": "string",
+      "text": "0.000001"
+    },
+    {
+      "name": "toString：除不尽的商",
+      "expression": "toString(2 / 3)",
+      "type": "string",
+      "text": "0.6666666666666666666666666667"
+    },
+    {
+      "name": "toString：负零是 0",
+      "expression": "toString(0 * -1)",
+      "type": "string",
+      "text": "0"
+    },
+    {
+      "name": "toString：布尔",
+      "expression": "toString(f)",
+      "type": "string",
+      "text": "false"
+    },
+    {
+      "name": "toString：字符串原样",
+      "expression": "toString(s)",
+      "type": "string",
+      "text": "Hello"
+    },
+    {
+      "name": "toString：数组",
+      "expression": "toString(arr)",
+      "type": "string",
+      "text": "[1,\"a\",null,true,2.5,[1,2],{\"k\":\"v\"}]"
+    },
+    {
+      "name": "toString：对象的成员按名字排序，非 ASCII 原样",
+      "expression": "toString(obj)",
+      "type": "string",
+      "text": "{\"a\":[1,2.5],\"b\":1,\"name\":\"请假\"}"
+    },
+    {
+      "name": "toString：结果的类型是字符串",
+      "expression": "toString(5) + 1",
+      "type": "string",
+      "text": "51"
+    },
+    {
+      "name": "toString：数字文本转成数字再写出是规范文本",
+      "expression": "toString(toNumber(' 1.50e1 '))",
+      "type": "string",
+      "text": "15"
+    },
+    {
+      "name": "now：当前时刻的规范文本",
+      "expression": "now()",
+      "type": "string",
+      "text": "2026-10-26T08:00:00.1234567+00:00"
+    },
+    {
+      "name": "now：定宽 33 个字符",
+      "expression": "len(now())",
+      "type": "number",
+      "text": "33"
+    },
+    {
+      "name": "now：同一次求值里相等",
+      "expression": "now() == now()",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "now：与只有日期的时间文本比较",
+      "expression": "now() > '2026-10-26'",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "now：与带偏移的时间文本比较",
+      "expression": "now() < '2026-10-26T16:00:01+08:00'",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "now：是字符串，可以拼接",
+      "expression": "'at ' + now()",
+      "type": "string",
+      "text": "at 2026-10-26T08:00:00.1234567+00:00"
+    },
+    {
+      "name": "now：函数名不区分大小写",
+      "expression": "NOW()",
+      "type": "string",
+      "text": "2026-10-26T08:00:00.1234567+00:00"
+    },
+    {
+      "name": "date：只有日期是当天零点（UTC）",
+      "expression": "date('2026-01-02')",
+      "type": "string",
+      "text": "2026-01-02T00:00:00.0000000+00:00"
+    },
+    {
+      "name": "date：Z 结尾",
+      "expression": "date('2026-01-02T03:04:05Z')",
+      "type": "string",
+      "text": "2026-01-02T03:04:05.0000000+00:00"
+    },
+    {
+      "name": "date：带偏移的换算成 UTC",
+      "expression": "date('2026-01-02T03:04:05+08:00')",
+      "type": "string",
+      "text": "2026-01-01T19:04:05.0000000+00:00"
+    },
+    {
+      "name": "date：负的偏移",
+      "expression": "date('2026-01-02T03:04:05-05:30')",
+      "type": "string",
+      "text": "2026-01-02T08:34:05.0000000+00:00"
+    },
+    {
+      "name": "date：没有偏移当作 UTC",
+      "expression": "date('2026-01-02T03:04:05')",
+      "type": "string",
+      "text": "2026-01-02T03:04:05.0000000+00:00"
+    },
+    {
+      "name": "date：空格分隔",
+      "expression": "date('2026-01-02 03:04:05')",
+      "type": "string",
+      "text": "2026-01-02T03:04:05.0000000+00:00"
+    },
+    {
+      "name": "date：不写秒",
+      "expression": "date('2026-01-02T03:04')",
+      "type": "string",
+      "text": "2026-01-02T03:04:00.0000000+00:00"
+    },
+    {
+      "name": "date：不写秒而带偏移",
+      "expression": "date('2026-01-02 03:04+08:00')",
+      "type": "string",
+      "text": "2026-01-01T19:04:00.0000000+00:00"
+    },
+    {
+      "name": "date：小写的 t 与 z",
+      "expression": "date('2026-01-02t03:04:05z')",
+      "type": "string",
+      "text": "2026-01-02T03:04:05.0000000+00:00"
+    },
+    {
+      "name": "date：一位小数",
+      "expression": "date('2026-01-02T03:04:05.5Z')",
+      "type": "string",
+      "text": "2026-01-02T03:04:05.5000000+00:00"
+    },
+    {
+      "name": "date：七位小数",
+      "expression": "date('2026-01-02T03:04:05.1234567Z')",
+      "type": "string",
+      "text": "2026-01-02T03:04:05.1234567+00:00"
+    },
+    {
+      "name": "date：九位小数截到七位，不进位",
+      "expression": "date('2026-01-02T03:04:05.123456789Z')",
+      "type": "string",
+      "text": "2026-01-02T03:04:05.1234567+00:00"
+    },
+    {
+      "name": "date：闰年的 2 月 29 日",
+      "expression": "date('2028-02-29')",
+      "type": "string",
+      "text": "2028-02-29T00:00:00.0000000+00:00"
+    },
+    {
+      "name": "date：最早的时刻",
+      "expression": "date('0001-01-01')",
+      "type": "string",
+      "text": "0001-01-01T00:00:00.0000000+00:00"
+    },
+    {
+      "name": "date：最晚的时刻",
+      "expression": "date('9999-12-31T23:59:59.9999999Z')",
+      "type": "string",
+      "text": "9999-12-31T23:59:59.9999999+00:00"
+    },
+    {
+      "name": "date：规范文本再读一遍不变",
+      "expression": "date(date('2026-01-02T03:04:05+08:00'))",
+      "type": "string",
+      "text": "2026-01-01T19:04:05.0000000+00:00"
+    },
+    {
+      "name": "date：变量里的时间文本",
+      "expression": "date(at)",
+      "type": "string",
+      "text": "2026-01-01T19:04:05.0000000+00:00"
+    },
+    {
+      "name": "date：两种写法的同一时刻规范文本相等",
+      "expression": "date('2026-01-02') == date('2026-01-02T08:00:00+08:00')",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "date：结果是字符串，与别的写法不相等",
+      "expression": "date('2026-01-02') == '2026-01-02'",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "date：结果可以比较",
+      "expression": "date('2026-01-02') < now()",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "函数名全大写",
+      "expression": "LEN(arr)",
+      "type": "number",
+      "text": "7"
+    },
+    {
+      "name": "函数名首字母大写",
+      "expression": "IsNullOrEmpty(n)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "函数名全小写",
+      "expression": "tonumber('1')",
+      "type": "number",
+      "text": "1"
+    },
+    {
+      "name": "函数名大小写混写",
+      "expression": "toSTRING(1)",
+      "type": "string",
+      "text": "1"
+    },
+    {
+      "name": "函数名大小写混写的 startsWith",
+      "expression": "STARTSWITH(s, 'H')",
+      "type": "boolean",
+      "text": "true"
+    }
+  ],
+  "errors": [
+    {
+      "name": "abs：字符串不是数字",
+      "expression": "abs(s)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "abs"
+      }
+    },
+    {
+      "name": "abs：null 不是数字",
+      "expression": "abs(n)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "abs"
+      }
+    },
+    {
+      "name": "abs：布尔不是数字",
+      "expression": "abs(t)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "abs"
+      }
+    },
+    {
+      "name": "abs：数组不是数字",
+      "expression": "abs(arr)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "abs"
+      }
+    },
+    {
+      "name": "min：第一个实参不是数字",
+      "expression": "min(s, 2)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "min"
+      }
+    },
+    {
+      "name": "min：第二个实参不是数字",
+      "expression": "min(2, n)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "min"
+      }
+    },
+    {
+      "name": "max：实参不是数字",
+      "expression": "max(t, 1)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "max"
+      }
+    },
+    {
+      "name": "min：实参都求值之后才核对类型",
+      "expression": "min(s, nope)",
+      "syntax": false,
+      "messageKey": "workflow.expression.unknown_variable",
+      "arguments": {
+        "name": "nope"
+      }
+    },
+    {
+      "name": "max：第一个实参先求值",
+      "expression": "max(nope, s)",
+      "syntax": false,
+      "messageKey": "workflow.expression.unknown_variable",
+      "arguments": {
+        "name": "nope"
+      }
+    },
+    {
+      "name": "round：小数位数是负数",
+      "expression": "round(2.5, -1)",
+      "syntax": false,
+      "messageKey": "workflow.expression.number_out_of_range",
+      "arguments": {
+        "operator": "round"
+      }
+    },
+    {
+      "name": "round：小数位数超过 28",
+      "expression": "round(2.5, 29)",
+      "syntax": false,
+      "messageKey": "workflow.expression.number_out_of_range",
+      "arguments": {
+        "operator": "round"
+      }
+    },
+    {
+      "name": "round：小数位数大得放不进整数",
+      "expression": "round(2.5, 99999999999)",
+      "syntax": false,
+      "messageKey": "workflow.expression.number_out_of_range",
+      "arguments": {
+        "operator": "round"
+      }
+    },
+    {
+      "name": "round：不是数字",
+      "expression": "round(s)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "round"
+      }
+    },
+    {
+      "name": "round：小数位数是 null",
+      "expression": "round(2.5, n)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "round"
+      }
+    },
+    {
+      "name": "round：小数位数不是数字",
+      "expression": "round(2.5, s)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "round"
+      }
+    },
+    {
+      "name": "round：数值不是数字先于小数位数越界",
+      "expression": "round(s, 99)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "round"
+      }
+    },
+    {
+      "name": "round：实参都求值之后才核对类型",
+      "expression": "round(s, nope)",
+      "syntax": false,
+      "messageKey": "workflow.expression.unknown_variable",
+      "arguments": {
+        "name": "nope"
+      }
+    },
+    {
+      "name": "toNumber：只有小数点",
+      "expression": "toNumber('.')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：空串",
+      "expression": "toNumber('')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：只有空白",
+      "expression": "toNumber(' ')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：指数没有数字",
+      "expression": "toNumber('1e')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：指数只有符号",
+      "expression": "toNumber('1e+')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：没有尾数",
+      "expression": "toNumber('e5')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：十六进制",
+      "expression": "toNumber('0x1F')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：下划线分隔",
+      "expression": "toNumber('1_000')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：千分位",
+      "expression": "toNumber('1,000')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：逗号作小数点",
+      "expression": "toNumber('1,5')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：全角数字",
+      "expression": "toNumber('１２')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：阿拉伯-印度数字",
+      "expression": "toNumber('٣')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：Infinity",
+      "expression": "toNumber('Infinity')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：NaN",
+      "expression": "toNumber('NaN')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：两个符号",
+      "expression": "toNumber('--5')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：符号在后",
+      "expression": "toNumber('5-')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：括号表示的负数",
+      "expression": "toNumber('(5)')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：货币符号",
+      "expression": "toNumber('$5')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：中间有空白",
+      "expression": "toNumber('5 5')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：Unicode 的减号",
+      "expression": "toNumber('\u22125')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：不换行空格不是数字文本的空白",
+      "expression": "toNumber('\u00a05')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：结尾的 NUL 字符",
+      "expression": "toNumber('5\u0000')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：超出范围",
+      "expression": "toNumber('79228162514264337593543950336')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：舍入之后超出范围",
+      "expression": "toNumber('79228162514264337593543950335.5')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：指数太大",
+      "expression": "toNumber('1e400')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：指数的位数再多也按数值，很大的放不下",
+      "expression": "toNumber('1e99999999999999999999')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：布尔",
+      "expression": "toNumber(t)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：null",
+      "expression": "toNumber(n)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "toNumber：数组",
+      "expression": "toNumber(pair)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "toNumber"
+      }
+    },
+    {
+      "name": "date：紧凑写法",
+      "expression": "date('20260102')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "20260102"
+      }
+    },
+    {
+      "name": "date：月与日不补零",
+      "expression": "date('2026-1-2')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-1-2"
+      }
+    },
+    {
+      "name": "date：斜线日期",
+      "expression": "date('01/02/2026')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "01/02/2026"
+      }
+    },
+    {
+      "name": "date：月份名",
+      "expression": "date('Jan 2, 2026')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "Jan 2, 2026"
+      }
+    },
+    {
+      "name": "date：只有时间",
+      "expression": "date('12:30')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "12:30"
+      }
+    },
+    {
+      "name": "date：只有年",
+      "expression": "date('2026')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026"
+      }
+    },
+    {
+      "name": "date：只有年月",
+      "expression": "date('2026-01')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-01"
+      }
+    },
+    {
+      "name": "date：首尾的空白不裁剪",
+      "expression": "date(' 2026-01-02 ')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": " 2026-01-02 "
+      }
+    },
+    {
+      "name": "date：不存在的日期",
+      "expression": "date('2026-02-30')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-02-30"
+      }
+    },
+    {
+      "name": "date：平年的 2 月 29 日",
+      "expression": "date('2026-02-29')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-02-29"
+      }
+    },
+    {
+      "name": "date：24 点",
+      "expression": "date('2026-01-02T24:00:00Z')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-01-02T24:00:00Z"
+      }
+    },
+    {
+      "name": "date：闰秒",
+      "expression": "date('2026-01-02T23:59:60Z')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-01-02T23:59:60Z"
+      }
+    },
+    {
+      "name": "date：十位小数",
+      "expression": "date('2026-01-02T03:04:05.1234567890Z')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-01-02T03:04:05.1234567890Z"
+      }
+    },
+    {
+      "name": "date：小数点后没有数字",
+      "expression": "date('2026-01-02T03:04:05.Z')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-01-02T03:04:05.Z"
+      }
+    },
+    {
+      "name": "date：小数只能跟在秒后面",
+      "expression": "date('2026-01-02T03:04.5Z')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-01-02T03:04.5Z"
+      }
+    },
+    {
+      "name": "date：只有小时",
+      "expression": "date('2026-01-02T03')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-01-02T03"
+      }
+    },
+    {
+      "name": "date：只有日期时不能带偏移",
+      "expression": "date('2026-01-02Z')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-01-02Z"
+      }
+    },
+    {
+      "name": "date：偏移不带冒号",
+      "expression": "date('2026-01-02T03:04:05+0800')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-01-02T03:04:05+0800"
+      }
+    },
+    {
+      "name": "date：偏移只有小时",
+      "expression": "date('2026-01-02T03:04:05+08')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-01-02T03:04:05+08"
+      }
+    },
+    {
+      "name": "date：偏移的小时超过 23",
+      "expression": "date('2026-01-02T03:04:05+24:00')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-01-02T03:04:05+24:00"
+      }
+    },
+    {
+      "name": "date：年份 0000",
+      "expression": "date('0000-01-01')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "0000-01-01"
+      }
+    },
+    {
+      "name": "date：偏移把时刻推到公元 1 年之前",
+      "expression": "date('0001-01-01T00:00:00+01:00')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "0001-01-01T00:00:00+01:00"
+      }
+    },
+    {
+      "name": "date：偏移把时刻推过 9999 年",
+      "expression": "date('9999-12-31T23:59:59-01:00')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "9999-12-31T23:59:59-01:00"
+      }
+    },
+    {
+      "name": "date：两个空格分隔",
+      "expression": "date('2026-01-02  03:04')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "2026-01-02  03:04"
+      }
+    },
+    {
+      "name": "date：空串",
+      "expression": "date('')",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": ""
+      }
+    },
+    {
+      "name": "date：null 当作空串",
+      "expression": "date(n)",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": ""
+      }
+    },
+    {
+      "name": "date：数字不是时间",
+      "expression": "date(1767322000)",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "1767322000"
+      }
+    },
+    {
+      "name": "date：普通的字符串",
+      "expression": "date(s)",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "Hello"
+      }
+    },
+    {
+      "name": "date：数组的文本不是时间",
+      "expression": "date(pair)",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_date",
+      "arguments": {
+        "value": "[1,2]"
+      }
+    }
+  ]
+}

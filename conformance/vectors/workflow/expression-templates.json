@@ -1,0 +1,468 @@
+{
+  "$comment": "工作流的模板与条件（RFC-0021「表达式」的「模板」「条件」，ADR-0287）。variables 是实例变量，now 是求值时的时刻。renders：template 渲染成 text——{{ 与 }} 之间是表达式，去掉首尾空白后求值，结果按「值的文本」写出（null 是空串，数字是规范文本，字符串原样、不转义，数组与对象是成员按名字排序的紧凑 JSON）；占位之外的文本原样；找结束的 }} 时跳过引号里的内容（引号里反斜杠连同后一个字符一起跳过）；渲染的结果总是字符串，结果里的 {{ 不再解释。renderErrors：渲染以 errorCode 失败，messageKey 是消息键，expression 是错误的 expression 参数（出错的那个占位里去掉首尾空白的文本；占位没有结束时是整个模板），arguments 是其余的参数；从左到右遇到第一个错误即停。conditions：expression 当条件求值，holds 是结果。conditionErrors：结果不是布尔（含无值）是 workflow.expression.not_boolean，求值本身失败时是求值的错误；syntax 为真表示解析时就报出，arguments 不含 expression。期望值由 .NET 参考实现（WorkflowExpressionEvaluator.Render、EvaluateCondition）算出。",
+  "errorCode": "WORKFLOW_VALIDATION_003",
+  "now": "2026-10-26T08:00:00.1234567+00:00",
+  "variables": {
+    "name": "bob",
+    "amount": 42,
+    "price": 19.90,
+    "tags": [
+      "a",
+      "请假"
+    ],
+    "user": {
+      "name": "Ann",
+      "roles": [
+        "admin",
+        "dev"
+      ],
+      "age": 30.0
+    },
+    "n": null,
+    "t": true,
+    "f": false,
+    "empty": "",
+    "html": "<b>&'\"+/</b>",
+    "multi": "a\nb\tc",
+    "braces": "{{ name }}",
+    "special": {
+      "text": "q\"b\\s\n\t\u0001é😀</>&'+\u007f\u2028",
+      "键": "值"
+    }
+  },
+  "renders": [
+    {
+      "name": "没有占位的模板原样输出",
+      "template": "plain text",
+      "text": "plain text"
+    },
+    {
+      "name": "空模板",
+      "template": "",
+      "text": ""
+    },
+    {
+      "name": "只有一个占位",
+      "template": "{{ name }}",
+      "text": "bob"
+    },
+    {
+      "name": "占位两侧可以没有空白",
+      "template": "{{name}}",
+      "text": "bob"
+    },
+    {
+      "name": "占位前后的文本原样",
+      "template": "Hello {{ name }}!",
+      "text": "Hello bob!"
+    },
+    {
+      "name": "多个占位",
+      "template": "{{ name }} owes {{ amount }}",
+      "text": "bob owes 42"
+    },
+    {
+      "name": "挨着的两个占位",
+      "template": "{{ name }}{{ name }}",
+      "text": "bobbob"
+    },
+    {
+      "name": "占位里是运算",
+      "template": "total {{ amount * 2 }}",
+      "text": "total 84"
+    },
+    {
+      "name": "占位里是函数调用",
+      "template": "Hello {{ upper(name) }}",
+      "text": "Hello BOB"
+    },
+    {
+      "name": "只有一个占位时结果也是文本",
+      "template": "{{ 1 + 1 }}",
+      "text": "2"
+    },
+    {
+      "name": "数字写规范文本",
+      "template": "{{ price }}",
+      "text": "19.9"
+    },
+    {
+      "name": "算出来的数字写规范文本",
+      "template": "{{ price * 2 }} / {{ 1 / 3 }} / {{ 1.5 + 1.5 }}",
+      "text": "39.8 / 0.3333333333333333333333333333 / 3"
+    },
+    {
+      "name": "null 渲染成空串",
+      "template": "[{{ n }}]",
+      "text": "[]"
+    },
+    {
+      "name": "字面量 null 渲染成空串",
+      "template": "[{{ null }}]",
+      "text": "[]"
+    },
+    {
+      "name": "缺少的成员渲染成空串",
+      "template": "[{{ user.missing }}]",
+      "text": "[]"
+    },
+    {
+      "name": "空串渲染成空串",
+      "template": "[{{ empty }}]",
+      "text": "[]"
+    },
+    {
+      "name": "布尔",
+      "template": "{{ t }} {{ f }} {{ amount > 10 }}",
+      "text": "true false true"
+    },
+    {
+      "name": "数组写成紧凑的 JSON，非 ASCII 原样",
+      "template": "{{ tags }}",
+      "text": "[\"a\",\"请假\"]"
+    },
+    {
+      "name": "对象的成员按名字排序，数字写规范文本",
+      "template": "{{ user }}",
+      "text": "{\"age\":30,\"name\":\"Ann\",\"roles\":[\"admin\",\"dev\"]}"
+    },
+    {
+      "name": "对象里的字符串只转义引号、反斜杠与控制字符",
+      "template": "{{ special }}",
+      "text": "{\"text\":\"q\\\"b\\\\s\\n\\t\\u0001é😀</>&'+\u007f\u2028\",\"键\":\"值\"}"
+    },
+    {
+      "name": "字符串的结果原样写出，不转义",
+      "template": "{{ html }}",
+      "text": "<b>&'\"+/</b>"
+    },
+    {
+      "name": "字符串里的换行与制表符原样写出",
+      "template": "{{ multi }}",
+      "text": "a\nb\tc"
+    },
+    {
+      "name": "结果里的 {{ 不再当占位",
+      "template": "{{ braces }}",
+      "text": "{{ name }}"
+    },
+    {
+      "name": "引号里的 }} 不算结束",
+      "template": "{{ '}}' }}",
+      "text": "}}"
+    },
+    {
+      "name": "双引号里的 }} 不算结束",
+      "template": "{{ \"}}\" }}",
+      "text": "}}"
+    },
+    {
+      "name": "用字符串字面量写出 {{",
+      "template": "{{ '{{' }} name }}",
+      "text": "{{ name }}"
+    },
+    {
+      "name": "引号里转义的引号之后的 }} 不算结束",
+      "template": "{{ 'a\\'}}' }}",
+      "text": "a'}}"
+    },
+    {
+      "name": "占位里可以有两种引号",
+      "template": "{{ \"a\" + '\"' }}",
+      "text": "a\""
+    },
+    {
+      "name": "占位之外的 }} 是文本",
+      "template": "name }} here",
+      "text": "name }} here"
+    },
+    {
+      "name": "占位之后多出的 }} 是文本",
+      "template": "{{ name }} }}",
+      "text": "bob }}"
+    },
+    {
+      "name": "三个右花括号：前两个结束占位",
+      "template": "{{ name }}}",
+      "text": "bob}"
+    },
+    {
+      "name": "单个花括号是文本",
+      "template": "{ name } and }{",
+      "text": "{ name } and }{"
+    },
+    {
+      "name": "反斜杠不转义花括号",
+      "template": "\\{{ name }}",
+      "text": "\\bob"
+    },
+    {
+      "name": "占位里的制表符与换行是空白",
+      "template": "{{\tname\r\n}}",
+      "text": "bob"
+    },
+    {
+      "name": "占位里的不换行空格与表意空格是空白",
+      "template": "{{\u00a0name\u3000}}",
+      "text": "bob"
+    },
+    {
+      "name": "模板里的换行原样",
+      "template": "a\n{{ name }}\nb",
+      "text": "a\nbob\nb"
+    },
+    {
+      "name": "模板里的非 ASCII 文本原样",
+      "template": "你好，{{ name }}！",
+      "text": "你好，bob！"
+    },
+    {
+      "name": "时刻函数",
+      "template": "{{ now() }}",
+      "text": "2026-10-26T08:00:00.1234567+00:00"
+    },
+    {
+      "name": "成员与索引",
+      "template": "{{ user.roles[1] }} of {{ len(user.roles) }}",
+      "text": "dev of 2"
+    },
+    {
+      "name": "拼接的结果",
+      "template": "{{ 'id-' + amount }}",
+      "text": "id-42"
+    }
+  ],
+  "renderErrors": [
+    {
+      "name": "空的占位",
+      "template": "{{ }}",
+      "messageKey": "workflow.expression.empty",
+      "expression": "",
+      "arguments": {}
+    },
+    {
+      "name": "没有内容的占位",
+      "template": "{{}}",
+      "messageKey": "workflow.expression.empty",
+      "expression": "",
+      "arguments": {}
+    },
+    {
+      "name": "占位没有结束",
+      "template": "{{ name",
+      "messageKey": "workflow.expression.unterminated_placeholder",
+      "expression": "{{ name",
+      "arguments": {}
+    },
+    {
+      "name": "只有一个右花括号",
+      "template": "{{ name }",
+      "messageKey": "workflow.expression.unterminated_placeholder",
+      "expression": "{{ name }",
+      "arguments": {}
+    },
+    {
+      "name": "只有开头的花括号",
+      "template": "text {{",
+      "messageKey": "workflow.expression.unterminated_placeholder",
+      "expression": "text {{",
+      "arguments": {}
+    },
+    {
+      "name": "后一个占位没有结束",
+      "template": "a{{ name }}b{{",
+      "messageKey": "workflow.expression.unterminated_placeholder",
+      "expression": "a{{ name }}b{{",
+      "arguments": {}
+    },
+    {
+      "name": "没闭合的引号把 }} 吞掉",
+      "template": "{{ 'abc }}",
+      "messageKey": "workflow.expression.unterminated_placeholder",
+      "expression": "{{ 'abc }}",
+      "arguments": {}
+    },
+    {
+      "name": "没写完的表达式连 }} 都没有",
+      "template": "{{ 1 +",
+      "messageKey": "workflow.expression.unterminated_placeholder",
+      "expression": "{{ 1 +",
+      "arguments": {}
+    },
+    {
+      "name": "占位里的未知变量",
+      "template": "{{ nope }}",
+      "messageKey": "workflow.expression.unknown_variable",
+      "expression": "nope",
+      "arguments": {
+        "name": "nope"
+      }
+    },
+    {
+      "name": "占位里的语法错误",
+      "template": "Hi {{ 1 + }}",
+      "messageKey": "workflow.expression.unexpected_end",
+      "expression": "1 +",
+      "arguments": {}
+    },
+    {
+      "name": "占位里的除以零",
+      "template": "{{ amount / 0 }}",
+      "messageKey": "workflow.expression.division_by_zero",
+      "expression": "amount / 0",
+      "arguments": {}
+    },
+    {
+      "name": "三个左花括号：第三个进了表达式",
+      "template": "{{{ name }}}",
+      "messageKey": "workflow.expression.unexpected_character",
+      "expression": "{ name",
+      "arguments": {
+        "character": "{",
+        "position": 1
+      }
+    },
+    {
+      "name": "占位里不能再套花括号",
+      "template": "{{ {name} }}",
+      "messageKey": "workflow.expression.unexpected_character",
+      "expression": "{name}",
+      "arguments": {
+        "character": "{",
+        "position": 1
+      }
+    },
+    {
+      "name": "从左到右，先遇到的错误先报",
+      "template": "{{ nope }} {{ 1 +",
+      "messageKey": "workflow.expression.unknown_variable",
+      "expression": "nope",
+      "arguments": {
+        "name": "nope"
+      }
+    },
+    {
+      "name": "前面的占位成功、后面的失败",
+      "template": "{{ name }} {{ amount.x }}",
+      "messageKey": "workflow.expression.member_of_non_object",
+      "expression": "amount.x",
+      "arguments": {
+        "member": "x"
+      }
+    },
+    {
+      "name": "位置按占位里去掉首尾空白之后的文本算",
+      "template": "{{   name name }}",
+      "messageKey": "workflow.expression.unexpected_character",
+      "expression": "name name",
+      "arguments": {
+        "character": "n",
+        "position": 6
+      }
+    }
+  ],
+  "conditions": [
+    {
+      "name": "布尔变量为真",
+      "expression": "t",
+      "holds": true
+    },
+    {
+      "name": "布尔变量为假",
+      "expression": "f",
+      "holds": false
+    },
+    {
+      "name": "比较的结果",
+      "expression": "amount > 10",
+      "holds": true
+    },
+    {
+      "name": "相等的结果",
+      "expression": "name == 'alice'",
+      "holds": false
+    },
+    {
+      "name": "逻辑运算的结果",
+      "expression": "amount > 10 && !f",
+      "holds": true
+    },
+    {
+      "name": "函数的结果",
+      "expression": "contains(tags, 'a')",
+      "holds": true
+    },
+    {
+      "name": "字面量 true",
+      "expression": "true",
+      "holds": true
+    }
+  ],
+  "conditionErrors": [
+    {
+      "name": "结果是 null",
+      "expression": "n",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_boolean",
+      "arguments": {}
+    },
+    {
+      "name": "结果是缺少的成员",
+      "expression": "user.missing",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_boolean",
+      "arguments": {}
+    },
+    {
+      "name": "结果是数字",
+      "expression": "amount",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_boolean",
+      "arguments": {}
+    },
+    {
+      "name": "结果是零",
+      "expression": "0",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_boolean",
+      "arguments": {}
+    },
+    {
+      "name": "结果是字符串 true",
+      "expression": "'true'",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_boolean",
+      "arguments": {}
+    },
+    {
+      "name": "结果是空串",
+      "expression": "empty",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_boolean",
+      "arguments": {}
+    },
+    {
+      "name": "结果是数组",
+      "expression": "tags",
+      "syntax": false,
+      "messageKey": "workflow.expression.not_boolean",
+      "arguments": {}
+    },
+    {
+      "name": "求值失败时是求值的错误",
+      "expression": "nope",
+      "syntax": false,
+      "messageKey": "workflow.expression.unknown_variable",
+      "arguments": {
+        "name": "nope"
+      }
+    },
+    {
+      "name": "语法错误时是语法的错误",
+      "expression": "amount >",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_end",
+      "arguments": {}
+    }
+  ]
+}

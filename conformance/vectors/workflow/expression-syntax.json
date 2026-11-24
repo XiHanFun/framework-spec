@@ -1,0 +1,1629 @@
+{
+  "$comment": "工作流表达式的词法与文法（RFC-0021「表达式」的「词法」「文法」，ADR-0287）。variables 是求值时的实例变量。values 的每项：expression 求值成功，type 是结果的类型（null、boolean、number、string、array、object 之一），text 是结果的文本（「值的文本」：null 是空串，数字是规范文本，数组与对象是紧凑的 JSON 文本）；只有一个占位的模板 {{ expression }} 渲染出来的也是这段文本。errors 的每项：expression 以 errorCode 失败，messageKey 与 arguments 是错误的消息键与参数（不含 expression 参数：它就是表达式原文，超过 200 个码元时的截断见 expression-limits.json）；syntax 为真表示解析时就报出（只校验语法也失败），为假表示语法合法、求值时才失败。position 是从 1 起的 UTF-16 码元序号。空白是 RFC-0001「空白字符」的 25 个码位；标识符的字母是 Unicode 一般类别 L、数字是 Nd，只看基本多文种平面。期望值由 .NET 参考实现（WorkflowExpressionEvaluator）算出。",
+  "errorCode": "WORKFLOW_VALIDATION_003",
+  "variables": {
+    "a": 1,
+    "b": 2,
+    "c": 3,
+    "t": true,
+    "f": false,
+    "s": "Abc",
+    "n": null,
+    "arr": [
+      10,
+      20,
+      30
+    ],
+    "obj": {
+      "name": "x",
+      "inner": {
+        "list": [
+          1,
+          2,
+          {
+            "leaf": "deep"
+          }
+        ]
+      },
+      "null": "kw-null",
+      "true": "kw-true",
+      "len": "fn-name",
+      "with space": "spaced",
+      "姓名": "张三"
+    },
+    "_private": "underscore",
+    "amount1": 6,
+    "x_y": 7,
+    "变量": "中文",
+    "été": "accent",
+    "a٣": "digit",
+    "True": "not-a-keyword",
+    "Null": "not-a-keyword",
+    "len": 9
+  },
+  "values": [
+    {
+      "name": "整数字面量",
+      "expression": "42",
+      "type": "number",
+      "text": "42"
+    },
+    {
+      "name": "前导零不影响数值",
+      "expression": "007",
+      "type": "number",
+      "text": "7"
+    },
+    {
+      "name": "小数字面量",
+      "expression": "3.14",
+      "type": "number",
+      "text": "3.14"
+    },
+    {
+      "name": "结尾的零不影响数值",
+      "expression": "1.50",
+      "type": "number",
+      "text": "1.5"
+    },
+    {
+      "name": "小数点后没有数字",
+      "expression": "1.",
+      "type": "number",
+      "text": "1"
+    },
+    {
+      "name": "小数点前没有数字",
+      "expression": ".5",
+      "type": "number",
+      "text": "0.5"
+    },
+    {
+      "name": "零",
+      "expression": "0",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "带小数点的零",
+      "expression": "0.0",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "只有小数部分的零",
+      "expression": ".0",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "最大的数字",
+      "expression": "79228162514264337593543950335",
+      "type": "number",
+      "text": "79228162514264337593543950335"
+    },
+    {
+      "name": "28 位小数",
+      "expression": "0.0000000000000000000000000001",
+      "type": "number",
+      "text": "0.0000000000000000000000000001"
+    },
+    {
+      "name": "第 29 位小数正好一半，前一位是偶数时舍去",
+      "expression": "0.00000000000000000000000000005",
+      "type": "number",
+      "text": "0"
+    },
+    {
+      "name": "第 29 位小数正好一半，前一位是奇数时进位",
+      "expression": "0.00000000000000000000000000015",
+      "type": "number",
+      "text": "0.0000000000000000000000000002"
+    },
+    {
+      "name": "一半之后还有非零数字时进位",
+      "expression": "0.000000000000000000000000000050001",
+      "type": "number",
+      "text": "0.0000000000000000000000000001"
+    },
+    {
+      "name": "不到一半时舍去",
+      "expression": "0.00000000000000000000000000014999",
+      "type": "number",
+      "text": "0.0000000000000000000000000001"
+    },
+    {
+      "name": "整数部分一位时仍是 28 位小数",
+      "expression": "1.00000000000000000000000000015",
+      "type": "number",
+      "text": "1.0000000000000000000000000002"
+    },
+    {
+      "name": "整数位多时小数位随之减少",
+      "expression": "123456789012345678901.123456785",
+      "type": "number",
+      "text": "123456789012345678901.12345678"
+    },
+    {
+      "name": "29 位有效数字放得下时全部保留",
+      "expression": "7.9228162514264337593543950335",
+      "type": "number",
+      "text": "7.9228162514264337593543950335"
+    },
+    {
+      "name": "29 位有效数字放不下时少一位小数",
+      "expression": "7.9228162514264337593543950336",
+      "type": "number",
+      "text": "7.922816251426433759354395034"
+    },
+    {
+      "name": "整数部分 29 位时小数全部舍入",
+      "expression": "79228162514264337593543950334.5",
+      "type": "number",
+      "text": "79228162514264337593543950334"
+    },
+    {
+      "name": "很长的小数只留放得下的位数",
+      "expression": "0.123456789012345678901234567890123456789012345678901234567890",
+      "type": "number",
+      "text": "0.1234567890123456789012345679"
+    },
+    {
+      "name": "单引号字符串",
+      "expression": "'abc'",
+      "type": "string",
+      "text": "abc"
+    },
+    {
+      "name": "双引号字符串",
+      "expression": "\"abc\"",
+      "type": "string",
+      "text": "abc"
+    },
+    {
+      "name": "空的单引号字符串",
+      "expression": "''",
+      "type": "string",
+      "text": ""
+    },
+    {
+      "name": "空的双引号字符串",
+      "expression": "\"\"",
+      "type": "string",
+      "text": ""
+    },
+    {
+      "name": "单引号里的双引号是内容",
+      "expression": "'say \"hi\"'",
+      "type": "string",
+      "text": "say \"hi\""
+    },
+    {
+      "name": "双引号里的单引号是内容",
+      "expression": "\"it's\"",
+      "type": "string",
+      "text": "it's"
+    },
+    {
+      "name": "反斜杠加单引号",
+      "expression": "'it\\'s'",
+      "type": "string",
+      "text": "it's"
+    },
+    {
+      "name": "反斜杠加双引号",
+      "expression": "\"say \\\"hi\\\"\"",
+      "type": "string",
+      "text": "say \"hi\""
+    },
+    {
+      "name": "换行、制表符与回车的转义",
+      "expression": "'a\\nb\\tc\\rd'",
+      "type": "string",
+      "text": "a\nb\tc\rd"
+    },
+    {
+      "name": "反斜杠的转义",
+      "expression": "'a\\\\b'",
+      "type": "string",
+      "text": "a\\b"
+    },
+    {
+      "name": "其余字符前的反斜杠只是去掉",
+      "expression": "'\\q\\u0041\\0\\b\\f\\/'",
+      "type": "string",
+      "text": "qu00410bf/"
+    },
+    {
+      "name": "字符串里可以直接换行",
+      "expression": "'line1\nline2'",
+      "type": "string",
+      "text": "line1\nline2"
+    },
+    {
+      "name": "字符串里的非 ASCII 字符",
+      "expression": "'请假 é 😀'",
+      "type": "string",
+      "text": "请假 é 😀"
+    },
+    {
+      "name": "字符串里的运算符与括号是内容",
+      "expression": "'1 + (2 * 3'",
+      "type": "string",
+      "text": "1 + (2 * 3"
+    },
+    {
+      "name": "字符串里的空白是内容",
+      "expression": "'  a  '",
+      "type": "string",
+      "text": "  a  "
+    },
+    {
+      "name": "字符串里另一种引号不用转义",
+      "expression": "'a\"b' + \"c'd\"",
+      "type": "string",
+      "text": "a\"bc'd"
+    },
+    {
+      "name": "true",
+      "expression": "true",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "false",
+      "expression": "false",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "null",
+      "expression": "null",
+      "type": "null",
+      "text": ""
+    },
+    {
+      "name": "大写开头的 True 是普通标识符",
+      "expression": "True",
+      "type": "string",
+      "text": "not-a-keyword"
+    },
+    {
+      "name": "大写开头的 Null 是普通标识符",
+      "expression": "Null",
+      "type": "string",
+      "text": "not-a-keyword"
+    },
+    {
+      "name": "首尾的空白",
+      "expression": "  1  ",
+      "type": "number",
+      "text": "1"
+    },
+    {
+      "name": "记号之间可以没有空白",
+      "expression": "1+2*3",
+      "type": "number",
+      "text": "7"
+    },
+    {
+      "name": "制表符与换行是空白",
+      "expression": "1\t+\r\n2",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "不换行空格 U+00A0 是空白",
+      "expression": "1\u00a0+\u00a02",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "表意空格 U+3000 是空白",
+      "expression": "1\u3000+\u30002",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "其余的 Unicode 空白",
+      "expression": "\u0085\u1680\u20001\u2003\u2028+\u2029\u202f\u205f2\u000b\f",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "函数名与括号之间的空白",
+      "expression": "len (arr)",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "括号与实参之间的空白",
+      "expression": "len( arr )",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "成员访问两侧的空白",
+      "expression": "obj . name",
+      "type": "string",
+      "text": "x"
+    },
+    {
+      "name": "索引括号内外的空白",
+      "expression": "arr [ 1 ]",
+      "type": "number",
+      "text": "20"
+    },
+    {
+      "name": "一元运算符之后的空白",
+      "expression": "- a",
+      "type": "number",
+      "text": "-1"
+    },
+    {
+      "name": "逻辑非之后的空白",
+      "expression": "! t",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "下划线开头的标识符",
+      "expression": "_private",
+      "type": "string",
+      "text": "underscore"
+    },
+    {
+      "name": "带数字的标识符",
+      "expression": "amount1",
+      "type": "number",
+      "text": "6"
+    },
+    {
+      "name": "带下划线的标识符",
+      "expression": "x_y",
+      "type": "number",
+      "text": "7"
+    },
+    {
+      "name": "汉字的标识符",
+      "expression": "变量",
+      "type": "string",
+      "text": "中文"
+    },
+    {
+      "name": "带重音字母的标识符",
+      "expression": "été",
+      "type": "string",
+      "text": "accent"
+    },
+    {
+      "name": "非 ASCII 的十进制数字可以出现在标识符里",
+      "expression": "a٣",
+      "type": "string",
+      "text": "digit"
+    },
+    {
+      "name": "变量与函数可以同名",
+      "expression": "len",
+      "type": "number",
+      "text": "9"
+    },
+    {
+      "name": "同名时后面跟括号的是函数",
+      "expression": "len + len(arr)",
+      "type": "number",
+      "text": "12"
+    },
+    {
+      "name": "乘法先于加法",
+      "expression": "1 + 2 * 3",
+      "type": "number",
+      "text": "7"
+    },
+    {
+      "name": "括号改变次序",
+      "expression": "(1 + 2) * 3",
+      "type": "number",
+      "text": "9"
+    },
+    {
+      "name": "减法左结合",
+      "expression": "10 - 4 - 3",
+      "type": "number",
+      "text": "3"
+    },
+    {
+      "name": "除法左结合",
+      "expression": "100 / 10 / 5",
+      "type": "number",
+      "text": "2"
+    },
+    {
+      "name": "乘与取余同级，从左到右",
+      "expression": "2 * 3 % 4",
+      "type": "number",
+      "text": "2"
+    },
+    {
+      "name": "取余与乘同级，从左到右",
+      "expression": "10 % 4 * 2",
+      "type": "number",
+      "text": "4"
+    },
+    {
+      "name": "加减先于比较",
+      "expression": "1 + 2 < 2 * 2",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "比较先于相等",
+      "expression": "1 < 2 == true",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "算术先于相等",
+      "expression": "1 + 2 == 3",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "相等先于逻辑与",
+      "expression": "1 == 1 && 2 == 2",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "逻辑与先于逻辑或",
+      "expression": "t || f && f",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "括号里的逻辑或",
+      "expression": "(t || f) && f",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "逻辑与在前时同样先算",
+      "expression": "f && f || t",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "一元非先于相等",
+      "expression": "!t == f",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "一元非作用于括号",
+      "expression": "!(t == f)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "一元负先于加法",
+      "expression": "-a + b",
+      "type": "number",
+      "text": "1"
+    },
+    {
+      "name": "一元负先于乘法",
+      "expression": "-a * -b",
+      "type": "number",
+      "text": "2"
+    },
+    {
+      "name": "连续两个一元负",
+      "expression": "- - a",
+      "type": "number",
+      "text": "1"
+    },
+    {
+      "name": "挨在一起的两个负号是两个一元负",
+      "expression": "--a",
+      "type": "number",
+      "text": "1"
+    },
+    {
+      "name": "连续两个逻辑非",
+      "expression": "!!t",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "减去一个负数",
+      "expression": "1 - -1",
+      "type": "number",
+      "text": "2"
+    },
+    {
+      "name": "减号后面紧跟负号",
+      "expression": "1--1",
+      "type": "number",
+      "text": "2"
+    },
+    {
+      "name": "后缀先于一元负",
+      "expression": "-arr[0]",
+      "type": "number",
+      "text": "-10"
+    },
+    {
+      "name": "相等左结合",
+      "expression": "1 == 1 == true",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "不等左结合",
+      "expression": "1 != 2 != false",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "比较左结合：先得到布尔再与数字比文本",
+      "expression": "1 < 2 < 3",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "比较左结合的另一个方向",
+      "expression": "3 > 2 > 1",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "不带空白的小于等于",
+      "expression": "a<=b",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "不带空白的大于等于",
+      "expression": "a>=b",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "不带空白的不等",
+      "expression": "a!=b",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "不带空白的相等",
+      "expression": "a==b",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "小于后面紧跟负号",
+      "expression": "a<-b",
+      "type": "boolean",
+      "text": "false"
+    },
+    {
+      "name": "多层括号",
+      "expression": "((a + b)) * (c)",
+      "type": "number",
+      "text": "9"
+    },
+    {
+      "name": "成员访问",
+      "expression": "obj.name",
+      "type": "string",
+      "text": "x"
+    },
+    {
+      "name": "成员与索引的链",
+      "expression": "obj.inner.list[2].leaf",
+      "type": "string",
+      "text": "deep"
+    },
+    {
+      "name": "用字符串索引取成员",
+      "expression": "obj['name']",
+      "type": "string",
+      "text": "x"
+    },
+    {
+      "name": "名字里有空格的成员用索引取",
+      "expression": "obj[\"with space\"]",
+      "type": "string",
+      "text": "spaced"
+    },
+    {
+      "name": "成员名可以是 null",
+      "expression": "obj.null",
+      "type": "string",
+      "text": "kw-null"
+    },
+    {
+      "name": "成员名可以是 true",
+      "expression": "obj.true",
+      "type": "string",
+      "text": "kw-true"
+    },
+    {
+      "name": "成员名可以与函数同名",
+      "expression": "obj.len",
+      "type": "string",
+      "text": "fn-name"
+    },
+    {
+      "name": "成员名可以是汉字",
+      "expression": "obj.姓名",
+      "type": "string",
+      "text": "张三"
+    },
+    {
+      "name": "索引里是表达式",
+      "expression": "arr[a + 1]",
+      "type": "number",
+      "text": "30"
+    },
+    {
+      "name": "索引里套索引",
+      "expression": "arr[arr[0] - 9]",
+      "type": "number",
+      "text": "20"
+    },
+    {
+      "name": "括号之后接索引",
+      "expression": "(arr)[0]",
+      "type": "number",
+      "text": "10"
+    },
+    {
+      "name": "括号之后接成员",
+      "expression": "(obj).name",
+      "type": "string",
+      "text": "x"
+    },
+    {
+      "name": "成员与两种索引混用",
+      "expression": "obj.inner['list'][0]",
+      "type": "number",
+      "text": "1"
+    },
+    {
+      "name": "函数调用",
+      "expression": "upper(s)",
+      "type": "string",
+      "text": "ABC"
+    },
+    {
+      "name": "函数名全大写",
+      "expression": "UPPER(s)",
+      "type": "string",
+      "text": "ABC"
+    },
+    {
+      "name": "函数名大小写混写",
+      "expression": "uPpEr(s)",
+      "type": "string",
+      "text": "ABC"
+    },
+    {
+      "name": "函数套函数",
+      "expression": "upper(lower(s))",
+      "type": "string",
+      "text": "ABC"
+    },
+    {
+      "name": "两个实参",
+      "expression": "max(a, b)",
+      "type": "number",
+      "text": "2"
+    },
+    {
+      "name": "实参是表达式",
+      "expression": "max(a + b, c * 2)",
+      "type": "number",
+      "text": "6"
+    },
+    {
+      "name": "没有实参的调用",
+      "expression": "len(now())",
+      "type": "number",
+      "text": "33"
+    },
+    {
+      "name": "调用的结果参与运算",
+      "expression": "len(arr) * 2 + 1",
+      "type": "number",
+      "text": "7"
+    }
+  ],
+  "errors": [
+    {
+      "name": "空串",
+      "expression": "",
+      "syntax": true,
+      "messageKey": "workflow.expression.empty",
+      "arguments": {}
+    },
+    {
+      "name": "只有空格",
+      "expression": "   ",
+      "syntax": true,
+      "messageKey": "workflow.expression.empty",
+      "arguments": {}
+    },
+    {
+      "name": "只有不换行空格",
+      "expression": "\u00a0\u3000",
+      "syntax": true,
+      "messageKey": "workflow.expression.empty",
+      "arguments": {}
+    },
+    {
+      "name": "运算符后面没有操作数",
+      "expression": "1 +",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_end",
+      "arguments": {}
+    },
+    {
+      "name": "只有左括号",
+      "expression": "(",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_end",
+      "arguments": {}
+    },
+    {
+      "name": "只有逻辑非",
+      "expression": "!",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_end",
+      "arguments": {}
+    },
+    {
+      "name": "只有负号",
+      "expression": "-",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_end",
+      "arguments": {}
+    },
+    {
+      "name": "逻辑与后面没有操作数",
+      "expression": "t &&",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_end",
+      "arguments": {}
+    },
+    {
+      "name": "实参表没写完",
+      "expression": "len(",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_end",
+      "arguments": {}
+    },
+    {
+      "name": "逗号后面没有实参",
+      "expression": "max(a,",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_end",
+      "arguments": {}
+    },
+    {
+      "name": "索引没写完",
+      "expression": "arr[",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_end",
+      "arguments": {}
+    },
+    {
+      "name": "没有正号",
+      "expression": "+1",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "+",
+        "position": 1
+      }
+    },
+    {
+      "name": "只有乘号",
+      "expression": "*",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "*",
+        "position": 1
+      }
+    },
+    {
+      "name": "空括号",
+      "expression": "()",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": ")",
+        "position": 2
+      }
+    },
+    {
+      "name": "没有数组字面量",
+      "expression": "[1, 2]",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "[",
+        "position": 1
+      }
+    },
+    {
+      "name": "没有对象字面量",
+      "expression": "{}",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "{",
+        "position": 1
+      }
+    },
+    {
+      "name": "两个数字挨着",
+      "expression": "1 2",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "2",
+        "position": 3
+      }
+    },
+    {
+      "name": "两个标识符挨着",
+      "expression": "a b",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "b",
+        "position": 3
+      }
+    },
+    {
+      "name": "两个字符串挨着",
+      "expression": "'a' 'b'",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "'",
+        "position": 5
+      }
+    },
+    {
+      "name": "多出的右括号",
+      "expression": "1)",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": ")",
+        "position": 2
+      }
+    },
+    {
+      "name": "多出的右方括号",
+      "expression": "arr[0]]",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "]",
+        "position": 7
+      }
+    },
+    {
+      "name": "结尾的分号",
+      "expression": "1;",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": ";",
+        "position": 2
+      }
+    },
+    {
+      "name": "单个等号不是运算符",
+      "expression": "a = b",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "=",
+        "position": 3
+      }
+    },
+    {
+      "name": "三个等号",
+      "expression": "a === b",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "=",
+        "position": 5
+      }
+    },
+    {
+      "name": "没有 <> 运算符",
+      "expression": "a <> b",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": ">",
+        "position": 4
+      }
+    },
+    {
+      "name": "单个 & 不是运算符",
+      "expression": "t & f",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "&",
+        "position": 3
+      }
+    },
+    {
+      "name": "单个 | 不是运算符",
+      "expression": "t | f",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "|",
+        "position": 3
+      }
+    },
+    {
+      "name": "没有条件运算符",
+      "expression": "t ? a : b",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "?",
+        "position": 3
+      }
+    },
+    {
+      "name": "顶层的逗号",
+      "expression": "1, 2",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": ",",
+        "position": 2
+      }
+    },
+    {
+      "name": "实参表里多出的逗号",
+      "expression": "max(a,, b)",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": ",",
+        "position": 7
+      }
+    },
+    {
+      "name": "实参表以逗号结尾",
+      "expression": "max(a, b,)",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": ")",
+        "position": 10
+      }
+    },
+    {
+      "name": "实参表以逗号开头",
+      "expression": "max(, a)",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": ",",
+        "position": 5
+      }
+    },
+    {
+      "name": "不认识的符号",
+      "expression": "#",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "#",
+        "position": 1
+      }
+    },
+    {
+      "name": "标识符不能以 $ 开头",
+      "expression": "$a",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "$",
+        "position": 1
+      }
+    },
+    {
+      "name": "成员之后不能接调用",
+      "expression": "obj.name(1)",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "(",
+        "position": 9
+      }
+    },
+    {
+      "name": "数字字面量没有指数",
+      "expression": "1e3",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "e",
+        "position": 2
+      }
+    },
+    {
+      "name": "数字字面量没有分隔符",
+      "expression": "1_000",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "_",
+        "position": 2
+      }
+    },
+    {
+      "name": "数字字面量没有十六进制",
+      "expression": "0x10",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "x",
+        "position": 2
+      }
+    },
+    {
+      "name": "没有后缀的感叹号",
+      "expression": "t!",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "!",
+        "position": 2
+      }
+    },
+    {
+      "name": "感叹号后面紧跟等号不是逻辑非",
+      "expression": "!=a",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "!",
+        "position": 1
+      }
+    },
+    {
+      "name": "比较运算符中间不能有空白",
+      "expression": "a < = b",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "=",
+        "position": 5
+      }
+    },
+    {
+      "name": "单独的小数点",
+      "expression": ".",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": ".",
+        "position": 1
+      }
+    },
+    {
+      "name": "小数点后面不是数字",
+      "expression": ".x",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": ".",
+        "position": 1
+      }
+    },
+    {
+      "name": "基本多文种平面以外的字符整个带出",
+      "expression": "😀",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "😀",
+        "position": 1
+      }
+    },
+    {
+      "name": "基本多文种平面以外的字符不能作标识符",
+      "expression": "a + 𝒳",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "𝒳",
+        "position": 5
+      }
+    },
+    {
+      "name": "引号配错时后面的文本是多出的",
+      "expression": "'it's'",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": "s",
+        "position": 5
+      }
+    },
+    {
+      "name": "缺右括号",
+      "expression": "(1",
+      "syntax": true,
+      "messageKey": "workflow.expression.token_expected",
+      "arguments": {
+        "token": ")",
+        "position": 3
+      }
+    },
+    {
+      "name": "表达式之后缺右括号",
+      "expression": "(a + b",
+      "syntax": true,
+      "messageKey": "workflow.expression.token_expected",
+      "arguments": {
+        "token": ")",
+        "position": 7
+      }
+    },
+    {
+      "name": "缺右方括号",
+      "expression": "arr[0",
+      "syntax": true,
+      "messageKey": "workflow.expression.token_expected",
+      "arguments": {
+        "token": "]",
+        "position": 6
+      }
+    },
+    {
+      "name": "实参表缺右括号",
+      "expression": "len(arr",
+      "syntax": true,
+      "messageKey": "workflow.expression.token_expected",
+      "arguments": {
+        "token": ")",
+        "position": 8
+      }
+    },
+    {
+      "name": "实参之间缺逗号",
+      "expression": "max(a b)",
+      "syntax": true,
+      "messageKey": "workflow.expression.token_expected",
+      "arguments": {
+        "token": ")",
+        "position": 7
+      }
+    },
+    {
+      "name": "括号配成方括号",
+      "expression": "(1]",
+      "syntax": true,
+      "messageKey": "workflow.expression.token_expected",
+      "arguments": {
+        "token": ")",
+        "position": 3
+      }
+    },
+    {
+      "name": "方括号配成括号",
+      "expression": "arr[0)",
+      "syntax": true,
+      "messageKey": "workflow.expression.token_expected",
+      "arguments": {
+        "token": "]",
+        "position": 6
+      }
+    },
+    {
+      "name": "小数点之后没有成员名",
+      "expression": "obj.",
+      "syntax": true,
+      "messageKey": "workflow.expression.member_expected",
+      "arguments": {
+        "position": 5
+      }
+    },
+    {
+      "name": "成员名不能是数字",
+      "expression": "obj.0",
+      "syntax": true,
+      "messageKey": "workflow.expression.member_expected",
+      "arguments": {
+        "position": 5
+      }
+    },
+    {
+      "name": "成员名不能是字符串",
+      "expression": "obj.'name'",
+      "syntax": true,
+      "messageKey": "workflow.expression.member_expected",
+      "arguments": {
+        "position": 5
+      }
+    },
+    {
+      "name": "成员名的位置在空白之后",
+      "expression": "obj.  1",
+      "syntax": true,
+      "messageKey": "workflow.expression.member_expected",
+      "arguments": {
+        "position": 7
+      }
+    },
+    {
+      "name": "小数点之后直接是索引",
+      "expression": "obj.[0]",
+      "syntax": true,
+      "messageKey": "workflow.expression.member_expected",
+      "arguments": {
+        "position": 5
+      }
+    },
+    {
+      "name": "连着两个小数点",
+      "expression": "obj..name",
+      "syntax": true,
+      "messageKey": "workflow.expression.member_expected",
+      "arguments": {
+        "position": 5
+      }
+    },
+    {
+      "name": "两个小数点的数字",
+      "expression": "1.2.3",
+      "syntax": true,
+      "messageKey": "workflow.expression.not_number",
+      "arguments": {
+        "value": "1.2.3"
+      }
+    },
+    {
+      "name": "连着两个小数点的数字",
+      "expression": "1..2",
+      "syntax": true,
+      "messageKey": "workflow.expression.not_number",
+      "arguments": {
+        "value": "1..2"
+      }
+    },
+    {
+      "name": "结尾多一个小数点的数字",
+      "expression": "1.2.",
+      "syntax": true,
+      "messageKey": "workflow.expression.not_number",
+      "arguments": {
+        "value": "1.2."
+      }
+    },
+    {
+      "name": "数字后面直接接成员",
+      "expression": "1.5.x",
+      "syntax": true,
+      "messageKey": "workflow.expression.not_number",
+      "arguments": {
+        "value": "1.5."
+      }
+    },
+    {
+      "name": "非 ASCII 的十进制数字",
+      "expression": "٣",
+      "syntax": true,
+      "messageKey": "workflow.expression.not_number",
+      "arguments": {
+        "value": "٣"
+      }
+    },
+    {
+      "name": "ASCII 与非 ASCII 的数字混写",
+      "expression": "1٣",
+      "syntax": true,
+      "messageKey": "workflow.expression.not_number",
+      "arguments": {
+        "value": "1٣"
+      }
+    },
+    {
+      "name": "全角数字",
+      "expression": "１２",
+      "syntax": true,
+      "messageKey": "workflow.expression.not_number",
+      "arguments": {
+        "value": "１２"
+      }
+    },
+    {
+      "name": "超出范围的整数",
+      "expression": "79228162514264337593543950336",
+      "syntax": true,
+      "messageKey": "workflow.expression.not_number",
+      "arguments": {
+        "value": "79228162514264337593543950336"
+      }
+    },
+    {
+      "name": "小数舍入之后超出范围",
+      "expression": "79228162514264337593543950335.5",
+      "syntax": true,
+      "messageKey": "workflow.expression.not_number",
+      "arguments": {
+        "value": "79228162514264337593543950335.5"
+      }
+    },
+    {
+      "name": "单引号字符串没闭合",
+      "expression": "'abc",
+      "syntax": true,
+      "messageKey": "workflow.expression.unterminated_string",
+      "arguments": {}
+    },
+    {
+      "name": "双引号字符串没闭合",
+      "expression": "\"abc",
+      "syntax": true,
+      "messageKey": "workflow.expression.unterminated_string",
+      "arguments": {}
+    },
+    {
+      "name": "以反斜杠结尾的字符串",
+      "expression": "'abc\\",
+      "syntax": true,
+      "messageKey": "workflow.expression.unterminated_string",
+      "arguments": {}
+    },
+    {
+      "name": "最后的引号被转义",
+      "expression": "'abc\\'",
+      "syntax": true,
+      "messageKey": "workflow.expression.unterminated_string",
+      "arguments": {}
+    },
+    {
+      "name": "用另一种引号收尾",
+      "expression": "'abc\"",
+      "syntax": true,
+      "messageKey": "workflow.expression.unterminated_string",
+      "arguments": {}
+    },
+    {
+      "name": "不认识的函数",
+      "expression": "nope(1)",
+      "syntax": true,
+      "messageKey": "workflow.expression.unknown_function",
+      "arguments": {
+        "function": "nope"
+      }
+    },
+    {
+      "name": "不认识的函数没有实参",
+      "expression": "nope()",
+      "syntax": true,
+      "messageKey": "workflow.expression.unknown_function",
+      "arguments": {
+        "function": "nope"
+      }
+    },
+    {
+      "name": "函数名照原样带出",
+      "expression": "Sum(a, b)",
+      "syntax": true,
+      "messageKey": "workflow.expression.unknown_function",
+      "arguments": {
+        "function": "Sum"
+      }
+    },
+    {
+      "name": "变量名不能当函数调用",
+      "expression": "arr(0)",
+      "syntax": true,
+      "messageKey": "workflow.expression.unknown_function",
+      "arguments": {
+        "function": "arr"
+      }
+    },
+    {
+      "name": "非 ASCII 的拼写不是同一个函数",
+      "expression": "ｌｅｎ(arr)",
+      "syntax": true,
+      "messageKey": "workflow.expression.unknown_function",
+      "arguments": {
+        "function": "ｌｅｎ"
+      }
+    },
+    {
+      "name": "len 少了实参",
+      "expression": "len()",
+      "syntax": true,
+      "messageKey": "workflow.expression.argument_count",
+      "arguments": {
+        "function": "len",
+        "count": 1
+      }
+    },
+    {
+      "name": "len 多了实参",
+      "expression": "len(a, b)",
+      "syntax": true,
+      "messageKey": "workflow.expression.argument_count",
+      "arguments": {
+        "function": "len",
+        "count": 1
+      }
+    },
+    {
+      "name": "实参个数的错误里函数名照原样",
+      "expression": "LEN()",
+      "syntax": true,
+      "messageKey": "workflow.expression.argument_count",
+      "arguments": {
+        "function": "LEN",
+        "count": 1
+      }
+    },
+    {
+      "name": "now 不接受实参",
+      "expression": "now(1)",
+      "syntax": true,
+      "messageKey": "workflow.expression.argument_count",
+      "arguments": {
+        "function": "now",
+        "count": 0
+      }
+    },
+    {
+      "name": "min 只有一个实参",
+      "expression": "min(a)",
+      "syntax": true,
+      "messageKey": "workflow.expression.argument_count",
+      "arguments": {
+        "function": "min",
+        "count": 2
+      }
+    },
+    {
+      "name": "contains 只有一个实参",
+      "expression": "contains(s)",
+      "syntax": true,
+      "messageKey": "workflow.expression.argument_count",
+      "arguments": {
+        "function": "contains",
+        "count": 2
+      }
+    },
+    {
+      "name": "round 没有实参",
+      "expression": "round()",
+      "syntax": true,
+      "messageKey": "workflow.expression.argument_range",
+      "arguments": {
+        "function": "round",
+        "min": 1,
+        "max": 2
+      }
+    },
+    {
+      "name": "round 有三个实参",
+      "expression": "round(a, b, c)",
+      "syntax": true,
+      "messageKey": "workflow.expression.argument_range",
+      "arguments": {
+        "function": "round",
+        "min": 1,
+        "max": 2
+      }
+    },
+    {
+      "name": "实参里的语法错误先于函数名",
+      "expression": "nope(1 +)",
+      "syntax": true,
+      "messageKey": "workflow.expression.unexpected_character",
+      "arguments": {
+        "character": ")",
+        "position": 9
+      }
+    },
+    {
+      "name": "函数名在读完右括号时核对，先于后面的错误",
+      "expression": "nope(1) +",
+      "syntax": true,
+      "messageKey": "workflow.expression.unknown_function",
+      "arguments": {
+        "function": "nope"
+      }
+    },
+    {
+      "name": "实参个数在读完右括号时核对，先于后面的错误",
+      "expression": "len(a, b) +",
+      "syntax": true,
+      "messageKey": "workflow.expression.argument_count",
+      "arguments": {
+        "function": "len",
+        "count": 1
+      }
+    },
+    {
+      "name": "没读到右括号时先报缺右括号",
+      "expression": "nope(1",
+      "syntax": true,
+      "messageKey": "workflow.expression.token_expected",
+      "arguments": {
+        "token": ")",
+        "position": 7
+      }
+    },
+    {
+      "name": "里层的函数名先于外层的右括号",
+      "expression": "(nope(1)",
+      "syntax": true,
+      "messageKey": "workflow.expression.unknown_function",
+      "arguments": {
+        "function": "nope"
+      }
+    },
+    {
+      "name": "函数名不认识时不再看实参个数",
+      "expression": "nope(1, 2, 3)",
+      "syntax": true,
+      "messageKey": "workflow.expression.unknown_function",
+      "arguments": {
+        "function": "nope"
+      }
+    },
+    {
+      "name": "没有这个变量",
+      "expression": "unknown",
+      "syntax": false,
+      "messageKey": "workflow.expression.unknown_variable",
+      "arguments": {
+        "name": "unknown"
+      }
+    },
+    {
+      "name": "全大写的 TRUE 是没有的变量",
+      "expression": "TRUE",
+      "syntax": false,
+      "messageKey": "workflow.expression.unknown_variable",
+      "arguments": {
+        "name": "TRUE"
+      }
+    },
+    {
+      "name": "调用的结果是字符串，不能读成员",
+      "expression": "lower(s).x",
+      "syntax": false,
+      "messageKey": "workflow.expression.member_of_non_object",
+      "arguments": {
+        "member": "x"
+      }
+    },
+    {
+      "name": "调用的结果是字符串，不能取索引",
+      "expression": "lower(s)[0]",
+      "syntax": false,
+      "messageKey": "workflow.expression.index_of_scalar",
+      "arguments": {}
+    }
+  ]
+}

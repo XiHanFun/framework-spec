@@ -67,6 +67,11 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `workflow/status-order.json` | 定义与实例的状态按生命周期先后的次序（列表按状态排序用它，不按字母序） | RFC-0021「定义」的「列表排序」 |
 | `workflow/keyword-matching.json` | 列表查询的关键字：去首尾空白、小写折叠、字段分隔符换成空格，按字面包含、不跨字段匹配；期望值由 .NET 算出 | RFC-0021「定义」的「关键字」 |
 | `workflow/workflow-event-topics.json` | 工作流发布的 25 个事件主题与信封的 `source` | RFC-0021「实例与执行」的「事件」 |
+| `workflow/expression-syntax.json` | 工作流表达式的词法与文法：数字与字符串字面量、空白、标识符、优先级与结合性、成员与索引与调用的写法，解析时的每一种错误与位置；期望值由 .NET 算出 | RFC-0021「表达式」的「词法」「文法」 |
+| `workflow/expression-operators.json` | 每个运算符与每种操作数的组合，数字的舍入与范围（96 位整数、0 到 28 位小数、一半取偶），数字文本，除以零与求值的先后，`+` 的拼接，相等，比较（时间文本按时刻），逻辑的短路，成员与索引；期望值由 .NET 算出 | RFC-0021「表达式」的「值」「运算符」「成员与索引」 |
+| `workflow/expression-functions.json` | 16 个内置函数的结果与错误，数字文本与时间文本合法与不合法的写法，`now()` 与 `date()` 的规范文本；期望值由 .NET 算出 | RFC-0021「表达式」的「内置函数」「时间」 |
+| `workflow/expression-templates.json` | `{{ 表达式 }}` 模板的渲染（占位的查找、结果的文本、引号里的 `}}`）与失败，表达式当条件求值；期望值由 .NET 算出 | RFC-0021「表达式」的「模板」「条件」 |
+| `workflow/expression-limits.json` | 表达式的长度（4000）与嵌套（64 层）上限两侧，链不算嵌套，拼接与渲染出的文本的上限（4194304）两侧，错误里带出的文本截到 200 个码元；长度都按 UTF-16 码元计；期望值由 .NET 算出 | RFC-0021「表达式」的「长度与上限」 |
 | `observability/host-usage.json` | 运行信息里两次采样求差的系统与进程 CPU 使用率、网卡速率（计数变小或总增量为零为空，百分比限制在 0–100、不取整），内存与磁盘的已用与使用率，采样间隔的取值范围；Linux 上由 `/proc/stat`、`/proc/meminfo`、`/proc/uptime`、`/proc/self/mounts` 的文本与 `/sys` 下的一组文件读出的 CPU 累计时间、内存、运行时长、块设备的挂载点、处理器与显卡；期望值由 .NET 算出 | RFC-0023「运行信息」的「契约」「采样」「平台读取路径」 |
 | `ai/ai-names.json` | Provider 名、提示词名与知识库集合名的文法（64 个字符的上限两侧），期望值由 .NET 算出 | RFC-0022「Provider 目录」 |
 | `ai/tool-names.json` | 工具名的文法（64 个字符的上限两侧），由操作 ID 推出的工具名（`-` 与 `.` 换 `_`，超过 64 个字符时前 55 个字符去掉结尾的 `_` 再加 `_` 与 SHA-256 的前 8 位）与描述的消息键，期望值由 .NET 算出 | RFC-0022「工具」 |
@@ -94,7 +99,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `rules/configuration.go` | 密钥名（`IsSecretName`）、远程配置文档的展平（`FlattenJSONConfiguration`、`FlattenPropertiesConfiguration`，JSON 的读取器照收注释与尾逗号，与 .NET 独立实现）与 Nacos 的内容版本（`ConfigurationContentVersion`） |
 | `rules/persistence.go` | 索引名（`IndexColumnAbbreviation`、`IndexName`、`IsExplicitIndexName`）、雪花标识（`ComposeSnowflakeID`、`ParseSnowflakeID`、`SnowflakeTime`、`SnowflakeWorkerLockResource`） |
 | `rules/auditing.go` | 排除列表（`IsAuditExclusion`、`AuditExcludes`）、事件的选择与结果（`SelectAuditEvent`）、主体与租户的归属（`AuditAttribution`） |
-| `rules/workflow.go` | 工作流里的名字（`IsWorkflowName`、`IsWorkflowElementID`、`IsActivityType`）、状态的次序（`WorkflowDefinitionStatuses`、`WorkflowInstanceStatuses`）、关键字的折叠与匹配（`NormalizeWorkflowKeyword`、`FoldWorkflowKeyword`、`WorkflowKeywordMatches`）、事件主题（`WorkflowEventTopics`） |
+| `rules/workflow.go` | 工作流里的名字（`IsWorkflowName`、`IsWorkflowElementID`、`IsActivityType`）、状态的次序（`WorkflowDefinitionStatuses`、`WorkflowInstanceStatuses`）、关键字的折叠与匹配（`NormalizeWorkflowKeyword`、`FoldWorkflowKeyword`、`WorkflowKeywordMatches`）、事件主题（`WorkflowEventTopics`）；表达式只有不必求值就能判的部分：上限与长度的算法（`MaxWorkflowExpressionLength` 等、`WorkflowExpressionLength`）、错误里带出的文本（`EchoWorkflowExpression`）、数字与时间的规范文本（`IsWorkflowNumberText`、`IsWorkflowTimeText`）、消息键与内置函数的名单（`WorkflowExpressionSyntaxErrors`、`WorkflowExpressionEvaluationErrors`、`WorkflowExpressionFunctions`）——表达式的求值由参考实现 .NET 回放五个 `expression-*.json` 核对，规则包不另实现一个求值器 |
 | `rules/observability.go`、`rules/hostlinux.go` | 运行信息的使用率与速率（`HostCPUUsage`、`HostProcessCPUUsage`、`HostRate`、`HostUsage`）与采样间隔的范围（`IsHostSampleInterval`）；Linux 上各项的取法（`LinuxCPUTimes`、`LinuxMemory`、`LinuxUptime`、`LinuxBlockDeviceMounts`、`LinuxProcessor`、`LinuxGPUs`，与 .NET 独立实现、回放同一份向量） |
 | `rules/ai.go` | AI 的名字（`IsAIName`）、工具名的文法（`IsAIToolName`）、操作工具名与描述键（`AIToolName`、`AIToolDescriptionKey`）、固定窗口分块（`ChunkFixedWindow`）、记录 ID 与默认集合（`KnowledgeRecordID`、`DefaultKnowledgeCollection`）、默认 Provider 名（`DefaultAIProviders`）、提示词模板的渲染（`RenderAIPrompt`） |
 
