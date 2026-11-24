@@ -225,7 +225,12 @@
       "title": "子系统：工作流持久化执行",
       "stability": "stable",
       "documents": ["rfcs/0021-workflow.md"],
-      "vectors": [],
+      "vectors": [
+        "workflow/keyword-matching.json",
+        "workflow/status-order.json",
+        "workflow/workflow-event-topics.json",
+        "workflow/workflow-names.json"
+      ],
       "runner": []
     },
     {

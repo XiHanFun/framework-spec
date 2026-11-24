@@ -1,0 +1,31 @@
+{
+  "$comment": "工作流发布的事件（RFC-0021「实例与执行」的「事件」，ADR-0277）：装配了 messaging.queue 时，引擎把实例、节点、待办与外部任务的变化作为 CloudEvents 信封发布，信封的 source 是 source，主题与 type 都是 topics 里的名字，共 25 个（workflow.custom 的 subject 是事件名）；每个名字都合主题文法（RFC-0009）。broker 关闭了自动建主题的部署要预先建好这些主题。期望值取自 .NET 参考实现（WorkflowTopics）的常量。",
+  "source": "/workflow",
+  "topics": [
+    "workflow.instance.started",
+    "workflow.instance.completed",
+    "workflow.instance.faulted",
+    "workflow.instance.canceled",
+    "workflow.instance.terminated",
+    "workflow.instance.suspended",
+    "workflow.instance.resumed",
+    "workflow.instance.jumped",
+    "workflow.instance.migrated",
+    "workflow.instance.timedout",
+    "workflow.node.executing",
+    "workflow.node.executed",
+    "workflow.node.faulted",
+    "workflow.task.created",
+    "workflow.task.completed",
+    "workflow.task.transferred",
+    "workflow.task.claimed",
+    "workflow.task.released",
+    "workflow.task.returned",
+    "workflow.task.urged",
+    "workflow.task.reminder",
+    "workflow.external.created",
+    "workflow.external.completed",
+    "workflow.external.failed",
+    "workflow.custom"
+  ]
+}

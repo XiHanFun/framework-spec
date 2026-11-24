@@ -774,3 +774,64 @@ func AuditExclusions() (AuditExclusionVectors, error) {
 func AuditEventSelection() (AuditEventSelectionVectors, error) {
 	return typed[AuditEventSelectionVectors]()
 }
+
+// WorkflowNameVectors 对应 workflow/workflow-names.json（RFC-0021「名字与值」，ADR-0277）：定义名、节点与转移的 ID、活动类型三条文法。
+type WorkflowNameVectors struct {
+	DefinitionNames NameGrammarVectors `json:"definitionNames"`
+	ElementIDs      NameGrammarVectors `json:"elementIds"`
+	ActivityTypes   NameGrammarVectors `json:"activityTypes"`
+}
+
+// WorkflowStatusOrderVectors 对应 workflow/status-order.json（RFC-0021「定义」的「列表排序」，ADR-0277）：两张表都按生命周期的先后升序。
+type WorkflowStatusOrderVectors struct {
+	Definition []string `json:"definition"`
+	Instance   []string `json:"instance"`
+}
+
+// WorkflowKeywordNormalization 是一个关键字与折叠之后用来匹配的文本：Keyword 为 nil 表示没有给，Normalized 为 nil 表示不过滤。
+type WorkflowKeywordNormalization struct {
+	Name       string  `json:"name"`
+	Keyword    *string `json:"keyword"`
+	Normalized *string `json:"normalized"`
+}
+
+// WorkflowKeywordMatch 是一个关键字、被搜的各个字段（nil 是没有值的字段）与是否匹配。
+type WorkflowKeywordMatch struct {
+	Name    string    `json:"name"`
+	Keyword string    `json:"keyword"`
+	Fields  []*string `json:"fields"`
+	Matches bool      `json:"matches"`
+}
+
+// WorkflowKeywordVectors 对应 workflow/keyword-matching.json（RFC-0021「定义」的「关键字」，ADR-0277）。
+type WorkflowKeywordVectors struct {
+	FieldSeparator string                         `json:"fieldSeparator"`
+	Normalize      []WorkflowKeywordNormalization `json:"normalize"`
+	Matches        []WorkflowKeywordMatch         `json:"matches"`
+}
+
+// WorkflowEventTopicVectors 对应 workflow/workflow-event-topics.json（RFC-0021「实例与执行」的「事件」，ADR-0277）。
+type WorkflowEventTopicVectors struct {
+	Source string   `json:"source"`
+	Topics []string `json:"topics"`
+}
+
+// WorkflowNames 读取工作流名字文法的向量。
+func WorkflowNames() (WorkflowNameVectors, error) {
+	return typed[WorkflowNameVectors]()
+}
+
+// WorkflowStatusOrder 读取工作流状态次序的向量。
+func WorkflowStatusOrder() (WorkflowStatusOrderVectors, error) {
+	return typed[WorkflowStatusOrderVectors]()
+}
+
+// WorkflowKeywords 读取列表查询关键字的折叠与匹配的向量。
+func WorkflowKeywords() (WorkflowKeywordVectors, error) {
+	return typed[WorkflowKeywordVectors]()
+}
+
+// WorkflowEventTopics 读取工作流事件主题的向量。
+func WorkflowEventTopics() (WorkflowEventTopicVectors, error) {
+	return typed[WorkflowEventTopicVectors]()
+}

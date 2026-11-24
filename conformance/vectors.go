@@ -624,6 +624,10 @@ var typedVectors = []TypedVector{
 	vectorFile[JobNameVectors]("scheduling/job-names.json"),
 	vectorFile[JobRetryDelayVectors]("scheduling/retry-delays.json"),
 	vectorFile[WebAuthnVectors]("security/webauthn.json"),
+	vectorFile[WorkflowKeywordVectors]("workflow/keyword-matching.json"),
+	vectorFile[WorkflowStatusOrderVectors]("workflow/status-order.json"),
+	vectorFile[WorkflowEventTopicVectors]("workflow/workflow-event-topics.json"),
+	vectorFile[WorkflowNameVectors]("workflow/workflow-names.json"),
 }
 
 // TypedVectors 返回向量文件表：每个向量文件一项，按 Names 的顺序。

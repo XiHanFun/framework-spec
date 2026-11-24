@@ -433,4 +433,50 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 		uniqueNames(t, "audit attribution", names)
 		return selection
 	},
+	"workflow/workflow-names.json": func(t *testing.T) any {
+		names, err := conformance.WorkflowNames()
+		if err != nil {
+			t.Errorf("workflow names: %v", err)
+		}
+		for group, grammar := range map[string]conformance.NameGrammarVectors{"definition names": names.DefinitionNames, "element ids": names.ElementIDs, "activity types": names.ActivityTypes} {
+			if grammar.MaxLength <= 0 || len(grammar.Valid) == 0 || len(grammar.Invalid) == 0 {
+				t.Errorf("workflow %s must have a limit, valid and invalid samples", group)
+			}
+		}
+		return names
+	},
+	"workflow/status-order.json": func(t *testing.T) any {
+		order, err := conformance.WorkflowStatusOrder()
+		if err != nil || len(order.Definition) != 4 || len(order.Instance) != 6 {
+			t.Errorf("workflow status order: %v", err)
+		}
+		return order
+	},
+	"workflow/keyword-matching.json": func(t *testing.T) any {
+		keywords, err := conformance.WorkflowKeywords()
+		if err != nil || keywords.FieldSeparator == "" || len(keywords.Normalize) == 0 || len(keywords.Matches) == 0 {
+			t.Errorf("workflow keywords: %v", err)
+		}
+		var names []string
+		for _, c := range keywords.Normalize {
+			names = append(names, c.Name)
+		}
+		uniqueNames(t, "workflow keyword normalization", names)
+		names = nil
+		for _, c := range keywords.Matches {
+			names = append(names, c.Name)
+			if c.Keyword == "" || len(c.Fields) == 0 {
+				t.Errorf("workflow keyword case %q must have a keyword and fields", c.Name)
+			}
+		}
+		uniqueNames(t, "workflow keyword matches", names)
+		return keywords
+	},
+	"workflow/workflow-event-topics.json": func(t *testing.T) any {
+		events, err := conformance.WorkflowEventTopics()
+		if err != nil || events.Source == "" || len(events.Topics) != 25 {
+			t.Errorf("workflow event topics: %v", err)
+		}
+		return events
+	},
 }

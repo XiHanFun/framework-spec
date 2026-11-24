@@ -1,0 +1,17 @@
+{
+  "$comment": "工作流状态的次序（RFC-0021「定义」的「列表排序」，ADR-0103、ADR-0162、ADR-0277）：按状态排序时按生命周期的先后比较，不按状态名的字母序。definition 是定义的状态、instance 是实例的状态，都按升序列出；降序反过来，同状态的再按后面的排序项与次序键。各存储共用这一份次序，新增状态要在 RFC 里定它的位置。期望值由 .NET 参考实现（WorkflowStatusOrder.Of）算出。",
+  "definition": [
+    "Draft",
+    "Published",
+    "Disabled",
+    "Archived"
+  ],
+  "instance": [
+    "Running",
+    "Suspended",
+    "Completed",
+    "Canceled",
+    "Faulted",
+    "Terminated"
+  ]
+}

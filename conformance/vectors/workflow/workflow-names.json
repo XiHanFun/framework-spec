@@ -1,0 +1,104 @@
+{
+  "$comment": "工作流里名字的文法（RFC-0021「名字与值」，ADR-0277），都按整串匹配、结尾的换行不例外，都区分大小写。definitionNames：定义名 ^[a-z0-9][a-z0-9._-]{0,127}$，与消息主题同一条文法。elementIds：节点 ID 与转移 ID ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$。activityTypes：活动类型 ^[A-Za-z][A-Za-z0-9._-]{0,63}$，字母开头（内置活动用 PascalCase 名，如 Start、UserTask）。每组的 valid 必须接受，invalid 必须拒绝；valid 的末项正好到 maxLength 个字符，invalid 的末两项多一个字符与远超上限、别处都合文法。期望值由 .NET 参考实现（WorkflowName.IsValid、WorkflowIdentifiers.IsValidElementId、ActivityType.IsValid）算出。",
+  "definitionNames": {
+    "maxLength": 128,
+    "valid": [
+      "leave-request",
+      "order.approval",
+      "purchase_order",
+      "a",
+      "0",
+      "2fa-reset",
+      "a..b",
+      "a-",
+      "w012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789abcdefg"
+    ],
+    "invalid": [
+      "",
+      "LeaveRequest",
+      "leave Request",
+      ".leave",
+      "-leave",
+      "_leave",
+      "leave/request",
+      "leave:request",
+      "leave@v2",
+      "leave\n",
+      " leave",
+      "请假",
+      "léave",
+      "w012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789abcdefgh",
+      "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww"
+    ]
+  },
+  "elementIds": {
+    "maxLength": 64,
+    "valid": [
+      "start",
+      "Start",
+      "approve_1",
+      "node-2",
+      "N1",
+      "1",
+      "to.end",
+      "A",
+      "t1-t2",
+      "a..b",
+      "a-",
+      "N012345678901234567890123456789012345678901234567890123456789abc"
+    ],
+    "invalid": [
+      "",
+      ".start",
+      "-start",
+      "_start",
+      "start node",
+      " start",
+      "start ",
+      "start\n",
+      "start/end",
+      "start:end",
+      "start#1",
+      "开始",
+      "stärt",
+      "N012345678901234567890123456789012345678901234567890123456789abcd",
+      "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+    ]
+  },
+  "activityTypes": {
+    "maxLength": 64,
+    "valid": [
+      "Start",
+      "UserTask",
+      "End",
+      "SendEmail",
+      "acme.SendEmail",
+      "http",
+      "Http",
+      "A",
+      "a",
+      "Custom_1",
+      "Step-2",
+      "A.",
+      "A012345678901234567890123456789012345678901234567890123456789abc"
+    ],
+    "invalid": [
+      "",
+      "1Step",
+      "9",
+      ".Step",
+      "-Step",
+      "_Step",
+      "Send Email",
+      " Start",
+      "Start ",
+      "Start\n",
+      "Send/Email",
+      "Send:Email",
+      "发送",
+      "Senð",
+      "A012345678901234567890123456789012345678901234567890123456789abcd",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    ]
+  }
+}

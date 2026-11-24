@@ -1,0 +1,213 @@
+{
+  "$comment": "列表查询的关键字（RFC-0021「定义」的「关键字」，ADR-0096、ADR-0099、ADR-0277）：定义、实例与待办的列表查询都按这一套规则匹配关键字。normalize：keyword 是调用方给的关键字（null 表示没有给），normalized 是折叠之后用来匹配的文本，null 表示不按关键字过滤——关键字去掉首尾空白，为空或只有空白不过滤；再折叠：不变文化的小写，字段分隔符 U+001F 换成空格。matches：fields 是被搜的各个字段（null 表示这个字段没有值），关键字与字段都折叠之后按序数判断包含，任一字段包含即匹配，不跨字段匹配；关键字里的 %、_、[、\\ 按字面匹配，与全角的同形字符是不同的字符。字母都在基本多文种平面之内：平面以外的字母怎么折叠正文没有写。期望值由 .NET 参考实现（WorkflowKeyword.Normalize、WorkflowKeyword.Matches）算出。",
+  "fieldSeparator": "\u001f",
+  "normalize": [
+    {
+      "name": "普通的词",
+      "keyword": "Leave",
+      "normalized": "leave"
+    },
+    {
+      "name": "去掉首尾空白",
+      "keyword": "  leave request \t",
+      "normalized": "leave request"
+    },
+    {
+      "name": "小写折叠",
+      "keyword": "LEAVE Request",
+      "normalized": "leave request"
+    },
+    {
+      "name": "非 ASCII 字母同样小写",
+      "keyword": "Été ЖУК",
+      "normalized": "été жук"
+    },
+    {
+      "name": "全角字母同样小写",
+      "keyword": "ＡＢＣ",
+      "normalized": "ａｂｃ"
+    },
+    {
+      "name": "汉字不变",
+      "keyword": "请假审批",
+      "normalized": "请假审批"
+    },
+    {
+      "name": "通配字符按字面保留",
+      "keyword": "50%_[a]\\",
+      "normalized": "50%_[a]\\"
+    },
+    {
+      "name": "字段分隔符 U+001F 换成空格",
+      "keyword": "a\u001fb",
+      "normalized": "a b"
+    },
+    {
+      "name": "空串不过滤",
+      "keyword": "",
+      "normalized": null
+    },
+    {
+      "name": "只有空白不过滤",
+      "keyword": " \t ",
+      "normalized": null
+    },
+    {
+      "name": "没有给关键字不过滤",
+      "keyword": null,
+      "normalized": null
+    }
+  ],
+  "matches": [
+    {
+      "name": "包含即匹配",
+      "keyword": "leave",
+      "fields": [
+        "Annual leave request"
+      ],
+      "matches": true
+    },
+    {
+      "name": "不区分大小写",
+      "keyword": "LEAVE",
+      "fields": [
+        "annual Leave request"
+      ],
+      "matches": true
+    },
+    {
+      "name": "任一字段包含即匹配",
+      "keyword": "acme",
+      "fields": [
+        "Leave request",
+        null,
+        "corr-ACME-42"
+      ],
+      "matches": true
+    },
+    {
+      "name": "都不包含",
+      "keyword": "expense",
+      "fields": [
+        "Leave request",
+        "leave-request"
+      ],
+      "matches": false
+    },
+    {
+      "name": "不跨字段匹配",
+      "keyword": "request leave",
+      "fields": [
+        "Annual leave request",
+        "leave-request"
+      ],
+      "matches": false
+    },
+    {
+      "name": "不跨字段：关键字里的分隔符换成了空格",
+      "keyword": "a\u001fb",
+      "fields": [
+        "a",
+        "b"
+      ],
+      "matches": false
+    },
+    {
+      "name": "字段里的分隔符同样换成空格",
+      "keyword": "a b",
+      "fields": [
+        "a\u001fb"
+      ],
+      "matches": true
+    },
+    {
+      "name": "% 按字面匹配：有它才匹配",
+      "keyword": "50%",
+      "fields": [
+        "discount 50% off"
+      ],
+      "matches": true
+    },
+    {
+      "name": "% 不是通配符",
+      "keyword": "5%f",
+      "fields": [
+        "discount 50% off"
+      ],
+      "matches": false
+    },
+    {
+      "name": "_ 按字面匹配",
+      "keyword": "a_b",
+      "fields": [
+        "a_b"
+      ],
+      "matches": true
+    },
+    {
+      "name": "_ 不是通配符",
+      "keyword": "a_b",
+      "fields": [
+        "axb"
+      ],
+      "matches": false
+    },
+    {
+      "name": "[ 按字面匹配",
+      "keyword": "[draft]",
+      "fields": [
+        "report [draft] v2"
+      ],
+      "matches": true
+    },
+    {
+      "name": "[ 不是字符集",
+      "keyword": "[ab]",
+      "fields": [
+        "a"
+      ],
+      "matches": false
+    },
+    {
+      "name": "反斜线按字面匹配",
+      "keyword": "c:\\temp",
+      "fields": [
+        "path C:\\Temp\\x"
+      ],
+      "matches": true
+    },
+    {
+      "name": "全角的 ％ 与半角的 % 是不同的字符",
+      "keyword": "50％",
+      "fields": [
+        "discount 50% off"
+      ],
+      "matches": false
+    },
+    {
+      "name": "首尾空白先去掉",
+      "keyword": "  leave  ",
+      "fields": [
+        "leave"
+      ],
+      "matches": true
+    },
+    {
+      "name": "没有可搜的字段",
+      "keyword": "leave",
+      "fields": [
+        null,
+        null
+      ],
+      "matches": false
+    },
+    {
+      "name": "汉字",
+      "keyword": "审批",
+      "fields": [
+        "请假审批单"
+      ],
+      "matches": true
+    }
+  ]
+}

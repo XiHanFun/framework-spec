@@ -61,6 +61,10 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `persistence/snowflake-ids.json` | 雪花标识的位布局：由毫秒数、机器位与序列合成标识，由标识还原三段与时刻（含超过 2^53 的值），超出范围的三段；期望值由 .NET 算出 | RFC-0005「雪花标识」 |
 | `auditing/exclusions.json` | 审计排除列表的项（操作 ID 或以 `*` 结尾的前缀）合法与不合法的样例，操作是否命中排除列表；期望值由 .NET 算出 | RFC-0015「事件的产生」 |
 | `auditing/event-selection.json` | 一次调用是否记成审计事件：选择规则、显式动作、排除、结果的来源与 `IncludeSuccesses`，事件的主体与租户取自哪里；期望值由 .NET 算出 | RFC-0015「事件的产生」 |
+| `workflow/workflow-names.json` | 工作流定义名、节点与转移的 ID、活动类型三条文法的合法与不合法样例（各自的上限两侧），期望值由 .NET 算出 | RFC-0021「名字与值」 |
+| `workflow/status-order.json` | 定义与实例的状态按生命周期先后的次序（列表按状态排序用它，不按字母序） | RFC-0021「定义」的「列表排序」 |
+| `workflow/keyword-matching.json` | 列表查询的关键字：去首尾空白、小写折叠、字段分隔符换成空格，按字面包含、不跨字段匹配；期望值由 .NET 算出 | RFC-0021「定义」的「关键字」 |
+| `workflow/workflow-event-topics.json` | 工作流发布的 25 个事件主题与信封的 `source` | RFC-0021「实例与执行」的「事件」 |
 | `security/webauthn.json` | WebAuthn 注册与认证的样例响应、存储的凭据与期望结果（成功的凭据与签名计数，失败的错误码与 `reason`） | RFC-0008「WebAuthn」 |
 | `provider/caching-distributed.json` | `caching.distributed@1` 远程 Provider 的操作 ID（含批量）、请求 / 响应样例、非法键与选项 | `provider/caching-distributed.md` |
 
@@ -82,6 +86,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `rules/configuration.go` | 密钥名（`IsSecretName`）、远程配置文档的展平（`FlattenJSONConfiguration`、`FlattenPropertiesConfiguration`）与 Nacos 的内容版本（`ConfigurationContentVersion`） |
 | `rules/persistence.go` | 索引名（`IndexColumnAbbreviation`、`IndexName`、`IsExplicitIndexName`）、雪花标识（`ComposeSnowflakeID`、`ParseSnowflakeID`、`SnowflakeTime`、`SnowflakeWorkerLockResource`） |
 | `rules/auditing.go` | 排除列表（`IsAuditExclusion`、`AuditExcludes`）、事件的选择与结果（`SelectAuditEvent`）、主体与租户的归属（`AuditAttribution`） |
+| `rules/workflow.go` | 工作流里的名字（`IsWorkflowName`、`IsWorkflowElementID`、`IsActivityType`）、状态的次序（`WorkflowDefinitionStatuses`、`WorkflowInstanceStatuses`）、关键字的折叠与匹配（`NormalizeWorkflowKeyword`、`FoldWorkflowKeyword`、`WorkflowKeywordMatches`）、事件主题（`WorkflowEventTopics`） |
 
 ## 黑盒运行器（`cmd/xihan-conformance`）
 
