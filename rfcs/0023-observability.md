@@ -1,6 +1,6 @@
 # RFC-0023 可观测性：导出与运行信息
 
-> 状态：已采纳（2026-11-02 修订：运行进程的用户名照常打印；2026-11-24 修订：一致性向量） | 日期：2026-10-30 | 对应 ADR：ADR-0056、ADR-0093（用户名不遮蔽）、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry` | 一致性：无行为套件（读的是所在机器，按平台写用例）；向量 `conformance/vectors/observability/host-usage.json` | 一致性档：`observability`
+> 状态：已采纳（2026-11-02 修订：运行进程的用户名照常打印；2026-11-24 修订：一致性向量；同日再修订：新增「内核的遥测」，操作调用的 Span 与指标带操作 ID） | 日期：2026-10-30 | 对应 ADR：ADR-0056、ADR-0093（用户名不遮蔽）、ADR-0269（内核的遥测）、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry`、`XiHan.Framework.Kernel`（`FrameworkDiagnostics`、`ObserveMiddleware`） | 一致性：无行为套件（读的是所在机器，按平台写用例）；向量 `conformance/vectors/observability/host-usage.json` | 一致性档：`observability`
 
 ## 摘要
 
@@ -22,6 +22,28 @@
 - 追踪、指标、日志三类信号各有开关，默认订阅框架、ASP.NET Core、`System.Net.Http` 与 `System.Runtime` 的源与仪表，配置可追加。
 - 配置了端点（或标准环境变量）才启用 OTLP 导出器；没有配置就不导出，不向本机空端口重试。协议只与端点一起配置：`Otlp:Protocol` 写了而 `Otlp:Endpoint` 没写时装配失败（参数异常），不静默忽略；只靠标准环境变量启用时，端点与协议都按 `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_PROTOCOL` 与默认端口决定。
 - 采样比例只作用于根 Span，有上游 trace 的沿用上游决定。内核的 `xihan.invoke` 同样遵守（RFC-0003 规则 7）：有上游（`traceparent`、宿主当前的 Activity）时沿用它的采样标志，上游「不采样」就不采样；没有上游时它是根 Span，按 `SamplingRatio` 采样，trace-id 与调用上下文的一致。
+
+## 内核的遥测
+
+内核发出下列信号（2026-11-24 写明，ADR-0269；以前正文只在上一节与 RFC-0003 规则 7 提到 `xihan.invoke`，两个指标的名字、各信号的标签与取值没有写），源与仪表的名字都是 `XiHan.Framework`（.NET：`FrameworkDiagnostics` 的 ActivitySource 与 Meter）：
+
+| 信号 | 名字 | 内容 |
+| --- | --- | --- |
+| Span | `xihan.invoke` | Observe 阶段为每次经管道的调用记一条，种类 Internal；父级与采样按 RFC-0003 规则 7 |
+| Span | `xihan.plugin.invoke` | 宿主调用插件的操作、向插件投递事件时各记一条，种类 Client；进程外与 Wasm 插件相同（`plugin/invocation.md` §6） |
+| 计数器 | `xihan.invocations` | 单位 `{invocation}`，每次经管道的调用记一次 |
+| 直方图 | `xihan.invocation.duration` | 单位 `ms`，每次经管道的调用的耗时 |
+
+| 标签 | 取值 | 带在哪里 |
+| --- | --- | --- |
+| `xihan.outcome` | `success`、`failure`，管道没有写结果时为 `unset` | `xihan.invoke` 与两个指标 |
+| `xihan.operation` | 操作 ID | 操作调用的 `xihan.invoke`、两个指标与 `xihan.plugin.invoke` |
+| `xihan.plugin.id` | 插件的清单 ID | `xihan.plugin.invoke` |
+
+1. `xihan.operation` 只取登记表里操作描述的 ID，取值因此以操作登记表的容量为界。不是操作调用时（消息处理器、作业、直接交给调用器的处理器、没有匹配到操作端点的请求）不带这个标签，不以占位值顶替；主题、作业名、请求路径不进标签。按 ID 找不到操作的调用不进管道（`KERNEL_NOTFOUND_001`），没有 Span 与指标。
+2. 操作 ID 在创建 Span 时给出，采样器可据此采样。它在进入 Observe 阶段时读：处理器在同一个上下文上再发起调用不改外层的维度。
+3. 调用的结果是失败时 Span 的状态为 Error，说明是错误码。
+4. 没有监听器时不创建 Span，没有人订阅的仪表不记录。
 
 ## 运行信息
 
@@ -95,4 +117,4 @@
 
 向量（档 `observability`，2026-11-24，ADR-0277；以前这个档没有向量）：`conformance/vectors/observability/host-usage.json`——「采样」一节的三条公式（系统 CPU 使用率、进程 CPU 使用率、网卡速率）连同计数变小、总增量为零与没有读到时为空、百分比限制在 0–100 且不取整，「契约」一节里内存与磁盘由总量算出的已用与使用率，以及采样间隔的取值范围。
 
-这个档没有行为一致性套件：其余的规范性内容——各平台的读取路径、读不到的项为空、读取不阻塞不抛出、导出器的装配——读的是所在机器与运行中的后端，输入不由用例给出，由各实现按平台写用例核对（参考实现在 `Observability.Host.Tests` 与 `Observability.OpenTelemetry.Tests`）。`/proc/stat`、`/proc/meminfo` 等文件的解析没有收进向量：正文只给了读哪个文件的哪一项，没有逐字段给出取法（如 CPU 的空闲是否计入 `iowait`）。
+这个档没有行为一致性套件：其余的规范性内容——各平台的读取路径、读不到的项为空、读取不阻塞不抛出、导出器的装配——读的是所在机器与运行中的后端，输入不由用例给出，由各实现按平台写用例核对（参考实现在 `Observability.Host.Tests` 与 `Observability.OpenTelemetry.Tests`）。「内核的遥测」同样没有向量，由各实现用进程内的监听器核对（参考实现在 `Kernel.Tests` 的 `ObserveTelemetryTests`、`ObserveTracingTests` 与插件宿主的 `PluginTracingTests`）。`/proc/stat`、`/proc/meminfo` 等文件的解析没有收进向量：正文只给了读哪个文件的哪一项，没有逐字段给出取法（如 CPU 的空闲是否计入 `iowait`）。

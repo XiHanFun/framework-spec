@@ -123,7 +123,11 @@
 ## 6. 日志与诊断
 
 - 插件日志写 stderr，一行一条；宿主逐行转为日志（来源 `plugins.<清单 ID>`）。以 `{` 开头且能解析为 JSON 对象的行按结构化日志处理：`level`（`trace` / `debug` / `information` / `warning` / `error` / `critical`）、`message`、其余字段为作用域属性。
-- 宿主为每次 `Invoke` / `InvokeStream` / `HandleEvent` 记录内核的 `xihan.invoke` Span 子 Span `xihan.plugin.invoke`，标签 `xihan.plugin.id`、`xihan.operation`。
+- 宿主为每次 `Invoke` / `InvokeStream` / `HandleEvent` 记录一条 Span `xihan.plugin.invoke`（种类 Client，与 `xihan.invoke` 同一个源，RFC-0023「内核的遥测」；2026-11-24 修订，ADR-0269，以前只写它是 `xihan.invoke` 的子 Span、带 `xihan.plugin.id` 与 `xihan.operation` 两个标签，.NET 没有记这条 Span）：
+  - 父级按 RFC-0003 规则 7 取：管道里有 Observe 阶段的 `xihan.invoke` 时是它的子 Span；没有时以上下文的上游为远端父级，或作为这条链路的根，上游「不采样」时不开。
+  - 标签在创建时给出：`xihan.plugin.id`（插件的清单 ID）；`Invoke` / `InvokeStream` 另带 `xihan.operation`（操作 ID），`HandleEvent` 不带，主题不进标签。
+  - 状态：宿主一侧的结果是失败（插件报的业务失败、插件不可用、传输失败）时为 Error，说明是错误码；调用抛出（取消、载体的故障）时为 Error，说明只写异常类型的全名；成功时留空。
+  - 它覆盖等插件可用与调用本身。宿主在它之内组装 `InvocationMetadata`，`trace_parent` 因此以它为父级（RFC-0003 规则 7「写出」），插件一侧的 Span 与插件原样带回的回调都挂在它下面；没有开这条 Span（没有监听器、不采样）时 `trace_parent` 照规则 7 取 `xihan.invoke` 或上下文的。
 
 ## 7. 一致性
 
