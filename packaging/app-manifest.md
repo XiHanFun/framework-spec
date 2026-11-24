@@ -16,7 +16,7 @@
 | `ports.http` | 否 | `8080` | 1–65535 |
 | `ports.grpc` | 否 | — | 1–65535，且不等于 `http`；有值时暴露 h2c 端点 |
 | `bindings.<name>.type` | 是（有绑定时） | — | `connection:relational` / `cache:distributed` / `queue` / `blob` / `stream` / `configuration:remote` |
-| `bindings.<name>.secret` | 否 | `<app>-<name>` | k8s Secret 名 |
+| `bindings.<name>.secret` | 否 | `<app>-<name>` | k8s Secret 名，DNS 标签（文法同 `name`） |
 | `config.mountPath` | 否 | `/etc/xihan` | 绝对路径 |
 | `config.files` | 否 | `[]` | 文件名（无目录分隔符），存在时内容进 ConfigMap，否则为 `{}`。ConfigMap 不加密、读得到它的人多，JSON 文件里有带值的凭据键（名字按 RFC-0014「选项里的凭据」，外加 `ConnectionStrings` 节）时 `pack` 生成 kustomize 失败 `CLI_VALIDATION_007`，列出文件与键的路径、不带值；凭据走绑定的 Secret 或环境变量（2026-11-13 修订，ADR-0222） |
 | `probes.startupSeconds` | 否 | `60` | ≥ `periodSeconds` |
@@ -26,10 +26,24 @@
 | `resources.requests` / `limits` | 否 | — | `cpu`、`memory` 为 k8s 数量（`500m`、`512Mi`） |
 | `replicas` | 否 | `1` | ≥ 1 |
 | `scaling.min` / `max` / `cpuPercent` | 否 | — | `min` ≥ 1，`max` ≥ `min`，`cpuPercent` 1–100；有值时生成 HPA |
-| `leader.lease` | 否 | — | DNS 标签；有值时生成 Lease 的 RBAC |
+| `leader.lease` | 否 | — | DNS 标签（文法同 `name`）；有值时生成 Lease 的 RBAC |
 | `environment` | 否 | `{}` | 环境变量，键 `^[A-Za-z_][A-Za-z0-9_]*$` |
 
 绑定名与 `environment` 的键都区分大小写；绑定名 `^[a-z][a-z0-9-]*$`。
+
+### Schema 之外的约束
+
+`app.schema.json` 核对的是单个字段的形状，上表里它表达得了的约束都已写进去（2026-11-24 修订，ADR-0276；以前 Schema 比上表宽：`name` 只写了 `^[a-z][a-z0-9-]{0,62}$`，没有「不以 `-` 结尾」，`bindings.<name>.secret` 与 `leader.lease` 用的是同一个正则，以 `-` 结尾的名字过得了 Schema，`xihan pack` 才拒绝）。三处的 DNS 标签在 Schema 里是 `^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`，与「`^[a-z][a-z0-9-]{0,62}$`，不以 `-` 结尾」等价；`bindings.<name>.secret` 与 `leader.lease` 是 DNS 标签同日写明，参考实现一直这样核对。
+
+下面这些 JSON Schema 表达不了（两个成员之间的比较、连同缺省值的比较、文件系统与文件内容），过了 Schema 的清单仍要由 `xihan pack` 读取时核对，不合即 `CLI_VALIDATION_001`：
+
+- `project` 指向的项目文件与 `build.context` 指向的目录存在。
+- `ports.grpc` 不等于 `ports.http`；没写 `http` 时与缺省的 `8080` 比。
+- `probes.startupSeconds` 不小于 `probes.periodSeconds`；没写的一边取缺省值（`{"periodSeconds": 120}` 因此不合法）。
+- `scaling.max` 不小于 `scaling.min`。
+- `config.files` 里的 JSON 文件不带有值的凭据键（上表，`CLI_VALIDATION_007`）。
+
+规范仓库的 `tools/speccheck` 为上表的每一行备了 Schema 必须拒绝的例子，也备了这几条 Schema 放行、要靠读取核对的例子。
 
 ## 映射
 

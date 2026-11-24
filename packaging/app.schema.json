@@ -8,7 +8,7 @@
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
-    "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$", "description": "DNS 标签；镜像、k8s 资源与 Compose 项目的默认名" },
+    "name": { "$ref": "#/$defs/dnsLabel", "description": "DNS 标签；镜像、k8s 资源与 Compose 项目的默认名" },
     "project": { "type": "string", "minLength": 1, "description": "相对清单所在目录的项目文件" },
     "profile": { "enum": ["minimal", "standard", "full"], "default": "standard" },
     "build": {
@@ -42,7 +42,7 @@
         "additionalProperties": false,
         "properties": {
           "type": { "enum": ["connection:relational", "cache:distributed", "queue", "blob", "stream", "configuration:remote"] },
-          "secret": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" }
+          "secret": { "$ref": "#/$defs/dnsLabel", "description": "k8s Secret 名，DNS 标签" }
         }
       }
     },
@@ -91,7 +91,7 @@
       "type": "object",
       "required": ["lease"],
       "additionalProperties": false,
-      "properties": { "lease": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" } }
+      "properties": { "lease": { "$ref": "#/$defs/dnsLabel", "description": "Lease 名，DNS 标签" } }
     },
     "environment": {
       "type": "object",
@@ -100,6 +100,11 @@
     }
   },
   "$defs": {
+    "dnsLabel": {
+      "type": "string",
+      "pattern": "^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$",
+      "description": "DNS 标签：小写字母开头，只含小写字母、数字与连字符，不以连字符结尾，最长 63 个字符（app-manifest.md 写作 ^[a-z][a-z0-9-]{0,62}$ 且不以 - 结尾）"
+    },
     "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
     "quantity": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(m|k|Ki|M|Mi|G|Gi|T|Ti)?$" },
     "quantities": {
