@@ -1,6 +1,6 @@
 # RFC-0001 原语层
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配；2026-11-19 修订：.NET 的 Result 与 Error 线上编码在内核的 `ResultJson`；同日再修订：`Error` 的文案不能只有空白，空白字符写死；2026-11-24 修订：收调用上下文的契约不另收取消令牌；同日再修订：.NET 映射补上 `DeadlineText` 与 `ActivationEvent`） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236、0244（.NET 的线上编码）、0263、0278（截止时间文本与激活事件的 .NET 类型） | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配；2026-11-19 修订：.NET 的 Result 与 Error 线上编码在内核的 `ResultJson`；同日再修订：`Error` 的文案不能只有空白，空白字符写死；2026-11-24 修订：收调用上下文的契约不另收取消令牌；同日再修订：.NET 映射补上 `DeadlineText` 与 `ActivationEvent`；同日第三次修订：JSON 文本的共同检查覆盖消息信封，.NET 映射补上 `TimestampText` 与内核的 `JsonText`） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236、0244（.NET 的线上编码）、0263、0278（截止时间文本与激活事件的 .NET 类型）、0283（时间戳文本与 JSON 文本检查的 .NET 入口） | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
 
 ## 摘要
 
@@ -80,7 +80,7 @@ public readonly record struct Result<T>
 
 ### JSON 文本
 
-XiHan 读取的 JSON 文本（Result 与 Error 的线上编码、操作载荷、清单）先过同一遍检查，任一条不满足即不合法（2026-11-16 写明，ADR-0236）：
+XiHan 读取的 JSON 文本（Result 与 Error 的线上编码、操作载荷、清单、消息信封的结构化 JSON）先过同一遍检查，任一条不满足即不合法（2026-11-16 写明，ADR-0236；消息信封是 2026-11-24 加进来的，见 RFC-0009「信封」，ADR-0283）：
 
 - 语法按 RFC 8259：不允许注释、尾逗号、单引号、`NaN` / `Infinity`、前导零、正号与多个根值；空文本与只有空白也不是 JSON。文本按 UTF-8 编码，开头的 BOM 是语法错误。
 - 嵌套不超过 64 层，最外层的对象或数组是第 1 层。
@@ -88,7 +88,7 @@ XiHan 读取的 JSON 文本（Result 与 Error 的线上编码、操作载荷、
 - 任何一层都不能有重复的成员名。名字按转义还原后逐个 UTF-16 码元比较，`"a"` 与 `"\u0061"` 重复；大小写不同不算重复。
 - 语法错误不论出现在哪里都优先于重复成员。报告位置时，语法错误只写 `$`（各语言的解析器报告的位置不同），重复成员写第一处重复（第二次出现的成员）的路径，写法同 RFC-0011 规则 2。
 
-向量 `conformance/vectors/primitives/json-text.json`；Go 一致性模块的 `rules.CheckJSONText` 是同一检查的独立实现。以前各语言的解析器对这些输入各有取舍：Go 与 JavaScript 接受孤立的代理项，Python 接受很深的嵌套，System.Text.Json 不查未知成员里的重复成员。
+向量 `conformance/vectors/primitives/json-text.json`；Go 一致性模块的 `rules.CheckJSONText` 是同一检查的独立实现，.NET 的是内核的 `JsonText.Check`（`XiHan.Framework.Kernel.Json`，内核之外读这类文本的包也用它，ADR-0283）。以前各语言的解析器对这些输入各有取舍：Go 与 JavaScript 接受孤立的代理项，Python 接受很深的嵌套，System.Text.Json 不查未知成员里的重复成员。
 
 ### 文法的匹配
 
@@ -243,6 +243,12 @@ public static class DeadlineText
 {
     public static bool TryParse(string? text, out DateTimeOffset deadline);   // 整串匹配，不裁剪首尾空白；读不出为 false；读出的时刻偏移为零，比 100 纳秒细的小数截断
     public static string Format(DateTimeOffset deadline);                      // UTC、七位小数、+00:00 偏移
+}
+
+// 时间戳文本的解析（2026-11-24 增补，ADR-0283）：RFC-0003 规则 8 的读法只有这一份实现，DeadlineText.TryParse 转给它，消息信封的 time（RFC-0009「信封」）也用它
+public static class TimestampText
+{
+    public static bool TryParse(string? text, out DateTimeOffset timestamp);   // 整串匹配，不裁剪首尾空白；读不出为 false；读出的时刻偏移为零，比 100 纳秒细的小数截断
 }
 ```
 

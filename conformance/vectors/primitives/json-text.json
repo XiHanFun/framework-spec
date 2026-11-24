@@ -1,5 +1,5 @@
 {
-  "$comment": "XiHan 读取 JSON 文本的共同检查（RFC-0001「JSON 文本」，ADR-0236），Result 与 Error 的线上编码、操作载荷与清单都先过这一遍。text 是原文（按 UTF-8 编码），hex 是原始字节。expect：valid 通过；syntax 不是 JSON（RFC 8259 之外的写法、BOM、嵌套超过 64 层、非法 UTF-8、孤立的代理项转义），不论出现在哪里都优先于重复成员，路径只写 $；duplicate 是任何一层有重复成员（按转义还原后的名字比较），path 是第一处重复（第二次出现的成员）的路径。期望值由 .NET 参考实现算出",
+  "$comment": "XiHan 读取 JSON 文本的共同检查（RFC-0001「JSON 文本」，ADR-0236），Result 与 Error 的线上编码、操作载荷、清单与消息信封的结构化 JSON 都先过这一遍。text 是原文（按 UTF-8 编码），hex 是原始字节。expect：valid 通过；syntax 不是 JSON（RFC 8259 之外的写法、BOM、嵌套超过 64 层、非法 UTF-8、孤立的代理项转义），不论出现在哪里都优先于重复成员，路径只写 $；duplicate 是任何一层有重复成员（按转义还原后的名字比较），path 是第一处重复（第二次出现的成员）的路径。期望值由 .NET 参考实现算出",
   "cases": [
     {
       "name": "空对象",

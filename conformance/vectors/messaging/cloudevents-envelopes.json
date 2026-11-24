@@ -1,5 +1,5 @@
 {
-  "$comment": "消息信封的 CloudEvents 1.0 结构化 JSON 编码（application/cloudevents+json；RFC-0009「信封」，protocol/cloudevents.md「信封映射」与「入站」，ADR-0277）。valid：必须读得出的文档，text 是原文，expected 是读出的信封——id、source、type；time 是 UTC 时刻（RFC 3339，按时刻比较，null 表示没有）；subject（null 表示没有）；datacontenttype（文档不写时是 application/json）；data 是内联的 JSON 数据（按 JSON 值比较，不比较空白与成员顺序），dataBase64 是 data_base64 里的字节（标准 Base64），两者都没有表示没有数据；extensions 是扩展属性（规范属性之外的顶层成员，名字到字符串值）。编码是反过来的同一张对应：JSON 数据内联在 data，其他数据放 data_base64，扩展属性写成顶层成员，specversion 写 1.0；实现把 expected 编码再解码必须得到同一个信封。invalid：必须拒绝的文档，错误码都是 code（规范版本、必填属性、时间、扩展属性名与 Base64 五类，加上不是 JSON 对象的文本）。没有收进来的写法见 RFC-0009「一致性」：RFC 3339 之外的时间写法、扩展属性的非字符串值、data 与 data_base64 同时出现、重复的成员。期望值由 .NET 参考实现（CloudEventsFormat.Decode）算出。",
+  "$comment": "消息信封的 CloudEvents 1.0 结构化 JSON 编码（application/cloudevents+json；RFC-0009「信封」，protocol/cloudevents.md「信封映射」与「入站」，ADR-0277、ADR-0283）。valid：必须读得出的文档，text 是原文，expected 是读出的信封——id、source、type；time 是 UTC 时刻（RFC 3339，按时刻比较，比实现的时钟精度更细的小数截断后比较，null 表示没有）；subject（null 表示没有）；datacontenttype（文档不写时是 application/json，文档带 data_base64 而不写时是 application/octet-stream）；data 是内联的 JSON 数据（按 JSON 值比较，不比较空白与成员顺序），dataBase64 是 data_base64 里的字节（标准 Base64），两者都没有表示没有数据；extensions 是扩展属性（规范属性之外的顶层成员，名字到字符串值：字符串照原样，数字与布尔是 JSON 原文，null 的不在其中）。编码是反过来的同一张对应：JSON 数据内联在 data，其他数据放 data_base64，扩展属性写成顶层的字符串成员，specversion 写 1.0；实现把 expected 编码再解码必须得到同一个信封。invalid：必须拒绝的文档，错误码都是 code——「信封」五条里的每一类：没过 RFC-0001「JSON 文本」的共同检查（不是 JSON、BOM、注释、尾逗号、嵌套超过 64 层、孤立的代理项转义、任何一层重复的成员，含 data 内部）与不是 JSON 对象的文本；规范版本与必填属性；time 不合 RFC-0003 规则 8 的读法（空格代替 T、没有偏移、没有秒、只有日期、偏移不带冒号、首尾空白、十位小数、逗号、闰秒、HTTP 日期、越界）；data 与 data_base64 同时出现，data_base64 不是 Base64；扩展属性名不合文法，扩展属性的值是对象或数组。没有收进来的写法见 RFC-0009「一致性」：只有空白的必填属性、写成 null 的规范属性、内容类型与数据所在的成员不相称、Base64 文本里的空白。期望值由 .NET 参考实现（CloudEventsFormat.Decode）算出。",
   "contentType": "application/cloudevents+json",
   "code": "MESSAGING_VALIDATION_002",
   "valid": [
@@ -220,6 +220,120 @@
           "xihantenant": "租户一"
         }
       }
+    },
+    {
+      "name": "时间的 T 与 Z 写成小写",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02t03:04:05z\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": "2026-01-02T03:04:05Z",
+        "subject": null,
+        "datacontenttype": "application/json",
+        "extensions": {}
+      }
+    },
+    {
+      "name": "时间带九位小数：比实现的时钟精度更细的部分截断",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04:05.123456789Z\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": "2026-01-02T03:04:05.123456789Z",
+        "subject": null,
+        "datacontenttype": "application/json",
+        "extensions": {}
+      }
+    },
+    {
+      "name": "时间的偏移是 -00:00",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04:05-00:00\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": "2026-01-02T03:04:05Z",
+        "subject": null,
+        "datacontenttype": "application/json",
+        "extensions": {}
+      }
+    },
+    {
+      "name": "时间的偏移到 +23:59：换算成 UTC 的同一时刻",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04:05+23:59\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": "2026-01-01T03:05:05Z",
+        "subject": null,
+        "datacontenttype": "application/json",
+        "extensions": {}
+      }
+    },
+    {
+      "name": "data_base64 而没有 datacontenttype：内容类型是 application/octet-stream",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"data_base64\":\"AAEC/w==\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "application/octet-stream",
+        "dataBase64": "AAEC/w==",
+        "extensions": {}
+      }
+    },
+    {
+      "name": "data_base64 是空串而没有 datacontenttype：内容类型同样是 application/octet-stream，没有数据",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"data_base64\":\"\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "application/octet-stream",
+        "extensions": {}
+      }
+    },
+    {
+      "name": "扩展属性的值是数字与布尔：保留 JSON 原文",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"seq\":1.50,\"big\":12345678901234567890,\"exp\":1E3,\"neg\":-0,\"flag\":true,\"off\":false}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "application/json",
+        "extensions": {
+          "big": "12345678901234567890",
+          "exp": "1E3",
+          "flag": "true",
+          "neg": "-0",
+          "off": "false",
+          "seq": "1.50"
+        }
+      }
+    },
+    {
+      "name": "扩展属性的值是 null：视为没有这个属性",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"gone\":null,\"xihantenant\":\"t1\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "application/json",
+        "extensions": {
+          "xihantenant": "t1"
+        }
+      }
     }
   ],
   "invalid": [
@@ -306,6 +420,130 @@
     {
       "name": "data_base64 不是 Base64",
       "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"datacontenttype\":\"application/octet-stream\",\"data_base64\":\"not base64!\"}"
+    },
+    {
+      "name": "time 用空格代替 T",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02 03:04:05Z\"}"
+    },
+    {
+      "name": "time 没有偏移",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04:05\"}"
+    },
+    {
+      "name": "time 带小数而没有偏移",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04:05.5\"}"
+    },
+    {
+      "name": "time 只有日期",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02\"}"
+    },
+    {
+      "name": "time 没有秒",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04Z\"}"
+    },
+    {
+      "name": "time 的偏移不带冒号",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04:05+0800\"}"
+    },
+    {
+      "name": "time 的偏移只有小时",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04:05+08\"}"
+    },
+    {
+      "name": "time 开头有空格",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\" 2026-01-02T03:04:05Z\"}"
+    },
+    {
+      "name": "time 结尾有空格",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04:05Z \"}"
+    },
+    {
+      "name": "time 带十位小数",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04:05.1234567891Z\"}"
+    },
+    {
+      "name": "time 的小数点写成逗号",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04:05,5Z\"}"
+    },
+    {
+      "name": "time 是闰秒",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-06-30T23:59:60Z\"}"
+    },
+    {
+      "name": "time 是 HTTP 日期",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"Fri, 02 Jan 2026 03:04:05 GMT\"}"
+    },
+    {
+      "name": "time 用斜线分隔日期",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"01/02/2026 03:04:05\"}"
+    },
+    {
+      "name": "time 换算成 UTC 之后超出范围",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"9999-12-31T23:59:59-00:01\"}"
+    },
+    {
+      "name": "data 与 data_base64 同时出现",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"data\":{\"a\":1},\"data_base64\":\"AAEC/w==\"}"
+    },
+    {
+      "name": "data 与空串的 data_base64 同时出现",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"data\":{\"a\":1},\"data_base64\":\"\"}"
+    },
+    {
+      "name": "扩展属性的值是对象",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"detail\":{\"a\":1}}"
+    },
+    {
+      "name": "扩展属性的值是数组",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"tags\":[\"a\"]}"
+    },
+    {
+      "name": "扩展属性的值是空对象",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"detail\":{}}"
+    },
+    {
+      "name": "规范属性重复",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"id\":\"second\"}"
+    },
+    {
+      "name": "扩展属性重复",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"xihantenant\":\"t1\",\"xihantenant\":\"t2\"}"
+    },
+    {
+      "name": "成员名按转义还原后重复",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"seq\":\"1\",\"\\u0073eq\":\"2\"}"
+    },
+    {
+      "name": "data 内部有重复的成员",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"data\":{\"a\":1,\"a\":2}}"
+    },
+    {
+      "name": "data 深处有重复的成员",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"data\":{\"lines\":[{\"sku\":\"a\",\"sku\":\"b\"}]}}"
+    },
+    {
+      "name": "属性值里有孤立的代理项转义",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"subject\":\"\\ud800\"}"
+    },
+    {
+      "name": "data 里有孤立的代理项转义",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"data\":{\"note\":\"\\udc00\"}}"
+    },
+    {
+      "name": "data 让文档嵌套到 65 层",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"data\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}"
+    },
+    {
+      "name": "文档开头有 BOM",
+      "text": "\uFEFF{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\"}"
+    },
+    {
+      "name": "文档带注释",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\"/* note */}"
+    },
+    {
+      "name": "文档带尾逗号",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",}"
     }
   ]
 }

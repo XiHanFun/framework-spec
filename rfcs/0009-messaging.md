@@ -1,6 +1,6 @@
 # RFC-0009 消息、CloudEvents 信封与发件箱
 
-> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题；2026-11-03 修订：发件箱把代理抛出与返回失败一样计入尝试、重试逐条发布、一轮遇到抛出即停止发布；2026-11-04 修订：框架异常的消息不拼代理的异常文字；2026-11-10 修订：Redis Streams Provider；2026-11-12 修订：投递覆盖租户分片库；2026-11-13 修订：插件投递带订阅方式；2026-11-24 修订：一次投递尝试的了结方式、停止打断的投递不计尝试、排空期间不原位重试；2026-11-24 修订：处理器不另传取消令牌；同日第三次修订：一致性向量、结构化 JSON 文档不合法的情形；同日第四次修订：发件箱的健康项与死信重投；同日第五次修订：被管道拒绝的派发不计尝试、无法解码的消息的了结收成一条规则、一致性套件读死信） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题）、ADR-0108（发件箱计入代理抛出）、ADR-0115、ADR-0130（Redis Streams Provider）、ADR-0211（投递覆盖分片库）、ADR-0226（插件投递带订阅方式）、ADR-0261（投递尝试收成一处）、ADR-0263（处理器不另传取消令牌）、ADR-0272（发件箱健康项与死信重投）、ADR-0275（被拒绝的派发与无法解码的消息）、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka`、`XiHan.Framework.Messaging.Redis` | 一致性：`XiHan.Framework.Messaging.Conformance`，向量 `conformance/vectors/messaging/` | 一致性档：`messaging`
+> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题；2026-11-03 修订：发件箱把代理抛出与返回失败一样计入尝试、重试逐条发布、一轮遇到抛出即停止发布；2026-11-04 修订：框架异常的消息不拼代理的异常文字；2026-11-10 修订：Redis Streams Provider；2026-11-12 修订：投递覆盖租户分片库；2026-11-13 修订：插件投递带订阅方式；2026-11-24 修订：一次投递尝试的了结方式、停止打断的投递不计尝试、排空期间不原位重试；2026-11-24 修订：处理器不另传取消令牌；同日第三次修订：一致性向量、结构化 JSON 文档不合法的情形；同日第四次修订：发件箱的健康项与死信重投；同日第五次修订：被管道拒绝的派发不计尝试、无法解码的消息的了结收成一条规则、一致性套件读死信；同日第六次修订：信封的读取收紧——文档过 JSON 文本的共同检查、`time` 的文法、`data` 与 `data_base64` 互斥、`data_base64` 缺内容类型时的内容类型、扩展属性的值，发件箱的退避饱和在上限） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题）、ADR-0108（发件箱计入代理抛出）、ADR-0115、ADR-0130（Redis Streams Provider）、ADR-0211（投递覆盖分片库）、ADR-0226（插件投递带订阅方式）、ADR-0261（投递尝试收成一处）、ADR-0263（处理器不另传取消令牌）、ADR-0272（发件箱健康项与死信重投）、ADR-0275（被拒绝的派发与无法解码的消息）、ADR-0277（一致性向量）、ADR-0283（信封的读取与退避的饱和） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka`、`XiHan.Framework.Messaging.Redis` | 一致性：`XiHan.Framework.Messaging.Conformance`，向量 `conformance/vectors/messaging/` | 一致性档：`messaging`
 
 ## 摘要
 
@@ -17,7 +17,17 @@
 
 ## 信封
 
-CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`datacontenttype`（默认 `application/json`）、`data`。线上编码为结构化 JSON（`application/cloudevents+json`）：JSON 数据内联在 `data`，其他数据放 `data_base64`，扩展属性是顶层成员。读取时文档不合法即整个信封不合法（`MESSAGING_VALIDATION_002`），不合法的情形是（2026-11-24 写明，ADR-0277；以前只在 `protocol/cloudevents.md` 列了规范版本、必填属性、时间与扩展名四类）：文本不是 JSON 对象；`specversion` 不是 `1.0`；`id`、`source`、`type` 缺失或为空字符串；`time` 读不成时刻（如 `yesterday`、空字符串、不存在的日期）；规范属性之外的顶层成员（扩展属性）名字不合文法；`data_base64` 不是 Base64。读出的 `time` 是一个时刻，带偏移与写成 UTC 的同一时刻相等。
+CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`datacontenttype`（默认 `application/json`）、`data`。线上编码为结构化 JSON（`application/cloudevents+json`）：JSON 数据内联在 `data`，其他数据放 `data_base64`，扩展属性是顶层成员。
+
+读取时文档不合法即整个信封不合法（`MESSAGING_VALIDATION_002`），按下面五条判定（2026-11-24 写明，ADR-0277：不是 JSON 对象、规范版本、必填属性、时间、扩展属性名与 Base64，以前只在 `protocol/cloudevents.md` 列了规范版本、必填属性、时间与扩展名四类；同日修订，ADR-0283：各条里标出的几处，以前不作规定或只有一句「读不成时刻」，.NET 读得比这里宽）：
+
+1. 文档先过 RFC-0001「JSON 文本」的共同检查，没过即不合法：不是 JSON、嵌套超过 64 层（信封对象是第 1 层）、字符串或成员名不是合法的 Unicode、任何一层有重复的成员名。重复的成员不取第一个也不取最后一个，`data` 内部的也算（ADR-0283；以前信封不过这道检查，.NET 对重复的成员取最后一个，孤立的代理项转义读成 U+FFFD）。过了检查的文本不是 JSON 对象同样不合法。
+2. `specversion` 不是 `1.0`，或 `id`、`source`、`type` 缺失或为空字符串，不合法。
+3. `time` 与截止时间的文本是同一条文法（RFC-0003 规则 8 的「读法」）：`^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?([Zz]|[+-][0-9]{2}:[0-9]{2})\z`，按整串匹配，各段的取值范围与换算成 UTC 之后的范围都照规则 8。不合文法或越界即不合法，不换别的格式再试（ADR-0283；以前 .NET 用通用的日期解析，空格代替 `T`、没有偏移、没有秒、只有日期、偏移不带冒号、首尾带空白、小数点写成逗号、超过九位的小数、HTTP 日期与 `01/02/2026` 这样的写法都读得出，没有偏移的按本机时区读，同一份文档在不同时区的机器上读出不同的时刻）。读出的 `time` 是一个时刻，带偏移与写成 UTC 的同一时刻相等；比实现的时钟精度更细的小数截断，不进位。
+4. 数据：`data` 与 `data_base64` 互斥，同时出现即不合法（ADR-0283；以前 .NET 读 `data`、不报错）。`data_base64` 不是 Base64 不合法。文档带 `data_base64` 而不写 `datacontenttype` 时，数据内容类型是 `application/octet-stream`，不是缺省的 `application/json`（ADR-0283；以前 .NET 读成 `application/json` 的非 JSON 数据，这个信封读得出、再写出时抛出异常）。
+5. 规范属性之外的顶层成员是扩展属性，名字不合文法即不合法。值（ADR-0283；以前不作规定）：字符串照原样；数字与布尔保留 JSON 原文（`1.50` 读成 `1.50`，`1E3` 读成 `1E3`，`true` 读成 `true`）；`null` 视为没有这个属性；对象与数组不合法（以前 .NET 把 `null`、对象与数组读成空字符串）。
+
+写出：`time` 写成合第 3 条文法的文本，扩展属性的值都写成字符串。写出的文档必须过得了上面的读取规则，写出一侧在发布时就拒绝过不了的信封，不把它交给代理（.NET 的 `CloudEventsFormat.Encode` 抛出携带 `MESSAGING_VALIDATION_002` 的异常）：声明为 JSON 的数据不是 JSON、数据里有重复的成员名或嵌套让文档超过 64 层，以及扩展属性与规范属性同名（`id`、`data` 等，写出来是重复的成员；ADR-0283，以前 .NET 照写，读回时扩展属性的值顶掉规范属性）。
 
 框架扩展属性：`xihantenant`（→ Baggage `xihan.tenant`）、`xihanprincipal`（→ `xihan.principal`）、`xihancorrelation`（→ `xihan.correlation`）、`xihanlocale`（→ `xihan.locale`）、`traceparent`（→ 追踪 ID、父跨度与采样标志）、`xihankey`（分区键，见「流」）。扩展属性名 `^[a-z0-9]{1,20}$`。前四个与 Baggage 的对应以 `conventions/baggage-keys.md` 的 CloudEvents 载体为准（`EnvelopeExtensions.BaggageMappings`）；幂等键 `xihan.idempotency-key` 不进入消息（投递第 4 条）。
 
@@ -140,7 +150,7 @@ Provider：
 - 把 `IMessagePublisher` 换成 `OutboxPublisher`：有活动工作单元时写入 `OutboxMessage` 表（随业务事务提交或回滚；批量发布用仓储的 `AddRangeAsync` 一次写入），没有时直接发布。
 - 后台循环按 `PollInterval`（默认 1 秒）每轮一个工作单元（只覆盖发件箱行的状态写回与保留期清理；代理不在事务里，发出去的收不回来）：取到期的消息（未投递、未进死信、`NextAttemptAt` 为空或已到；按创建时间，最多 `BatchSize`，默认 100，取 1 到 `EntityQuery.DefaultMaxTake`（1000）：每轮按它分页查发件箱表，超出在解析配置时拒绝），按下面的发布单元发布，发布过的每条计一次尝试：
   - 成功记投递时间 `DispatchedAt`。
-  - 失败记原因 `LastError`，`NextAttemptAt` 推后 `RetryDelay`（默认 5 秒）乘以 2 的（尝试次数减一）次方，不超过 `MaxRetryDelay`（默认 5 分钟）。
+  - 失败记原因 `LastError`，`NextAttemptAt` 推后 `RetryDelay`（默认 5 秒）乘以 2 的（尝试次数减一）次方，不超过 `MaxRetryDelay`（默认 5 分钟）。对任何尝试次数、任何一对间隔与上限都如此：乘积超过上限（含超出实现的数值范围）即取上限，不截断指数（2026-11-24 写明，ADR-0283；以前 .NET 把指数截在 30，`MaxRetryDelay` 大于 `RetryDelay` 的 2 的 30 次方倍时停在 `RetryDelay × 2^30`，到不了上限）。
   - 尝试达到 `MaxAttempts`（默认 10），或载荷无法解码（`MESSAGING_VALIDATION_002`，重试也解不开），记 `DeadLetteredAt` 进死信：不再取到，行保留供排查，经重投入口重新投递（见下面「死信重投」；2026-11-24 修订，ADR-0272，以前写的是自己把 `DeadLetteredAt` 置空、`NextAttemptAt` 设为现在）。
   - 退避中与死信的消息不占批次，永久失败的消息不挡后面的消息。
 - 发布单元：首次投递的消息按主题合成一次 `PublishManyAsync`（主题按首次出现的顺序，组内保持创建顺序）；重试的消息（`Attempts` 不为 0）每条单独一次 `PublishManyAsync`。代理整批抛出时分不出是哪一条，上一次失败时它可能就是让整批失败的那条，单独发布才不会让同批的别的消息跟着它一起退避、一起进死信。
@@ -183,10 +193,10 @@ Provider 必须继承 `MessageBrokerConformance` 并通过全部用例，含批�
 | `topics.json` | 主题文法的合法与不合法样例（含 128 个字符的上限两侧）、死信后缀的缺省值与死信主题 |
 | `envelope-extensions.json` | 扩展属性名的文法，扩展属性与 Baggage 键的对应，承载追踪与分区键的扩展，不进入消息的 Baggage 键 |
 | `instance-ids.json` | 实例标识文法的合法与不合法样例（含 64 个字符的上限两侧） |
-| `outbox-backoff.json` | 发件箱失败之后的退避间隔（含次数很大时截在上限而不溢出）与进死信的时机 |
-| `cloudevents-envelopes.json` | 信封的结构化 JSON 编码：必须读得出的文档与读出的信封，必须拒绝的文档 |
+| `outbox-backoff.json` | 发件箱失败之后的退避间隔（含次数很大时截在上限而不溢出，上限远大于间隔时照样到得了上限）与进死信的时机 |
+| `cloudevents-envelopes.json` | 信封的结构化 JSON 编码：必须读得出的文档与读出的信封，必须拒绝的文档（含「信封」五条里的每一类） |
 
-向量只收正文写明的规则。结构化 JSON 的这几类写法规范不作规定，向量不收，实现之间可以不同：`time` 在 RFC 3339 之外的写法（空格代替 `T`、没有偏移、只有日期；CloudEvents 1.0 要求 RFC 3339，.NET 用通用的日期解析照收，没有偏移时按本机时区读）与秒以下超过七位的小数；扩展属性的非字符串值（数字、布尔、`null`、对象、数组）；`data` 与 `data_base64` 同时出现；重复的成员；只有空白的必填属性；`data` 为 `null`；内容类型不是 JSON 而数据写在 `data` 里。生成的实例标识里机器名的归一化（「订阅方式」第 6 条）与各代理上的队列名、主题名、消费组名同样没有向量。
+向量只收正文写明的规则。结构化 JSON 的这几类写法规范不作规定，向量不收，实现之间可以不同：只有空白的必填属性；规范属性的值写成 `null`（含 `data` 为 `null`，.NET 都当作没有写这个成员）；内容类型不是 JSON 而数据写在 `data` 里；内容类型是 JSON 而 `data_base64` 里不是 JSON；Base64 文本里的空白。`time` 的写法、扩展属性的非字符串值、`data` 与 `data_base64` 同时出现、重复的成员以前也在这张单子上，现在由「信封」写明并收进向量（2026-11-24 修订，ADR-0283）。生成的实例标识里机器名的归一化（「订阅方式」第 6 条）与各代理上的队列名、主题名、消费组名同样没有向量。
 
 发件箱的存储经仓储，内存持久化与数据库 Provider 都要通过 `OutboxConformance`（Preview，`CreateFeature()` 返回持久化特性；2026-11-03，ADR-0108）：代理对某条消息一直抛出时按尝试上限、退避进死信，同批的其他消息照常发出；返回失败与抛出逐轮状态相同；调用方取消回滚本轮、不计尝试；不是调用方取消的 `OperationCanceledException` 计为失败；死信行经重投入口回到待投递（进死信时间写回空值、下一次投递时间设为现在、尝试次数归零），不存在的行、不在死信里的行与重复的标识各有各的结果，逐项结果与入参同序，空集合返回空列表，下一轮照常发出（2026-11-24 增补，ADR-0272）。
 

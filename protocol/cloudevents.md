@@ -12,9 +12,9 @@
 | --- | --- | --- |
 | structured | `Content-Type: application/cloudevents+json` | 请求体为结构化 JSON（`CloudEventsFormat`） |
 | batch | `Content-Type: application/cloudevents-batch+json` | 请求体为结构化 JSON 的数组，按顺序处理 |
-| binary | 其他内容类型且有 `ce-specversion` 头 | `ce-id`、`ce-source`、`ce-type` 必填，`ce-time`（RFC 3339）、`ce-subject` 可选，其余 `ce-*` 为扩展属性；`Content-Type` 为数据内容类型（缺省 `application/json`），请求体为数据；头值按百分号解码 |
+| binary | 其他内容类型且有 `ce-specversion` 头 | `ce-id`、`ce-source`、`ce-type` 必填，`ce-time`（与结构化 JSON 的 `time` 同一条文法，RFC-0009「信封」第 3 条）、`ce-subject` 可选，其余 `ce-*` 为扩展属性；`Content-Type` 为数据内容类型（缺省 `application/json`），请求体为数据；头值按百分号解码 |
 
-- 都不满足 → 400 `PROTOCOLS_VALIDATION_008`；信封不合法（规范版本、必填属性、时间、扩展名）→ 400 `MESSAGING_VALIDATION_002`。
+- 都不满足 → 400 `PROTOCOLS_VALIDATION_008`；信封不合法 → 400 `MESSAGING_VALIDATION_002`：structured 与 batch 的每个事件按 RFC-0009「信封」的五条判定（2026-11-24 修订，ADR-0283；以前这里只列规范版本、必填属性、时间、扩展名四类，`time` 没有偏移时 .NET 按本机时区读），binary 核对规范版本、必填属性、`ce-time` 的文法与扩展名。
 - 主题 = `XiHan:Protocols:CloudEvents:Topics:<type>`；没有映射的类型 400 `PROTOCOLS_VALIDATION_009`。打开 `XiHan:Protocols:CloudEvents:AcceptUnmappedTypes`（缺省 `false`）时，没有映射的类型以 `type` 本身为主题（须满足主题文法，否则同样 400）（2026-11-12 修订，ADR-0200；以前缺省就以类型本身为主题，只被允许投递某一种事件的发送方能投进任何有订阅的主题，包括插件订阅的主题）。
 - `Inbound = Dispatch`（默认）：`MessageDispatcher` 在请求内以新作用域、新上下文经完整内核管道执行本实例里该主题的处理器（`MessageDelivery.Attempt = 1`）：竞争订阅与广播订阅（RFC-0009「订阅方式」）各一次投递，先竞争后广播；派发只发生在接收请求的实例，要让广播订阅到达每个实例用 `Inbound = Publish`；成功 202 无正文；处理器失败按错误 KIND 映射 HTTP 状态（RFC 9457 Problem Details），发送方据此重试；主题在本实例没有任何处理器（两种订阅方式都没有）→ 404 `PROTOCOLS_NOTFOUND_003`。
 - `Inbound = Publish`：经 `IMessagePublisher` 发布，成功即 202；至少一次投递、重试与死信由代理负责（含发件箱）。

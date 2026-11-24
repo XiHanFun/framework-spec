@@ -40,6 +40,9 @@ const CloudEventsContentType = "application/cloudevents+json"
 // CloudEventsDefaultDataContentType 是文档不写 datacontenttype 时的数据内容类型。
 const CloudEventsDefaultDataContentType = "application/json"
 
+// CloudEventsBinaryDataContentType 是文档带 data_base64 而不写 datacontenttype 时的数据内容类型（RFC-0009「信封」第 4 条）。
+const CloudEventsBinaryDataContentType = "application/octet-stream"
+
 // 发件箱三个选项的缺省值（RFC-0009「发件箱」）。
 const (
 	// DefaultOutboxRetryDelay 是第一次失败之后的重试间隔。
@@ -113,9 +116,15 @@ type CloudEvent struct {
 	Extensions      map[string]string
 }
 
-// DecodeCloudEvent 按 CloudEvents 1.0 结构化 JSON 读出信封（RFC-0009「信封」，protocol/cloudevents.md「入站」）；
-// 规范版本不是 1.0、缺必填属性、时间不合 RFC 3339、扩展属性名不合文法或 data_base64 不是 Base64 时返回假。
+// DecodeCloudEvent 按 CloudEvents 1.0 结构化 JSON 读出信封（RFC-0009「信封」的五条，protocol/cloudevents.md「入站」），不合法时返回假：
+// 没过 RFC-0001「JSON 文本」的共同检查（含任何一层重复的成员）或不是 JSON 对象；规范版本不是 1.0、缺必填属性；
+// time 不合 RFC-0003 规则 8 的读法；data 与 data_base64 同时出现、data_base64 不是 Base64；扩展属性名不合文法、值是对象或数组。
+// 读出的 Time 是 UTC 时刻；文档带 data_base64 而不写 datacontenttype 时内容类型是 application/octet-stream。
 func DecodeCloudEvent(document []byte) (CloudEvent, bool) {
+	// 先过共同的读取检查：encoding/json 对重复的成员取最后一个、把孤立的代理项换成 U+FFFD，都不能留给它
+	if CheckJSONText(document) != nil {
+		return CloudEvent{}, false
+	}
 	var members map[string]json.RawMessage
 	if err := json.Unmarshal(document, &members); err != nil || members == nil {
 		return CloudEvent{}, false
@@ -162,8 +171,9 @@ func DecodeCloudEvent(document []byte) (CloudEvent, bool) {
 		return CloudEvent{}, false
 	}
 	if occurred != nil {
-		parsed, err := time.Parse(time.RFC3339Nano, *occurred)
-		if err != nil {
+		// 与截止时间的文本同一条文法：time.RFC3339Nano 另收小数点写成逗号等写法，不能用它
+		parsed, ok := ParseDeadline(*occurred)
+		if !ok {
 			return CloudEvent{}, false
 		}
 		event.Time = &parsed
@@ -179,21 +189,28 @@ func DecodeCloudEvent(document []byte) (CloudEvent, bool) {
 		event.DataContentType = *contentType
 	}
 
-	// JSON 数据内联在 data，其他数据在 data_base64
+	// JSON 数据内联在 data，其他数据在 data_base64；两者互斥，同时出现不挑一个读
 	if raw, has := members["data"]; has && !bytes.Equal(raw, []byte("null")) {
 		event.Data = raw
 	}
 	delete(members, "data")
 	encoded, ok := text("data_base64")
-	if !ok {
+	if !ok || (encoded != nil && event.Data != nil) {
 		return CloudEvent{}, false
 	}
-	if encoded != nil && event.Data == nil {
+	if encoded != nil {
 		binary, err := base64.StdEncoding.DecodeString(*encoded)
 		if err != nil {
 			return CloudEvent{}, false
 		}
-		event.Binary = binary
+		// 空串解出零个字节，按没有数据交出
+		if len(binary) > 0 {
+			event.Binary = binary
+		}
+		// 数据在 data_base64 里而文档没写内容类型：不是 JSON，按二进制读
+		if contentType == nil {
+			event.DataContentType = CloudEventsBinaryDataContentType
+		}
 	}
 
 	// 余下的顶层成员都是扩展属性；名字不合文法整个信封不合法
@@ -201,15 +218,23 @@ func DecodeCloudEvent(document []byte) (CloudEvent, bool) {
 		if !IsEnvelopeExtensionName(name) {
 			return CloudEvent{}, false
 		}
-		var value string
-		if err := json.Unmarshal(raw, &value); err != nil {
-			// 非字符串的扩展值规范不作规定，向量也不收；这里照参考实现：数字与布尔保留原文，其余读成空字符串
-			value = ""
-			if trimmed := bytes.TrimSpace(raw); len(trimmed) > 0 && trimmed[0] != '{' && trimmed[0] != '[' && !bytes.Equal(trimmed, []byte("null")) {
-				value = string(trimmed)
+		trimmed := bytes.TrimSpace(raw)
+		switch {
+		case len(trimmed) == 0 || trimmed[0] == '{' || trimmed[0] == '[':
+			// 对象与数组装不进一个字符串值
+			return CloudEvent{}, false
+		case bytes.Equal(trimmed, []byte("null")):
+			// null 视为没有这个属性
+		case trimmed[0] == '"':
+			var value string
+			if err := json.Unmarshal(trimmed, &value); err != nil {
+				return CloudEvent{}, false
 			}
+			event.Extensions[name] = value
+		default:
+			// 数字与布尔保留 JSON 原文
+			event.Extensions[name] = string(trimmed)
 		}
-		event.Extensions[name] = value
 	}
 	return event, true
 }

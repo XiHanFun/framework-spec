@@ -1,5 +1,5 @@
 {
-  "$comment": "发件箱失败之后的退避间隔与进死信的时机（RFC-0009「发件箱」，ADR-0064、ADR-0108、ADR-0277）。一条消息每发布一次计一次尝试；失败之后 NextAttemptAt 推后 RetryDelay × 2 的（尝试次数 − 1）次方，不超过 MaxRetryDelay。defaults 是三个选项的缺省值（毫秒与次数）。cases 的每项：retryDelayMs 与 maxRetryDelayMs 是两个选项（毫秒），attempts 是已经失败的尝试次数（从 1 起），delayMs 是这次失败之后推后的间隔（毫秒）；次数再多也截在上限，实现不得因为指数溢出而得出负数、零或别的值。deadLetter：尝试次数达到 MaxAttempts 即进死信、不再排下一次，每项给出 maxAttempts、attempts 与是否进死信；载荷无法解码（MESSAGING_VALIDATION_002）的不论次数直接进死信，不在这张表里。缺省参数下一条消息连续失败 10 次进死信，前 9 次失败之后的间隔之和是 1215 秒。间隔的期望值由 .NET 参考实现（OutboxOptions.RetryDelayAfter）算出，并与正文的公式逐条对过；进死信的时机按正文给出。",
+  "$comment": "发件箱失败之后的退避间隔与进死信的时机（RFC-0009「发件箱」，ADR-0064、ADR-0108、ADR-0277、ADR-0283）。一条消息每发布一次计一次尝试；失败之后 NextAttemptAt 推后 RetryDelay × 2 的（尝试次数 − 1）次方，不超过 MaxRetryDelay。defaults 是三个选项的缺省值（毫秒与次数）。cases 的每项：retryDelayMs 与 maxRetryDelayMs 是两个选项（毫秒），attempts 是已经失败的尝试次数（从 1 起），delayMs 是这次失败之后推后的间隔（毫秒）；次数再多也截在上限，实现不得因为指数溢出而得出负数、零或别的值；上限再大也到得了上限，实现不得把指数截在某个值上（末十条：上限是间隔的 2 的 30 次方倍以上，ADR-0283；.NET 以前把指数截在 30，这些用例停在间隔的 2 的 30 次方倍）。deadLetter：尝试次数达到 MaxAttempts 即进死信、不再排下一次，每项给出 maxAttempts、attempts 与是否进死信；载荷无法解码（MESSAGING_VALIDATION_002）的不论次数直接进死信，不在这张表里。缺省参数下一条消息连续失败 10 次进死信，前 9 次失败之后的间隔之和是 1215 秒。间隔的期望值由 .NET 参考实现（OutboxOptions.RetryDelayAfter）算出，并与正文的公式逐条对过；进死信的时机按正文给出。",
   "defaults": {
     "retryDelayMs": 5000,
     "maxRetryDelayMs": 300000,
@@ -152,6 +152,76 @@
       "maxRetryDelayMs": 300000,
       "attempts": 2147483647,
       "delayMs": 300000
+    },
+    {
+      "name": "间隔 1 毫秒、上限 30 天，第 31 次失败之后还没到上限",
+      "retryDelayMs": 1,
+      "maxRetryDelayMs": 2592000000,
+      "attempts": 31,
+      "delayMs": 1073741824
+    },
+    {
+      "name": "间隔 1 毫秒、上限 30 天，第 32 次失败之后是间隔的 2 的 31 次方倍，仍没到上限",
+      "retryDelayMs": 1,
+      "maxRetryDelayMs": 2592000000,
+      "attempts": 32,
+      "delayMs": 2147483648
+    },
+    {
+      "name": "间隔 1 毫秒、上限 30 天，第 33 次失败之后饱和在上限",
+      "retryDelayMs": 1,
+      "maxRetryDelayMs": 2592000000,
+      "attempts": 33,
+      "delayMs": 2592000000
+    },
+    {
+      "name": "间隔 1 毫秒、上限 30 天，第 64 次失败之后饱和在上限",
+      "retryDelayMs": 1,
+      "maxRetryDelayMs": 2592000000,
+      "attempts": 64,
+      "delayMs": 2592000000
+    },
+    {
+      "name": "间隔 1 毫秒、上限 30 天，第 65 次失败之后饱和在上限",
+      "retryDelayMs": 1,
+      "maxRetryDelayMs": 2592000000,
+      "attempts": 65,
+      "delayMs": 2592000000
+    },
+    {
+      "name": "间隔 1 毫秒、上限 30 天，失败次数到 32 位整数的上限",
+      "retryDelayMs": 1,
+      "maxRetryDelayMs": 2592000000,
+      "attempts": 2147483647,
+      "delayMs": 2592000000
+    },
+    {
+      "name": "间隔 3 毫秒、上限 30 天，第 30 次失败之后还没到上限",
+      "retryDelayMs": 3,
+      "maxRetryDelayMs": 2592000000,
+      "attempts": 30,
+      "delayMs": 1610612736
+    },
+    {
+      "name": "间隔 3 毫秒、上限 30 天，第 31 次失败之后饱和在上限",
+      "retryDelayMs": 3,
+      "maxRetryDelayMs": 2592000000,
+      "attempts": 31,
+      "delayMs": 2592000000
+    },
+    {
+      "name": "间隔 1 毫秒、上限 100 年，第 42 次失败之后还没到上限",
+      "retryDelayMs": 1,
+      "maxRetryDelayMs": 3155760000000,
+      "attempts": 42,
+      "delayMs": 2199023255552
+    },
+    {
+      "name": "间隔 1 毫秒、上限 100 年，第 43 次失败之后饱和在上限",
+      "retryDelayMs": 1,
+      "maxRetryDelayMs": 3155760000000,
+      "attempts": 43,
+      "delayMs": 3155760000000
     }
   ],
   "deadLetter": [
