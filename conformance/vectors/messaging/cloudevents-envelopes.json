@@ -1,0 +1,311 @@
+{
+  "$comment": "消息信封的 CloudEvents 1.0 结构化 JSON 编码（application/cloudevents+json；RFC-0009「信封」，protocol/cloudevents.md「信封映射」与「入站」，ADR-0277）。valid：必须读得出的文档，text 是原文，expected 是读出的信封——id、source、type；time 是 UTC 时刻（RFC 3339，按时刻比较，null 表示没有）；subject（null 表示没有）；datacontenttype（文档不写时是 application/json）；data 是内联的 JSON 数据（按 JSON 值比较，不比较空白与成员顺序），dataBase64 是 data_base64 里的字节（标准 Base64），两者都没有表示没有数据；extensions 是扩展属性（规范属性之外的顶层成员，名字到字符串值）。编码是反过来的同一张对应：JSON 数据内联在 data，其他数据放 data_base64，扩展属性写成顶层成员，specversion 写 1.0；实现把 expected 编码再解码必须得到同一个信封。invalid：必须拒绝的文档，错误码都是 code（规范版本、必填属性、时间、扩展属性名与 Base64 五类，加上不是 JSON 对象的文本）。没有收进来的写法见 RFC-0009「一致性」：RFC 3339 之外的时间写法、扩展属性的非字符串值、data 与 data_base64 同时出现、重复的成员。期望值由 .NET 参考实现（CloudEventsFormat.Decode）算出。",
+  "contentType": "application/cloudevents+json",
+  "code": "MESSAGING_VALIDATION_002",
+  "valid": [
+    {
+      "name": "只有必填属性：数据内容类型缺省为 application/json，没有数据",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "application/json",
+        "extensions": {}
+      }
+    },
+    {
+      "name": "全部属性与框架扩展",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04:05Z\",\"subject\":\"order/42\",\"datacontenttype\":\"application/json\",\"data\":{\"total\":42,\"lines\":[\"a\",\"b\"]},\"xihantenant\":\"t1\",\"xihanprincipal\":\"u1\",\"xihancorrelation\":\"c-1\",\"xihanlocale\":\"zh-CN\",\"traceparent\":\"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\",\"xihankey\":\"order-42\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": "2026-01-02T03:04:05Z",
+        "subject": "order/42",
+        "datacontenttype": "application/json",
+        "data": {
+          "total": 42,
+          "lines": [
+            "a",
+            "b"
+          ]
+        },
+        "extensions": {
+          "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+          "xihancorrelation": "c-1",
+          "xihankey": "order-42",
+          "xihanlocale": "zh-CN",
+          "xihanprincipal": "u1",
+          "xihantenant": "t1"
+        }
+      }
+    },
+    {
+      "name": "时间带偏移：同一时刻",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04:05+08:00\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": "2026-01-01T19:04:05Z",
+        "subject": null,
+        "datacontenttype": "application/json",
+        "extensions": {}
+      }
+    },
+    {
+      "name": "时间带小数秒",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-01-02T03:04:05.5Z\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": "2026-01-02T03:04:05.5Z",
+        "subject": null,
+        "datacontenttype": "application/json",
+        "extensions": {}
+      }
+    },
+    {
+      "name": "成员的顺序不限",
+      "text": "{\"type\":\"orders.placed\",\"xihantenant\":\"t1\",\"data\":{\"a\":1},\"source\":\"/orders\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"specversion\":\"1.0\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "application/json",
+        "data": {
+          "a": 1
+        },
+        "extensions": {
+          "xihantenant": "t1"
+        }
+      }
+    },
+    {
+      "name": "JSON 数据是数组",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"data\":[1,2,3]}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "application/json",
+        "data": [
+          1,
+          2,
+          3
+        ],
+        "extensions": {}
+      }
+    },
+    {
+      "name": "JSON 数据是字符串",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"data\":\"text\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "application/json",
+        "data": "text",
+        "extensions": {}
+      }
+    },
+    {
+      "name": "JSON 数据是数字",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"data\":42}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "application/json",
+        "data": 42,
+        "extensions": {}
+      }
+    },
+    {
+      "name": "JSON 数据是布尔",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"data\":false}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "application/json",
+        "data": false,
+        "extensions": {}
+      }
+    },
+    {
+      "name": "内容类型是 application/problem+json 的内联数据",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"datacontenttype\":\"application/problem+json\",\"data\":{\"title\":\"x\"}}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "application/problem+json",
+        "data": {
+          "title": "x"
+        },
+        "extensions": {}
+      }
+    },
+    {
+      "name": "二进制数据放 data_base64",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"datacontenttype\":\"application/octet-stream\",\"data_base64\":\"AAEC/w==\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "application/octet-stream",
+        "dataBase64": "AAEC/w==",
+        "extensions": {}
+      }
+    },
+    {
+      "name": "文本数据放 data_base64",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"datacontenttype\":\"text/plain\",\"data_base64\":\"aGVsbG8=\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "text/plain",
+        "dataBase64": "aGVsbG8=",
+        "extensions": {}
+      }
+    },
+    {
+      "name": "扩展属性名正好 20 个字符",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"abcdefghij0123456789\":\"x\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": null,
+        "datacontenttype": "application/json",
+        "extensions": {
+          "abcdefghij0123456789": "x"
+        }
+      }
+    },
+    {
+      "name": "属性值里的非 ASCII 字符",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"subject\":\"订单/42\",\"xihantenant\":\"租户一\"}",
+      "expected": {
+        "id": "0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60",
+        "source": "/orders",
+        "type": "orders.placed",
+        "time": null,
+        "subject": "订单/42",
+        "datacontenttype": "application/json",
+        "extensions": {
+          "xihantenant": "租户一"
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "不是 JSON",
+      "text": "{"
+    },
+    {
+      "name": "空文本",
+      "text": ""
+    },
+    {
+      "name": "顶层是数组",
+      "text": "[]"
+    },
+    {
+      "name": "顶层是字符串",
+      "text": "\"orders.placed\""
+    },
+    {
+      "name": "没有 specversion",
+      "text": "{\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\"}"
+    },
+    {
+      "name": "specversion 是 0.3",
+      "text": "{\"specversion\":\"0.3\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\"}"
+    },
+    {
+      "name": "specversion 是 1.0.1",
+      "text": "{\"specversion\":\"1.0.1\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\"}"
+    },
+    {
+      "name": "没有 id",
+      "text": "{\"specversion\":\"1.0\",\"source\":\"/orders\",\"type\":\"orders.placed\"}"
+    },
+    {
+      "name": "没有 source",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"type\":\"orders.placed\"}"
+    },
+    {
+      "name": "没有 type",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\"}"
+    },
+    {
+      "name": "id 为空",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"\",\"source\":\"/orders\",\"type\":\"orders.placed\"}"
+    },
+    {
+      "name": "source 为空",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"\",\"type\":\"orders.placed\"}"
+    },
+    {
+      "name": "type 为空",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"\"}"
+    },
+    {
+      "name": "time 不是时间",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"yesterday\"}"
+    },
+    {
+      "name": "time 为空",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"\"}"
+    },
+    {
+      "name": "time 是不存在的日期",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"time\":\"2026-02-30T03:04:05Z\"}"
+    },
+    {
+      "name": "扩展属性名带大写",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"xihanTenant\":\"t1\"}"
+    },
+    {
+      "name": "扩展属性名带连字符",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"xihan-tenant\":\"t1\"}"
+    },
+    {
+      "name": "扩展属性名带下划线",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"xihan_tenant\":\"t1\"}"
+    },
+    {
+      "name": "扩展属性名 21 个字符",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"abcdefghij01234567890\":\"x\"}"
+    },
+    {
+      "name": "data_base64 不是 Base64",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"datacontenttype\":\"application/octet-stream\",\"data_base64\":\"not base64!\"}"
+    }
+  ]
+}

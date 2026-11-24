@@ -1,0 +1,40 @@
+{
+  "$comment": "消息子系统实例标识的文法（RFC-0009「订阅方式」第 6 条，ADR-0085、ADR-0277）：^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$，1 到 maxLength 个字符，字母或数字开头，其余是字母、数字、.、_、-，区分大小写；不含 @（广播订阅在代理上的名字里实例标识前的分隔符）；按整串匹配，结尾的换行不例外。valid 必须接受；invalid 必须拒绝（配置了不合文法的值在装配时失败）。valid 的末项正好 64 个字符，invalid 的末两项是 65 与 128 个字符、别处都合文法。Redis 代理的消费组名用同一条文法（RFC-0009「Messaging.Redis」）。期望值由 .NET 参考实现（MessagingOptions.InstanceId 的赋值是否抛出）算出。",
+  "maxLength": 64,
+  "valid": [
+    "host-1",
+    "orders-7d9f8b6c5-x2k4q",
+    "Node_01",
+    "a",
+    "0",
+    "A",
+    "web.1",
+    "9a8b7c",
+    "desktop-ab12cd3-4242-0f3a9c1e",
+    "a.",
+    "a-",
+    "a_",
+    "pod-012345678901234567890123456789012345678901234567890123456789"
+  ],
+  "invalid": [
+    "",
+    " ",
+    "host 1",
+    " host-1",
+    "host-1 ",
+    "host-1\n",
+    "-host",
+    ".host",
+    "_host",
+    "host@1",
+    "xihan@host-1",
+    "host/1",
+    "host:1",
+    "host#1",
+    "主机",
+    "höst",
+    "ｈost",
+    "pod-012345678901234567890123456789012345678901234567890123456789a",
+    "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"
+  ]
+}

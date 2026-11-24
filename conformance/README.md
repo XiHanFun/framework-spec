@@ -33,6 +33,11 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `plugin/wasm-exports.json` | Wasm ABI v1 的导出与导入表 | `plugin/wasm.md` |
 | `caching/cache-keys.json` | 缓存键与键前缀必须接受与必须拒绝的样例：长度按 UTF-8 字节计（正好 512 字节、513 字节、UTF-16 码元数不超而字节数超过）、空白与控制字符 | RFC-0006「存储契约」、`provider/caching-distributed.md` §2 |
 | `context/http-deadline.json` | HTTP 载体从请求头读出的截止时间：`xihan-deadline` 合文法与读不出的写法（含 .NET 以前照收的宽松写法、出现多次）、没有它时的 `grpc-timeout`，期望值由 .NET 算出 | RFC-0003 规则 8、`protocol/http.md`、`protocol/grpc.md` |
+| `messaging/topics.json` | 消息主题文法的合法与不合法样例（含 128 个字符的上限两侧）、死信后缀的缺省值与死信主题 | RFC-0009「信封」 |
+| `messaging/envelope-extensions.json` | CloudEvents 扩展属性名的文法，扩展属性与 Baggage 键的对应，承载追踪与分区键的扩展，不进入消息的 Baggage 键 | RFC-0009「信封」、`conventions/baggage-keys.md` |
+| `messaging/instance-ids.json` | 消息子系统实例标识文法的合法与不合法样例（含 64 个字符的上限两侧） | RFC-0009「订阅方式」第 6 条 |
+| `messaging/outbox-backoff.json` | 发件箱失败之后的退避间隔（次数很大时截在上限而不溢出）与进死信的时机，期望值由 .NET 算出 | RFC-0009「发件箱」 |
+| `messaging/cloudevents-envelopes.json` | 信封的 CloudEvents 结构化 JSON 编码：必须读得出的文档与读出的信封，必须拒绝的文档，期望值由 .NET 算出 | RFC-0009「信封」、`protocol/cloudevents.md` |
 | `security/webauthn.json` | WebAuthn 注册与认证的样例响应、存储的凭据与期望结果（成功的凭据与签名计数，失败的错误码与 `reason`） | RFC-0008「WebAuthn」 |
 | `provider/caching-distributed.json` | `caching.distributed@1` 远程 Provider 的操作 ID（含批量）、请求 / 响应样例、非法键与选项 | `provider/caching-distributed.md` |
 
@@ -41,6 +46,12 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 ## 规则（`rules/`）
 
 规范文法与判定的 Go 实现，供运行器使用，也供 SDK 作者对照：错误码、操作 ID、主题、Baggage 键与值、清单 ID、清单的激活事件（`IsActivationEvent`）、能力 ID 与依赖文本、缓存键与键前缀（`IsCacheKey`、`IsCacheKeyPrefix`，长度按 UTF-8 字节计）、握手行与端点（`ParseHandshakeLine`、`ParseEndpoint`、`IsLoopbackAddress`，空白字符集 `IsWhitespace`）、宿主回调端点列表（`ParseHostAddresses`、`SelectHostEndpoint`、`FormatHostAddresses`）、截止时间（`ParseDeadline`、`FormatDeadline`、`EffectiveDeadline`，HTTP 载体的 `HTTPDeadline` 与 `ParseGRPCTimeout`）、回调失败的映射（`MapCallbackStatus`、`GRPCStatusName`、`StatusReason`、`CallbackPermission`、`CallbackPhase`）、读入对方写来的 `Error` 与 `Status`（`ReadProtoError`、`ReadProtoStatus`、`ReadDetails`）、版本协商、生命周期迁移、管道阶段、消息键与模板占位符、Result 与 Error 的线上编码（`CanonicalResult` / `CanonicalError` 给出再写出时的规范形式）、JSON 文本的共同读取检查（`CheckJSONText`，与 .NET 独立实现、回放同一份向量）。每条规则都由向量验证（`rules/rules_test.go`、`rules/messages_test.go`、`rules/plugin_test.go`）；`plugin-messages.json` 另核对模板占位符与参数一致，`callback-status.json` 的 `details` 成员与所用消息键的参数一致。模板的格式化结果由参考实现 .NET 回放 `message-templates.json` 核对，规则包不另实现一份。
+
+子系统档的规则各在一个文件里，由同名的 `rules/*_test.go` 回放对应目录的向量：
+
+| 文件 | 规则 |
+| --- | --- |
+| `rules/messaging.go` | 死信主题（`DeadLetterTopic`）、扩展属性名与 Baggage 键的对应（`IsEnvelopeExtensionName`、`EnvelopeBaggageMappings`）、实例标识（`IsMessagingInstanceID`）、发件箱的退避与进死信（`OutboxRetryDelay`、`OutboxDeadLettered`）、结构化 JSON 信封的读取（`DecodeCloudEvent`）；主题文法是 `IsTopic` |
 
 ## 黑盒运行器（`cmd/xihan-conformance`）
 

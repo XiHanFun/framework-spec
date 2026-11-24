@@ -1,6 +1,6 @@
 # RFC-0009 消息、CloudEvents 信封与发件箱
 
-> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题；2026-11-03 修订：发件箱把代理抛出与返回失败一样计入尝试、重试逐条发布、一轮遇到抛出即停止发布；2026-11-04 修订：框架异常的消息不拼代理的异常文字；2026-11-10 修订：Redis Streams Provider；2026-11-12 修订：投递覆盖租户分片库；2026-11-13 修订：插件投递带订阅方式；2026-11-24 修订：一次投递尝试的了结方式、停止打断的投递不计尝试、排空期间不原位重试；2026-11-24 修订：处理器不另传取消令牌） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题）、ADR-0108（发件箱计入代理抛出）、ADR-0115、ADR-0130（Redis Streams Provider）、ADR-0211（投递覆盖分片库）、ADR-0226（插件投递带订阅方式）、ADR-0261（投递尝试收成一处）、ADR-0263（处理器不另传取消令牌） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka`、`XiHan.Framework.Messaging.Redis` | 一致性：`XiHan.Framework.Messaging.Conformance` | 一致性档：`messaging`
+> 状态：已采纳（2026-10-23 修订：批量发布；2026-10-26 修订：流能力与 Kafka Provider；2026-11-01 修订：内存代理主题数上限、发布确认、发布侧补齐扩展、发件箱尝试上限与死信、流的死信发布失败回退重投；同日再修订：内存代理丢弃没人订阅的主题的消息、RabbitMQ 的队列只由订阅方声明并丢弃没有订阅者的消息、订阅方式与广播订阅；同日再修订：删除内存代理的主题数上限；同日再修订：实例标识可配置、Kafka 主题不存在维持失败并要求预建主题；2026-11-03 修订：发件箱把代理抛出与返回失败一样计入尝试、重试逐条发布、一轮遇到抛出即停止发布；2026-11-04 修订：框架异常的消息不拼代理的异常文字；2026-11-10 修订：Redis Streams Provider；2026-11-12 修订：投递覆盖租户分片库；2026-11-13 修订：插件投递带订阅方式；2026-11-24 修订：一次投递尝试的了结方式、停止打断的投递不计尝试、排空期间不原位重试；2026-11-24 修订：处理器不另传取消令牌；同日第三次修订：一致性向量、结构化 JSON 文档不合法的情形） | 日期：2026-10-21 | 对应 ADR：ADR-0019（流）、ADR-0064（发件箱死信）、ADR-0074（内存代理丢弃无人订阅的消息）、ADR-0079（RabbitMQ 队列只由订阅方声明、广播订阅）、ADR-0082（删除主题数上限）、ADR-0085（实例标识可配置、Kafka 预建主题）、ADR-0108（发件箱计入代理抛出）、ADR-0115、ADR-0130（Redis Streams Provider）、ADR-0211（投递覆盖分片库）、ADR-0226（插件投递带订阅方式）、ADR-0261（投递尝试收成一处）、ADR-0263（处理器不另传取消令牌）、ADR-0277（一致性向量） | 参考实现：`XiHan.Framework.Messaging.Abstractions`、`XiHan.Framework.Messaging.InMemory`、`XiHan.Framework.Messaging.RabbitMQ`、`XiHan.Framework.Messaging.Kafka`、`XiHan.Framework.Messaging.Redis` | 一致性：`XiHan.Framework.Messaging.Conformance`，向量 `conformance/vectors/messaging/` | 一致性档：`messaging`
 
 ## 摘要
 
@@ -17,7 +17,7 @@
 
 ## 信封
 
-CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`datacontenttype`（默认 `application/json`）、`data`。线上编码为结构化 JSON（`application/cloudevents+json`）：JSON 数据内联在 `data`，其他数据放 `data_base64`，扩展属性是顶层成员。
+CloudEvents 1.0：`id`、`source`、`type` 必填；`time`、`subject`、`datacontenttype`（默认 `application/json`）、`data`。线上编码为结构化 JSON（`application/cloudevents+json`）：JSON 数据内联在 `data`，其他数据放 `data_base64`，扩展属性是顶层成员。读取时文档不合法即整个信封不合法（`MESSAGING_VALIDATION_002`），不合法的情形是（2026-11-24 写明，ADR-0277；以前只在 `protocol/cloudevents.md` 列了规范版本、必填属性、时间与扩展名四类）：文本不是 JSON 对象；`specversion` 不是 `1.0`；`id`、`source`、`type` 缺失或为空字符串；`time` 读不成时刻（如 `yesterday`、空字符串、不存在的日期）；规范属性之外的顶层成员（扩展属性）名字不合文法；`data_base64` 不是 Base64。读出的 `time` 是一个时刻，带偏移与写成 UTC 的同一时刻相等。
 
 框架扩展属性：`xihantenant`（→ Baggage `xihan.tenant`）、`xihanprincipal`（→ `xihan.principal`）、`xihancorrelation`（→ `xihan.correlation`）、`xihanlocale`（→ `xihan.locale`）、`traceparent`（→ 追踪 ID、父跨度与采样标志）、`xihankey`（分区键，见「流」）。扩展属性名 `^[a-z0-9]{1,20}$`。前四个与 Baggage 的对应以 `conventions/baggage-keys.md` 的 CloudEvents 载体为准（`EnvelopeExtensions.BaggageMappings`）；幂等键 `xihan.idempotency-key` 不进入消息（投递第 4 条）。
 
@@ -163,6 +163,18 @@ Provider：
 ## 一致性
 
 Provider 必须继承 `MessageBrokerConformance` 并通过全部用例，含批量发布：一次发布多条保持顺序、逐项结果、空集合、主题不合法逐项失败；发布到没人订阅的主题（单条与批量）成功；同一主题的竞争订阅与广播订阅各收到一次；两个实例连同一个代理时广播每个实例都收到、竞争只有一个实例收到（跨宿主共享代理的 Provider，内存代理以 `SupportsMultipleInstances = false` 跳过）。提供 `messaging.stream@1` 的 Provider 还要继承 `MessageStreamConformance`（同键有序、按时刻重放）。
+
+向量（档 `messaging`，`conformance/vectors/messaging/`；2026-11-24，ADR-0277，以前这个档没有向量，各语言只能靠上面的行为套件对照 .NET）：
+
+| 文件 | 内容 |
+| --- | --- |
+| `topics.json` | 主题文法的合法与不合法样例（含 128 个字符的上限两侧）、死信后缀的缺省值与死信主题 |
+| `envelope-extensions.json` | 扩展属性名的文法，扩展属性与 Baggage 键的对应，承载追踪与分区键的扩展，不进入消息的 Baggage 键 |
+| `instance-ids.json` | 实例标识文法的合法与不合法样例（含 64 个字符的上限两侧） |
+| `outbox-backoff.json` | 发件箱失败之后的退避间隔（含次数很大时截在上限而不溢出）与进死信的时机 |
+| `cloudevents-envelopes.json` | 信封的结构化 JSON 编码：必须读得出的文档与读出的信封，必须拒绝的文档 |
+
+向量只收正文写明的规则。结构化 JSON 的这几类写法规范不作规定，向量不收，实现之间可以不同：`time` 在 RFC 3339 之外的写法（空格代替 `T`、没有偏移、只有日期；CloudEvents 1.0 要求 RFC 3339，.NET 用通用的日期解析照收，没有偏移时按本机时区读）与秒以下超过七位的小数；扩展属性的非字符串值（数字、布尔、`null`、对象、数组）；`data` 与 `data_base64` 同时出现；重复的成员；只有空白的必填属性；`data` 为 `null`；内容类型不是 JSON 而数据写在 `data` 里。生成的实例标识里机器名的归一化（「订阅方式」第 6 条）与各代理上的队列名、主题名、消费组名同样没有向量。
 
 发件箱的存储经仓储，内存持久化与数据库 Provider 都要通过 `OutboxConformance`（Preview，`CreateFeature()` 返回持久化特性；2026-11-03，ADR-0108）：代理对某条消息一直抛出时按尝试上限、退避进死信，同批的其他消息照常发出；返回失败与抛出逐轮状态相同；调用方取消回滚本轮、不计尝试；不是调用方取消的 `OperationCanceledException` 计为失败。
 

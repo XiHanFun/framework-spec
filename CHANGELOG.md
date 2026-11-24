@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- MINOR：`messaging` 档有了向量（RFC-0009，ADR-0277；以前这个档一个向量都没有，各语言只能对照 .NET 的行为套件）。新增 `messaging/topics.json`（主题文法、128 个字符的上限两侧、死信后缀的缺省值与死信主题）、`messaging/envelope-extensions.json`（扩展属性名的文法、扩展属性与 Baggage 键的对应、承载追踪与分区键的扩展、不进入消息的 Baggage 键）、`messaging/instance-ids.json`（实例标识的文法与 64 个字符的上限两侧）、`messaging/outbox-backoff.json`（发件箱的退避间隔与进死信的时机）、`messaging/cloudevents-envelopes.json`（信封的结构化 JSON 编码：读得出的文档与读出的信封、必须拒绝的文档）；规则包新增 `rules/messaging.go`。RFC-0009「信封」写明结构化 JSON 文档不合法的情形：不是 JSON 对象、`specversion` 不是 `1.0`、`id` / `source` / `type` 缺失或为空字符串、`time` 读不成时刻、扩展属性名不合文法、`data_base64` 不是 Base64（以前只在 `protocol/cloudevents.md` 列了前四类里的名目，没说空字符串与 Base64）。向量只收正文写明的规则，「一致性」一节列出不作规定的写法（RFC 3339 之外的时间写法、扩展属性的非字符串值等）。认领 `messaging` 档的实现要回放这五个文件或登记缺口。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0012 对象存储（ADR-0266）：分片上传的 `Abort` 改为批量、逐项结果；命名实例注册表的 `Remove` 改为批量、逐项报告是否存在过，新增登记数上限 `XiHan:ObjectStorage:StoreMaxCount` 与错误码 `OBJECTSTORAGE_UNAVAILABLE_005`；`S3BlobStore` 不再有公开构造，一律按「S3 的条件写入探测」建出。只影响 .NET 的对象存储 Provider 与调用方，线上与各 SDK 不变。
 - MAJOR（`v1.0.0` 之前允许）：收调用上下文的处理器契约不另传取消令牌（ADR-0263）：RFC-0009 的 `IMessageHandler.HandleAsync(delivery, context)`、RFC-0008 的凭据处理器 `AuthenticateAsync(credential, context)`、RFC-0007 的 `ITenantResolver.ResolveAsync(context)`，取消与截止时间只在 `context.CancellationToken` 上；RFC-0001「可选参数」写明这条通用规则。只影响 .NET 的签名，线上与各 SDK 不变。
 - PATCH：RFC-0008 里两个 .NET 类型改名（ADR-0264）：`IAuthenticationHandler` → `ICredentialHandler`，策略判定的结果 `AuthorizationResult` → `AuthorizationDecision`，避开 ASP.NET Core 的同名类型；规则不变。

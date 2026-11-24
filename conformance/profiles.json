@@ -141,7 +141,13 @@
       "title": "子系统：消息、CloudEvents 信封与发件箱",
       "stability": "stable",
       "documents": ["rfcs/0009-messaging.md"],
-      "vectors": [],
+      "vectors": [
+        "messaging/cloudevents-envelopes.json",
+        "messaging/envelope-extensions.json",
+        "messaging/instance-ids.json",
+        "messaging/outbox-backoff.json",
+        "messaging/topics.json"
+      ],
       "runner": []
     },
     {

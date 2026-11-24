@@ -1,0 +1,74 @@
+{
+  "$comment": "消息主题的文法与死信主题（RFC-0009「信封」，ADR-0277）：^[a-z0-9][a-z0-9._-]{0,127}$，小写字母或数字开头，之后是小写字母、数字、.、_、-，整个主题不超过 maxLength 个字符（文法只含 ASCII，字符数就是字节数）；按整串匹配，结尾的换行不例外。valid 必须接受，invalid 必须拒绝（发布时是 MESSAGING_VALIDATION_001）；valid 的末项正好 128 个字符，invalid 的末两项是 129 与 200 个字符、别处都合文法；@ 不在文法里，广播订阅在代理上的名字用它分隔实例标识。deadLetter：死信主题是主题加死信后缀，defaultSuffix 是后缀的缺省值，cases 的每项给出主题、后缀（null 表示用缺省值）与死信主题；死信主题是代理上的名字，不再过主题文法（128 个字符的主题加后缀就超过了上限）。文法的期望值由 .NET 参考实现（TopicName.IsValid）算出，缺省后缀取自 MessagingOptions.DeadLetterSuffix；死信主题按正文的拼接规则给出。",
+  "maxLength": 128,
+  "valid": [
+    "orders",
+    "orders.placed",
+    "order_events",
+    "orders-v2",
+    "a",
+    "0",
+    "9lives",
+    "scheduling.job.succeeded",
+    "a..b",
+    "a.",
+    "a-",
+    "a_",
+    "orders.dlq",
+    "t012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789abcdefg"
+  ],
+  "invalid": [
+    "",
+    "Orders",
+    "orders.Placed",
+    ".orders",
+    "-orders",
+    "_orders",
+    "orders placed",
+    " orders",
+    "orders ",
+    "orders\n",
+    "orders\t",
+    "orders/placed",
+    "orders:placed",
+    "orders@host-1",
+    "orders.*",
+    "orders#",
+    "ordérs",
+    "订单",
+    "ｏrders",
+    "orders\u0000",
+    "t012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789abcdefgh",
+    "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt"
+  ],
+  "deadLetter": {
+    "defaultSuffix": ".dlq",
+    "cases": [
+      {
+        "topic": "orders",
+        "suffix": null,
+        "deadLetter": "orders.dlq"
+      },
+      {
+        "topic": "orders.placed",
+        "suffix": null,
+        "deadLetter": "orders.placed.dlq"
+      },
+      {
+        "topic": "order_events",
+        "suffix": ".dead",
+        "deadLetter": "order_events.dead"
+      },
+      {
+        "topic": "orders",
+        "suffix": "-dlq",
+        "deadLetter": "orders-dlq"
+      },
+      {
+        "topic": "t012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789abcdefg",
+        "suffix": null,
+        "deadLetter": "t012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789abcdefg.dlq"
+      }
+    ]
+  }
+}

@@ -1,0 +1,194 @@
+{
+  "$comment": "发件箱失败之后的退避间隔与进死信的时机（RFC-0009「发件箱」，ADR-0064、ADR-0108、ADR-0277）。一条消息每发布一次计一次尝试；失败之后 NextAttemptAt 推后 RetryDelay × 2 的（尝试次数 − 1）次方，不超过 MaxRetryDelay。defaults 是三个选项的缺省值（毫秒与次数）。cases 的每项：retryDelayMs 与 maxRetryDelayMs 是两个选项（毫秒），attempts 是已经失败的尝试次数（从 1 起），delayMs 是这次失败之后推后的间隔（毫秒）；次数再多也截在上限，实现不得因为指数溢出而得出负数、零或别的值。deadLetter：尝试次数达到 MaxAttempts 即进死信、不再排下一次，每项给出 maxAttempts、attempts 与是否进死信；载荷无法解码（MESSAGING_VALIDATION_002）的不论次数直接进死信，不在这张表里。缺省参数下一条消息连续失败 10 次进死信，前 9 次失败之后的间隔之和是 1215 秒。间隔的期望值由 .NET 参考实现（OutboxOptions.RetryDelayAfter）算出，并与正文的公式逐条对过；进死信的时机按正文给出。",
+  "defaults": {
+    "retryDelayMs": 5000,
+    "maxRetryDelayMs": 300000,
+    "maxAttempts": 10
+  },
+  "cases": [
+    {
+      "name": "缺省参数，第 1 次失败之后",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 1,
+      "delayMs": 5000
+    },
+    {
+      "name": "缺省参数，第 2 次失败之后",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 2,
+      "delayMs": 10000
+    },
+    {
+      "name": "缺省参数，第 3 次失败之后",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 3,
+      "delayMs": 20000
+    },
+    {
+      "name": "缺省参数，第 4 次失败之后",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 4,
+      "delayMs": 40000
+    },
+    {
+      "name": "缺省参数，第 5 次失败之后",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 5,
+      "delayMs": 80000
+    },
+    {
+      "name": "缺省参数，第 6 次失败之后",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 6,
+      "delayMs": 160000
+    },
+    {
+      "name": "缺省参数，第 7 次失败之后",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 7,
+      "delayMs": 300000
+    },
+    {
+      "name": "缺省参数，第 8 次失败之后",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 8,
+      "delayMs": 300000
+    },
+    {
+      "name": "缺省参数，第 9 次失败之后",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 9,
+      "delayMs": 300000
+    },
+    {
+      "name": "缺省参数，第 10 次失败之后",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 10,
+      "delayMs": 300000
+    },
+    {
+      "name": "缺省参数，第 11 次失败之后",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 11,
+      "delayMs": 300000
+    },
+    {
+      "name": "缺省参数，第 12 次失败之后",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 12,
+      "delayMs": 300000
+    },
+    {
+      "name": "间隔 1 秒、上限 1 小时，第 1 次失败之后",
+      "retryDelayMs": 1000,
+      "maxRetryDelayMs": 3600000,
+      "attempts": 1,
+      "delayMs": 1000
+    },
+    {
+      "name": "间隔 1 秒、上限 1 小时，第 12 次失败之后还没到上限",
+      "retryDelayMs": 1000,
+      "maxRetryDelayMs": 3600000,
+      "attempts": 12,
+      "delayMs": 2048000
+    },
+    {
+      "name": "间隔 1 秒、上限 1 小时，第 13 次失败之后截在上限",
+      "retryDelayMs": 1000,
+      "maxRetryDelayMs": 3600000,
+      "attempts": 13,
+      "delayMs": 3600000
+    },
+    {
+      "name": "间隔 250 毫秒，第 3 次失败之后",
+      "retryDelayMs": 250,
+      "maxRetryDelayMs": 60000,
+      "attempts": 3,
+      "delayMs": 1000
+    },
+    {
+      "name": "翻倍后正好等于上限",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 40000,
+      "attempts": 4,
+      "delayMs": 40000
+    },
+    {
+      "name": "间隔比上限大，第 1 次失败之后就截在上限",
+      "retryDelayMs": 10000,
+      "maxRetryDelayMs": 3000,
+      "attempts": 1,
+      "delayMs": 3000
+    },
+    {
+      "name": "间隔等于上限，不再增长",
+      "retryDelayMs": 30000,
+      "maxRetryDelayMs": 30000,
+      "attempts": 5,
+      "delayMs": 30000
+    },
+    {
+      "name": "失败次数很多，截在上限而不溢出",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 100,
+      "delayMs": 300000
+    },
+    {
+      "name": "失败次数到 32 位整数的上限，截在上限而不溢出",
+      "retryDelayMs": 5000,
+      "maxRetryDelayMs": 300000,
+      "attempts": 2147483647,
+      "delayMs": 300000
+    }
+  ],
+  "deadLetter": [
+    {
+      "maxAttempts": 10,
+      "attempts": 1,
+      "deadLettered": false
+    },
+    {
+      "maxAttempts": 10,
+      "attempts": 9,
+      "deadLettered": false
+    },
+    {
+      "maxAttempts": 10,
+      "attempts": 10,
+      "deadLettered": true
+    },
+    {
+      "maxAttempts": 10,
+      "attempts": 11,
+      "deadLettered": true
+    },
+    {
+      "maxAttempts": 1,
+      "attempts": 1,
+      "deadLettered": true
+    },
+    {
+      "maxAttempts": 3,
+      "attempts": 2,
+      "deadLettered": false
+    },
+    {
+      "maxAttempts": 3,
+      "attempts": 3,
+      "deadLettered": true
+    }
+  ]
+}
