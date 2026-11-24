@@ -48,7 +48,7 @@
 
 ## 授权
 
-1. 调用的授权要求是宿主在 Authorize 阶段之前写入上下文的全部 `AuthorizationRequirement(policy, resource?)`（端点与路由组元数据上的每一条，以及 Authorize 之前的中间件以 `RequireAuthorization` 追加的），加上操作契约（P3）推导出的那一条（权限码优先于策略名）。Authorize 阶段按顺序逐条判定，全部满足才放行，第一条不满足即以它的结果结束，相同的要求只判定一次；都没有则放行。写入的要求叠加在契约的要求之上，不顶替它：在 `MapXiHanOperations()` 的组上加 `RequireXiHanAuthentication()`，是在每个操作自己的权限之上再要求登录（2026-11-12 修订，ADR-0174）。
+1. 调用的授权要求是宿主在 Authorize 阶段之前写入上下文的全部 `AuthorizationRequirement { Policy, Resource? }`（端点与路由组元数据上的每一条，以及 Authorize 之前的中间件以 `RequireAuthorization` 追加的），加上操作契约（P3）推导出的那一条（权限码优先于策略名）。Authorize 阶段按顺序逐条判定，全部满足才放行，第一条不满足即以它的结果结束，相同的要求只判定一次；都没有则放行。写入的要求叠加在契约的要求之上，不顶替它：在 `MapXiHanOperations()` 的组上加 `RequireXiHanAuthentication()`，是在每个操作自己的权限之上再要求登录（2026-11-12 修订，ADR-0174）。
 2. 权限码文法 `^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$`：小写、点分、至少两段，每段以小写字母开头，可含数字与连字符，如 `orders.read`；要带领域前缀时写成三段及以上（`sales.orders.read`）。权限码先经特性登记进内核 `PermissionRegistry`（`FeatureContext.AddPermission`），登记时记下归属（特性的清单 ID；插件声明的码归属插件的清单 ID）。
    - 操作契约引用的权限码（`OperationContract.Permission`）必须已登记（ADR-0071）：全部特性配置完、装配完成的那一刻（`AppBuilder.Build`）一次核对，有未登记的即抛出 `KERNEL_VALIDATION_005`（`FrameworkException`，一次列出全部），启动失败。核对在装配完成时而不是登记操作时：定义权限码的特性可能按拓扑排在引用它的特性之后。
    - 装配完成之后才登记的操作（进程外 / Wasm 插件握手之后：重试成功、运行期 `LoadAsync`）在登记时核对，引用了未登记的权限码即登记失败（`KERNEL_VALIDATION_005`），插件整体被拒、不留下任何代理操作（`plugin/invocation.md` §1）。
