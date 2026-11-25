@@ -1071,7 +1071,7 @@ type WorkflowExpressionBudget struct {
 	Expression *string `json:"expression,omitempty"`
 }
 
-// WorkflowExpressionLimitVectors 对应 workflow/expression-limits.json（RFC-0021「表达式」的「长度与上限」，ADR-0287、ADR-0296、ADR-0303）。
+// WorkflowExpressionLimitVectors 对应 workflow/expression-limits.json（RFC-0021「表达式」的「长度与上限」，ADR-0287、ADR-0296、ADR-0303、ADR-0309）。
 type WorkflowExpressionLimitVectors struct {
 	ErrorCode       string                            `json:"errorCode"`
 	MaxLength       int                               `json:"maxLength"`

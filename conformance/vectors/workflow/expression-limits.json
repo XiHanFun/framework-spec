@@ -1,5 +1,5 @@
 {
-  "$comment": "工作流表达式的上限与错误里带出的文本（RFC-0021「表达式」的「长度与上限」，ADR-0120、ADR-0182、ADR-0287、ADR-0296、ADR-0303）。长度都按 UTF-16 码元计，基本多文种平面以外的字符算两个。lengths、nestings 与 chains 的表达式由重复的片段拼出来，不直接写出：lengths 的表达式是 head 接 count 个 padding 再接 tail，length 是它的长度，valid 为假表示只校验语法就以 workflow.expression.too_long 失败（参数 length 与 max = maxLength），先于其他任何检查；nestings 的表达式是 levels 个 open、leaf、levels 个 close，valid 为假表示以 workflow.expression.too_deep 失败（参数 max = maxDepth），为真表示能解析并求值——括号、函数的实参表、索引与一元运算符各算一层，算进同一个计数；chains 的表达式是 head 接 count 个 link，链不算嵌套，求值成功，type 与 text 是结果。blocks 给出很长的字符串变量：variable 的值是 repeat 个 unit（k 与 e 各 1048576 个码元，j 是 1043999 个）；arrays 给出很长的数组变量：variable 的值是 repeat 个 item；numerals 给出原文很长的数字变量（2026-11-25 加的，ADR-0303）：variable 的值是 JSON 数字，它在 JSON 文本里的原文是 head 接 repeat 个 unit（g 的原文是 1. 接 4193998 个 0，共 4194000 个字符，值是 1）；它们与 variables 合起来是求值时的实例变量，variables 里的数字照文件里的原文（n 是 1.50、m 是 1e2），回放时不能经 float64 改写。concatenations：expression 求值，valid 为真表示成功、结果是长度为 length 的字符串，为假表示以 workflow.expression.string_too_long 失败（参数 length、max = maxStringLength），length 是使它超过的那一次拼接两侧的长度之和。renderings：template 渲染，valid 为真表示成功、文本的长度是 length，为假表示以 workflow.expression.string_too_long 失败，length 是接上使它超过的那一段（字面文本或占位的文本）之后的长度。echoes：source 按 mode 求值（evaluate）、当条件求值（condition）或当模板渲染（render），以 messageKey 失败，arguments 是全部参数，含 expression——错误里带出的文本最多 maxEchoLength 个码元，超过的截断后接 U+2026，第 200 个码元是代理对的前一半时只取 199 个；not_date 的 value 同样。budgets：工作量（2026-11-25 加的，ADR-0296）。source 是 head 接 count 个 link 再接 tail，按 mode 求值（evaluate）或当模板渲染（render）；一次求值或一次渲染累计的工作量超过 maxWork 即以 workflow.expression.budget_exceeded 失败（参数 max = maxWork）。每开始求值一个节点记 stepWork；运算求值完操作数之后、核对它们之前记它读的操作数的读取量：字符串是它的长度，数字是它的写法的长度——变量里的数字是它在 JSON 文本里的原文，字面量与运算、函数得出的数字是数字的文本（2026-11-25 修订，ADR-0303；以前数字是 0），数组与对象是 stepWork 乘以它里面的值的个数（它自己也算）加上全部字符串、数字与成员名的长度，null 与布尔是 0；哪些运算读哪些操作数见 RFC-0021 的表；模板的全部占位共用一份，每个占位的结果在接上之前再读一次。valid 为真表示成功，work 是累计的工作量（实现能取到工作量时核对它）；为假表示以 budget_exceeded 失败，expression 是错误的 expression 参数——求值占位里的表达式时超过的是那段表达式，读占位的结果时超过的是模板，都按 maxEchoLength 截断。期望值由 .NET 参考实现（WorkflowExpressionEvaluator）算出。",
+  "$comment": "工作流表达式的上限与错误里带出的文本（RFC-0021「表达式」的「长度与上限」，ADR-0120、ADR-0182、ADR-0287、ADR-0296、ADR-0303、ADR-0309）。长度都按 UTF-16 码元计，基本多文种平面以外的字符算两个。lengths、nestings 与 chains 的表达式由重复的片段拼出来，不直接写出：lengths 的表达式是 head 接 count 个 padding 再接 tail，length 是它的长度，valid 为假表示只校验语法就以 workflow.expression.too_long 失败（参数 length 与 max = maxLength），先于其他任何检查；nestings 的表达式是 levels 个 open、leaf、levels 个 close，valid 为假表示以 workflow.expression.too_deep 失败（参数 max = maxDepth），为真表示能解析并求值——括号、函数的实参表、索引与一元运算符各算一层，算进同一个计数；chains 的表达式是 head 接 count 个 link，链不算嵌套，求值成功，type 与 text 是结果。blocks 给出很长的字符串变量：variable 的值是 repeat 个 unit（k 与 e 各 1048576 个码元，j 是 1043999 个）；arrays 给出很长的数组变量：variable 的值是 repeat 个 item；numerals 给出原文很长的数字变量（2026-11-25 加的，ADR-0303）：variable 的值是 JSON 数字，它在 JSON 文本里的原文是 head 接 repeat 个 unit（g 的原文是 1. 接 4193998 个 0，共 4194000 个字符，值是 1）；它们与 variables 合起来是求值时的实例变量，variables 里的数字照文件里的原文（n 是 1.50、m 是 1e2），回放时不能经 float64 改写。concatenations：expression 求值，valid 为真表示成功、结果是长度为 length 的字符串，为假表示以 workflow.expression.string_too_long 失败（参数 length、max = maxStringLength），length 是使它超过的那一次拼接两侧的长度之和。renderings：template 渲染，valid 为真表示成功、文本的长度是 length，为假表示以 workflow.expression.string_too_long 失败，length 是接上使它超过的那一段（字面文本或占位的文本）之后的长度。echoes：source 按 mode 求值（evaluate）、当条件求值（condition）或当模板渲染（render），以 messageKey 失败，arguments 是全部参数，含 expression——错误里带出的文本最多 maxEchoLength 个码元，超过的截断后接 U+2026，第 200 个码元是代理对的前一半时只取 199 个；not_date 的 value 同样。budgets：工作量（2026-11-25 加的，ADR-0296）。source 是 head 接 count 个 link 再接 tail，按 mode 求值（evaluate）或当模板渲染（render）；一次求值或一次渲染累计的工作量超过 maxWork 即以 workflow.expression.budget_exceeded 失败（参数 max = maxWork）。每开始求值一个节点记 stepWork；运算求值完操作数之后、核对它们之前记它读的操作数的读取量：字符串是它的长度，数字是它的写法的长度——变量里的数字是它在 JSON 文本里的原文，字面量与运算、函数得出的数字是数字的文本（2026-11-25 修订，ADR-0303；以前数字是 0），数组与对象是 stepWork 乘以它里面的值的个数（它自己也算）加上全部字符串、数字与成员名的长度，null 与布尔是 0；哪些运算读哪些操作数见 RFC-0021 的表——len 读是字符串或数字的实参，isNullOrEmpty 只读到能判定为止：非空的字符串记 1，空串、数字、布尔与容器不读（2026-11-26 修订，ADR-0309；以前 len 与 isNullOrEmpty 只读数字）；模板的全部占位共用一份，每个占位的结果在接上之前再读一次。valid 为真表示成功，work 是累计的工作量（实现能取到工作量时核对它）；为假表示以 budget_exceeded 失败，expression 是错误的 expression 参数——求值占位里的表达式时超过的是那段表达式，读占位的结果时超过的是模板，都按 maxEchoLength 截断。期望值由 .NET 参考实现（WorkflowExpressionEvaluator）算出。",
   "errorCode": "WORKFLOW_VALIDATION_003",
   "maxLength": 4000,
   "maxDepth": 64,
@@ -790,24 +790,24 @@
       "expression": "t"
     },
     {
-      "name": "读字符串：正好到上限",
+      "name": "upper 读字符串、isNullOrEmpty 只读第一个码元：正好到上限",
       "mode": "evaluate",
-      "head": "len(upper(j))+len(upper('",
+      "head": "isNullOrEmpty(upper(j))||isNullOrEmpty(upper('",
       "link": "a",
-      "count": 64,
-      "tail": "'))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))",
+      "count": 272,
+      "tail": "'))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))",
       "valid": true,
       "work": 16777216
     },
     {
-      "name": "读字符串：多一个码元就超过",
+      "name": "upper 读字符串、isNullOrEmpty 只读第一个码元：多一个码元就超过",
       "mode": "evaluate",
-      "head": "len(upper(j))+len(upper('",
+      "head": "isNullOrEmpty(upper(j))||isNullOrEmpty(upper('",
       "link": "a",
-      "count": 65,
-      "tail": "'))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))",
+      "count": 273,
+      "tail": "'))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))||isNullOrEmpty(upper(k))",
       "valid": false,
-      "expression": "len(upper(j))+len(upper('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(uppe…"
+      "expression": "isNullOrEmpty(upper(j))||isNullOrEmpty(upper('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…"
     },
     {
       "name": "读容器：正好到上限",
@@ -830,14 +830,14 @@
       "expression": "true&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&…"
     },
     {
-      "name": "拼到拼接的上限一次",
+      "name": "拼到拼接的上限一次，len 再读一遍拼出的字符串",
       "mode": "evaluate",
       "head": "len(k+k+k+k)",
       "link": "",
       "count": 0,
       "tail": "",
       "valid": true,
-      "work": 9437696
+      "work": 13632000
     },
     {
       "name": "拼到拼接的上限两次就超过工作量，先于拼接的上限",
@@ -944,7 +944,7 @@
       "mode": "evaluate",
       "head": "g+g+g+g+len(upper('",
       "link": "a",
-      "count": 506,
+      "count": 253,
       "tail": "'))",
       "valid": true,
       "work": 16777216
@@ -954,10 +954,100 @@
       "mode": "evaluate",
       "head": "g+g+g+g+len(upper('",
       "link": "a",
-      "count": 507,
+      "count": 254,
       "tail": "'))",
       "valid": false,
       "expression": "g+g+g+g+len(upper('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…"
+    },
+    {
+      "name": "len 读字符串：要取出全文才数得出 UTF-16 码元",
+      "mode": "evaluate",
+      "head": "len(s)",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 131
+    },
+    {
+      "name": "len 读很长的字符串，每次记它的长度",
+      "mode": "evaluate",
+      "head": "len(j)",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 1044127
+    },
+    {
+      "name": "isNullOrEmpty 读非空的字符串只记第一个码元",
+      "mode": "evaluate",
+      "head": "isNullOrEmpty(j)",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 129
+    },
+    {
+      "name": "isNullOrEmpty 读空串记 0",
+      "mode": "evaluate",
+      "head": "isNullOrEmpty('')",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 128
+    },
+    {
+      "name": "isNullOrEmpty 不读数字：数字的文本总不是空串",
+      "mode": "evaluate",
+      "head": "isNullOrEmpty(g)",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 128
+    },
+    {
+      "name": "isNullOrEmpty 不读容器：看个数就能判定",
+      "mode": "evaluate",
+      "head": "isNullOrEmpty(z)",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 128
+    },
+    {
+      "name": "isNullOrEmpty 连写两百次读百万码元的字符串，每次只记一个码元",
+      "mode": "evaluate",
+      "head": "isNullOrEmpty(k)",
+      "link": "||isNullOrEmpty(k)",
+      "count": 200,
+      "tail": "",
+      "valid": true,
+      "work": 38729
+    },
+    {
+      "name": "len 读字符串：正好到上限",
+      "mode": "evaluate",
+      "head": "len(j)+len('",
+      "link": "a",
+      "count": 1150,
+      "tail": "')+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)",
+      "valid": true,
+      "work": 16777216
+    },
+    {
+      "name": "len 读字符串：多一个码元就超过",
+      "mode": "evaluate",
+      "head": "len(j)+len('",
+      "link": "a",
+      "count": 1151,
+      "tail": "')+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)+len(k)",
+      "valid": false,
+      "expression": "len(j)+len('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…"
     }
   ]
 }

@@ -489,6 +489,25 @@ func TestWorkflowExpressionLimitsFollowTheVectors(t *testing.T) {
 	if !rewritten {
 		t.Error("the variables must keep a number written otherwise than its number text")
 	}
+	// len 读字符串的全文、isNullOrEmpty 只读到能判定为止（ADR-0309）：len 读很长的字符串要有正好到上限的与超过的；
+	// isNullOrEmpty 连写读很长的字符串，工作量要比那个字符串的长度还少——读了全文的实现在这条上就对不上
+	lenAtLimit, lenOver, emptinessShort := false, false, false
+	for _, block := range vectors.Blocks {
+		units := int64(rules.WorkflowExpressionLength(block.Unit)) * int64(block.Repeat)
+		for _, c := range vectors.Budgets {
+			source := c.Head + strings.Repeat(c.Link, c.Count) + c.Tail
+			if strings.HasPrefix(c.Head, "len(") && strings.Contains(source, "len("+block.Variable+")") {
+				lenAtLimit = lenAtLimit || (c.Valid && c.Work != nil && *c.Work == vectors.MaxWork)
+				lenOver = lenOver || !c.Valid
+			}
+			if c.Valid && c.Work != nil && c.Count > 0 && strings.Count(source, "isNullOrEmpty("+block.Variable+")") == c.Count+1 && *c.Work < units {
+				emptinessShort = true
+			}
+		}
+	}
+	if !lenAtLimit || !lenOver || !emptinessShort {
+		t.Errorf("the budgets must read a long string with len up to the limit (%v) and over it (%v), and call isNullOrEmpty on it for less than its length (%v)", lenAtLimit, lenOver, emptinessShort)
+	}
 
 	sides := map[string]bool{}
 	for _, c := range vectors.Budgets {
