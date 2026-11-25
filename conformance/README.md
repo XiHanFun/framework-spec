@@ -47,7 +47,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `objectstorage/container-names.json` | 容器名文法的合法与不合法样例（3 到 63 个字符的两侧），期望值由 .NET 算出 | RFC-0012「标识」 |
 | `objectstorage/blob-keys.json` | 对象键的文法（分段、`.` 与 `..`、空白、控制字符、反斜线）、保留前缀 `.xihan` 与查询前缀；长度按 UTF-8 字节计，1024 字节的上限两侧（含码元数不超而字节数超过的），每条标出字节数与码元数，期望值由 .NET 算出 | RFC-0012「标识」 |
 | `objectstorage/blob-metadata.json` | 自定义元数据：名的文法，值里的控制字符，名与值合计 2048 个 UTF-8 字节的上限两侧（含码元数不超而字节数超过的），期望值由 .NET 算出 | RFC-0012「标识」 |
-| `objectstorage/blob-content-types.json` | 对象内容类型文法的合法与不合法样例（token 字符、`;` 两侧的空格、`;` 之后可以为空、制表符不收、255 个字符的上限两侧），期望值由 .NET 算出 | RFC-0012「标识」 |
+| `objectstorage/blob-content-types.json` | 对象内容类型文法的合法与不合法样例（token 字符、`;` 两侧的空格、`;` 之后可以为空、不以空格结尾、制表符不收、255 个字符的上限两侧），期望值由 .NET 算出 | RFC-0012「标识」 |
 | `objectstorage/blob-ranges.json` | 范围读取：起点、可选的长度与总长，到实际范围（超出末尾截断）或不可满足，期望值由 .NET 算出 | RFC-0012「范围读取、分片上传与预签名」 |
 | `objectstorage/download-file-names.json` | 预签名下载地址上保存的文件名：不全是空白、不含控制字符，按 UTF-8 编码后 255 字节的上限两侧（含码元数不超而字节数超过的），每条标出字节数与码元数，期望值由 .NET 算出 | RFC-0012「范围读取、分片上传与预签名」 |
 | `objectstorage/multipart-parts.json` | 分片编号的范围（1–10000）、分片的最小字节数与完成清单的编号次序，期望值由 .NET 算出 | RFC-0012「范围读取、分片上传与预签名」 |

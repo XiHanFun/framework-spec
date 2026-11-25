@@ -2,6 +2,7 @@ package rules_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"unicode/utf16"
 
@@ -198,20 +199,26 @@ func TestBlobContentTypesFollowTheVectors(t *testing.T) {
 	if !rules.IsBlobContentType(vectors.Default) {
 		t.Errorf("the default content type %q must be valid", vectors.Default)
 	}
-	// ADR-0282 写明与 ADR-0295 放宽的几类写法各要有样例盯住：; 两侧的空格要收，; 之后为空的要收，制表符在 ; 的哪一侧都要拒
+	// ADR-0282 写明与 ADR-0295 放宽的几类写法各要有样例盯住：; 两侧的空格要收，; 之后为空的要收，制表符在 ; 的哪一侧都要拒；
+	// ADR-0308 排除结尾的空格：空格之后还有字符的要收，以空格结尾的要拒（含正好到上限的那条）
 	for _, required := range []struct {
 		text  string
 		valid bool
 	}{
 		{"text/plain ; charset=utf-8", true},
 		{"text/plain;", true},
-		{"text/plain; ", true},
+		{"text/plain ;", true},
 		{"text/plain; charset=utf-8;", true},
+		{"text/plain; charset=utf-8 ;", true},
 		{"text/plain;;charset=utf-8", true},
 		{"text/plain;\tcharset=utf-8", false},
 		{"text/plain\t;charset=utf-8", false},
 		{"text/plain;\t", false},
 		{"text/plain ", false},
+		{"text/plain; ", false},
+		{"text/plain ; ", false},
+		{"text/plain; charset=utf-8 ", false},
+		{"text/plain; charset=utf-8; ", false},
 	} {
 		group := vectors.Invalid
 		if required.valid {
@@ -220,6 +227,13 @@ func TestBlobContentTypesFollowTheVectors(t *testing.T) {
 		if !slices.Contains(group, required.text) {
 			t.Errorf("the content type vector must keep %q (valid: %v)", required.text, required.valid)
 		}
+	}
+	// 正好到上限、去掉结尾的空格就合文法的那条要拒：只按长度判的实现会放过它
+	trailingAtLimit := slices.ContainsFunc(vectors.Invalid, func(text string) bool {
+		return len(text) == vectors.MaxLength && strings.HasSuffix(text, " ") && rules.IsBlobContentType(strings.TrimRight(text, " "))
+	})
+	if !trailingAtLimit {
+		t.Errorf("the content type vector must keep an invalid text of exactly %d characters that is only invalid for its trailing space", vectors.MaxLength)
 	}
 }
 
