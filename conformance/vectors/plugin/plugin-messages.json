@@ -99,6 +99,36 @@
     },
     {
       "key": "plugins.process.failed",
+      "phase": "configure",
+      "reason": "binding '{binding}' is required but not provided",
+      "when": "宿主组装 Configure 请求：清单标为必需（required 缺省为 true）的绑定两种来源都没给，或来源只给了类型、没有主值也没有属性；进程内宿主加载插件之前同此（消息键 plugins.plugin.load_failed，lifecycle.md §2，ADR-0292）"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "configure",
+      "reason": "binding '{binding}' is of type '{type}' but the manifest declares '{declared}'",
+      "when": "宿主组装 Configure 请求：来源声明的类型与清单声明的类型不同；{type} 换成来源声明的类型，{declared} 换成清单声明的类型；进程内宿主加载插件之前同此（消息键 plugins.plugin.load_failed，lifecycle.md §2，ADR-0292）"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "configure",
+      "reason": "a file of binding '{binding}' exceeds 524288 bytes",
+      "when": "宿主组装 Configure 请求：清单声明的绑定目录里有一个文件超过 524288 字节（RFC-0016「资源绑定与配置节」第 9 条，lifecycle.md §2，ADR-0292）"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "configure",
+      "reason": "the files of binding '{binding}' exceed 1048576 bytes",
+      "when": "宿主组装 Configure 请求：清单声明的绑定目录里读的文件合计超过 1048576 字节（RFC-0016「资源绑定与配置节」第 9 条，lifecycle.md §2，ADR-0292）"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "configure",
+      "reason": "the configure request exceeds 2097152 bytes",
+      "when": "宿主组装 Configure 请求：整个 ConfigureRequest 按 protobuf 二进制编码超过 2097152 字节（lifecycle.md §2，ADR-0292）"
+    },
+    {
+      "key": "plugins.process.failed",
       "phase": "invoke",
       "reason": "invalid error code '{code}'",
       "when": "对方写来的错误码不合文法；{code} 换成原样的错误码（invocation.md §3）"

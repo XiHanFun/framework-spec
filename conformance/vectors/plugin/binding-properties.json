@@ -1,10 +1,18 @@
 {
-  "$comment": "下发给隔离运行的插件（进程外、Wasm）的绑定连同属性（plugin/lifecycle.md §2 与 §7.2，RFC-0016「资源绑定与配置节」第 7 条，ADR-0285）。limits：一个绑定最多 maxProperties 个属性，属性名最多 maxNameLength 个字符，一个绑定的全部属性名与属性值按 UTF-8 编码后合计不超过 maxBytes 字节，主值不计入。names：下发时属性名的文法 ^[A-Za-z0-9_-][A-Za-z0-9._-]{0,252}$（按整串匹配），valid 必须接受，invalid 必须拒绝。delivery 是宿主一侧：declared 是清单 bindings 的声明（按清单的顺序），resolved 是按 RFC-0016 解析出的绑定（键是绑定名，没有的名字就是两种来源都没给；type 为空表示来源没有声明类型，value 为 null 表示来源没有给主值，properties 是属性名到属性值）；属性值是字符串，或 {repeat, count}，表示把 repeat 重复 count 次。期望是 bindings 或 error 之一：bindings 是 Configure 请求里的绑定，按清单的顺序，properties 与 resolved 的逐项相同、各项的先后没有含义，warnings 是宿主为之记一条 Warning 日志的绑定名（主值与属性都没有、因此不下发的）；error 表示宿主不发 Configure、按配置这一步失败处理，details 的 id 是插件的清单 ID（pluginId），reason 是固定的英文文本。reading 是插件一侧：hex 是宿主写出的 ConfigureRequest 的 protobuf 字节（十六进制），json 是同一个请求在 Wasm 载体上的 proto3 JSON 文本（wasm.md §2），bindings 是 SDK 交给作者的绑定——properties 没有时是空表，属性名区分大小写，值为空的属性照样在表里；SDK 用自己生成的消息类型解码 hex（实现了 Wasm 一侧的另解码 json），再走自己的配置路径，与 bindings 比较。期望值由 .NET 参考实现算出（delivery 经 PluginConfigureRequests.Build，names 经 PluginBindingProperties.IsValidName，hex 与 json 是它写出的请求）。",
+  "$comment": "下发给隔离运行的插件（进程外、Wasm）的绑定连同属性（plugin/lifecycle.md §2 与 §7.2，RFC-0016「资源绑定与配置节」第 7 条，ADR-0285）。limits：一个绑定最多 maxProperties 个属性，属性名最多 maxNameLength 个字符，一个绑定的全部属性名与属性值按 UTF-8 编码后合计不超过 maxBytes 字节，主值不计入。names：下发时属性名的文法 ^[A-Za-z0-9_-][A-Za-z0-9._-]{0,252}$（按整串匹配），valid 必须接受，invalid 必须拒绝。delivery 是宿主一侧：declared 是清单 bindings 的声明（按清单的顺序），resolved 是按 RFC-0016 解析出的绑定（键是绑定名，没有的名字就是两种来源都没给；type 为空表示来源没有声明类型，value 为 null 表示来源没有给主值，properties 是属性名到属性值）；属性值是字符串，或 {repeat, count}，表示把 repeat 重复 count 次。期望是 bindings 或 error 之一：bindings 是 Configure 请求里的绑定，按清单的顺序，properties 与 resolved 的逐项相同、各项的先后没有含义，warnings 是宿主为之记一条 Warning 日志的绑定名（主值与属性都没有、因此不下发的）；error 表示宿主不发 Configure、按配置这一步失败处理，details 的 id 是插件的清单 ID（pluginId），reason 是固定的英文文本。reading 是插件一侧：hex 是宿主写出的 ConfigureRequest 的 protobuf 字节（十六进制），json 是同一个请求在 Wasm 载体上的 proto3 JSON 文本（wasm.md §2），bindings 是 SDK 交给作者的绑定——properties 没有时是空表，属性名区分大小写，值为空的属性照样在表里；SDK 用自己生成的消息类型解码 hex（实现了 Wasm 一侧的另解码 json），再走自己的配置路径，与 bindings 比较。2026-11-25 起（ADR-0292）：declared 的 required 是清单的 bindings[].required，缺省为 true；宿主按清单的顺序逐个核对，一个绑定里依次是有没有（必需的绑定两种来源都没给、或只给了类型没有主值也没有属性即失败，可选的照旧不下发）、类型（来源声明了类型而与清单的不同即失败，必需与可选都核对）、属性的数量、属性名、字节数，报第一处不合的；全部合格之后再核对整个请求的大小：request 是组装时其余字段的取值（配置节、授予的权限、工作目录），整个 ConfigureRequest 按 protobuf 二进制编码超过 limits.maxRequestBytes 即失败。下发成功时 type 总是清单声明的类型。limits.maxFileBytes 与 limits.maxBindingFileBytes 是目录来源每个文件与一个绑定目录合计的上限（RFC-0016「资源绑定与配置节」第 9 条），超过时解析失败，这里的用例都以配置来源给出，不涉及它们。期望值由 .NET 参考实现算出（delivery 经 PluginConfigureRequests.Build，names 经 PluginBindingProperties.IsValidName，hex 与 json 是它写出的请求）。",
   "pluginId": "xihan.test.bound",
   "limits": {
     "maxProperties": 64,
     "maxNameLength": 253,
-    "maxBytes": 262144
+    "maxBytes": 262144,
+    "maxFileBytes": 524288,
+    "maxBindingFileBytes": 1048576,
+    "maxRequestBytes": 2097152
+  },
+  "request": {
+    "configuration": "{}",
+    "grantedPermissions": [],
+    "workDirectory": "work"
   },
   "names": {
     "valid": [
@@ -156,7 +164,7 @@
       "warnings": []
     },
     {
-      "name": "来源声明的类型先于清单声明的类型",
+      "name": "来源声明的类型与清单声明的不同：配置失败，reason 带两个类型名，不带主值与属性",
       "declared": [
         {
           "name": "db",
@@ -172,24 +180,23 @@
           }
         }
       },
-      "bindings": [
-        {
-          "name": "db",
-          "type": "connection:document",
-          "value": "mongodb://db.internal/app",
-          "properties": {
-            "username": "app"
-          }
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'db' is of type 'connection:document' but the manifest declares 'connection:relational'"
         }
-      ],
-      "warnings": []
+      }
     },
     {
-      "name": "主值与属性都没有（来源只给了类型）：不下发，记警告",
+      "name": "可选的绑定主值与属性都没有（来源只给了类型）：不下发，记警告",
       "declared": [
         {
           "name": "queue",
-          "type": "queue"
+          "type": "queue",
+          "required": false
         }
       ],
       "resolved": {
@@ -205,11 +212,12 @@
       ]
     },
     {
-      "name": "来源里没有这个绑定：不下发，不记警告",
+      "name": "可选的绑定来源里没有：不下发，不记警告",
       "declared": [
         {
           "name": "queue",
-          "type": "queue"
+          "type": "queue",
+          "required": false
         }
       ],
       "resolved": {},
@@ -316,11 +324,12 @@
       "warnings": []
     },
     {
-      "name": "几个绑定按清单的顺序下发，没有的跳过，清单没声明的不下发",
+      "name": "几个绑定按清单的顺序下发，可选的没有就跳过，清单没声明的不下发",
       "declared": [
         {
           "name": "queue",
-          "type": "queue"
+          "type": "queue",
+          "required": false
         },
         {
           "name": "db",
@@ -1223,6 +1232,853 @@
         }
       ],
       "warnings": []
+    },
+    {
+      "name": "来源声明的类型与清单声明的相同：照常下发",
+      "declared": [
+        {
+          "name": "cache",
+          "type": "cache:distributed"
+        }
+      ],
+      "resolved": {
+        "cache": {
+          "type": "cache:distributed",
+          "value": "redis.internal:6379",
+          "properties": {
+            "password": "s3cret"
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "cache",
+          "type": "cache:distributed",
+          "value": "redis.internal:6379",
+          "properties": {
+            "password": "s3cret"
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "类型只差大小写也算不同",
+      "declared": [
+        {
+          "name": "queue",
+          "type": "queue"
+        }
+      ],
+      "resolved": {
+        "queue": {
+          "type": "Queue",
+          "value": "amqp://mq.internal",
+          "properties": {}
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'queue' is of type 'Queue' but the manifest declares 'queue'"
+        }
+      }
+    },
+    {
+      "name": "可选的绑定给错了类型同样配置失败，不当成没有",
+      "declared": [
+        {
+          "name": "cache",
+          "type": "cache:distributed",
+          "required": false
+        }
+      ],
+      "resolved": {
+        "cache": {
+          "type": "queue",
+          "value": "amqp://mq.internal",
+          "properties": {}
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'cache' is of type 'queue' but the manifest declares 'cache:distributed'"
+        }
+      }
+    },
+    {
+      "name": "必需的绑定（required 缺省为 true）来源里没有：配置失败",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {},
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'db' is required but not provided"
+        }
+      }
+    },
+    {
+      "name": "必需的绑定只给了类型、没有主值也没有属性：配置失败，不记警告",
+      "declared": [
+        {
+          "name": "queue",
+          "type": "queue",
+          "required": true
+        }
+      ],
+      "resolved": {
+        "queue": {
+          "type": "queue",
+          "value": null,
+          "properties": {}
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'queue' is required but not provided"
+        }
+      }
+    },
+    {
+      "name": "必需的绑定只有属性、没有主值：照常下发",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "required": true
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "host": "db.internal"
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "db",
+          "type": "connection:relational",
+          "value": "",
+          "properties": {
+            "host": "db.internal"
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "按清单的顺序报第一个不合的：前一个必需而缺失，后一个类型不符，报缺失",
+      "declared": [
+        {
+          "name": "cache",
+          "type": "cache:distributed"
+        },
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "connection:document",
+          "value": "x",
+          "properties": {}
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'cache' is required but not provided"
+        }
+      }
+    },
+    {
+      "name": "类型先于属性：类型不符的绑定另有 65 个属性，报类型",
+      "declared": [
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "db": {
+          "type": "blob",
+          "value": "x",
+          "properties": {
+            "p00": "v",
+            "p01": "v",
+            "p02": "v",
+            "p03": "v",
+            "p04": "v",
+            "p05": "v",
+            "p06": "v",
+            "p07": "v",
+            "p08": "v",
+            "p09": "v",
+            "p10": "v",
+            "p11": "v",
+            "p12": "v",
+            "p13": "v",
+            "p14": "v",
+            "p15": "v",
+            "p16": "v",
+            "p17": "v",
+            "p18": "v",
+            "p19": "v",
+            "p20": "v",
+            "p21": "v",
+            "p22": "v",
+            "p23": "v",
+            "p24": "v",
+            "p25": "v",
+            "p26": "v",
+            "p27": "v",
+            "p28": "v",
+            "p29": "v",
+            "p30": "v",
+            "p31": "v",
+            "p32": "v",
+            "p33": "v",
+            "p34": "v",
+            "p35": "v",
+            "p36": "v",
+            "p37": "v",
+            "p38": "v",
+            "p39": "v",
+            "p40": "v",
+            "p41": "v",
+            "p42": "v",
+            "p43": "v",
+            "p44": "v",
+            "p45": "v",
+            "p46": "v",
+            "p47": "v",
+            "p48": "v",
+            "p49": "v",
+            "p50": "v",
+            "p51": "v",
+            "p52": "v",
+            "p53": "v",
+            "p54": "v",
+            "p55": "v",
+            "p56": "v",
+            "p57": "v",
+            "p58": "v",
+            "p59": "v",
+            "p60": "v",
+            "p61": "v",
+            "p62": "v",
+            "p63": "v",
+            "p64": "v"
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'db' is of type 'blob' but the manifest declares 'connection:relational'"
+        }
+      }
+    },
+    {
+      "name": "一个绑定核对完再核对下一个：前一个的属性超过数量，后一个必需而缺失，报前一个",
+      "declared": [
+        {
+          "name": "cache",
+          "type": "cache:distributed"
+        },
+        {
+          "name": "db",
+          "type": "connection:relational"
+        }
+      ],
+      "resolved": {
+        "cache": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            "p00": "v",
+            "p01": "v",
+            "p02": "v",
+            "p03": "v",
+            "p04": "v",
+            "p05": "v",
+            "p06": "v",
+            "p07": "v",
+            "p08": "v",
+            "p09": "v",
+            "p10": "v",
+            "p11": "v",
+            "p12": "v",
+            "p13": "v",
+            "p14": "v",
+            "p15": "v",
+            "p16": "v",
+            "p17": "v",
+            "p18": "v",
+            "p19": "v",
+            "p20": "v",
+            "p21": "v",
+            "p22": "v",
+            "p23": "v",
+            "p24": "v",
+            "p25": "v",
+            "p26": "v",
+            "p27": "v",
+            "p28": "v",
+            "p29": "v",
+            "p30": "v",
+            "p31": "v",
+            "p32": "v",
+            "p33": "v",
+            "p34": "v",
+            "p35": "v",
+            "p36": "v",
+            "p37": "v",
+            "p38": "v",
+            "p39": "v",
+            "p40": "v",
+            "p41": "v",
+            "p42": "v",
+            "p43": "v",
+            "p44": "v",
+            "p45": "v",
+            "p46": "v",
+            "p47": "v",
+            "p48": "v",
+            "p49": "v",
+            "p50": "v",
+            "p51": "v",
+            "p52": "v",
+            "p53": "v",
+            "p54": "v",
+            "p55": "v",
+            "p56": "v",
+            "p57": "v",
+            "p58": "v",
+            "p59": "v",
+            "p60": "v",
+            "p61": "v",
+            "p62": "v",
+            "p63": "v",
+            "p64": "v"
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'cache' has more than 64 properties"
+        }
+      }
+    },
+    {
+      "name": "八个绑定的属性都在每个绑定的上限之内，整个请求正好 2097152 字节：照常下发",
+      "declared": [
+        {
+          "name": "b1",
+          "type": "queue"
+        },
+        {
+          "name": "b2",
+          "type": "queue"
+        },
+        {
+          "name": "b3",
+          "type": "queue"
+        },
+        {
+          "name": "b4",
+          "type": "queue"
+        },
+        {
+          "name": "b5",
+          "type": "queue"
+        },
+        {
+          "name": "b6",
+          "type": "queue"
+        },
+        {
+          "name": "b7",
+          "type": "queue"
+        },
+        {
+          "name": "b8",
+          "type": "queue"
+        }
+      ],
+      "resolved": {
+        "b1": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b2": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b3": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b4": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b5": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b6": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b7": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b8": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 261930
+            }
+          }
+        }
+      },
+      "bindings": [
+        {
+          "name": "b1",
+          "type": "queue",
+          "value": "",
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        {
+          "name": "b2",
+          "type": "queue",
+          "value": "",
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        {
+          "name": "b3",
+          "type": "queue",
+          "value": "",
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        {
+          "name": "b4",
+          "type": "queue",
+          "value": "",
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        {
+          "name": "b5",
+          "type": "queue",
+          "value": "",
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        {
+          "name": "b6",
+          "type": "queue",
+          "value": "",
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        {
+          "name": "b7",
+          "type": "queue",
+          "value": "",
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        {
+          "name": "b8",
+          "type": "queue",
+          "value": "",
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 261930
+            }
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "name": "整个请求比上限多一个字节：配置失败，不发 Configure",
+      "declared": [
+        {
+          "name": "b1",
+          "type": "queue"
+        },
+        {
+          "name": "b2",
+          "type": "queue"
+        },
+        {
+          "name": "b3",
+          "type": "queue"
+        },
+        {
+          "name": "b4",
+          "type": "queue"
+        },
+        {
+          "name": "b5",
+          "type": "queue"
+        },
+        {
+          "name": "b6",
+          "type": "queue"
+        },
+        {
+          "name": "b7",
+          "type": "queue"
+        },
+        {
+          "name": "b8",
+          "type": "queue"
+        }
+      ],
+      "resolved": {
+        "b1": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b2": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b3": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b4": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b5": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b6": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b7": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b8": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 261931
+            }
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "the configure request exceeds 2097152 bytes"
+        }
+      }
+    },
+    {
+      "name": "逐个绑定的核对先于请求的大小：请求超过上限，又有一个绑定的属性名不合文法，报属性名",
+      "declared": [
+        {
+          "name": "b1",
+          "type": "queue"
+        },
+        {
+          "name": "b2",
+          "type": "queue"
+        },
+        {
+          "name": "b3",
+          "type": "queue"
+        },
+        {
+          "name": "b4",
+          "type": "queue"
+        },
+        {
+          "name": "b5",
+          "type": "queue"
+        },
+        {
+          "name": "b6",
+          "type": "queue"
+        },
+        {
+          "name": "b7",
+          "type": "queue"
+        },
+        {
+          "name": "b8",
+          "type": "queue"
+        },
+        {
+          "name": "extra",
+          "type": "queue"
+        }
+      ],
+      "resolved": {
+        "b1": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b2": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b3": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b4": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b5": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b6": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b7": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 262140
+            }
+          }
+        },
+        "b8": {
+          "type": "",
+          "value": null,
+          "properties": {
+            "blob": {
+              "repeat": "v",
+              "count": 261931
+            }
+          }
+        },
+        "extra": {
+          "type": "",
+          "value": "x",
+          "properties": {
+            "user name": "v"
+          }
+        }
+      },
+      "error": {
+        "code": "PLUGINS_UNEXPECTED_001",
+        "key": "plugins.process.failed",
+        "details": {
+          "id": "xihan.test.bound",
+          "phase": "configure",
+          "reason": "binding 'extra' has a property name that is not valid"
+        }
+      }
     }
   ],
   "reading": [

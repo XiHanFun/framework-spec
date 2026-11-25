@@ -217,11 +217,22 @@ type ErrorReadingVectors struct {
 	StatusWithoutError []StatusWithoutErrorCase `json:"statusWithoutError"`
 }
 
-// BindingPropertyLimits 是下发给插件的绑定属性的上限：一个绑定的属性数、属性名的字符数、全部属性名与属性值的 UTF-8 字节数。
+// BindingPropertyLimits 是下发给插件的绑定属性的上限：一个绑定的属性数、属性名的字符数、全部属性名与属性值的 UTF-8 字节数；
+// 另有目录来源每个文件与一个绑定目录合计的字节数（RFC-0016「资源绑定与配置节」第 9 条），以及整个 ConfigureRequest 按 protobuf 二进制编码的字节数（ADR-0292）。
 type BindingPropertyLimits struct {
-	MaxProperties int `json:"maxProperties"`
-	MaxNameLength int `json:"maxNameLength"`
-	MaxBytes      int `json:"maxBytes"`
+	MaxProperties       int `json:"maxProperties"`
+	MaxNameLength       int `json:"maxNameLength"`
+	MaxBytes            int `json:"maxBytes"`
+	MaxFileBytes        int `json:"maxFileBytes"`
+	MaxBindingFileBytes int `json:"maxBindingFileBytes"`
+	MaxRequestBytes     int `json:"maxRequestBytes"`
+}
+
+// BindingRequestFields 是组装 Configure 请求时绑定之外的字段：配置节的 JSON 文本、授予的权限与工作目录。
+type BindingRequestFields struct {
+	Configuration      string   `json:"configuration"`
+	GrantedPermissions []string `json:"grantedPermissions"`
+	WorkDirectory      string   `json:"workDirectory"`
 }
 
 // BindingPropertyNames 是下发时属性名文法的样例：Valid 必须接受，Invalid 必须拒绝。
@@ -263,10 +274,16 @@ func (p *BindingProperties) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// DeclaredBinding 是清单 bindings 的一项声明。
+// DeclaredBinding 是清单 bindings 的一项声明；Required 为 nil 表示清单没写 required，缺省是必需。
 type DeclaredBinding struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Required *bool  `json:"required"`
+}
+
+// IsRequired 返回这项声明是不是必需的：清单没写 required 时是。
+func (d DeclaredBinding) IsRequired() bool {
+	return d.Required == nil || *d.Required
 }
 
 // ResolvedBinding 是按 RFC-0016 解析出的一个绑定：Type 为空表示来源没有声明类型，Value 为 nil 表示来源没有给主值。
@@ -315,6 +332,7 @@ type BindingReadingCase struct {
 type BindingPropertyVectors struct {
 	PluginID string                `json:"pluginId"`
 	Limits   BindingPropertyLimits `json:"limits"`
+	Request  BindingRequestFields  `json:"request"`
 	Names    BindingPropertyNames  `json:"names"`
 	Delivery []BindingDeliveryCase `json:"delivery"`
 	Reading  []BindingReadingCase  `json:"reading"`

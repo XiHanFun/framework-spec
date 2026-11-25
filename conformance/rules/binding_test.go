@@ -22,8 +22,13 @@ func TestBindingPropertiesFollowTheVectors(t *testing.T) {
 		t.Fatal(err)
 	}
 	limits := vectors.Limits
-	if limits.MaxProperties != rules.MaxBindingProperties || limits.MaxNameLength != rules.MaxBindingPropertyNameLength || limits.MaxBytes != rules.MaxBindingPropertyBytes {
+	if limits.MaxProperties != rules.MaxBindingProperties || limits.MaxNameLength != rules.MaxBindingPropertyNameLength || limits.MaxBytes != rules.MaxBindingPropertyBytes ||
+		limits.MaxFileBytes != rules.MaxBindingFileBytes || limits.MaxBindingFileBytes != rules.MaxBindingDirectoryBytes || limits.MaxRequestBytes != rules.MaxConfigureRequestBytes {
 		t.Errorf("limits %+v differ from the rules", limits)
+	}
+	// 目录来源的两个上限都不小于下发的上限（RFC-0016「资源绑定与配置节」第 9 条）：下发得了的属性，文件也读得进来
+	if limits.MaxFileBytes < limits.MaxBytes || limits.MaxBindingFileBytes < limits.MaxBytes {
+		t.Errorf("the directory limits %+v must not be smaller than the delivery limit", limits)
 	}
 	for _, name := range vectors.Names.Valid {
 		if !rules.IsBindingPropertyName(name) {
@@ -49,13 +54,24 @@ func TestBindingPropertiesFollowTheVectors(t *testing.T) {
 	for _, c := range vectors.Delivery {
 		declared := make([]rules.BindingDeclaration, 0, len(c.Declared))
 		for _, d := range c.Declared {
-			declared = append(declared, rules.BindingDeclaration{Name: d.Name, Type: d.Type})
+			declared = append(declared, rules.BindingDeclaration{Name: d.Name, Type: d.Type, Required: d.IsRequired()})
 		}
 		resolved := make(map[string]rules.BindingSource, len(c.Resolved))
 		for name, r := range c.Resolved {
 			resolved[name] = rules.BindingSource{Type: r.Type, Value: r.Value, Properties: r.Properties}
 		}
 		bindings, warnings, reason := rules.DeliverBindings(declared, resolved)
+		if reason == "" {
+			// 逐个绑定都合格之后核对整个请求的大小；规则算出的长度与生成的消息类型编码出的长度相同
+			request := vectors.Request
+			size := rules.ConfigureRequestSize(request.Configuration, request.GrantedPermissions, bindings, request.WorkDirectory)
+			if encoded := proto.Size(requestOf(request, bindings)); encoded != size {
+				t.Errorf("%s: the rules size the request at %d bytes, the generated message at %d", c.Name, size, encoded)
+			}
+			if reason = rules.ConfigureRequestViolation(size); reason != "" {
+				bindings, warnings = nil, nil
+			}
+		}
 		if c.Error != nil {
 			if c.Bindings != nil || c.Warnings != nil {
 				t.Errorf("%s: a case expects either bindings or an error", c.Name)
@@ -65,8 +81,15 @@ func TestBindingPropertiesFollowTheVectors(t *testing.T) {
 				t.Errorf("%s: failed with reason %q, want %+v", c.Name, reason, c.Error)
 			}
 			registered := slices.ContainsFunc(messages.Reasons, func(r conformance.PluginMessageReason) bool {
-				return r.Key == c.Error.Key && r.Phase == "configure" && slices.ContainsFunc(c.Declared, func(d conformance.DeclaredBinding) bool {
-					return strings.ReplaceAll(r.Reason, "{binding}", d.Name) == reason
+				if r.Key != c.Error.Key || r.Phase != "configure" {
+					return false
+				}
+				if r.Reason == reason {
+					return true
+				}
+				// {binding} 换成声明的绑定名，{declared} 换成它声明的类型，{type} 换成来源声明的类型
+				return slices.ContainsFunc(c.Declared, func(d conformance.DeclaredBinding) bool {
+					return strings.NewReplacer("{binding}", d.Name, "{declared}", d.Type, "{type}", c.Resolved[d.Name].Type).Replace(r.Reason) == reason
 				})
 			})
 			if !registered {
@@ -122,6 +145,15 @@ func TestBindingPropertiesAreReadFromTheWire(t *testing.T) {
 			t.Errorf("%s: a plugin without the properties field reads %+v, want %+v", c.Name, legacy, want)
 		}
 	}
+}
+
+// requestOf 用生成的消息类型组装规则算出的请求：绑定之外的字段取向量的 request。
+func requestOf(fields conformance.BindingRequestFields, bindings []rules.PluginBinding) *pluginv1.ConfigureRequest {
+	request := &pluginv1.ConfigureRequest{Configuration: fields.Configuration, GrantedPermissions: fields.GrantedPermissions, WorkDirectory: fields.WorkDirectory}
+	for _, binding := range bindings {
+		request.Bindings = append(request.Bindings, &pluginv1.Binding{Name: binding.Name, Type: binding.Type, Value: binding.Value, Properties: binding.Properties})
+	}
+	return request
 }
 
 // deliveredOf 把规则算出的绑定换成向量的形态。
