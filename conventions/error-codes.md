@@ -182,7 +182,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `OBJECTSTORAGE_DENIED_001` | 预签名地址无效或已过期 |
 | `OBJECTSTORAGE_DENIED_002` | 条件写入探测被存储拒绝：凭据无效或无权写探测键、建桶或放弃探测用的分片上传（HTTP 403；启动或建实例时被拒，缺省实例启动失败（`KERNEL_HOSTING_002` 的内层）、命名实例不建；启动时连不上、之后才被拒的，后台照常重试，缺省实例的健康项 Failed 带此码，RFC-0012「S3 的条件写入探测」） |
 | `OBJECTSTORAGE_CONFLICT_001` | 对象已存在且不允许覆盖 |
-| `OBJECTSTORAGE_UNAVAILABLE_001` | 对象存储不可达或 IO 失败 |
+| `OBJECTSTORAGE_UNAVAILABLE_001` | 对象存储不可达或 IO 失败；服务的应答不合规同此（S3：应答成功却缺了必需的内容，如上传标识、`ETag`、修改时间、批量删除错误项的键，或分页说截断了却不前进；RFC-0012「S3 Provider」「S3 的条件写入探测」「范围读取、分片上传与预签名」，ADR-0302、ADR-0308、ADR-0313） |
 | `OBJECTSTORAGE_UNAVAILABLE_002` | 配额或单对象大小超限 |
 | `OBJECTSTORAGE_UNAVAILABLE_003` | 不覆盖写入在本存储上无法保证：S3 兼容服务不认条件写入（`If-None-Match: *`；启动或建实例时探明的，缺省实例启动失败、命名实例不建；之后在后台或写入时才探明的，不覆盖写入一律以它失败、缺省实例的健康项 Failed），或存储以 `ConditionalWrites = false` 关闭了条件写入（`Overwrite = false` 的写入与分片上传的发起、完成一律以它失败，不访问存储） |
 | `OBJECTSTORAGE_UNAVAILABLE_004` | 不覆盖写入暂不可用：S3 兼容服务是否认条件写入尚未确认（启动或建实例时连不上，后台在重试；之后的探测被拒绝或探测桶不存在时同样以它失败；HTTP 503，参数 `container`、`key`、`reason` 为最近一次探测失败的错误码；不访问写入目标，探测通过后自动恢复，RFC-0012「S3 的条件写入探测」） |
