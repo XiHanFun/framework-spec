@@ -1,6 +1,6 @@
 # RFC-0001 原语层
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配；2026-11-19 修订：.NET 的 Result 与 Error 线上编码在内核的 `ResultJson`；同日再修订：`Error` 的文案不能只有空白，空白字符写死；2026-11-24 修订：收调用上下文的契约不另收取消令牌；同日再修订：.NET 映射补上 `DeadlineText` 与 `ActivationEvent`；同日第三次修订：JSON 文本的共同检查覆盖消息信封，.NET 映射补上 `TimestampText` 与内核的 `JsonText`） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236、0244（.NET 的线上编码）、0263、0278（截止时间文本与激活事件的 .NET 类型）、0283（时间戳文本与 JSON 文本检查的 .NET 入口） | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配；2026-11-19 修订：.NET 的 Result 与 Error 线上编码在内核的 `ResultJson`；同日再修订：`Error` 的文案不能只有空白，空白字符写死；2026-11-24 修订：收调用上下文的契约不另收取消令牌；同日再修订：.NET 映射补上 `DeadlineText` 与 `ActivationEvent`；同日第三次修订：JSON 文本的共同检查覆盖消息信封，.NET 映射补上 `TimestampText` 与内核的 `JsonText`；2026-11-25 修订：.NET 映射里 JSON 文本检查的入口改名 `JsonText.FindProblem`，问题带种类） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236、0244（.NET 的线上编码）、0263、0278（截止时间文本与激活事件的 .NET 类型）、0283（时间戳文本与 JSON 文本检查的 .NET 入口）、0291（JSON 文本检查的 .NET 入口改名与问题的种类） | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
 
 ## 摘要
 
@@ -88,7 +88,7 @@ XiHan 读取的 JSON 文本（Result 与 Error 的线上编码、操作载荷、
 - 任何一层都不能有重复的成员名。名字按转义还原后逐个 UTF-16 码元比较，`"a"` 与 `"\u0061"` 重复；大小写不同不算重复。
 - 语法错误不论出现在哪里都优先于重复成员。报告位置时，语法错误只写 `$`（各语言的解析器报告的位置不同），重复成员写第一处重复（第二次出现的成员）的路径，写法同 RFC-0011 规则 2。
 
-向量 `conformance/vectors/primitives/json-text.json`；Go 一致性模块的 `rules.CheckJSONText` 是同一检查的独立实现，.NET 的是内核的 `JsonText.Check`（`XiHan.Framework.Kernel.Json`，内核之外读这类文本的包也用它，ADR-0283）。以前各语言的解析器对这些输入各有取舍：Go 与 JavaScript 接受孤立的代理项，Python 接受很深的嵌套，System.Text.Json 不查未知成员里的重复成员。
+向量 `conformance/vectors/primitives/json-text.json`；Go 一致性模块的 `rules.CheckJSONText` 是同一检查的独立实现，.NET 的是内核的 `JsonText.FindProblem`（`XiHan.Framework.Kernel.Json`，内核之外读这类文本的包也用它，ADR-0283；2026-11-25 修订，ADR-0291，原名 `JsonText.Check`）：通过时返回无值的 `Maybe`，否则是第一个问题 `JsonTextProblem { Kind, Path }`。`Kind` 把上面所说的语法错误按出处分成 `Syntax`（RFC 8259 的文法，含 BOM、原始的控制字符与 RFC 8259 之外的转义）、`NestingTooDeep`、`InvalidUtf8` 与 `LoneSurrogate`，重复成员是 `DuplicateMember`，几种语法错误之间按在文本里出现的先后报第一处。这是 .NET 的诊断信息，规则与报告的位置仍照上面几条。以前各语言的解析器对这些输入各有取舍：Go 与 JavaScript 接受孤立的代理项，Python 接受很深的嵌套，System.Text.Json 不查未知成员里的重复成员。
 
 ### 文法的匹配
 
