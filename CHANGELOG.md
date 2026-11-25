@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- MAJOR（`v1.0.0` 之前允许）：插件协议 `Envelope.time` 的 SDK 一侧：宿主写来的文本按 RFC-0003 规则 8 读成各语言的时间类型（更细的小数截断、不进位），读不出（含时间类型表示不了）以 gRPC `InvalidArgument` 拒绝投递、排在找订阅之前；作者发布时给时间类型，SDK 换算成 UTC、以 `Z` 结尾、去掉小数末尾的 0 写出，年份越界照写、由宿主拒绝，越界的写法不作规定；以前写明 SDK 原样交出与原样写出文本。不加向量（ADR-0306）。
 - MINOR：信封承载 CloudEvents 的可选属性 `dataschema`（非空字符串，与 `source` 一样不核对 URI 语法），RFC-0009 写明各传输上的映射，`protocol/cloudevents.md` 的 binary 读写 `ce-dataschema`，带 `dataschema` 的文档又读得出；`cloudevents-envelopes.json` 的 expected 加 `dataschema`，新增有、没有与不合法的用例（ADR-0305）。
 - MINOR：插件协议 `Envelope` 新增 `data_schema`（字段 11，同一协议版本），`plugin/invocation.md` §4 写明空串为没有、原样传递与较早对端的兼容（ADR-0305）。
 - MINOR：RFC-0021「默认实现与 Provider」写明 `Workflow.Database` 的查询列回填（ADR-0304）。
