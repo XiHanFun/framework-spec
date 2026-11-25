@@ -4,9 +4,21 @@
 
 ## 未发布
 
+- MINOR：信封承载 CloudEvents 的可选属性 `dataschema`（非空字符串，与 `source` 一样不核对 URI 语法），RFC-0009 写明各传输上的映射，`protocol/cloudevents.md` 的 binary 读写 `ce-dataschema`，带 `dataschema` 的文档又读得出；`cloudevents-envelopes.json` 的 expected 加 `dataschema`，新增有、没有与不合法的用例（ADR-0305）。
+- MINOR：插件协议 `Envelope` 新增 `data_schema`（字段 11，同一协议版本），`plugin/invocation.md` §4 写明空串为没有、原样传递与较早对端的兼容（ADR-0305）。
+- MINOR：RFC-0021「默认实现与 Provider」写明 `Workflow.Database` 的查询列回填（ADR-0304）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0021「长度与上限」的读取量里数字由 0 改成它的写法的长度（变量里的按原文、算出的按数字的文本），加法、比较、相等、数字函数与下标读数字，`len`、`isNullOrEmpty` 读数字；「值」写明表达式得出的数字写成 JSON 是数字的文本；`expression-limits.json` 新增 `numerals` 与 8 条用例，原有读到数字的用例重算；Go 新增 `WorkflowExpressionNumeral`（ADR-0303）。
+- MINOR：RFC-0021 写明关键字的折叠与 `upper` / `lower` 的结果以实现所带的 Unicode 数据为准（依据 Case Pair Stability），向量只用 Unicode 9.0 及更早就已分配、映射没有变过的字符（ADR-0303）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0021 的 `upper` / `lower` 由「U+0130 与 U+0131 实现自定」改成逐个码位的 Unicode 简单大小写映射，与关键字的折叠同一份；`expression-functions.json` 补 16 条用例；Go 规则包新增 `LowerWorkflowText`、`UpperWorkflowText`（ADR-0303）。
+- MINOR：RFC-0012「范围读取、分片上传与预签名」写明发起分片上传的应答没有可用的上传标识时返回 `OBJECTSTORAGE_UNAVAILABLE_001`、不重发；「S3 Provider」的映射写明应答成功却缺必需内容同样是服务端错误（ADR-0302）。
+- MINOR：RFC-0012「S3 Provider」写明服务端点与绑定 `objectstorage` 的主值不能带用户信息，凭据只走 `AccessKey`、`SecretKey`、`SessionToken` 与绑定的同名属性，带了是配置错误、只报键名；「一致性」写明 S3 配置的写法不收向量（ADR-0302）。
+- MINOR：RFC-0001「JSON 文本」写明以字符串交来的文本先严格编码成 UTF-8，孤立代理项不合法（ADR-0301）。
+- MAJOR（`v1.0.0` 之前允许）：`plugin/lifecycle.md` §2 与 RFC-0016 第 6 条：进程内插件的宿主与插件用应用指定的绑定根目录，以前写明取环境变量（ADR-0301）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0016 新增第 10 条：根目录下最多 128 个绑定、一个绑定目录最多 128 个文件（以 `.` 开头的不计），先数后读，超限 `KERNEL_HOSTING_005`；插件宿主的 `reason` 为 `binding '<绑定名>' has more than 128 files`；`binding-properties.json` 的 `limits` 加 `maxBindingFiles`、`maxBindings`，`plugin-messages.json` 加一条，Go `rules` 加两个常量（ADR-0301）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0016 第 8 条与 RFC-0002：装配特性时的绑定核对与插件宿主同一套规则，只给了类型的必需绑定算没给，可选绑定也核对类型；`KERNEL_HOSTING_001` 说明扩写，`lifecycle.md` §2 与清单 Schema 的说明同步（ADR-0301）。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0009 的 Redis Provider：被放弃的条目退回投递次数时，空闲时间设到 `ClaimIdleTimeSeconds`（原来更久的保留原值），别的实例下一次维护即可回收；以前写明 `IDLE` 照原样（ADR-0298）。
 - MINOR：RFC-0009 的 Redis Provider 写明，停止信号一到，消费循环就不再发起新的 `XAUTOCLAIM` 与 `XREADGROUP`，没读走的条目留在流里（ADR-0298）。
-- MAJOR（`v1.0.0` 之前允许）：RFC-0009「信封」的扩展属性名排除保留名（CloudEvents 1.0 的规范属性名与结构化 JSON 格式的成员名），构造信封时就拒绝；带 `dataschema` 的文档不合法，`protocol/cloudevents.md` 的 `ce-dataschema`、`ce-data` 头也不合法。`envelope-extensions.json` 新增 `names.reserved`，`cloudevents-envelopes.json` 补一条；Go 规则 `IsEnvelopeExtensionName` 排除保留名（ADR-0298）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0009「信封」的扩展属性名排除保留名（CloudEvents 1.0 的规范属性名与结构化 JSON 格式的成员名），构造信封时就拒绝；`protocol/cloudevents.md` 的 `ce-data` 头不合法。`envelope-extensions.json` 新增 `names.reserved`；Go 规则 `IsEnvelopeExtensionName` 排除保留名（ADR-0298）。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0013 新增「计划的文本形式」，写明分隔、四种写法、间隔与次数的写法、时刻按规则 8 读、选项次序与不能重复、时区名是 IANA 名且本机查不到即不合法。新增向量 `scheduling/schedule-texts.json`，进 `scheduling` 档。Go 规则包新增 `ParseJobSchedule` 等（ADR-0297）。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0013 的 cron 步长不超过这一段能写的最大值，超过不合法；以前是 1 到 2147483647。`cron-expressions.json` 里原先合法的 4 条大步长挪到 `invalid`，补各段上限两侧的用例；Go `ParseCron` 跟着改（ADR-0297）。
 - MINOR：RFC-0021「活动」写明 `Delay.Until`、`UserTask.DueAt` 与按时间读的值按「表达式」的「时间」文法读、换算成 UTC（ADR-0296）。
