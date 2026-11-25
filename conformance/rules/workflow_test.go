@@ -1,6 +1,7 @@
 package rules_test
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -75,6 +76,63 @@ func TestWorkflowKeywordFoldingKeepsTheLength(t *testing.T) {
 		if len(folded) != 1 || utf16.RuneLen(folded[0]) != utf16.RuneLen(r) {
 			t.Fatalf("U+%04X folds to %q, the UTF-16 length changes", r, string(folded))
 		}
+	}
+}
+
+func TestWorkflowCaseMappingKeepsTheLength(t *testing.T) {
+	// 表达式的 upper 与关键字的折叠同一条规则：简单大写映射同样不跨平面，任何一个码位转换前后的 UTF-16 长度都相同
+	for r := rune(0); r <= unicode.MaxRune; r++ {
+		if r >= 0xD800 && r <= 0xDFFF {
+			continue
+		}
+		upper := []rune(rules.UpperWorkflowText(string(r)))
+		lower := []rune(rules.LowerWorkflowText(string(r)))
+		if len(upper) != 1 || len(lower) != 1 || utf16.RuneLen(upper[0]) != utf16.RuneLen(r) || utf16.RuneLen(lower[0]) != utf16.RuneLen(r) {
+			t.Fatalf("U+%04X maps to %q and %q, the UTF-16 length changes", r, string(upper), string(lower))
+		}
+	}
+	if rules.FoldWorkflowKeyword("İ\u001fA") != rules.LowerWorkflowText("İ")+" a" {
+		t.Error("the keyword folding must be the lowercase mapping with the field separator turned into a space")
+	}
+}
+
+// caseCallPattern 匹配只对一个不带转义的字符串字面量调用 upper 或 lower 的表达式（函数名不区分 ASCII 大小写）。
+var caseCallPattern = regexp.MustCompile(`^((?i)upper|lower)\('([^'\\]*)'\)$`)
+
+func TestWorkflowExpressionCaseMappingFollowsTheVectors(t *testing.T) {
+	functions, err := conformance.WorkflowExpressionFunctions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 实参是字面量的 upper / lower 用例不必求值也能核对：结果就是对字面量逐个码位取简单映射
+	replayed := map[string]bool{}
+	for _, c := range functions.Values {
+		match := caseCallPattern.FindStringSubmatch(c.Expression)
+		if match == nil {
+			continue
+		}
+		want := rules.LowerWorkflowText(match[2])
+		if strings.EqualFold(match[1], "upper") {
+			want = rules.UpperWorkflowText(match[2])
+		}
+		if c.Type != "string" || c.Text != want {
+			t.Errorf("%s: %s is %s %q, the simple case mapping gives %q", c.Name, c.Expression, c.Type, c.Text, want)
+		}
+		replayed[strings.ToLower(match[1])+" "+match[2]] = true
+	}
+	// 规则与不变文化分歧的、没有简单映射的、平面以外的与不变的字符都要有用例
+	for _, required := range []string{"lower İ", "upper ı", "upper aßc", "upper 𐐨𐐩", "lower 𐐀𐐁", "upper ŉﬀ"} {
+		if !replayed[required] {
+			t.Errorf("expression-functions.json must keep the case %q", required)
+		}
+	}
+	unchanged := false
+	for key := range replayed {
+		text := key[strings.Index(key, " ")+1:]
+		unchanged = unchanged || (strings.ContainsFunc(text, func(r rune) bool { return r > 0xFFFF }) && rules.UpperWorkflowText(text) == text)
+	}
+	if !unchanged {
+		t.Error("expression-functions.json must keep an upper case whose supplementary characters do not change")
 	}
 }
 

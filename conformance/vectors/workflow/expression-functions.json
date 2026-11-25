@@ -1,5 +1,5 @@
 {
-  "$comment": "工作流表达式的内置函数（RFC-0021「表达式」的「内置函数」「时间」，ADR-0287、ADR-0296）：len、contains、startsWith、endsWith、upper、lower、trim、isNullOrEmpty、abs、min、max、round、format、toNumber、toString、now、date，函数名不区分 ASCII 字母的大小写。format(x, n) 是 2026-11-25 加的（ADR-0296）：x 照 round(x, n) 舍入（正好一半时远离零）之后写成恰好 n 位小数的字符串，n 必须是 0 到 28 之间的整数，否则 number_out_of_range。字段的含义与 expression-syntax.json 相同：values 是求值成功的（type 与 text），errors 是以 errorCode 失败的（messageKey、arguments 不含 expression、syntax 为假表示求值时才失败）。now 是求值时的时刻，now() 返回它的规范文本（UTC、七位小数、+00:00，与 RFC-0003 规则 8 的写法相同）。date 读的时间文本：只有日期，或日期加时与分，秒、一到九位的小数与偏移可以省略，日期与时间之间是 T、t 或一个空格，没有偏移当作 UTC，比 100 纳秒更细的小数截断；别的写法都不是时间。upper 与 lower 逐个码位按 Unicode 的简单大小写映射，用例只收 ASCII、拉丁文增补、希腊、西里尔与全角字母：U+0130 与 U+0131 怎样转换实现自定。数字文本的文法与舍入见 expression-operators.json 的说明。期望值由 .NET 参考实现（WorkflowExpressionEvaluator）算出。",
+  "$comment": "工作流表达式的内置函数（RFC-0021「表达式」的「内置函数」「时间」，ADR-0287、ADR-0296、ADR-0303）：len、contains、startsWith、endsWith、upper、lower、trim、isNullOrEmpty、abs、min、max、round、format、toNumber、toString、now、date，函数名不区分 ASCII 字母的大小写。format(x, n) 是 2026-11-25 加的（ADR-0296）：x 照 round(x, n) 舍入（正好一半时远离零）之后写成恰好 n 位小数的字符串，n 必须是 0 到 28 之间的整数，否则 number_out_of_range。字段的含义与 expression-syntax.json 相同：values 是求值成功的（type 与 text），errors 是以 errorCode 失败的（messageKey、arguments 不含 expression、syntax 为假表示求值时才失败）。now 是求值时的时刻，now() 返回它的规范文本（UTC、七位小数、+00:00，与 RFC-0003 规则 8 的写法相同）。date 读的时间文本：只有日期，或日期加时与分，秒、一到九位的小数与偏移可以省略，日期与时间之间是 T、t 或一个空格，没有偏移当作 UTC，比 100 纳秒更细的小数截断；别的写法都不是时间。upper 与 lower 逐个码位按 Unicode 的简单大小写映射（UnicodeData.txt 的 Simple_Uppercase_Mapping / Simple_Lowercase_Mapping），不随区域、不看上下文，与关键字的折叠同一份映射（2026-11-25 修订，ADR-0303；以前 U+0130 与 U+0131 怎样转换实现自定）：İ 的小写是 i、ı 的大写是 I，ß 与 ŉ、ﬀ 没有简单映射、不变，平面以外的字母按整个码位转换；用例只收 Unicode 9.0 及更早就已分配、映射之后没有变过的字符。数字文本的文法与舍入见 expression-operators.json 的说明。期望值由 .NET 参考实现（WorkflowExpressionEvaluator）算出。",
   "errorCode": "WORKFLOW_VALIDATION_003",
   "now": "2026-10-26T08:00:00.1234567+00:00",
   "variables": {
@@ -444,6 +444,102 @@
       "expression": "lower('ABC') + 1",
       "type": "string",
       "text": "abc1"
+    },
+    {
+      "name": "lower：İ（U+0130）的简单小写映射是 i",
+      "expression": "lower('İ')",
+      "type": "string",
+      "text": "i"
+    },
+    {
+      "name": "upper：ı（U+0131）的简单大写映射是 I",
+      "expression": "upper('ı')",
+      "type": "string",
+      "text": "I"
+    },
+    {
+      "name": "upper：İ 本身是大写，不变；i 的大写是 I，不随土耳其语",
+      "expression": "upper('İi')",
+      "type": "string",
+      "text": "İI"
+    },
+    {
+      "name": "lower：ı 本身是小写，不变；I 的小写是 i，不随土耳其语",
+      "expression": "lower('ıI')",
+      "type": "string",
+      "text": "ıi"
+    },
+    {
+      "name": "lower：ẞ（U+1E9E）是 ß",
+      "expression": "lower('ẞ')",
+      "type": "string",
+      "text": "ß"
+    },
+    {
+      "name": "upper：ſ（U+017F）是 S",
+      "expression": "upper('ſ')",
+      "type": "string",
+      "text": "S"
+    },
+    {
+      "name": "upper：ǅ 与 ǆ 都是 Ǆ",
+      "expression": "upper('ǅǆ')",
+      "type": "string",
+      "text": "ǄǄ"
+    },
+    {
+      "name": "lower：ǅ 与 Ǆ 都是 ǆ",
+      "expression": "lower('ǅǄ')",
+      "type": "string",
+      "text": "ǆǆ"
+    },
+    {
+      "name": "lower：开尔文符号 K（U+212A）是 k",
+      "expression": "lower('K')",
+      "type": "string",
+      "text": "k"
+    },
+    {
+      "name": "upper：完全映射才是两个字符的 ŉ 与 ﬀ 没有简单映射，不变",
+      "expression": "upper('ŉﬀ')",
+      "type": "string",
+      "text": "ŉﬀ"
+    },
+    {
+      "name": "upper：平面以外的字母按整个码位转换（德塞莱特）",
+      "expression": "upper('𐐨𐐩')",
+      "type": "string",
+      "text": "𐐀𐐁"
+    },
+    {
+      "name": "lower：平面以外的字母按整个码位转换（德塞莱特）",
+      "expression": "lower('𐐀𐐁')",
+      "type": "string",
+      "text": "𐐨𐐩"
+    },
+    {
+      "name": "lower：切罗基大写字母是小写字母",
+      "expression": "lower('Ꭰ')",
+      "type": "string",
+      "text": "ꭰ"
+    },
+    {
+      "name": "upper：切罗基小写字母是大写字母",
+      "expression": "upper('ꭰ')",
+      "type": "string",
+      "text": "Ꭰ"
+    },
+    {
+      "name": "upper：平面以外没有大小写的字符、全角数字、汉字与阿拉伯-印度数字不变",
+      "expression": "upper('😀１请٣')",
+      "type": "string",
+      "text": "😀１请٣"
+    },
+    {
+      "name": "upper：转换前后的长度相同，平面以外的字母仍是两个码元",
+      "expression": "len(upper('𐐨'))",
+      "type": "number",
+      "text": "2"
     },
     {
       "name": "trim：去掉首尾的空格",

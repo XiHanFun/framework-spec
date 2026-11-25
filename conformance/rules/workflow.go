@@ -57,16 +57,22 @@ func IsWorkflowElementID(id string) bool { return workflowElementIDPattern.Match
 // IsActivityType 判断活动类型是否合文法（RFC-0021「名字与值」）：字母开头，其余是字母、数字、.、_、-，最长 64 个字符。
 func IsActivityType(activityType string) bool { return activityTypePattern.MatchString(activityType) }
 
+// LowerWorkflowText 返回文本逐个码位取 Unicode 简单小写映射的结果（RFC-0021「定义」的「关键字的小写」与
+// 「表达式」的 lower，ADR-0296、ADR-0303）：unicode.ToLower 就是 UnicodeData.txt 的 Simple_Lowercase_Mapping，
+// 不做 SpecialCasing 的完全映射，也不随上下文与区域：İ 折成 i，Σ 总是折成 σ。映射不跨平面，UTF-16 的长度不变；
+// 结果以 Go 所带的 Unicode 数据为准。
+func LowerWorkflowText(text string) string { return strings.Map(unicode.ToLower, text) }
+
+// UpperWorkflowText 返回文本逐个码位取 Unicode 简单大写映射的结果（RFC-0021「表达式」的 upper，ADR-0303）：
+// unicode.ToUpper 就是 UnicodeData.txt 的 Simple_Uppercase_Mapping：ı 转成 I，ß 没有简单映射、不变。
+// 与 LowerWorkflowText 是同一份映射，同样不跨平面。
+func UpperWorkflowText(text string) string { return strings.Map(unicode.ToUpper, text) }
+
 // FoldWorkflowKeyword 折叠关键字或被搜的文本（RFC-0021「定义」的「关键字」与「关键字的小写」）：逐个码位取
-// Unicode 的简单小写映射（unicode.ToLower 就是 UnicodeData.txt 的 Simple_Lowercase_Mapping，不做 SpecialCasing 的
-// 完全映射，也不随上下文与区域：İ 折成 i，Σ 总是折成 σ），字段分隔符换成空格。映射不跨平面，UTF-16 的长度不变。
+// Unicode 的简单小写映射（LowerWorkflowText，与表达式的 lower 同一份映射），再把字段分隔符换成空格。
 func FoldWorkflowKeyword(text string) string {
-	return strings.Map(func(char rune) rune {
-		if char == WorkflowKeywordFieldSeparator {
-			return ' '
-		}
-		return unicode.ToLower(char)
-	}, text)
+	// 分隔符的小写映射是它自己：先映射再换，与在同一遍里换结果相同
+	return strings.ReplaceAll(LowerWorkflowText(text), string(WorkflowKeywordFieldSeparator), " ")
 }
 
 // NormalizeWorkflowKeyword 把调用方给的关键字变成用来匹配的文本：去掉首尾空白再折叠；
