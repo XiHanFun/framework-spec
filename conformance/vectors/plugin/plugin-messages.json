@@ -135,9 +135,21 @@
     },
     {
       "key": "plugins.process.failed",
+      "phase": "configure",
+      "reason": "the configuration has a lone surrogate and cannot be encoded as UTF-8",
+      "when": "宿主组装 Configure 请求：清单声明的配置节的键或值里有孤立的代理项，不带键与值（lifecycle.md §2，RFC-0001「写出与转交」，ADR-0315）"
+    },
+    {
+      "key": "plugins.process.failed",
       "phase": "invoke",
       "reason": "invalid error code '{code}'",
       "when": "对方写来的错误码不合文法；{code} 换成原样的错误码（invocation.md §3）"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "<操作 ID>",
+      "reason": "the response payload is not valid JSON text at '{path}'",
+      "when": "宿主读插件：Status.ok 为真而 payload 不为空、没过 RFC-0001「JSON 文本」的共同检查；{path} 换成问题的路径，语法错误为 $，重复成员为第一处重复的路径（invocation.md §1，ADR-0315）"
     },
     {
       "key": "plugins.process.failed",

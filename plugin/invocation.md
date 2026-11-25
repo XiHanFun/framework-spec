@@ -19,10 +19,16 @@
   - 首次握手失败、正在按重启策略重试的插件被卸载时，重试停止；卸载之后才完成的握手不再登记（只登记宿主里仍是当前运行时的插件）。
 
 - 一元操作：`Plugin.Invoke`。`payload` 是请求类型的 JSON（空等价于 `{}`）；`InvokeResponse.status.ok` 为真时 `payload` 是响应类型的 JSON，否则 `error` 是业务失败。
+  - 宿主读插件交回的应答（2026-11-26 写明，ADR-0315；以前 .NET 不核对、原样交回，之后 MCP 的 tool 结果与命令行 `invoke` 的输出宽松地解码，gRPC 载体把转义出的孤立代理项写进 protobuf，开了幂等的调用在记录应答时抛出）：`status.ok` 为真而 `payload` 不为空时，宿主先按 RFC-0001「JSON 文本」的共同检查核对它（语法、64 层、合法的 UTF-8 与 Unicode、任何一层的重复成员；RFC-0001「写出与转交」），没过即这次调用失败，载荷不交给协议适配器与调用方：`PLUGINS_UNEXPECTED_001` + `plugins.process.failed`（`id` 为清单 ID，`phase` 为操作 ID，`reason` 为 `the response payload is not valid JSON text at '<路径>'`，路径照 RFC-0001：语法错误为 `$`，重复成员为第一处重复的路径）。
+    - 这是插件写来的内容不合规，与 §3 里错误码不合文法同一类处置：进程外插件的进程与 Wasm 插件的实例照常服务，不按崩溃处理，不计入重启次数（`lifecycle.md` §6）。Wasm 载体里整条消息不是合法的 proto3 JSON 才按崩溃处理（`wasm.md` §2）；`payload` 是消息里的 `bytes` 字段，消息本身合法。错误码的 KIND 是 `UNEXPECTED`，这个操作开了熔断时计入失败（RFC-0004「Resilience 阶段」）。
+    - `payload` 为空时不做这道检查，照旧原样交回，协议适配器按没有响应体处理。
+    - 幂等回放还原记录的应答（RFC-0011 规则 8）时做同一道检查，没过即解码失败（RFC-0006，`CACHING_CONFLICT_003`）。
+    - 进程内插件不向宿主的登记表贡献操作（上文），没有经宿主转交的应答，不适用这一条。
 - 流式操作（`streaming: true`）：`Plugin.InvokeStream`。调用方先发 `start`（`InvokeRequest`，`payload` 为请求对象），再发零个或多个 `chunk`（每帧一个完整 JSON 值），最后发 `end`（`ok: true`；`ok: false` 表示中止，被调方应停止处理）；被调方发零个或多个 `chunk`，最后发 `end`。任一方收到不符合顺序的帧（`start` 不是第一帧、`end` 之后还有帧）以 gRPC `InvalidArgument` 结束流。.NET 参考实现在 RFC-0011 定义流式操作契约之前只把流式操作暴露为内部调用，不经协议适配器发布。
   - 在流式操作契约的 RFC 之前（RFC-0017「非目标」），插件不实现流式调用、也不声明流式操作（`handshake.md` §3 第 4 条），2026-11-18 写明（ADR-0237；以前有的 SDK 直接拒绝、有的读帧、有的实现了流式操作）：`InvokeStream` 核对会话令牌后读第一帧，流在第一帧之前结束或第一帧不是 `start` 时以 gRPC `InvalidArgument` 结束流，第一帧是 `start` 时以 gRPC `Unimplemented` 结束流，不论操作是否声明、插件是否就绪。
 - 调用到达时插件未 `Ready`：懒激活按 `lifecycle.md` 等待，否则 `PLUGINS_UNAVAILABLE_001`。
 - 插件一侧处理 `Invoke` 依次核对（2026-11-18 写明，ADR-0237；以前有的 SDK 先报未就绪）：会话令牌（`handshake.md` §4）；操作在握手声明里，否则 gRPC `Unimplemented`；插件在可服务状态（`lifecycle.md` §7.3），否则 `Status.error` 为 `PLUGINS_UNAVAILABLE_001` + `plugins.process.unavailable`；然后按 §2 还原上下文，经 SDK 的调用器与完整管道执行（RFC-0011），`payload` 为空等同 `{}`。
+- 插件一侧写出应答（2026-11-26 写明，ADR-0315；以前 TypeScript 以 `TextEncoder` 编码处理器以字符串交回的应答，孤立的代理项换成 U+FFFD 照发，宿主收到的是另一份合法的 JSON）：处理器以字符串交回的应答载荷（SDK 收字符串的接口），写进 `InvokeResponse.payload` 之前严格编码成 UTF-8（RFC-0001「写出与转交」）。编码不成即应答写不出，按 RFC-0011 规则 10 的「编码」处理：`Status.error` 为 `KERNEL_UNEXPECTED_001` + `kernel.invocation.unhandled_exception`（没有参数），`payload` 为空，与类型化的响应写不出（浮点成员是 NaN）相同。处理器的失败由插件一侧这样报给宿主，宿主按 §3 读入。以字节交回的应答原样写出，由宿主按上面「宿主读插件交回的应答」核对。
 
 ## 2. 上下文映射（RFC-0003）
 
@@ -118,6 +124,7 @@
   - `Host.Publish` 两项都是整批的结果，每一项都是那个错误。信封的 `xihantenant` 不在本地核对，由宿主逐项判定：宿主在它之前还核对发布器与主题，本地先判它会改变错误的先后。
   - 最后，回调上下文的截止时间已到或已被取消时也不发请求，结果与下表相应的一行相同：截止时间已到按 `DeadlineExceeded`，否则已被取消按「`Cancelled`，回调上下文的取消信号已触发」。截止时间已到指截止令牌（RFC-0003 第 1 条）已触发，或者按时钟已过截止时间，两者任一成立即是（2026-11-19 写明，ADR-0246；以前没说按什么判断，有的 SDK 只读时钟）：截止令牌由定时器触发，可能早于时钟读数到达截止时间，也可能晚于它；只读时钟时，令牌先到会让截止时间落到「已被取消」那一行。这是发出之前的核对，与调用器进入时的核对（RFC-0011 规则 10）一样可以读时钟；管道里截止时间步骤的归因仍只看令牌（RFC-0004）。
   - 截止时间之后还有一项：`Host.Invoke` 的载荷以字符串给出时（SDK 收字符串的接口），发出之前严格编码成 UTF-8（RFC-0001「JSON 文本」；2026-11-26 写明，ADR-0312；以前 TypeScript 的 `TextEncoder` 与 Java 的 `getBytes(UTF_8)` 把孤立的代理项换成 U+FFFD 或 `?` 照发，宿主收到的是另一份合法的 JSON）：孤立的代理项编码不成，即不发请求，`KERNEL_VALIDATION_001` + `kernel.operation.invalid_payload`（`id` 为操作 ID，`reason` 为 `$`），与宿主读到不是 JSON 的载荷时相同（RFC-0011 规则 2）。这一项排在上面各项之后：宿主在管道的 Validate 阶段才解码载荷，权限、租户与截止时间的错误先于它。载荷以字节给出时原样发出，由宿主核对。
+  - `Host.Publish` 的信封 `data` 以字符串给出时（SDK 收字符串的接口；2026-11-26 写明，ADR-0315；以前 Java 的 `Envelope.Builder.data(String)` 以 `getBytes(UTF_8)` 把孤立的代理项换成 `?`，TypeScript 的 `TextEncoder` 换成 U+FFFD，宿主收到的是另一份数据），发出之前同样严格编码成 UTF-8（RFC-0001「写出与转交」）。编码不成的那一项不发出，结果是 `MESSAGING_VALIDATION_002` + `messaging.envelope.invalid`（`reason` 为 `the data has a lone surrogate and cannot be encoded as UTF-8`），与宿主转换不了信封时同一个码与键（上文「逐项的核对」的最后一步）；其余各项照常组成一次请求发出，结果放回各自原来的位置，每一项都编码不成时不发请求。宿主那几步逐项核对（发布器、主题、`xihantenant`）对不发出的那一项不再进行。这一项排在上面整批的各项（端点、权限、租户、截止时间）之后：整批不合时每一项都是整批的那个错误，与 `Host.Invoke` 的载荷同一个先后。`data` 以字节给出时原样发出。
 - 回调途中（2026-11-19 写明，ADR-0246；以前没说，有的 SDK 在回调上下文的取消信号触发时一律在本地中止回调，截止时间到了也报成取消）：截止时间到了，结果是 `DeadlineExceeded` 那一行。gRPC 调用带着同一个截止时间，可以交给 gRPC 库在本端中止；在本地中止时，同样按上一条判断截止时间已到。调用方取消、而截止时间未到时，在本地中止回调，结果是「`Cancelled`，回调上下文的取消信号已触发」那一行。插件管道里截止时间步骤派生给处理器的取消信号，在截止时间也会触发：回调客户端不能只凭这个信号已触发，就把回调当作调用方取消。
 - 回调的 `metadata` 取自回调所在的调用上下文：`trace_parent` 是这个上下文按 RFC-0003 写出的 traceparent（与其他载体同一取法），`deadline` 按 §2 的写法，`baggage` 是上下文里已登记的键，`trace_state` 为空；gRPC 调用的截止时间与 `deadline` 相同。
 - gRPC 状态的映射与宿主一侧（§3）对称（向量 `conformance/vectors/plugin/callback-status.json`）。gRPC 库自己的叫法先换成标准状态：库按截止时间在本端中止调用时报的状态（如 tonic 以 `Cancelled` 报 `Timeout expired`）按 `DeadlineExceeded`；回调客户端只按下表映射，不另按时钟或令牌改写结果（超时的归因交给插件自己的管道，RFC-0003 规则 1）：
@@ -155,7 +162,7 @@ SDK 运行时与宿主共用下面的消息键（2026-11-18 写明，ADR-0237；
 | 键 | 参数 | 错误码 | 场合 |
 | --- | --- | --- | --- |
 | `plugins.process.unavailable` | `id`、`state` | `PLUGINS_UNAVAILABLE_001` | 不在可服务状态时到达的调用与投递（`state` 是状态名） |
-| `plugins.process.failed` | `id`、`phase`、`reason` | `PLUGINS_UNEXPECTED_001` | 回调抛出、配置节不是对象、对方写来的错误不合法、没有对应的 gRPC 状态；宿主组装 `Configure` 时清单声明的绑定读不出来、属性不合文法或超过上限（`lifecycle.md` §2） |
+| `plugins.process.failed` | `id`、`phase`、`reason` | `PLUGINS_UNEXPECTED_001` | 回调抛出、配置节不是对象、对方写来的错误不合法、没有对应的 gRPC 状态；宿主组装 `Configure` 时清单声明的绑定读不出来、属性不合文法或超过上限、配置节有孤立的代理项（`lifecycle.md` §2）；插件交回的应答载荷没过 JSON 文本的检查（§1） |
 | `plugins.event.unsubscribed` | `id`、`topic`、`type`、`mode` | `KERNEL_NOTFOUND_001` | 投递找不到订阅 |
 | `plugins.host.unavailable` | `id`、`reason` | `PLUGINS_UNAVAILABLE_001` | 回调连不上宿主、没有可用的回调端点 |
 | `plugins.callback.denied` | `id`、`permission` | `PLUGINS_DENIED_002` | 回调所需的权限未声明或未授予 |
