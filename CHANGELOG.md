@@ -4,6 +4,15 @@
 
 ## 未发布
 
+- MINOR：`plugin/invocation.md` §5 写明 SDK 以字符串给出的 `Host.Invoke` 载荷发出前严格编码，编码不成即本地 `KERNEL_VALIDATION_001` + `kernel.operation.invalid_payload`（`reason` 为 `$`），排在权限、租户、截止时间之后（ADR-0312）。
+- MINOR：RFC-0001「JSON 文本」新增「写出与转交」，字符串与 UTF-8 之间严格转换、不换成 U+FFFD；`plugin/wasm.md` §2 写明宿主严格解码客体消息，`protocol/commandline.md` 写明 `--json` 严格编码，RFC-0016 写明 `xihan setup` 的非法 UTF-8 是不合法的 JSON（ADR-0312）。
+- PATCH：RFC-0017 的 .NET 映射里绑定核对的入口由 `Kernel.Plugins.PluginBindingRules` 改名 `Kernel.Hosting.BindingRules`，规则不变（ADR-0311）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0016「资源绑定与配置节」新增第 11 条，根目录下以 `.` 开头的子目录不是绑定，不读、不计入第 10 条的 128 个，解析全部与点名都如此，以前照样读成绑定；同条写明绑定目录里的子目录不是属性、符号链接按目标读、名字取目录项自己的（ADR-0311）。
+- MINOR：插件协议 `Envelope.time` 的 SDK 一侧收进向量：新增 `plugin/sdk-envelope-times.json`（档 `plugin`），按纳秒、100 纳秒、微秒、毫秒四种精度给出写出的文本与读出的时刻，另补 18 条必须读不出的文本，越界年份不收；`plugin/envelope-times.json` 也进 `plugin` 档；Go 一致性模块新增 `SDKEnvelopeTimes`、`rules.TruncateEnvelopeTime`、`rules.FormatSDKEnvelopeTime`（ADR-0310）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0021「长度与上限」的表里 `len` 读是字符串或数字的实参（以前只读数字），`isNullOrEmpty` 只读到能判定为止，非空的字符串记 1，空串、数字、布尔与容器不读（以前读数字的全文、不读字符串）；`expression-limits.json` 的 `budgets` 改 5 条、补 9 条（ADR-0309）。
+- MINOR：RFC-0012「范围读取、分片上传与预签名」写明 S3 上传分片的应答没有可用的 `ETag`、列出分片的应答里分片缺可用的编号或 `ETag` 或长度为负时返回 `OBJECTSTORAGE_UNAVAILABLE_001`，上传不重发、列出不跳过（ADR-0308）。
+- PATCH：RFC-0012「S3 Provider」照 RustFS 1.0.6 实测写明 SigV4 签名按合并空白之后的值计算：`;` 两侧空格写法不同的验签失败，只差在连续空格的验签通过而被存成改写后的值；`OBJECTSTORAGE_VALIDATION_007` 的判定不变（ADR-0308）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0012「标识」的内容类型不能以空格结尾（RFC 9110 §5.5 的字段值不含首尾空白），文法改为 `^<token>/<token>( *;([\x20-\x7E]*[\x21-\x7E])?)?$`，修订 ADR-0295；`blob-content-types.json` 有 4 条挪到 invalid，valid 补 3 条、invalid 补 6 条；Go 规则 `IsBlobContentType` 同步（ADR-0308）。
 - MAJOR（`v1.0.0` 之前允许）：插件协议 `Envelope.time` 的 SDK 一侧：宿主写来的文本按 RFC-0003 规则 8 读成各语言的时间类型（更细的小数截断、不进位），读不出（含时间类型表示不了）以 gRPC `InvalidArgument` 拒绝投递、排在找订阅之前；作者发布时给时间类型，SDK 换算成 UTC、以 `Z` 结尾、去掉小数末尾的 0 写出，年份越界照写、由宿主拒绝，越界的写法不作规定；以前写明 SDK 原样交出与原样写出文本。不加向量（ADR-0306）。
 - MINOR：信封承载 CloudEvents 的可选属性 `dataschema`（非空字符串，与 `source` 一样不核对 URI 语法），RFC-0009 写明各传输上的映射，`protocol/cloudevents.md` 的 binary 读写 `ce-dataschema`，带 `dataschema` 的文档又读得出；`cloudevents-envelopes.json` 的 expected 加 `dataschema`，新增有、没有与不合法的用例（ADR-0305）。
 - MINOR：插件协议 `Envelope` 新增 `data_schema`（字段 11，同一协议版本），`plugin/invocation.md` §4 写明空串为没有、原样传递与较早对端的兼容（ADR-0305）。
