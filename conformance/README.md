@@ -52,7 +52,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `objectstorage/multipart-parts.json` | 分片编号的范围（1–10000）、分片的最小字节数与完成清单的编号次序，期望值由 .NET 算出 | RFC-0012「范围读取、分片上传与预签名」 |
 | `objectstorage/store-definitions.json` | 命名存储实例：实例名的文法、内置的 Provider 名、两个定义是不是同一个定义，期望值由 .NET 算出 | RFC-0012「命名存储实例」 |
 | `scheduling/job-names.json` | 作业名、触发器名与领导选举资源名的文法（与主题相同，含 128 个字符的上限两侧），期望值由 .NET 算出 | RFC-0013「作业与触发器」 |
-| `scheduling/cron-expressions.json` | cron 表达式：5、6、7 段，空格与制表符分段，列表、范围、步长（含单个值带步长与步长的上限）、名字（不区分大小写）、`?`、`L`、`L-n`、`nW`、`LW`、`nL`、`n#k`，年份 1970–2099，从起点依次推算的触发时刻（含时区与夏令时的跳过、重复），搜索上限（1830 天）的两侧，必须拒绝的表达式；期望值由 .NET 算出 | RFC-0013「作业与触发器」 |
+| `scheduling/cron-expressions.json` | cron 表达式：5、6、7 段，空格与制表符分段，列表、范围、步长（含单个值带步长，各段步长的上限两侧）、名字（不区分大小写）、`?`、`L`、`L-n`、`nW`、`LW`、`nL`、`n#k`，年份 1970–2099，从起点依次推算的触发时刻（含时区与夏令时的跳过、重复），搜索上限（1830 天）的两侧，必须拒绝的表达式；期望值由 .NET 算出 | RFC-0013「作业与触发器」 |
 | `scheduling/retry-delays.json` | 作业重试前的等待（固定间隔与指数退避、上限、30 天）与重试策略的取值范围，期望值由 .NET 算出 | RFC-0013「作业与触发器」 |
 | `scheduling/event-topics.json` | 调度发布的 9 个事件主题与信封的 `source` | RFC-0013「引擎」 |
 | `localization/locale-names.json` | 区域名的文法（35 个字符的上限两侧）、规范形式与语言子标签，内置的 10 种区域，期望值由 .NET 算出 | RFC-0010「区域」 |

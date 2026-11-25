@@ -1,20 +1,17 @@
 package rules
 
 import (
-	"math"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// cron 年份段的取值范围、步长的上限与搜索上限（RFC-0013「作业与触发器」的 cron）。
+// cron 年份段的取值范围与搜索上限（RFC-0013「作业与触发器」的 cron）；步长的上限是各段能写的最大值，见 cronField。
 const (
 	// cronMinYear 是年份段能写的最小年份。
 	cronMinYear = 1970
 	// cronMaxYear 是年份段能写的最大年份。
 	cronMaxYear = 2099
-	// cronMaxStep 是步长的上限。
-	cronMaxStep = math.MaxInt32
 	// cronSearchLimit 是推算下一次触发时向后搜索的上限：下一次的墙上时间与起点（去掉秒以下）相差不超过 1830 天。
 	cronSearchLimit = 5 * 366 * 24 * time.Hour
 )
@@ -26,7 +23,7 @@ var (
 	cronWeekdayNames = []string{"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"}
 )
 
-// cronField 是一个段的取值范围与可用的名字。
+// cronField 是一个段的取值范围与可用的名字；max 同时是这一段步长的上限（星期在 0 到 7 里数，上限是 7）。
 type cronField struct {
 	min, max int
 	names    []string
@@ -123,8 +120,9 @@ func parseCronItem(item string, field cronField, set []bool) bool {
 	step := 1
 	body, stepText, hasStep := strings.Cut(item, "/")
 	if hasStep {
+		// 步长不超过这一段能写的最大值（与 Quartz、cronie 一致，ADR-0297）
 		value, ok := parseCronNumber(stepText)
-		if !ok || value < 1 || value > cronMaxStep {
+		if !ok || value < 1 || value > field.max {
 			return false
 		}
 		step = value
