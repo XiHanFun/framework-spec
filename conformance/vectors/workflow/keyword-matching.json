@@ -1,5 +1,5 @@
 {
-  "$comment": "列表查询的关键字（RFC-0021「定义」的「关键字」，ADR-0096、ADR-0099、ADR-0277）：定义、实例与待办的列表查询都按这一套规则匹配关键字。normalize：keyword 是调用方给的关键字（null 表示没有给），normalized 是折叠之后用来匹配的文本，null 表示不按关键字过滤——关键字去掉首尾空白，为空或只有空白不过滤；再折叠：不变文化的小写，字段分隔符 U+001F 换成空格。matches：fields 是被搜的各个字段（null 表示这个字段没有值），关键字与字段都折叠之后按序数判断包含，任一字段包含即匹配，不跨字段匹配；关键字里的 %、_、[、\\ 按字面匹配，与全角的同形字符是不同的字符。字母都在基本多文种平面之内：平面以外的字母怎么折叠正文没有写。期望值由 .NET 参考实现（WorkflowKeyword.Normalize、WorkflowKeyword.Matches）算出。",
+  "$comment": "列表查询的关键字（RFC-0021「定义」的「关键字」与「关键字的小写」，ADR-0096、ADR-0099、ADR-0277、ADR-0296）：定义、实例与待办的列表查询都按这一套规则匹配关键字。normalize：keyword 是调用方给的关键字（null 表示没有给），normalized 是折叠之后用来匹配的文本，null 表示不按关键字过滤——关键字去掉首尾空白，为空或只有空白不过滤；再折叠：逐个码位取 Unicode 的简单小写映射（UnicodeData.txt 的 Simple_Lowercase_Mapping，不做 SpecialCasing 的完全映射，也不随上下文与区域：İ 折成 i，Σ 总是折成 σ，基本多文种平面以外的字母同样折叠），字段分隔符 U+001F 换成空格。matches：fields 是被搜的各个字段（null 表示这个字段没有值），关键字与字段都折叠之后按序数判断包含，任一字段包含即匹配，不跨字段匹配；关键字里的 %、_、[、\\ 按字面匹配，与全角的同形字符是不同的字符。用例只收 Unicode 9.0 及更早就有小写映射、之后没有变过的码位：实现所带的 Unicode 数据不同时，新近收录的字符怎样折叠实现自定（ADR-0296）。期望值由 .NET 参考实现（WorkflowKeyword.Normalize、WorkflowKeyword.Matches）算出。",
   "fieldSeparator": "\u001f",
   "normalize": [
     {
@@ -41,6 +41,56 @@
       "name": "字段分隔符 U+001F 换成空格",
       "keyword": "a\u001fb",
       "normalized": "a b"
+    },
+    {
+      "name": "İ（U+0130）折成 i：简单小写映射，不是 i 加组合用的点",
+      "keyword": "İSTANBUL",
+      "normalized": "istanbul"
+    },
+    {
+      "name": "ı（U+0131）本身是小写，不变",
+      "keyword": "ıI",
+      "normalized": "ıi"
+    },
+    {
+      "name": "ẞ（U+1E9E）折成 ß",
+      "keyword": "STRAẞE",
+      "normalized": "straße"
+    },
+    {
+      "name": "Σ 不论在不在词尾都折成 σ，不折成 ς",
+      "keyword": "ΟΔΟΣ ΣΑΣ",
+      "normalized": "οδοσ σασ"
+    },
+    {
+      "name": "开尔文符号 K（U+212A）与埃符号 Å（U+212B）折成 k 与 å",
+      "keyword": "KÅ",
+      "normalized": "kå"
+    },
+    {
+      "name": "标题字母 ǅ 与大写的 Ǆ 都折成 ǆ",
+      "keyword": "ǅ Ǆ",
+      "normalized": "ǆ ǆ"
+    },
+    {
+      "name": "切罗基大写字母折成小写字母",
+      "keyword": "ᎠᎡᏴ",
+      "normalized": "ꭰꭱᏼ"
+    },
+    {
+      "name": "基本多文种平面以外的字母同样折叠：德塞莱特字母",
+      "keyword": "𐐀𐐁𐐂",
+      "normalized": "𐐨𐐩𐐪"
+    },
+    {
+      "name": "基本多文种平面以外的字母同样折叠：阿德拉姆字母",
+      "keyword": "𞤀𞤁",
+      "normalized": "𞤢𞤣"
+    },
+    {
+      "name": "平面以外没有大小写的字符不变",
+      "keyword": "😀𠀀",
+      "normalized": "😀𠀀"
     },
     {
       "name": "空串不过滤",
@@ -206,6 +256,46 @@
       "keyword": "审批",
       "fields": [
         "请假审批单"
+      ],
+      "matches": true
+    },
+    {
+      "name": "İ 折成 i：小写的关键字匹配大写的 İ",
+      "keyword": "istanbul",
+      "fields": [
+        "İSTANBUL office"
+      ],
+      "matches": true
+    },
+    {
+      "name": "İ 折成 i：关键字里的 İ 匹配 i",
+      "keyword": "İst",
+      "fields": [
+        "istanbul"
+      ],
+      "matches": true
+    },
+    {
+      "name": "简单小写映射不产生组合用的点：i 加 U+0307 匹配不到 İ",
+      "keyword": "i̇",
+      "fields": [
+        "İSTANBUL"
+      ],
+      "matches": false
+    },
+    {
+      "name": "Σ 总是折成 σ：词尾的 ς 与 Σ 不是同一个字符",
+      "keyword": "οδος",
+      "fields": [
+        "ΟΔΟΣ"
+      ],
+      "matches": false
+    },
+    {
+      "name": "平面以外的字母不区分大小写",
+      "keyword": "𐐨𐐩",
+      "fields": [
+        "x𐐀𐐁y"
       ],
       "matches": true
     }

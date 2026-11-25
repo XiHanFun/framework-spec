@@ -66,7 +66,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `auditing/event-selection.json` | 一次调用是否记成审计事件：选择规则、显式动作、排除、结果的来源与 `IncludeSuccesses`，事件的主体与租户取自哪里；期望值由 .NET 算出 | RFC-0015「事件的产生」 |
 | `workflow/workflow-names.json` | 工作流定义名、节点与转移的 ID、活动类型三条文法的合法与不合法样例（各自的上限两侧），期望值由 .NET 算出 | RFC-0021「名字与值」 |
 | `workflow/status-order.json` | 定义与实例的状态按生命周期先后的次序（列表按状态排序用它，不按字母序） | RFC-0021「定义」的「列表排序」 |
-| `workflow/keyword-matching.json` | 列表查询的关键字：去首尾空白、小写折叠、字段分隔符换成空格，按字面包含、不跨字段匹配；期望值由 .NET 算出 | RFC-0021「定义」的「关键字」 |
+| `workflow/keyword-matching.json` | 列表查询的关键字：去首尾空白、逐个码位按 Unicode 的简单小写映射折叠（`İ` 折成 `i`，平面以外的字母同样折叠）、字段分隔符换成空格，按字面包含、不跨字段匹配；期望值由 .NET 算出 | RFC-0021「定义」的「关键字」「关键字的小写」 |
 | `workflow/workflow-event-topics.json` | 工作流发布的 25 个事件主题与信封的 `source` | RFC-0021「实例与执行」的「事件」 |
 | `workflow/expression-syntax.json` | 工作流表达式的词法与文法：数字与字符串字面量、空白、标识符、优先级与结合性、成员与索引与调用的写法，解析时的每一种错误与位置；期望值由 .NET 算出 | RFC-0021「表达式」的「词法」「文法」 |
 | `workflow/expression-operators.json` | 每个运算符与每种操作数的组合，数字的舍入与范围（96 位整数、0 到 28 位小数、一半取偶），数字文本，除以零与求值的先后，`+` 的拼接，相等，比较（时间文本按时刻），逻辑的短路，成员与索引；期望值由 .NET 算出 | RFC-0021「表达式」的「值」「运算符」「成员与索引」 |

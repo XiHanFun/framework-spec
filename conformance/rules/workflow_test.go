@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode"
+	"unicode/utf16"
 
 	"github.com/xihanfun/framework-spec/conformance"
 	"github.com/xihanfun/framework-spec/conformance/rules"
@@ -59,6 +61,19 @@ func TestWorkflowKeywordsFollowTheVectors(t *testing.T) {
 		}
 		if got := rules.WorkflowKeywordMatches(keyword, c.Fields); got != c.Matches {
 			t.Errorf("%s: matches = %v, want %v", c.Name, got, c.Matches)
+		}
+	}
+}
+
+func TestWorkflowKeywordFoldingKeepsTheLength(t *testing.T) {
+	// 正文写明简单小写映射不跨平面：数据库的查询列与内存实现按 UTF-16 码元比较，折叠前后的长度必须相同
+	for r := rune(0); r <= unicode.MaxRune; r++ {
+		if r >= 0xD800 && r <= 0xDFFF {
+			continue
+		}
+		folded := []rune(rules.FoldWorkflowKeyword(string(r)))
+		if len(folded) != 1 || utf16.RuneLen(folded[0]) != utf16.RuneLen(r) {
+			t.Fatalf("U+%04X folds to %q, the UTF-16 length changes", r, string(folded))
 		}
 	}
 }
