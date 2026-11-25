@@ -157,6 +157,7 @@ var nonEmptyChecks = map[string]func(t *testing.T) any{
 		bindings, err := conformance.PluginBindings()
 		if err != nil || bindings.PluginID == "" || bindings.Limits.MaxProperties == 0 || bindings.Limits.MaxNameLength == 0 || bindings.Limits.MaxBytes == 0 ||
 			bindings.Limits.MaxFileBytes == 0 || bindings.Limits.MaxBindingFileBytes == 0 || bindings.Limits.MaxRequestBytes == 0 ||
+			bindings.Limits.MaxBindingFiles == 0 || bindings.Limits.MaxBindings == 0 ||
 			bindings.Request.Configuration == "" || bindings.Request.GrantedPermissions == nil || bindings.Request.WorkDirectory == "" ||
 			len(bindings.Names.Valid) == 0 || len(bindings.Names.Invalid) == 0 || len(bindings.Delivery) == 0 || len(bindings.Reading) == 0 {
 			t.Errorf("plugin bindings: %v", err)

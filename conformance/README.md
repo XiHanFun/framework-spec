@@ -31,7 +31,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `plugin/callback-status.json` | 插件一侧回调失败的映射：RPC、gRPC 状态与调用上下文是否已取消，到错误码、消息键与 `details` | `plugin/invocation.md` §5 |
 | `plugin/error-reading.json` | 读入对方写来的 `Error`：错误码与消息键不合文法、`details` 不合法或溢出、`inner`、`ok` 为假却没有错误 | `plugin/invocation.md` §3 |
 | `plugin/protocol-versions.json` | 协议版本协商与原语层版本核对 | `plugin/handshake.md` |
-| `plugin/binding-properties.json` | 下发给插件的绑定连同属性：下发时属性名的文法与上限（64 个属性、名字 253 个字符、名与值合计 262144 个 UTF-8 字节的两侧），宿主由清单的声明（含 `required`）与解析出的绑定算出下发的绑定、记警告的绑定或配置失败的 `reason`（必需的绑定解析不出、来源声明的类型与清单不同、属性不合，按清单的顺序报第一处；整个请求按 protobuf 二进制编码 2097152 字节的两侧），目录来源的文件大小上限，插件由宿主写出的 `ConfigureRequest` 字节与 proto3 JSON 文本读出绑定；期望值由 .NET 算出 | `plugin/lifecycle.md` §2、§7.2，RFC-0016「资源绑定与配置节」 |
+| `plugin/binding-properties.json` | 下发给插件的绑定连同属性：下发时属性名的文法与上限（64 个属性、名字 253 个字符、名与值合计 262144 个 UTF-8 字节的两侧），宿主由清单的声明（含 `required`）与解析出的绑定算出下发的绑定、记警告的绑定或配置失败的 `reason`（必需的绑定解析不出、来源声明的类型与清单不同、属性不合，按清单的顺序报第一处；整个请求按 protobuf 二进制编码 2097152 字节的两侧），目录来源的文件大小与条目数的上限，插件由宿主写出的 `ConfigureRequest` 字节与 proto3 JSON 文本读出绑定；期望值由 .NET 算出 | `plugin/lifecycle.md` §2、§7.2，RFC-0016「资源绑定与配置节」 |
 | `plugin/wasm-exports.json` | Wasm ABI v1 的导出与导入表 | `plugin/wasm.md` |
 | `caching/cache-keys.json` | 缓存键与键前缀必须接受与必须拒绝的样例：长度按 UTF-8 字节计（正好 512 字节、513 字节、UTF-16 码元数不超而字节数超过）、空白与控制字符 | RFC-0006「存储契约」、`provider/caching-distributed.md` §2 |
 | `context/http-deadline.json` | HTTP 载体从请求头读出的截止时间：`xihan-deadline` 合文法与读不出的写法（含 .NET 以前照收的宽松写法、出现多次）、没有它时的 `grpc-timeout`，期望值由 .NET 算出 | RFC-0003 规则 8、`protocol/http.md`、`protocol/grpc.md` |

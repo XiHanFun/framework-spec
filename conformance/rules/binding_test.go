@@ -23,12 +23,17 @@ func TestBindingPropertiesFollowTheVectors(t *testing.T) {
 	}
 	limits := vectors.Limits
 	if limits.MaxProperties != rules.MaxBindingProperties || limits.MaxNameLength != rules.MaxBindingPropertyNameLength || limits.MaxBytes != rules.MaxBindingPropertyBytes ||
-		limits.MaxFileBytes != rules.MaxBindingFileBytes || limits.MaxBindingFileBytes != rules.MaxBindingDirectoryBytes || limits.MaxRequestBytes != rules.MaxConfigureRequestBytes {
+		limits.MaxFileBytes != rules.MaxBindingFileBytes || limits.MaxBindingFileBytes != rules.MaxBindingDirectoryBytes || limits.MaxRequestBytes != rules.MaxConfigureRequestBytes ||
+		limits.MaxBindingFiles != rules.MaxBindingDirectoryFiles || limits.MaxBindings != rules.MaxBindingDirectories {
 		t.Errorf("limits %+v differ from the rules", limits)
 	}
 	// 目录来源的两个上限都不小于下发的上限（RFC-0016「资源绑定与配置节」第 9 条）：下发得了的属性，文件也读得进来
 	if limits.MaxFileBytes < limits.MaxBytes || limits.MaxBindingFileBytes < limits.MaxBytes {
 		t.Errorf("the directory limits %+v must not be smaller than the delivery limit", limits)
+	}
+	// 一个绑定目录的文件数放得下 type 文件与下发上限那么多的属性（第 10 条）
+	if limits.MaxBindingFiles < limits.MaxProperties+1 || limits.MaxBindings < 1 {
+		t.Errorf("the directory entry limits %+v must hold the type file and as many properties as can be delivered", limits)
 	}
 	for _, name := range vectors.Names.Valid {
 		if !rules.IsBindingPropertyName(name) {

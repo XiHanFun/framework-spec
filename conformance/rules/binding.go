@@ -19,6 +19,10 @@ const (
 	MaxBindingFileBytes = 524288
 	// MaxBindingDirectoryBytes 是一个绑定目录里读的文件合计的字节数上限（同上）。
 	MaxBindingDirectoryBytes = 1048576
+	// MaxBindingDirectoryFiles 是一个绑定目录里读的文件数上限，以点开头的不计（RFC-0016「资源绑定与配置节」第 10 条，ADR-0301）。
+	MaxBindingDirectoryFiles = 128
+	// MaxBindingDirectories 是解析全部绑定时根目录下的绑定数上限（同上）。
+	MaxBindingDirectories = 128
 	// MaxConfigureRequestBytes 是整个 ConfigureRequest 按 protobuf 二进制编码的字节数上限（lifecycle.md §2，ADR-0292）。
 	MaxConfigureRequestBytes = 2097152
 )

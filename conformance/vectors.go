@@ -244,13 +244,16 @@ type ErrorReadingVectors struct {
 }
 
 // BindingPropertyLimits 是下发给插件的绑定属性的上限：一个绑定的属性数、属性名的字符数、全部属性名与属性值的 UTF-8 字节数；
-// 另有目录来源每个文件与一个绑定目录合计的字节数（RFC-0016「资源绑定与配置节」第 9 条），以及整个 ConfigureRequest 按 protobuf 二进制编码的字节数（ADR-0292）。
+// 另有目录来源每个文件与一个绑定目录合计的字节数（RFC-0016「资源绑定与配置节」第 9 条），以及整个 ConfigureRequest 按 protobuf 二进制编码的字节数（ADR-0292）；
+// 还有一个绑定目录里读的文件数与根目录下的绑定数（第 10 条，ADR-0301）。
 type BindingPropertyLimits struct {
 	MaxProperties       int `json:"maxProperties"`
 	MaxNameLength       int `json:"maxNameLength"`
 	MaxBytes            int `json:"maxBytes"`
 	MaxFileBytes        int `json:"maxFileBytes"`
 	MaxBindingFileBytes int `json:"maxBindingFileBytes"`
+	MaxBindingFiles     int `json:"maxBindingFiles"`
+	MaxBindings         int `json:"maxBindings"`
 	MaxRequestBytes     int `json:"maxRequestBytes"`
 }
 

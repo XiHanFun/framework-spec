@@ -124,6 +124,12 @@
     {
       "key": "plugins.process.failed",
       "phase": "configure",
+      "reason": "binding '{binding}' has more than 128 files",
+      "when": "宿主组装 Configure 请求：清单声明的绑定目录里读的文件（以 . 开头的不计）多于 128 个（RFC-0016「资源绑定与配置节」第 10 条，lifecycle.md §2，ADR-0301）"
+    },
+    {
+      "key": "plugins.process.failed",
+      "phase": "configure",
       "reason": "the configure request exceeds 2097152 bytes",
       "when": "宿主组装 Configure 请求：整个 ConfigureRequest 按 protobuf 二进制编码超过 2097152 字节（lifecycle.md §2，ADR-0292）"
     },
