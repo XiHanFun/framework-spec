@@ -55,6 +55,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `scheduling/cron-expressions.json` | cron 表达式：5、6、7 段，空格与制表符分段，列表、范围、步长（含单个值带步长，各段步长的上限两侧）、名字（不区分大小写）、`?`、`L`、`L-n`、`nW`、`LW`、`nL`、`n#k`，年份 1970–2099，从起点依次推算的触发时刻（含时区与夏令时的跳过、重复），搜索上限（1830 天）的两侧，必须拒绝的表达式；期望值由 .NET 算出 | RFC-0013「作业与触发器」 |
 | `scheduling/retry-delays.json` | 作业重试前的等待（固定间隔与指数退避、上限、30 天）与重试策略的取值范围，期望值由 .NET 算出 | RFC-0013「作业与触发器」 |
 | `scheduling/event-topics.json` | 调度发布的 9 个事件主题与信封的 `source` | RFC-0013「引擎」 |
+| `scheduling/schedule-texts.json` | 计划的文本形式：各种类与选项的组合、间隔与次数的上限两侧、时刻的各种写法与写回的文本，必须拒绝的分隔、次序、重复与写法；时区只用 `UTC`，期望值由 .NET 算出 | RFC-0013「计划的文本形式」 |
 | `localization/locale-names.json` | 区域名的文法（35 个字符的上限两侧）、规范形式与语言子标签，内置的 10 种区域，期望值由 .NET 算出 | RFC-0010「区域」 |
 | `localization/locale-negotiation.json` | 区域的协商（精确命中、按语言命中、默认区域，不合文法的候选忽略）与取文案的回退链，期望值由 .NET 算出 | RFC-0010「协商与宿主」「解析」 |
 | `localization/catalog-resolution.json` | 消息目录的合并（同名取并集、同一键同一区域不同即冲突）与按回退链的查找（先按区域、再按目录的次序；文案与实际命中的区域），期望值由 .NET 算出 | RFC-0010「语言文件」「解析」 |
@@ -95,7 +96,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `rules/messaging.go` | 死信主题（`DeadLetterTopic`）、扩展属性名与 Baggage 键的对应（`IsEnvelopeExtensionName`、`EnvelopeBaggageMappings`）、实例标识（`IsMessagingInstanceID`）、发件箱的退避与进死信（`OutboxRetryDelay`、`OutboxDeadLettered`）、结构化 JSON 信封的读取（`DecodeCloudEvent`：先过 `CheckJSONText`，`time` 用 `ParseDeadline` 的文法）；主题文法是 `IsTopic` |
 | `rules/multitenancy.go` | 租户 ID（`IsTenantID`）、Tenant 阶段的裁定（`ResolveTenant`）、从租户属性推出分片（`TenantShardFromProperties`） |
 | `rules/objectstorage.go` | 容器名（`IsContainerName`）、对象键、查询前缀与保留前缀（`IsBlobKey`、`IsBlobKeyPrefix`、`IsReservedBlobKey`，长度按 UTF-8 字节计）、保存的文件名（`IsBlobDownloadFileName`）、自定义元数据（`IsBlobMetadataName`、`IsBlobMetadata`，合计按 UTF-8 字节计）、内容类型（`IsBlobContentType`）、范围读取（`ResolveBlobRange`）、分片编号与完成清单（`IsBlobPartNumber`、`IsBlobPartManifest`）、命名存储实例（`IsBlobStoreName`、`IsBlobStoreProvider`、`SameBlobStoreDefinition`） |
-| `rules/scheduling.go`、`rules/cron.go` | 调度里的名字（`IsJobName`）、重试的等待与取值范围（`JobRetryWait`、`IsJobRetryPolicy`）、事件主题（`SchedulingEventTopics`）；cron 的解析与下一次触发（`ParseCron`、`CronExpression.Next`、`IsCronExpression`，与 .NET 独立实现、回放同一份向量） |
+| `rules/scheduling.go`、`rules/cron.go` | 调度里的名字（`IsJobName`）、重试的等待与取值范围（`JobRetryWait`、`IsJobRetryPolicy`）、事件主题（`SchedulingEventTopics`）；cron 的解析与下一次触发（`ParseCron`、`CronExpression.Next`、`IsCronExpression`，与 .NET 独立实现、回放同一份向量）；计划的文本形式（`rules/jobschedule.go`：`ParseJobSchedule`、`FormatJobSchedule`、`ParseJobInterval`、`FormatJobInterval`、`IsTimeZoneName`、`IsKnownTimeZone`） |
 | `rules/localization.go` | 区域名（`IsLocaleName`、`NormalizeLocaleName`、`LocaleLanguage`）、协商与回退链（`NegotiateLocale`、`LocaleFallbackChain`）、目录的合并与查找（`MergeMessageCatalogs`、`FindMessage`）；消息键与模板在 `rules/messages.go` |
 | `rules/configuration.go` | 密钥名（`IsSecretName`）、远程配置文档的展平（`FlattenJSONConfiguration`、`FlattenPropertiesConfiguration`，JSON 的读取器照收注释与尾逗号，与 .NET 独立实现）与 Nacos 的内容版本（`ConfigurationContentVersion`） |
 | `rules/persistence.go` | 索引名（`IndexColumnAbbreviation`、`IndexName`、`IsExplicitIndexName`）、雪花标识（`ComposeSnowflakeID`、`ParseSnowflakeID`、`SnowflakeTime`、`SnowflakeWorkerLockResource`） |

@@ -198,7 +198,8 @@
         "scheduling/cron-expressions.json",
         "scheduling/event-topics.json",
         "scheduling/job-names.json",
-        "scheduling/retry-delays.json"
+        "scheduling/retry-delays.json",
+        "scheduling/schedule-texts.json"
       ],
       "runner": []
     },

@@ -270,6 +270,31 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 		uniqueNames(t, "cron rejections", names)
 		return cron
 	},
+	"scheduling/schedule-texts.json": func(t *testing.T) any {
+		texts, err := conformance.JobScheduleTexts()
+		if err != nil || len(texts.Valid) == 0 || len(texts.Invalid) == 0 {
+			t.Errorf("schedule texts: %v", err)
+		}
+		var names []string
+		kinds := map[string]bool{}
+		for _, c := range texts.Valid {
+			names = append(names, c.Name)
+			kinds[c.Kind] = true
+			if c.Text == "" || c.Canonical == "" {
+				t.Errorf("schedule text case %q is incomplete: it needs the text and the text written back", c.Name)
+			}
+		}
+		if len(kinds) != 4 {
+			t.Errorf("schedule texts must cover manual, every, cron and once, got %v", kinds)
+		}
+		uniqueNames(t, "schedule texts", names)
+		names = nil
+		for _, c := range texts.Invalid {
+			names = append(names, c.Name)
+		}
+		uniqueNames(t, "schedule text rejections", names)
+		return texts
+	},
 	"scheduling/retry-delays.json": func(t *testing.T) any {
 		delays, err := conformance.JobRetryDelays()
 		if err != nil || delays.MaxRetries != 100 || delays.LimitMs <= 0 || len(delays.Waits) == 0 || len(delays.Policies) == 0 {

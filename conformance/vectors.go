@@ -779,6 +779,7 @@ var typedVectors = []TypedVector{
 	vectorFile[SchedulingEventTopicVectors]("scheduling/event-topics.json"),
 	vectorFile[JobNameVectors]("scheduling/job-names.json"),
 	vectorFile[JobRetryDelayVectors]("scheduling/retry-delays.json"),
+	vectorFile[JobScheduleTextVectors]("scheduling/schedule-texts.json"),
 	vectorFile[WebAuthnVectors]("security/webauthn.json"),
 	vectorFile[WorkflowExpressionFunctionVectors]("workflow/expression-functions.json"),
 	vectorFile[WorkflowExpressionLimitVectors]("workflow/expression-limits.json"),

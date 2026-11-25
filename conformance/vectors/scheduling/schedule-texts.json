@@ -1,0 +1,723 @@
+{
+  "$comment": "计划的文本形式（RFC-0013「计划的文本形式」，ADR-0297）：存储以这段文本持久化计划。各部分之间正好一个空格（U+0020），开头与结尾没有空格，别的空白出现在任何位置都不合法；第一部分是种类 manual、every <间隔>[ x<次数>]、cron <表达式> 或 once <时刻>，之后按 tz=（只跟在 cron 后面）、start=、end=、calendar= 的次序接选项，每个至多一次。间隔是 [d.]hh:mm:ss[.fffffff]（天数不带前导 0、不足一天不写，不足一秒的部分正好七位、为 0 时不写，大于 0、以 100 纳秒计不超过 9223372036854775807），次数是 1 到 2147483647、不带前导 0；cron 是 RFC-0013 的 cron 文法，但各段之间同样只认一个空格；时刻按 RFC-0003 规则 8 的读法，写回时换算成 UTC、七位小数、+00:00；日历名是作业名的文法；时区名是 IANA tz 数据库的名字，在本机的时区库里找不到即不合法——这里只用不依赖时区库的 UTC。valid 的每项：text 是文本；kind 是种类（manual、every、cron、once）；intervalTicks 是间隔（100 纳秒为单位）、repeatCount 是总运行次数，只对 every；cron 是表达式（照原样）；timeZone 是时区名，null 表示 UTC；at（只对 once）、startAt、endAt 是 UTC 时刻；calendar 是日历名；不适用或没写的为 null；canonical 是写回的文本——只有时刻的写法会变，其余各部分照原样。invalid 是必须拒绝的文本。期望值由 .NET 参考实现（JobSchedule.TryParse、JobSchedule.ToString）算出。",
+  "valid": [
+    {
+      "name": "只手动触发",
+      "text": "manual",
+      "kind": "manual",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "manual"
+    },
+    {
+      "name": "手动触发带全部三个选项",
+      "text": "manual start=2026-10-23T10:30:00.0000000+00:00 end=2026-10-24T10:30:00.0000000+00:00 calendar=holidays",
+      "kind": "manual",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": "2026-10-23T10:30:00.0000000Z",
+      "endAt": "2026-10-24T10:30:00.0000000Z",
+      "calendar": "holidays",
+      "canonical": "manual start=2026-10-23T10:30:00.0000000+00:00 end=2026-10-24T10:30:00.0000000+00:00 calendar=holidays"
+    },
+    {
+      "name": "手动触发只带日历",
+      "text": "manual calendar=holidays",
+      "kind": "manual",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": "holidays",
+      "canonical": "manual calendar=holidays"
+    },
+    {
+      "name": "固定间隔：十分钟",
+      "text": "every 00:10:00",
+      "kind": "every",
+      "intervalTicks": 6000000000,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "every 00:10:00"
+    },
+    {
+      "name": "固定间隔带次数",
+      "text": "every 00:10:00 x5",
+      "kind": "every",
+      "intervalTicks": 6000000000,
+      "repeatCount": 5,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "every 00:10:00 x5"
+    },
+    {
+      "name": "次数是 1",
+      "text": "every 00:10:00 x1",
+      "kind": "every",
+      "intervalTicks": 6000000000,
+      "repeatCount": 1,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "every 00:10:00 x1"
+    },
+    {
+      "name": "间隔带不足一秒的部分：正好七位",
+      "text": "every 00:00:01.5000000 x3",
+      "kind": "every",
+      "intervalTicks": 15000000,
+      "repeatCount": 3,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "every 00:00:01.5000000 x3"
+    },
+    {
+      "name": "间隔带天数",
+      "text": "every 1.00:00:00",
+      "kind": "every",
+      "intervalTicks": 864000000000,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "every 1.00:00:00"
+    },
+    {
+      "name": "间隔带天数与不足一秒的部分",
+      "text": "every 1.02:03:04.0050000",
+      "kind": "every",
+      "intervalTicks": 937840050000,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "every 1.02:03:04.0050000"
+    },
+    {
+      "name": "最短的间隔：100 纳秒",
+      "text": "every 00:00:00.0000001",
+      "kind": "every",
+      "intervalTicks": 1,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "every 00:00:00.0000001"
+    },
+    {
+      "name": "不足一天的最长写法",
+      "text": "every 23:59:59.9999999",
+      "kind": "every",
+      "intervalTicks": 863999999999,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "every 23:59:59.9999999"
+    },
+    {
+      "name": "最长的间隔与最多的次数",
+      "text": "every 10675199.02:48:05.4775807 x2147483647",
+      "kind": "every",
+      "intervalTicks": 9223372036854775807,
+      "repeatCount": 2147483647,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "every 10675199.02:48:05.4775807 x2147483647"
+    },
+    {
+      "name": "间隔带选项",
+      "text": "every 00:05:00 x2 start=2026-10-23T10:30:00.0000000+00:00 end=2026-10-23T12:30:00.0000000+00:00 calendar=weekends",
+      "kind": "every",
+      "intervalTicks": 3000000000,
+      "repeatCount": 2,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": "2026-10-23T10:30:00.0000000Z",
+      "endAt": "2026-10-23T12:30:00.0000000Z",
+      "calendar": "weekends",
+      "canonical": "every 00:05:00 x2 start=2026-10-23T10:30:00.0000000+00:00 end=2026-10-23T12:30:00.0000000+00:00 calendar=weekends"
+    },
+    {
+      "name": "5 段 cron",
+      "text": "cron 0 3 * * *",
+      "kind": "cron",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": "0 3 * * *",
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "cron 0 3 * * *"
+    },
+    {
+      "name": "6 段 cron 带时区 UTC",
+      "text": "cron 0 0 9 * * MON-FRI tz=UTC",
+      "kind": "cron",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": "0 0 9 * * MON-FRI",
+      "timeZone": "UTC",
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "cron 0 0 9 * * MON-FRI tz=UTC"
+    },
+    {
+      "name": "7 段 cron（带年份）",
+      "text": "cron 0 0 0 1 1 ? 2030",
+      "kind": "cron",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": "0 0 0 1 1 ? 2030",
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "cron 0 0 0 1 1 ? 2030"
+    },
+    {
+      "name": "cron 的名字保留书写时的大小写",
+      "text": "cron 0 0 * * mon-fri",
+      "kind": "cron",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": "0 0 * * mon-fri",
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "cron 0 0 * * mon-fri"
+    },
+    {
+      "name": "cron 的特殊项",
+      "text": "cron 0 0 L-3,15W * ?",
+      "kind": "cron",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": "0 0 L-3,15W * ?",
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "cron 0 0 L-3,15W * ?"
+    },
+    {
+      "name": "cron 带时区与全部三个选项",
+      "text": "cron */5 * * * * tz=UTC start=2026-10-23T10:30:00.0000000+00:00 end=2026-10-24T10:30:00.0000000+00:00 calendar=holidays",
+      "kind": "cron",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": "*/5 * * * *",
+      "timeZone": "UTC",
+      "at": null,
+      "startAt": "2026-10-23T10:30:00.0000000Z",
+      "endAt": "2026-10-24T10:30:00.0000000Z",
+      "calendar": "holidays",
+      "canonical": "cron */5 * * * * tz=UTC start=2026-10-23T10:30:00.0000000+00:00 end=2026-10-24T10:30:00.0000000+00:00 calendar=holidays"
+    },
+    {
+      "name": "cron 不带时区、只带日历",
+      "text": "cron 0 3 * * * calendar=holidays",
+      "kind": "cron",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": "0 3 * * *",
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": "holidays",
+      "canonical": "cron 0 3 * * * calendar=holidays"
+    },
+    {
+      "name": "一次",
+      "text": "once 2026-10-23T10:30:00.0000000+00:00",
+      "kind": "once",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": "2026-10-23T10:30:00.0000000Z",
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "once 2026-10-23T10:30:00.0000000+00:00"
+    },
+    {
+      "name": "一次：最早的时刻",
+      "text": "once 0001-01-01T00:00:00.0000000+00:00",
+      "kind": "once",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": "0001-01-01T00:00:00.0000000Z",
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "once 0001-01-01T00:00:00.0000000+00:00"
+    },
+    {
+      "name": "一次：最晚的时刻",
+      "text": "once 9999-12-31T23:59:59.9999999+00:00",
+      "kind": "once",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": "9999-12-31T23:59:59.9999999Z",
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "once 9999-12-31T23:59:59.9999999+00:00"
+    },
+    {
+      "name": "时刻以 Z 结尾、不带小数：写回时补七位小数与 +00:00",
+      "text": "once 2026-10-23T10:30:00Z",
+      "kind": "once",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": "2026-10-23T10:30:00.0000000Z",
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "once 2026-10-23T10:30:00.0000000+00:00"
+    },
+    {
+      "name": "时刻带别的偏移：写回时换算成 UTC",
+      "text": "once 2026-10-23T18:30:00+08:00",
+      "kind": "once",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": "2026-10-23T10:30:00.0000000Z",
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "once 2026-10-23T10:30:00.0000000+00:00"
+    },
+    {
+      "name": "时刻带负的半小时偏移与一位小数",
+      "text": "once 2026-10-23T10:30:00.5-05:30",
+      "kind": "once",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": "2026-10-23T16:00:00.5000000Z",
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "once 2026-10-23T16:00:00.5000000+00:00"
+    },
+    {
+      "name": "时刻的 T 与 Z 小写、九位小数：比 100 纳秒更细的截断",
+      "text": "once 2026-10-23t10:30:00.123456789z",
+      "kind": "once",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": "2026-10-23T10:30:00.1234567Z",
+      "startAt": null,
+      "endAt": null,
+      "calendar": null,
+      "canonical": "once 2026-10-23T10:30:00.1234567+00:00"
+    },
+    {
+      "name": "选项里的时刻同样按规则 8 读、换算成 UTC 写回",
+      "text": "every 00:10:00 start=2026-10-23T10:30:00Z end=2026-10-23T14:30:00+02:00",
+      "kind": "every",
+      "intervalTicks": 6000000000,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": "2026-10-23T10:30:00.0000000Z",
+      "endAt": "2026-10-23T12:30:00.0000000Z",
+      "calendar": null,
+      "canonical": "every 00:10:00 start=2026-10-23T10:30:00.0000000+00:00 end=2026-10-23T12:30:00.0000000+00:00"
+    },
+    {
+      "name": "日历名带点、下划线与连字符",
+      "text": "manual calendar=cal_2026.cn-holidays",
+      "kind": "manual",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": "cal_2026.cn-holidays",
+      "canonical": "manual calendar=cal_2026.cn-holidays"
+    },
+    {
+      "name": "日历名 128 个字符",
+      "text": "manual calendar=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "manual",
+      "intervalTicks": null,
+      "repeatCount": null,
+      "cron": null,
+      "timeZone": null,
+      "at": null,
+      "startAt": null,
+      "endAt": null,
+      "calendar": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonical": "manual calendar=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "空",
+      "text": ""
+    },
+    {
+      "name": "只有空格",
+      "text": " "
+    },
+    {
+      "name": "结尾带空格",
+      "text": "manual "
+    },
+    {
+      "name": "开头带空格",
+      "text": " manual"
+    },
+    {
+      "name": "部分之间两个空格",
+      "text": "every  00:10:00"
+    },
+    {
+      "name": "以制表符分隔",
+      "text": "every\t00:10:00"
+    },
+    {
+      "name": "结尾带换行",
+      "text": "every 00:10:00\n"
+    },
+    {
+      "name": "结尾带不换行空格",
+      "text": "every 00:10:00\u00a0"
+    },
+    {
+      "name": "种类大写",
+      "text": "Manual"
+    },
+    {
+      "name": "不认得的种类",
+      "text": "weekly"
+    },
+    {
+      "name": "手动触发之后多一部分",
+      "text": "manual x"
+    },
+    {
+      "name": "时区跟在手动触发后面",
+      "text": "manual tz=UTC"
+    },
+    {
+      "name": "时区跟在间隔后面",
+      "text": "every 00:10:00 tz=UTC"
+    },
+    {
+      "name": "时区跟在一次后面",
+      "text": "once 2026-10-23T10:30:00.0000000+00:00 tz=UTC"
+    },
+    {
+      "name": "间隔缺少",
+      "text": "every"
+    },
+    {
+      "name": "间隔为 0",
+      "text": "every 00:00:00"
+    },
+    {
+      "name": "间隔只写时分",
+      "text": "every 00:10"
+    },
+    {
+      "name": "间隔只写天数",
+      "text": "every 5"
+    },
+    {
+      "name": "时只写一位",
+      "text": "every 0:10:00"
+    },
+    {
+      "name": "不足一秒的部分只写一位",
+      "text": "every 00:10:00.5"
+    },
+    {
+      "name": "不足一秒的部分是 0",
+      "text": "every 00:10:00.0000000"
+    },
+    {
+      "name": "不足一秒的部分八位",
+      "text": "every 00:10:00.12345678"
+    },
+    {
+      "name": "天数为 0",
+      "text": "every 0.00:10:00"
+    },
+    {
+      "name": "天数带前导 0",
+      "text": "every 01.00:00:00"
+    },
+    {
+      "name": "时是 24",
+      "text": "every 24:00:00"
+    },
+    {
+      "name": "分是 60",
+      "text": "every 00:60:00"
+    },
+    {
+      "name": "秒是 60",
+      "text": "every 00:00:60"
+    },
+    {
+      "name": "间隔带负号",
+      "text": "every -00:10:00"
+    },
+    {
+      "name": "间隔带正号",
+      "text": "every +00:10:00"
+    },
+    {
+      "name": "间隔比上限多 100 纳秒",
+      "text": "every 10675199.02:48:05.4775808"
+    },
+    {
+      "name": "天数比上限多一天",
+      "text": "every 10675200.00:00:00"
+    },
+    {
+      "name": "间隔里有 ASCII 以外的数字",
+      "text": "every 00:1\u0660:00"
+    },
+    {
+      "name": "次数为 0",
+      "text": "every 00:10:00 x0"
+    },
+    {
+      "name": "次数带前导 0",
+      "text": "every 00:10:00 x05"
+    },
+    {
+      "name": "次数比上限大 1",
+      "text": "every 00:10:00 x2147483648"
+    },
+    {
+      "name": "次数为空",
+      "text": "every 00:10:00 x"
+    },
+    {
+      "name": "次数的 x 大写",
+      "text": "every 00:10:00 X5"
+    },
+    {
+      "name": "次数带负号",
+      "text": "every 00:10:00 x-1"
+    },
+    {
+      "name": "次数写两次",
+      "text": "every 00:10:00 x5 x6"
+    },
+    {
+      "name": "次数不带 x",
+      "text": "every 00:10:00 5"
+    },
+    {
+      "name": "cron 缺少表达式",
+      "text": "cron"
+    },
+    {
+      "name": "cron 只有 4 段",
+      "text": "cron 0 3 * *"
+    },
+    {
+      "name": "cron 各段之间两个空格",
+      "text": "cron 0  3 * * *"
+    },
+    {
+      "name": "cron 各段以制表符分隔",
+      "text": "cron 0\t3 * * *"
+    },
+    {
+      "name": "cron 的步长超过段的上限",
+      "text": "cron */60 * * * *"
+    },
+    {
+      "name": "时区名为空",
+      "text": "cron 0 3 * * * tz="
+    },
+    {
+      "name": "Windows 的时区 ID 带空格",
+      "text": "cron 0 3 * * * tz=China Standard Time"
+    },
+    {
+      "name": "时区名里有连着的两个斜杠",
+      "text": "cron 0 3 * * * tz=Asia//Shanghai"
+    },
+    {
+      "name": "时区名以斜杠开头",
+      "text": "cron 0 3 * * * tz=/UTC"
+    },
+    {
+      "name": "时区名以斜杠结尾",
+      "text": "cron 0 3 * * * tz=UTC/"
+    },
+    {
+      "name": "时区名里有点",
+      "text": "cron 0 3 * * * tz=Asia.Shanghai"
+    },
+    {
+      "name": "时区写两次",
+      "text": "cron 0 3 * * * tz=UTC tz=UTC"
+    },
+    {
+      "name": "时区在 start 之后",
+      "text": "cron 0 3 * * * start=2026-10-23T10:30:00.0000000+00:00 tz=UTC"
+    },
+    {
+      "name": "一次缺少时刻",
+      "text": "once"
+    },
+    {
+      "name": "一次的时刻不是时间戳",
+      "text": "once tomorrow"
+    },
+    {
+      "name": "时刻不带偏移",
+      "text": "once 2026-10-23T10:30:00.0000000"
+    },
+    {
+      "name": "时刻没有秒",
+      "text": "once 2026-10-23T10:30Z"
+    },
+    {
+      "name": "时刻的日期不存在",
+      "text": "once 2026-02-30T00:00:00Z"
+    },
+    {
+      "name": "时刻以空格分开日期与时间",
+      "text": "once 2026-10-23 10:30:00Z"
+    },
+    {
+      "name": "一次之后带次数",
+      "text": "once 2026-10-23T10:30:00.0000000+00:00 x1"
+    },
+    {
+      "name": "start 为空",
+      "text": "manual start="
+    },
+    {
+      "name": "start 不是时间戳",
+      "text": "manual start=tomorrow"
+    },
+    {
+      "name": "end 不带偏移",
+      "text": "manual end=2026-10-23T10:30:00"
+    },
+    {
+      "name": "日历名为空",
+      "text": "manual calendar="
+    },
+    {
+      "name": "日历名带大写字母",
+      "text": "manual calendar=Holidays"
+    },
+    {
+      "name": "日历名带等号",
+      "text": "manual calendar=a=b"
+    },
+    {
+      "name": "日历名 129 个字符",
+      "text": "manual calendar=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "name": "不认得的选项",
+      "text": "manual foo=bar"
+    },
+    {
+      "name": "选项名大写",
+      "text": "manual Calendar=holidays"
+    },
+    {
+      "name": "calendar 在 start 之前",
+      "text": "manual calendar=holidays start=2026-10-23T10:30:00.0000000+00:00"
+    },
+    {
+      "name": "end 在 start 之前",
+      "text": "manual end=2026-10-24T10:30:00.0000000+00:00 start=2026-10-23T10:30:00.0000000+00:00"
+    },
+    {
+      "name": "start 写两次",
+      "text": "manual start=2026-10-23T10:30:00.0000000+00:00 start=2026-10-23T10:30:00.0000000+00:00"
+    },
+    {
+      "name": "calendar 写两次",
+      "text": "manual calendar=a calendar=b"
+    },
+    {
+      "name": "等号两侧带空格",
+      "text": "manual calendar = holidays"
+    }
+  ]
+}

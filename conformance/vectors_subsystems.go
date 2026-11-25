@@ -493,6 +493,35 @@ type JobRetryDelayVectors struct {
 	Policies   []JobRetryPolicyCase `json:"policies"`
 }
 
+// JobScheduleTextCase 是一段合法的计划文本、读出的各部分与写回的文本：不适用或没写的成员为 nil；
+// IntervalTicks 以 100 纳秒为单位，At、StartAt、EndAt 是 UTC 时刻，TimeZone 为 nil 表示 UTC。
+type JobScheduleTextCase struct {
+	Name          string  `json:"name"`
+	Text          string  `json:"text"`
+	Kind          string  `json:"kind"`
+	IntervalTicks *int64  `json:"intervalTicks"`
+	RepeatCount   *int    `json:"repeatCount"`
+	Cron          *string `json:"cron"`
+	TimeZone      *string `json:"timeZone"`
+	At            *string `json:"at"`
+	StartAt       *string `json:"startAt"`
+	EndAt         *string `json:"endAt"`
+	Calendar      *string `json:"calendar"`
+	Canonical     string  `json:"canonical"`
+}
+
+// JobScheduleTextRejection 是一段必须拒绝的计划文本。
+type JobScheduleTextRejection struct {
+	Name string `json:"name"`
+	Text string `json:"text"`
+}
+
+// JobScheduleTextVectors 对应 scheduling/schedule-texts.json（RFC-0013「计划的文本形式」，ADR-0297）。
+type JobScheduleTextVectors struct {
+	Valid   []JobScheduleTextCase      `json:"valid"`
+	Invalid []JobScheduleTextRejection `json:"invalid"`
+}
+
 // SchedulingEventTopicVectors 对应 scheduling/event-topics.json（RFC-0013「引擎」的事件，ADR-0277）。
 type SchedulingEventTopicVectors struct {
 	Source string   `json:"source"`
@@ -512,6 +541,11 @@ func CronExpressions() (CronExpressionVectors, error) {
 // JobRetryDelays 读取作业重试的等待与重试策略取值范围的向量。
 func JobRetryDelays() (JobRetryDelayVectors, error) {
 	return typed[JobRetryDelayVectors]()
+}
+
+// JobScheduleTexts 读取计划文本的向量。
+func JobScheduleTexts() (JobScheduleTextVectors, error) {
+	return typed[JobScheduleTextVectors]()
 }
 
 // SchedulingEventTopics 读取调度事件主题的向量。
