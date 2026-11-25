@@ -4,6 +4,12 @@
 
 ## 未发布
 
+- MINOR：`plugin/invocation.md` §1 写明宿主核对插件交回的应答载荷（没过为 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed`，不按崩溃处理、计入熔断、空载荷照旧、幂等回放同一检查），SDK 以字符串交回的应答编不成为 `KERNEL_UNEXPECTED_001`；§5 写明 `Host.Publish` 字符串 `data` 编不成的那一项本地 `MESSAGING_VALIDATION_002`、其余照发；`plugin/lifecycle.md` §2 写明配置节有孤立代理项即配置失败；`plugin-messages.json` 加两条宿主一侧的 `reason`（ADR-0315）。
+- MINOR：RFC-0001「写出与转交」扩到 SDK 以字符串交回的应答载荷与发布的 `data`、宿主转交的插件应答载荷，以及写进 JSON 的命令行字段选项、插件配置节与信封属性（有孤立代理项即按那一处不合法的输入处理），末句只排除上面列出之外的写出器；RFC-0009「信封」的写出与 `protocol/commandline.md` 同步（ADR-0315）。
+- MINOR：RFC-0012「范围读取、分片上传与预签名」写明宿主代收的上传端点照 RFC 9110 §5.5 先去掉 `Content-Type` 首尾的空格与制表符，再比较、核对与取用，去掉之后为空即当作没给（ADR-0314）。
+- PATCH：`conventions/error-codes.md` 的 `OBJECTSTORAGE_UNAVAILABLE_001` 说明补「服务的应答不合规同此」（ADR-0313）。
+- MINOR：RFC-0012「S3 Provider」写明批量删除的错误项认不出键时这一批要删的项各以 `OBJECTSTORAGE_UNAVAILABLE_001` 失败，列举截断却无可用续页标记、对象缺 `ETag` 或修改时间时整页失败，读取、`Head` 与写入的应答缺 `ETag` 或修改时间即失败（`PutObject` 本来没有修改时间、取本机时钟）；「S3 的条件写入探测」写明发起缺上传标识同其余服务端错误；「范围读取、分片上传与预签名」写明列出分片的分页不前进或超过 10000 片即失败；「契约」写明写入结果的修改时间不要求与读出的相同（ADR-0313）。
+- PATCH：`AGENTS.md` 的向量约定写明例外：插件一侧（`plugin` 档）没有 .NET 实现的向量，期望值由 Go 一致性模块的规则函数算出，并用 .NET 能用的部分与各语言标准库交叉核对，在 `$comment` 注明（ADR-0310）。
 - MINOR：`plugin/invocation.md` §5 写明 SDK 以字符串给出的 `Host.Invoke` 载荷发出前严格编码，编码不成即本地 `KERNEL_VALIDATION_001` + `kernel.operation.invalid_payload`（`reason` 为 `$`），排在权限、租户、截止时间之后（ADR-0312）。
 - MINOR：RFC-0001「JSON 文本」新增「写出与转交」，字符串与 UTF-8 之间严格转换、不换成 U+FFFD；`plugin/wasm.md` §2 写明宿主严格解码客体消息，`protocol/commandline.md` 写明 `--json` 严格编码，RFC-0016 写明 `xihan setup` 的非法 UTF-8 是不合法的 JSON（ADR-0312）。
 - PATCH：RFC-0017 的 .NET 映射里绑定核对的入口由 `Kernel.Plugins.PluginBindingRules` 改名 `Kernel.Hosting.BindingRules`，规则不变（ADR-0311）。
