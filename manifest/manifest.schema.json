@@ -76,7 +76,7 @@
       "properties": {
         "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
         "type": { "type": "string", "pattern": "^[a-z]+(:[a-z]+)?$", "description": "connection:relational、cache:distributed、queue、blob、stream、configuration:remote（与 spec/packaging/app-manifest.md 的绑定类型一致）" },
-        "required": { "type": "boolean", "default": true, "description": "缺省必需：宿主装配特性时缺失即启动失败；插件宿主配置插件时解析不出即配置失败（plugin/lifecycle.md §2）" }
+        "required": { "type": "boolean", "default": true, "description": "缺省必需：解析不出（两种来源都没给，或只给了类型）时，宿主装配特性即启动失败，插件宿主配置插件即配置失败（RFC-0016「资源绑定与配置节」第 8 条、plugin/lifecycle.md §2）" }
       }
     },
     "contributions": {

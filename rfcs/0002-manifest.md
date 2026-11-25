@@ -1,6 +1,6 @@
 # RFC-0002 清单
 
-> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务；2026-11-01 修订：配置节可带子节；2026-11-01 修订：手写清单，`[Capability]` 生成器顺延；2026-11-01 修订：插件声明的权限码由宿主登记；2026-11-01 修订：选中区分被要求与兜底选出；2026-11-01 修订：插件里只有 Wasm 插件能贡献中间件，其他隔离级别写了 `contributes.pipeline` 在发现时被拒；2026-11-04 修订：探针抛出时 `reason` 只写异常类型；2026-11-16 修订：读取清单时成员名区分大小写、不收 `null`，接口版本只在依赖里带 `^`；同日再修订：.NET 的读取改为严格、重复成员与空 `activation` 不合法、写出的清单可再读；同日第三次修订：读取的检查顺序、错误的参数与写出的排版；2026-11-19 修订：Schema 去掉 `provides` / `requires` 的 `uniqueItems`，与第 3、4 步一致；2026-11-24 修订：`contributes.operations[]` 的操作 ID 不超过 128 个字符，Schema 补 `maxLength`；同日再修订：`onEvent:` 的模式可以带下划线，与主题文法一致；2026-11-25 写明：`bindings[].required` 对插件宿主同样有效） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点、配置节的子节、生成器顺延）、0080（插件声明的权限码）、0082（被要求的选中）、0092（插件的中间件贡献）、0115、0233（读取的严格性）、0235、0236、0242（Schema 与读取步骤一致）、0276（操作 ID 的上限、激活事件的主题）、0292（插件宿主核对必需的绑定） | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor` | 一致性档：`core`、`host`
+> 状态：已采纳（2026-10-27 修订：健康项的实现义务；2026-11-01 修订：被顶替的节点登记与能力选择无关的服务；2026-11-01 修订：配置节可带子节；2026-11-01 修订：手写清单，`[Capability]` 生成器顺延；2026-11-01 修订：插件声明的权限码由宿主登记；2026-11-01 修订：选中区分被要求与兜底选出；2026-11-01 修订：插件里只有 Wasm 插件能贡献中间件，其他隔离级别写了 `contributes.pipeline` 在发现时被拒；2026-11-04 修订：探针抛出时 `reason` 只写异常类型；2026-11-16 修订：读取清单时成员名区分大小写、不收 `null`，接口版本只在依赖里带 `^`；同日再修订：.NET 的读取改为严格、重复成员与空 `activation` 不合法、写出的清单可再读；同日第三次修订：读取的检查顺序、错误的参数与写出的排版；2026-11-19 修订：Schema 去掉 `provides` / `requires` 的 `uniqueItems`，与第 3、4 步一致；2026-11-24 修订：`contributes.operations[]` 的操作 ID 不超过 128 个字符，Schema 补 `maxLength`；同日再修订：`onEvent:` 的模式可以带下划线，与主题文法一致；2026-11-25 写明：`bindings[].required` 对插件宿主同样有效；同日修订：装配特性的绑定核对与插件宿主同一套规则） | 日期：2026-10-21 | 对应 ADR：0002、0006、0030（健康项）、0075（被顶替的节点、配置节的子节、生成器顺延）、0080（插件声明的权限码）、0082（被要求的选中）、0092（插件的中间件贡献）、0115、0233（读取的严格性）、0235、0236、0242（Schema 与读取步骤一致）、0276（操作 ID 的上限、激活事件的主题）、0292（插件宿主核对必需的绑定）、0301（装配特性的绑定核对） | 参考实现：`XiHan.Framework.Kernel.Capabilities.CapabilityResolver`、`XiHan.Framework.Kernel.Hosting.PeriodicHealthContributor` | 一致性档：`core`、`host`
 
 ## 摘要
 
@@ -20,7 +20,7 @@
 | `isolation` | 插件必填 | `in-process` / `wasm` / `out-of-process` |
 | `provides` | 否 | 提供的能力及接口版本 |
 | `requires` | 否 | 依赖的能力、版本范围、是否可选 |
-| `bindings` | 否 | 需要宿主注入的资源：每项 `name`、`type` 与 `required`（缺省 `true`）。必需的绑定缺失时宿主装配特性即启动失败（`KERNEL_HOSTING_001`）；插件宿主配置隔离运行的插件时解析不出（两种来源都没给，或只给了类型、没有主值也没有属性）即配置失败，进程内宿主则是加载失败，可选的照常配置（`plugin/lifecycle.md` §2；2026-11-25 写明，ADR-0292，以前插件宿主不看 `required`） |
+| `bindings` | 否 | 需要宿主注入的资源：每项 `name`、`type` 与 `required`（缺省 `true`）。宿主装配特性、配置隔离运行的插件与加载进程内插件按同一套规则核对（RFC-0016「资源绑定与配置节」第 8 条、`plugin/lifecycle.md` §2）：必需的绑定解析不出（两种来源都没给，或只给了类型、没有主值也没有属性），或来源声明的类型与清单不同（必需与可选都核对），装配特性即启动失败（`KERNEL_HOSTING_001`），插件即配置失败，进程内插件即加载失败；可选的解析不出照常（2026-11-25 写明，ADR-0292，以前插件宿主不看 `required`；同日修订，ADR-0301，以前装配特性时只给了类型的必需绑定算给出、可选的绑定不核对类型） |
 | `contributes` | 否 | 管道中间件（`contributes.pipeline`；插件里只有 `isolation: wasm` 的能贡献，进程外与进程内插件写了非空的 `contributes.pipeline` 由宿主在发现或加载时拒绝，`PLUGINS_VALIDATION_001`，不静默忽略，见 `plugin/lifecycle.md` §1、RFC-0017、RFC-0018）、操作、配置节与 Schema、权限码（`contributes.permissions`，权限码文法同 RFC-0008，不重复；插件的由宿主替它登记，见 `plugin/invocation.md` §1）、健康项；配置节 `contributes.config.section` 是领域节 `XiHan:<领域>`，可再带一层或多层子节（如 `XiHan:Caching:Redis`），文法与写法见下文「配置节」 |
 | `activation` | 否 | 激活事件，默认 `onStartup` |
 | `permissions` | 插件 | 所需权限，宿主配置授予 |
@@ -44,7 +44,7 @@
    - 以前（ADR-0235）`reason` 是 .NET 解析器或参数异常的英文消息，各语言写不出同样的文本；`contributes.health` 的文法与中间件名非空 .NET 也没有核对，Schema 里中间件名没有写 `minLength`。
    - 写出见下文「写出」。宿主核对插件握手里的清单按字段比较，不比较文本。
 3. 求解：按能力 ID 与版本范围求解；同一能力多个候选时，`XiHan:Providers:<能力ID>` 指定 → 唯一的 `role: provider` 候选 → 唯一的 `role: default` 候选 → 否则失败并列出候选（`KERNEL_CAPABILITY_004`）。没有被任何人依赖的能力按同一规则选出提供者。
-4. 选中结果回填到节点：每个节点知道自己被选中提供哪些能力（`SelectedCapabilities`），只为被选中的能力注册服务与中间件；声明了能力却一个都没被选中的节点（被顶替的 default）不装配、不启动，图里标为 `shadowed`。特性另有与能力选择无关的服务（如对象存储的命名实例 Provider，RFC-0012）时实现 `IShadowAwareFeature`：被顶替时内核在同一位置改调它的 `ConfigureShadowed`，只登记那些服务——不注册能力契约，不贡献中间件、操作与权限码，不校验必需绑定，也不启动。节点还知道每项选中是不是被要求的（`IsRequestedFor`，2026-11-01 修订，ADR-0082）：有清单依赖这项能力（必需或可选，且解析到了提供者），或 `XiHan:Providers:<能力ID>` / 代码的 `UseProvider` 指定了提供者，就是被要求的；没人依赖、也没人指定，只按上一条末句选出的，是兜底选出。兜底选出照样算选中（`SelectedCapabilities`、图谱不变），特性可以据此只为被要求的能力承担跨能力的一致性约束（如 RFC-0012 缺省存储的同一存储规则）。
+4. 选中结果回填到节点：每个节点知道自己被选中提供哪些能力（`SelectedCapabilities`），只为被选中的能力注册服务与中间件；声明了能力却一个都没被选中的节点（被顶替的 default）不装配、不启动，图里标为 `shadowed`。特性另有与能力选择无关的服务（如对象存储的命名实例 Provider，RFC-0012）时实现 `IShadowAwareFeature`：被顶替时内核在同一位置改调它的 `ConfigureShadowed`，只登记那些服务——不注册能力契约，不贡献中间件、操作与权限码，不核对绑定，也不启动。节点还知道每项选中是不是被要求的（`IsRequestedFor`，2026-11-01 修订，ADR-0082）：有清单依赖这项能力（必需或可选，且解析到了提供者），或 `XiHan:Providers:<能力ID>` / 代码的 `UseProvider` 指定了提供者，就是被要求的；没人依赖、也没人指定，只按上一条末句选出的，是兜底选出。兜底选出照样算选中（`SelectedCapabilities`、图谱不变），特性可以据此只为被要求的能力承担跨能力的一致性约束（如 RFC-0012 缺省存储的同一存储规则）。
 5. 排序：拓扑排序；循环报 `KERNEL_CAPABILITY_002`，缺失报 `KERNEL_CAPABILITY_001`，版本冲突报 `KERNEL_CAPABILITY_003`，报错必须列出冲突双方。
 6. 可选依赖缺失不阻止启动，对应特性进入 `Degraded`。
 7. 输出已解析图；`xihan graph` 与启动日志打印同一份。
