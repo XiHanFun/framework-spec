@@ -177,6 +177,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `OBJECTSTORAGE_VALIDATION_004` | 缺省存储的能力选择不一致：存储包被要求提供 `objectstorage.multipart` 或 `objectstorage.presign`（有清单依赖该能力，或 `XiHan:Providers` / `UseProvider` 指定了它），却没有被选为 `objectstorage.blob`（装配错误，以异常抛出，启动失败）；只是兜底选出的不报错，存储包按被顶替处理 |
 | `OBJECTSTORAGE_VALIDATION_005` | 列举的页大小（`BlobQuery.PageSize`）不在 1 到 1000 之间（参数 `pageSize`、`max`；不在构造时抛出，各 Provider 列举时以结果返回，HTTP 400） |
 | `OBJECTSTORAGE_VALIDATION_006` | 宿主直传端点：签名没有限定内容类型，请求的 `Content-Type` 不合内容类型文法（媒体类型，最长 255 个字符；HTTP 400，不写入） |
+| `OBJECTSTORAGE_VALIDATION_007` | 存储不能原样写入的内容类型：内容类型合文法，但 Provider 所用的存储客户端写出的请求头与它不同（.NET 的 S3 Provider：AWS SDK for .NET 经 .NET 的媒体类型解析器改写 `Content-Type`，`;` 之后为空等解析不了的与 `;` 两侧的空格写法不同的都写不出原值；RFC-0012「契约」，ADR-0295）；写入与分片上传的发起在发出任何请求之前以它失败，不改写后照写（HTTP 400，参数 `contentType`） |
 | `OBJECTSTORAGE_DENIED_001` | 预签名地址无效或已过期 |
 | `OBJECTSTORAGE_DENIED_002` | 条件写入探测被存储拒绝：凭据无效或无权写探测键、建桶或放弃探测用的分片上传（HTTP 403；启动或建实例时被拒，缺省实例启动失败（`KERNEL_HOSTING_002` 的内层）、命名实例不建；启动时连不上、之后才被拒的，后台照常重试，缺省实例的健康项 Failed 带此码，RFC-0012「S3 的条件写入探测」） |
 | `OBJECTSTORAGE_CONFLICT_001` | 对象已存在且不允许覆盖 |

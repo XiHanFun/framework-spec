@@ -11,9 +11,9 @@ var (
 	containerNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$`)
 	// blobShortNamePattern 是对象元数据名与命名存储实例名共用的文法。
 	blobShortNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
-	// blobContentTypePattern 的两段是 HTTP 的 token 字符；字符集里有反引号，所以不用原始字符串。每个 ; 两侧可以有空格，
-	// 之后必须有参数：不含 ; 的可打印 ASCII 与空格，以非空格字符开头（\x3B 是 ;，两个字符类都绕开它）。
-	blobContentTypePattern = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+/[!#$%&'*+.^_`|~0-9A-Za-z-]+(?: *; *[\\x21-\\x3A\\x3C-\\x7E][\\x20-\\x3A\\x3C-\\x7E]*)*$")
+	// blobContentTypePattern 的两段是 HTTP 的 token 字符；字符集里有反引号，所以不用原始字符串。参数照 RFC 9110 可以为空，
+	// 所以第一个 ;（之前可以有空格）之后是任意的可打印 ASCII 与空格：它在每个 ; 处都能切成可以为空的参数，与逐段写的文法是同一个集合。
+	blobContentTypePattern = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+/[!#$%&'*+.^_`|~0-9A-Za-z-]+(?: *;[\\x20-\\x7E]*)?$")
 )
 
 // 对象存储的标识与上限（RFC-0012「标识」「范围读取、分片上传与预签名」）。
@@ -118,8 +118,8 @@ func IsBlobMetadata(metadata map[string]string) bool {
 }
 
 // IsBlobContentType 判断对象的内容类型是否合文法（RFC-0012「标识」）：媒体类型 type/subtype，两段都是 HTTP 的 token 字符，
-// 可跟若干个 ; 起头的参数：每个 ; 两侧可以有空格，之后必须有参数（不含 ; 的可打印 ASCII 与空格，以非空格字符开头，
-// 不解析引号），整体 1 到 255 个字符。
+// 可跟若干个 ; 起头的参数（RFC 9110 的 *( OWS ";" OWS [ parameter ] )，ADR-0295）：每个 ; 两侧可以有空格（不收制表符），
+// 参数可以为空，不为空的是不含 ; 的可打印 ASCII 与空格，不解析引号；整体 1 到 255 个字符。
 func IsBlobContentType(contentType string) bool {
 	return contentType != "" && len(contentType) <= MaxBlobContentTypeLength && blobContentTypePattern.MatchString(contentType)
 }

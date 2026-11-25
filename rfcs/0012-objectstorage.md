@@ -1,6 +1,6 @@
 # RFC-0012 对象存储
 
-> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误；2026-11-01 修订：一致性验证改对 RustFS；2026-11-01 修订：不覆盖写入并发原子、S3 探测条件写入；2026-11-01 修订：条件写入探测改为启动照常、后台与首次使用时重试，键的保留前缀 `.xihan`，云厂商的兼容服务只走标准条件头；2026-11-02 修订：条件写入探测被拒绝、探测桶不存在恢复为启动失败，只有连不上照常启动、后台重试；2026-11-04 修订：基础设施失败的 `reason` 只写异常类型；同日再修订：S3 命名实例的客户端过出站地址策略；2026-11-24 修订：分片上传批量放弃、命名实例批量移除与登记数上限、S3BlobStore 不再有公开构造；同日再修订：一致性向量；同日第三次修订：S3 的会话令牌、请求超时、尝试次数与 HTTP 代理成为设置；同日第四次修订：对象键、查询前缀与保存的文件名的长度按 UTF-8 字节计，内容类型的 `;` 之后必须有参数；2026-11-25 修订：S3 命名实例在设置里配代理要运营方开关，缺省实例只给一项密钥是配置错误，服务端点不合法时报错不带原值） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约）、ADR-0086（验证用的 S3 兼容服务）、ADR-0089（条件写入探测）、ADR-0090（探测重试、保留前缀）、ADR-0093（被拒绝与缺桶启动失败）、ADR-0097（启动之后被拒绝或缺桶的处理已定）、ADR-0115、ADR-0266、ADR-0277（一致性向量）、ADR-0281（S3 客户端的设置）、ADR-0282（长度的单位与内容类型的参数）、ADR-0294（S3 配置的加固） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`，向量 `conformance/vectors/objectstorage/` | 一致性档：`objectstorage`
+> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误；2026-11-01 修订：一致性验证改对 RustFS；2026-11-01 修订：不覆盖写入并发原子、S3 探测条件写入；2026-11-01 修订：条件写入探测改为启动照常、后台与首次使用时重试，键的保留前缀 `.xihan`，云厂商的兼容服务只走标准条件头；2026-11-02 修订：条件写入探测被拒绝、探测桶不存在恢复为启动失败，只有连不上照常启动、后台重试；2026-11-04 修订：基础设施失败的 `reason` 只写异常类型；同日再修订：S3 命名实例的客户端过出站地址策略；2026-11-24 修订：分片上传批量放弃、命名实例批量移除与登记数上限、S3BlobStore 不再有公开构造；同日再修订：一致性向量；同日第三次修订：S3 的会话令牌、请求超时、尝试次数与 HTTP 代理成为设置；同日第四次修订：对象键、查询前缀与保存的文件名的长度按 UTF-8 字节计，内容类型的 `;` 之后必须有参数；2026-11-25 修订：S3 命名实例在设置里配代理要运营方开关，缺省实例只给一项密钥是配置错误，服务端点不合法时报错不带原值；同日再修订：内容类型照 RFC 9110 允许空参数，内容类型原样存取，写不出原值的以 `OBJECTSTORAGE_VALIDATION_007` 失败） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约）、ADR-0086（验证用的 S3 兼容服务）、ADR-0089（条件写入探测）、ADR-0090（探测重试、保留前缀）、ADR-0093（被拒绝与缺桶启动失败）、ADR-0097（启动之后被拒绝或缺桶的处理已定）、ADR-0115、ADR-0266、ADR-0277（一致性向量）、ADR-0281（S3 客户端的设置）、ADR-0282（长度的单位与内容类型的参数）、ADR-0294（S3 配置的加固）、ADR-0295（内容类型的空参数与原样存取） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`，向量 `conformance/vectors/objectstorage/` | 一致性档：`objectstorage`
 
 ## 摘要
 
@@ -21,11 +21,12 @@
 - 查询前缀 `BlobQuery.Prefix`（2026-11-24 写明，ADR-0282；以前正文没有写前缀的文法）：字符约束与字节上限同键（不含空白、控制字符与 `\`，按 UTF-8 编码后不超过 1024 字节），但可以为空（列举全部）、可以以 `/` 结尾，对各段不作要求（`a//b`、`./a` 只是筛选不到东西）；`BlobKey.IsValidPrefix` 判定，不合法在构造 `BlobQuery` 时抛出 `ArgumentException`。
 - 保留前缀（2026-11-01 增补，ADR-0090）：首段是 `.xihan` 的键（`.xihan` 本身与 `.xihan/…`，区分大小写，`BlobKey.ReservedSegment`）留给框架自己的对象（如 S3 的条件写入探测键），不在键文法之内：构造时抛出 `ArgumentException`，`BlobKey.IsValid` 为假，业务写不进、读不到、删不掉；各 Provider 列举时跳过存储里已有的这类对象（框架经底层客户端写入的，或从外部放入的），不出现在业务列举里。查询前缀 `BlobQuery.Prefix` 只是筛选，不受此限，以 `.xihan` 开头的前缀列举总是空的。
 - 自定义元数据名：`^[a-z0-9][a-z0-9-]{0,63}$`；值不含控制字符（含 CR、LF）；名与值合计不超过 2048 个 UTF-8 字节（`BlobPutOptions.MaxMetadataBytes`，与 S3 用户元数据的上限一致）。2026-11-13 修订，ADR-0214；以前值为任意字符串、不限大小，换行进了 S3 的请求头与文件系统的元数据文件，一个对象的元数据可以无限大。
-- 内容类型 `BlobPutOptions.ContentType`（2026-11-13 修订，ADR-0214；以前只要求不空白）：媒体类型 `type/subtype`，两段都是 HTTP 的 token 字符，可跟若干个 `;` 起头的参数，整体 1 到 255 个字符（`MaxContentTypeLength`；内容类型只有 ASCII，字符数即字节数），`BlobPutOptions.IsValidContentType` 判定。参数的写法（2026-11-24 修订，ADR-0282；以前 `;` 之后可以为空，媒体类型与 `;` 之间的空格正文没有写而 .NET 照收）：
-  - 每个 `;` 两侧可以有空格，即 RFC 9110 的 `OWS ";" OWS`；只取其中的空格，制表符是控制字符，不收。
-  - 每个 `;` 之后必须有参数：参数是不含 `;` 的可打印 ASCII 与空格（U+0020–U+007E），以非空格字符开头。`text/plain;`、`text/plain; `、结尾多出的 `;`（`text/plain; charset=utf-8;`）与连续的 `;`（`text/plain;;charset=utf-8`）都不合法。
-  - 参数内部不再细分：不要求 `name=value`，也不解析引号，引号里的 `;` 同样算分隔（`boundary="a;b"` 是两段非空的参数，合法；`boundary=";;"` 中间一段为空，不合法）。
-  - 文法按整串匹配：`^<token>/<token>( *; *[\x21-\x3A\x3C-\x7E][\x20-\x3A\x3C-\x7E]*)*$`，`<token>` 是一个或多个 token 字符。
+- 内容类型 `BlobPutOptions.ContentType`（2026-11-13 修订，ADR-0214；以前只要求不空白）：媒体类型 `type/subtype`，两段都是 HTTP 的 token 字符，可跟若干个 `;` 起头的参数，整体 1 到 255 个字符（`MaxContentTypeLength`；内容类型只有 ASCII，字符数即字节数），`BlobPutOptions.IsValidContentType` 判定。参数的写法照 RFC 9110 §5.6.6 的 `parameters = *( OWS ";" OWS [ parameter ] )`（2026-11-25 修订，ADR-0295；2026-11-24 的 ADR-0282 曾要求每个 `;` 之后必须有参数，`text/plain;`、结尾多出的 `;` 与连续的 `;` 不合法，宿主代收的上传回 400；RFC 9110 的参数本来可以为空，野外也有客户端这样发；再往前 `;` 之后可以为空，媒体类型与 `;` 之间的空格正文没有写而 .NET 照收）：
+  - 每个 `;` 两侧可以有空格，即 RFC 9110 的 OWS；只取其中的空格，制表符是控制字符（ADR-0214），在 `;` 的哪一侧都不收。
+  - 每个 `;` 之后的参数可以为空：`text/plain;`、`text/plain; `、结尾多出的 `;`（`text/plain; charset=utf-8;`）与连续的 `;`（`text/plain;;charset=utf-8`、`text/plain; ;charset=utf-8`）都合法。
+  - 不为空的参数是不含 `;` 的可打印 ASCII 与空格（U+0020–U+007E），以非空格字符开头；参数内部不再细分：不要求 `name=value`，也不解析引号，引号里的 `;` 同样算分隔（`boundary="a;b"`、`boundary=";;"` 都合法）。
+  - 媒体类型之后只有空格、没有 `;` 的不合法（`text/plain `）：OWS 只出现在 `;` 两侧。
+  - 文法按整串匹配：`^<token>/<token>( *;[\x20-\x7E]*)?$`，`<token>` 是一个或多个 token 字符。即第一个 `;`（之前可以有空格）之后是任意的可打印 ASCII 与空格；它与按上面几条逐段写出的 `^<token>/<token>( *; *([\x21-\x3A\x3C-\x7E][\x20-\x3A\x3C-\x7E]*)?)*$` 是同一个集合（任意一串可打印 ASCII 与空格都能在每个 `;` 处切成可以为空的参数），实现取哪一种都可以。
 - 标识不合法在构造时抛出 `ArgumentException`（编程错误），不进入 Provider。
 
 ## 契约
@@ -40,6 +41,7 @@
 | `List(container, query)` | 按前缀列举，键的序数顺序，`PageSize`（1–1000，默认 1000）分页，`ContinuationToken` 不透明；`PageSize` 越界不在构造时抛出，返回 `OBJECTSTORAGE_VALIDATION_005`（HTTP 400，参数 `pageSize`、`max`），不访问存储。不符合键文法的对象（保留前缀下的、S3 的目录占位）跳过，所以一页可能少于 `PageSize` 条、甚至为空而仍带续页标记，调用方取到续页标记为空为止 |
 
 - 元数据 `BlobMetadata`：键、长度、内容类型（默认 `application/octet-stream`）、`ETag`（内容变化即变化）、最后修改时间、自定义元数据。
+- 内容类型原样存取（2026-11-25 写明，ADR-0295；以前不作规定）：写入（含分片上传的发起）把 `ContentType` 原样交给存储，读取把存储里的值原样放进 `BlobMetadata.ContentType`，Provider 自己不规范化——不去掉空参数，不改 `;` 两侧的空格，不改大小写。把读出的元数据原样写回（复制对象之类）得到同一个内容类型。所用的存储客户端写不出原值的（它会改写这个值），在发出任何请求之前以 `OBJECTSTORAGE_VALIDATION_007` 失败（HTTP 400，参数 `contentType`），不改写之后照写；预签名上传限定的内容类型由客户端自己发送，不经 Provider 的客户端，不受此限。S3 的情况见「S3 Provider」。
 - `Overwrite = false` 且已存在 → `OBJECTSTORAGE_CONFLICT_001`，不写入。不覆盖写入必须原子：多个写入方同时以 `Overwrite = false` 写同一个新键，恰好一个成功，其余都是 `OBJECTSTORAGE_CONFLICT_001`，不能先查是否存在再写（并发时后写的会静默覆盖先写的）；做不到的存储不能声称支持不覆盖写入（S3 见下文「S3 的条件写入探测」）。
 - 容器按需创建（文件系统）或由 Provider 的基础设施预先存在（S3 桶）；契约不管理容器。
 - 基础设施失败（IO、网络）→ `OBJECTSTORAGE_UNAVAILABLE_001`，`reason` 只写异常类型的全名，完整异常进日志（2026-11-04，ADR-0115）：IO 异常的消息常带服务器上的完整路径；配额或单对象大小超限 → `OBJECTSTORAGE_UNAVAILABLE_002`，不写入。
@@ -65,6 +67,7 @@
 - 云厂商的兼容服务（2026-11-01 增补，ADR-0090）：阿里云 OSS、腾讯云 COS、Cloudflare R2 等同样只用这一个包，不为各家的私有请求头（如 OSS 的 `x-oss-forbid-overwrite`、COS 的 `x-cos-forbid-overwrite`）做适配，不覆盖写入只认标准的 `If-None-Match: *`。这几家是否认它框架没有实测，接入前要实测：缺省的条件写入探测就是实测（下文「S3 的条件写入探测」），不认时启动失败（`OBJECTSTORAGE_UNAVAILABLE_003`）或之后在健康项上报告；也可以按探测的做法用 curl 发两次带 `If-None-Match: *` 的 `PutObject`，第二次必须 412。不认就设 `ConditionalWrites = false`，后果是 `Overwrite = false` 的写入与分片上传的发起、完成一律 `OBJECTSTORAGE_UNAVAILABLE_003`，"只在不存在时写入"不再可用——需要它的业务改用不会冲突的键（如带随机后缀）或改为覆盖写入，框架不退回先查再写。
 - `Overwrite = false` 先 `Head`（已存在就不必上传内容）再带 `If-None-Match: *` 写入，由服务端保证原子；已存在 → `OBJECTSTORAGE_CONFLICT_001`。服务是否认条件写入要先探明（见下文「S3 的条件写入探测」）：探明之前不覆盖写入返回不可用，探明不认的服务（如 Garage、Zenko CloudServer）上不覆盖写入一律报错，启动时就探明的启动失败，任何时候都不带着可能静默覆盖的不覆盖写入运行。不可定位的内容流先落临时文件取得长度，不整体装进内存。
 - 批量删除：S3 不报告对象是否存在过，先逐键 `Head` 定存在性（同一批里重复的键只有第一次算存在），再把存在的键按每批 1000 个 `DeleteObjects`；删除失败只影响本次负责删除的项。
+- 内容类型（2026-11-25 写明，ADR-0295）：.NET 参考实现经 AWS SDK for .NET 写入，SDK 把 `Content-Type` 交给 .NET 的媒体类型解析器（`MediaTypeHeaderValue`）重新写出。它解析不了的（`;` 之后为空，未加引号的参数值里有空格等），SDK 在请求已经发出一半时抛出；解析得了而写法不同的（`;` 之后没有空格、`;` 之前有空格，它一律写成 `type/subtype; 参数`），签名按原值计算、线上发的是改写后的值，服务验签对不上。两类都写不出原值：写入与分片上传的发起返回 `OBJECTSTORAGE_VALIDATION_007`，不发请求（按「契约」的内容类型原样存取）。写得出原值的照常写入（如 `text/plain`、`text/plain; charset=utf-8`、`Text/HTML`、`text/plain; boundary=";;"`）。读取时 SDK 同样按这个写法交出它解析得了的值：存储里的 `text/plain;charset=utf-8`（例如经预签名地址由浏览器上传的）读出 `text/plain; charset=utf-8`，解析不了的原样交出——读取一侧 .NET 的 S3 Provider 做不到原样，是已知的缺口。
 - 列举经 `ListObjectsV2`（S3 保证键的序数顺序），续页标记是其 continuation token；条目只有键、长度、`ETag` 与修改时间，内容类型为默认值、自定义元数据为空，需要时再 `Head`——列举条目的元数据因此是"可能不完整"的，一致性套件只校验键顺序、长度与 `ETag`。不符合键文法的对象（以 `/` 结尾的"目录"占位）跳过。
 - 不存在的键与桶 → `OBJECTSTORAGE_NOTFOUND_001`；桶不存在的列举是空页；其余服务端错误、网络错误与 SDK 超时 → `OBJECTSTORAGE_UNAVAILABLE_001`，`reason` 同样只写异常类型的全名（2026-11-04，ADR-0115）；批量删除里单个键的失败只写 S3 的错误码。没有配额（由桶策略管理）。`EnsureBuckets` 开启时写入遇到桶不存在就建桶再重试一次，默认由基础设施预先建桶。
 - 配置 `XiHan:ObjectStorage:S3`（`ServiceUrl`、`Region`、`AccessKey`、`SecretKey`、`SessionToken`、`ForcePathStyle`、`EnsureBuckets`、`HealthBucket`、`ConditionalWrites`、`HealthProbeIntervalSeconds`，以及下一条的 `RequestTimeoutSeconds`、`MaxAttempts` 与四个 `Proxy…`），绑定 `objectstorage`（类型 `blob`，与 RFC-0016 的绑定类型词表一致）的主值与属性覆盖之（RFC-0016「资源绑定与配置节」）；两项密钥都没有时走 SDK 默认凭据链；应用自己注册的 `IAmazonS3` 优先，这时下一条的设置对它不起作用。
@@ -133,16 +136,16 @@
 
 ## 一致性
 
-Provider 必须继承 `BlobStoreConformance` 并通过全部用例（S3 Provider 对 RustFS 通过，此前对 MinIO 通过；ADR-0086 记录了其余兼容服务的差异）。用例包括并发的不覆盖写入（8 个写入方同时写同一个新键，恰好一个成功，ADR-0089）：先查再写的实现过不了，不认条件写入的 S3 兼容服务上不经探测建的 `S3BlobStore`（参考实现的测试经内部构造）也过不了（Garage、Zenko CloudServer 上 8 个全部成功），这正是 S3 Provider 探明之前不做不覆盖写入、探明不认就拒绝的原因；以及保留前缀（ADR-0090）：首段是 `.xihan` 的键构造时被拒，套件经 Provider 实现的钩子 `PlantOutsideContractAsync` 绕过契约在存储里放入保留前缀下的对象，列举必须跳过它们；实现了 `IBlobMultipartStore` 的 Provider 同样要通过分片用例，含批量放弃（不实现时这些用例跳过）。命名实例的 Provider 必须继承 `BlobStoreProviderConformance` 并通过全部用例（参考实现另有混装用例：两种装配顺序下两个存储包的命名实例 Provider 都登记，缺省的三个契约同一存储，被要求的契约选得不一致时装配失败、兜底选出的不失败而按被顶替处理）：按定义建出可读写且探测通过的实例、未知的设置键被拒绝、经注册表同定义复用 / 定义变了替换 / 批量移除逐项报告、移除后不存在、定义错误翻译为 `OBJECTSTORAGE_VALIDATION_003` 且不影响已有实例。
+Provider 必须继承 `BlobStoreConformance` 并通过全部用例（S3 Provider 对 RustFS 通过，此前对 MinIO 通过；ADR-0086 记录了其余兼容服务的差异）。用例包括并发的不覆盖写入（8 个写入方同时写同一个新键，恰好一个成功，ADR-0089）：先查再写的实现过不了，不认条件写入的 S3 兼容服务上不经探测建的 `S3BlobStore`（参考实现的测试经内部构造）也过不了（Garage、Zenko CloudServer 上 8 个全部成功），这正是 S3 Provider 探明之前不做不覆盖写入、探明不认就拒绝的原因；以及保留前缀（ADR-0090）：首段是 `.xihan` 的键构造时被拒，套件经 Provider 实现的钩子 `PlantOutsideContractAsync` 绕过契约在存储里放入保留前缀下的对象，列举必须跳过它们；以及内容类型原样存取（2026-11-25 增补，ADR-0295）：空参数、`;` 两侧的空格与引号里的 `;` 写入、读出与把读出的值写回都不变，写不出原值的返回 `OBJECTSTORAGE_VALIDATION_007` 且不写入，分片上传的发起同此；实现了 `IBlobMultipartStore` 的 Provider 同样要通过分片用例，含批量放弃（不实现时这些用例跳过）。命名实例的 Provider 必须继承 `BlobStoreProviderConformance` 并通过全部用例（参考实现另有混装用例：两种装配顺序下两个存储包的命名实例 Provider 都登记，缺省的三个契约同一存储，被要求的契约选得不一致时装配失败、兜底选出的不失败而按被顶替处理）：按定义建出可读写且探测通过的实例、未知的设置键被拒绝、经注册表同定义复用 / 定义变了替换 / 批量移除逐项报告、移除后不存在、定义错误翻译为 `OBJECTSTORAGE_VALIDATION_003` 且不影响已有实例。
 
-向量（档 `objectstorage`，`conformance/vectors/objectstorage/`；2026-11-24，ADR-0277，以前这个档没有向量；同日 ADR-0282 补上长度按字节计、查询前缀、保存的文件名与内容类型的参数）：
+向量（档 `objectstorage`，`conformance/vectors/objectstorage/`；2026-11-24，ADR-0277，以前这个档没有向量；同日 ADR-0282 补上长度按字节计、查询前缀、保存的文件名与内容类型的参数；2026-11-25 ADR-0295 把 `;` 之后为空的写法挪到合法一侧）：
 
 | 文件 | 内容 |
 | --- | --- |
 | `container-names.json` | 容器名文法的合法与不合法样例，含 3 与 63 个字符的两侧 |
 | `blob-keys.json` | 对象键的文法（分段、`.` 与 `..`、空白、控制字符、反斜线）、保留前缀与查询前缀；1024 字节的上限两侧，含码元数不超而字节数超过的，每条标出 UTF-8 字节数与 UTF-16 码元数 |
 | `blob-metadata.json` | 自定义元数据名的文法，值里的控制字符，名与值合计 2048 个 UTF-8 字节的上限两侧 |
-| `blob-content-types.json` | 内容类型文法的合法与不合法样例：`;` 两侧的空格、`;` 之后没有参数的各种写法，含 255 个字符的上限两侧 |
+| `blob-content-types.json` | 内容类型文法的合法与不合法样例：`;` 两侧的空格、`;` 之后为空的各种写法（合法）、制表符（不合法），含 255 个字符的上限两侧 |
 | `blob-ranges.json` | 范围读取的实际范围与不可满足的范围 |
 | `download-file-names.json` | 预签名下载地址上保存的文件名：空白、控制字符，255 字节的上限两侧，含码元数不超而字节数超过的 |
 | `multipart-parts.json` | 分片编号的范围、分片的最小字节数与完成清单的编号次序 |

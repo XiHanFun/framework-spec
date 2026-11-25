@@ -198,16 +198,20 @@ func TestBlobContentTypesFollowTheVectors(t *testing.T) {
 	if !rules.IsBlobContentType(vectors.Default) {
 		t.Errorf("the default content type %q must be valid", vectors.Default)
 	}
-	// ADR-0282 收紧与写明的几类写法各要有样例盯住：; 两侧的空格要收，; 之后没有参数的要拒
+	// ADR-0282 写明与 ADR-0295 放宽的几类写法各要有样例盯住：; 两侧的空格要收，; 之后为空的要收，制表符在 ; 的哪一侧都要拒
 	for _, required := range []struct {
 		text  string
 		valid bool
 	}{
 		{"text/plain ; charset=utf-8", true},
-		{"text/plain;", false},
-		{"text/plain; ", false},
-		{"text/plain; charset=utf-8;", false},
-		{"text/plain;;charset=utf-8", false},
+		{"text/plain;", true},
+		{"text/plain; ", true},
+		{"text/plain; charset=utf-8;", true},
+		{"text/plain;;charset=utf-8", true},
+		{"text/plain;\tcharset=utf-8", false},
+		{"text/plain\t;charset=utf-8", false},
+		{"text/plain;\t", false},
+		{"text/plain ", false},
 	} {
 		group := vectors.Invalid
 		if required.valid {
