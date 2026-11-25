@@ -4,6 +4,11 @@
 
 ## 未发布
 
+- MAJOR（`v1.0.0` 之前允许）：RFC-0009 的 Redis Provider：被放弃的条目退回投递次数时，空闲时间设到 `ClaimIdleTimeSeconds`（原来更久的保留原值），别的实例下一次维护即可回收；以前写明 `IDLE` 照原样（ADR-0298）。
+- MINOR：RFC-0009 的 Redis Provider 写明，停止信号一到，消费循环就不再发起新的 `XAUTOCLAIM` 与 `XREADGROUP`，没读走的条目留在流里（ADR-0298）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0009「信封」的扩展属性名排除保留名（CloudEvents 1.0 的规范属性名与结构化 JSON 格式的成员名），构造信封时就拒绝；带 `dataschema` 的文档不合法，`protocol/cloudevents.md` 的 `ce-dataschema`、`ce-data` 头也不合法。`envelope-extensions.json` 新增 `names.reserved`，`cloudevents-envelopes.json` 补一条；Go 规则 `IsEnvelopeExtensionName` 排除保留名（ADR-0298）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0013 新增「计划的文本形式」，写明分隔、四种写法、间隔与次数的写法、时刻按规则 8 读、选项次序与不能重复、时区名是 IANA 名且本机查不到即不合法。新增向量 `scheduling/schedule-texts.json`，进 `scheduling` 档。Go 规则包新增 `ParseJobSchedule` 等（ADR-0297）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0013 的 cron 步长不超过这一段能写的最大值，超过不合法；以前是 1 到 2147483647。`cron-expressions.json` 里原先合法的 4 条大步长挪到 `invalid`，补各段上限两侧的用例；Go `ParseCron` 跟着改（ADR-0297）。
 - MINOR：RFC-0021「活动」写明 `Delay.Until`、`UserTask.DueAt` 与按时间读的值按「表达式」的「时间」文法读、换算成 UTC（ADR-0296）。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0021「关键字」的折叠由「不变文化的小写」改成逐个码位的 Unicode 简单小写映射，新增「关键字的小写」；`keyword-matching.json` 补 10 条规范化、5 条匹配用例（ADR-0296）。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0021「长度与上限」由「没有另设求值步数的上限」改成工作量的计数规则与上限 16777216，新增消息键 `workflow.expression.budget_exceeded`；`expression-limits.json` 新增 `maxWork`、`stepWork`、`arrays` 与 33 条 `budgets`；一致性模块新增 `WorkflowExpressionArray`、`WorkflowExpressionBudget`、`MaxWorkflowExpressionWork`、`WorkflowExpressionStepWork`，消息键名单 26 个（ADR-0296）。
