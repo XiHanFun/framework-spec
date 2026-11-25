@@ -12,7 +12,7 @@
 - MINOR：RFC-0021 写明关键字的折叠与 `upper` / `lower` 的结果以实现所带的 Unicode 数据为准（依据 Case Pair Stability），向量只用 Unicode 9.0 及更早就已分配、映射没有变过的字符（ADR-0303）。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0021 的 `upper` / `lower` 由「U+0130 与 U+0131 实现自定」改成逐个码位的 Unicode 简单大小写映射，与关键字的折叠同一份；`expression-functions.json` 补 16 条用例；Go 规则包新增 `LowerWorkflowText`、`UpperWorkflowText`（ADR-0303）。
 - MINOR：RFC-0012「范围读取、分片上传与预签名」写明发起分片上传的应答没有可用的上传标识时返回 `OBJECTSTORAGE_UNAVAILABLE_001`、不重发；「S3 Provider」的映射写明应答成功却缺必需内容同样是服务端错误（ADR-0302）。
-- MINOR：RFC-0012「S3 Provider」写明服务端点与绑定 `objectstorage` 的主值不能带用户信息，凭据只走 `AccessKey`、`SecretKey`、`SessionToken` 与绑定的同名属性，带了是配置错误、只报键名；「一致性」写明 S3 配置的写法不收向量（ADR-0302）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0012「S3 Provider」写明服务端点与绑定 `objectstorage` 的主值不能带用户信息，凭据只走 `AccessKey`、`SecretKey`、`SessionToken` 与绑定的同名属性，带了是配置错误、只报键名；「一致性」写明 S3 配置的写法不收向量（ADR-0302）。
 - MINOR：RFC-0001「JSON 文本」写明以字符串交来的文本先严格编码成 UTF-8，孤立代理项不合法（ADR-0301）。
 - MAJOR（`v1.0.0` 之前允许）：`plugin/lifecycle.md` §2 与 RFC-0016 第 6 条：进程内插件的宿主与插件用应用指定的绑定根目录，以前写明取环境变量（ADR-0301）。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0016 新增第 10 条：根目录下最多 128 个绑定、一个绑定目录最多 128 个文件（以 `.` 开头的不计），先数后读，超限 `KERNEL_HOSTING_005`；插件宿主的 `reason` 为 `binding '<绑定名>' has more than 128 files`；`binding-properties.json` 的 `limits` 加 `maxBindingFiles`、`maxBindings`，`plugin-messages.json` 加一条，Go `rules` 加两个常量（ADR-0301）。
