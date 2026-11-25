@@ -1,6 +1,6 @@
 # RFC-0012 对象存储
 
-> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误；2026-11-01 修订：一致性验证改对 RustFS；2026-11-01 修订：不覆盖写入并发原子、S3 探测条件写入；2026-11-01 修订：条件写入探测改为启动照常、后台与首次使用时重试，键的保留前缀 `.xihan`，云厂商的兼容服务只走标准条件头；2026-11-02 修订：条件写入探测被拒绝、探测桶不存在恢复为启动失败，只有连不上照常启动、后台重试；2026-11-04 修订：基础设施失败的 `reason` 只写异常类型；同日再修订：S3 命名实例的客户端过出站地址策略；2026-11-24 修订：分片上传批量放弃、命名实例批量移除与登记数上限、S3BlobStore 不再有公开构造；同日再修订：一致性向量；同日第三次修订：S3 的会话令牌、请求超时、尝试次数与 HTTP 代理成为设置；同日第四次修订：对象键、查询前缀与保存的文件名的长度按 UTF-8 字节计，内容类型的 `;` 之后必须有参数；2026-11-25 修订：S3 命名实例在设置里配代理要运营方开关，缺省实例只给一项密钥是配置错误，服务端点不合法时报错不带原值；同日再修订：内容类型照 RFC 9110 允许空参数，内容类型原样存取，写不出原值的以 `OBJECTSTORAGE_VALIDATION_007` 失败） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约）、ADR-0086（验证用的 S3 兼容服务）、ADR-0089（条件写入探测）、ADR-0090（探测重试、保留前缀）、ADR-0093（被拒绝与缺桶启动失败）、ADR-0097（启动之后被拒绝或缺桶的处理已定）、ADR-0115、ADR-0266、ADR-0277（一致性向量）、ADR-0281（S3 客户端的设置）、ADR-0282（长度的单位与内容类型的参数）、ADR-0294（S3 配置的加固）、ADR-0295（内容类型的空参数与原样存取） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`，向量 `conformance/vectors/objectstorage/` | 一致性档：`objectstorage`
+> 状态：已采纳（2026-10-26 修订：S3 Provider；2026-10-29 修订：范围读取、分片上传与预签名；2026-11-01 修订：S3 绑定类型改为 blob；2026-11-01 修订：命名实例总是登记、缺省实例的三个契约同一存储；2026-11-01 修订：同一存储只约束被要求的契约；2026-11-01 修订：列举的页大小越界返回校验错误；2026-11-01 修订：一致性验证改对 RustFS；2026-11-01 修订：不覆盖写入并发原子、S3 探测条件写入；2026-11-01 修订：条件写入探测改为启动照常、后台与首次使用时重试，键的保留前缀 `.xihan`，云厂商的兼容服务只走标准条件头；2026-11-02 修订：条件写入探测被拒绝、探测桶不存在恢复为启动失败，只有连不上照常启动、后台重试；2026-11-04 修订：基础设施失败的 `reason` 只写异常类型；同日再修订：S3 命名实例的客户端过出站地址策略；2026-11-24 修订：分片上传批量放弃、命名实例批量移除与登记数上限、S3BlobStore 不再有公开构造；同日再修订：一致性向量；同日第三次修订：S3 的会话令牌、请求超时、尝试次数与 HTTP 代理成为设置；同日第四次修订：对象键、查询前缀与保存的文件名的长度按 UTF-8 字节计，内容类型的 `;` 之后必须有参数；2026-11-25 修订：S3 命名实例在设置里配代理要运营方开关，缺省实例只给一项密钥是配置错误，服务端点不合法时报错不带原值；同日再修订：内容类型照 RFC 9110 允许空参数，内容类型原样存取，写不出原值的以 `OBJECTSTORAGE_VALIDATION_007` 失败；同日第三次修订：S3 的服务端点与绑定的主值不能带用户信息） | 日期：2026-10-23 | 对应 ADR：ADR-0018（S3）、ADR-0049（范围读取、分片上传与预签名）、ADR-0050（命名存储实例）、ADR-0075（登记规则）、ADR-0082（被要求的契约）、ADR-0086（验证用的 S3 兼容服务）、ADR-0089（条件写入探测）、ADR-0090（探测重试、保留前缀）、ADR-0093（被拒绝与缺桶启动失败）、ADR-0097（启动之后被拒绝或缺桶的处理已定）、ADR-0115、ADR-0266、ADR-0277（一致性向量）、ADR-0281（S3 客户端的设置）、ADR-0282（长度的单位与内容类型的参数）、ADR-0294（S3 配置的加固）、ADR-0295（内容类型的空参数与原样存取）、ADR-0302（S3 端点的用户信息、发起分片的应答缺上传标识） | 参考实现：`XiHan.Framework.ObjectStorage.Abstractions`、`XiHan.Framework.ObjectStorage.FileSystem`、`XiHan.Framework.ObjectStorage.S3`、`XiHan.Framework.Hosting.AspNetCore`（宿主代收发的预签名） | 一致性：`XiHan.Framework.ObjectStorage.Conformance`，向量 `conformance/vectors/objectstorage/` | 一致性档：`objectstorage`
 
 ## 摘要
 
@@ -71,13 +71,14 @@
 - 列举经 `ListObjectsV2`（S3 保证键的序数顺序），续页标记是其 continuation token；条目只有键、长度、`ETag` 与修改时间，内容类型为默认值、自定义元数据为空，需要时再 `Head`——列举条目的元数据因此是"可能不完整"的，一致性套件只校验键顺序、长度与 `ETag`。不符合键文法的对象（以 `/` 结尾的"目录"占位）跳过。
 - 不存在的键与桶 → `OBJECTSTORAGE_NOTFOUND_001`；桶不存在的列举是空页；其余服务端错误、网络错误与 SDK 超时 → `OBJECTSTORAGE_UNAVAILABLE_001`，`reason` 同样只写异常类型的全名（2026-11-04，ADR-0115）；批量删除里单个键的失败只写 S3 的错误码。没有配额（由桶策略管理）。`EnsureBuckets` 开启时写入遇到桶不存在就建桶再重试一次，默认由基础设施预先建桶。
 - 配置 `XiHan:ObjectStorage:S3`（`ServiceUrl`、`Region`、`AccessKey`、`SecretKey`、`SessionToken`、`ForcePathStyle`、`EnsureBuckets`、`HealthBucket`、`ConditionalWrites`、`HealthProbeIntervalSeconds`，以及下一条的 `RequestTimeoutSeconds`、`MaxAttempts` 与四个 `Proxy…`），绑定 `objectstorage`（类型 `blob`，与 RFC-0016 的绑定类型词表一致）的主值与属性覆盖之（RFC-0016「资源绑定与配置节」）；两项密钥都没有时走 SDK 默认凭据链；应用自己注册的 `IAmazonS3` 优先，这时下一条的设置对它不起作用。
-- `AccessKey` 与 `SecretKey` 必须同时给出或都不给（2026-11-25 修订，ADR-0294；以前缺省实例只给一项时悄悄走默认凭据链，命名实例早已拒绝）：只给一项是配置错误，处置同下一条的成组设置。核对在绑定的属性 `accessKey`、`secretKey` 覆盖之后进行，两项可以一项来自绑定、一项来自配置节。
+- `AccessKey` 与 `SecretKey` 必须同时给出或都不给（2026-11-25 修订，ADR-0294；以前缺省实例只给一项时悄悄走默认凭据链，命名实例早已拒绝）：只给一项是配置错误，处置同下文「客户端的设置」里的成组设置。核对在绑定的属性 `accessKey`、`secretKey` 覆盖之后进行，两项可以一项来自绑定、一项来自配置节。
+- 服务端点不带用户信息（2026-11-25 写明，ADR-0302；以前正文没有规定端点的写法，.NET 只要求绝对的 http 或 https 地址，带用户信息的照样收下、原样保存，打印选项时明文出现，SDK 也不用这段用户信息）：`ServiceUrl` 与绑定 `objectstorage` 的主值是绝对的 `http` 或 `https` 地址，主机之前不能有用户信息（RFC 3986 §3.2.1 的 `userinfo "@"`）：`user:pass@`、`user@`、`:@` 与空的 `@` 都算，路径、查询与片段里的 `@` 不算。S3 的凭据只走 `AccessKey`、`SecretKey`、`SessionToken` 与绑定的同名属性。缺省实例的配置节、绑定的主值与命名实例的设置都核对；带了用户信息是配置错误，处置同下一条「客户端的设置」里的成组设置，消息只报键名或绑定名、指明凭据该写在哪几个键里，不带原值。
 - 客户端的设置（2026-11-24 增补，ADR-0281；以前临时凭据、超时、重试与代理只能靠应用向容器注册自己的 `IAmazonS3`，命名实例无从设置）：配置节与命名实例的设置里都有，公开面不出现 SDK 的类型；都不写时建出的客户端与以前相同。
   - `SessionToken`：临时凭据的会话令牌。必须与 `AccessKey`、`SecretKey` 同时给出，缺任何一项是配置错误（不拿着令牌退回凭据链）；绑定属性 `sessionToken` 覆盖它。
   - `RequestTimeoutSeconds`：单次 HTTP 请求的超时，每次尝试各算各的；正数，不超过 86400（24 小时，`S3ObjectStorageOptions.MaxRequestTimeout`）。不写时不另设时限（SDK 对 S3 的缺省，约 24.8 天）。超时照上面的映射是 `OBJECTSTORAGE_UNAVAILABLE_001`。
   - `MaxAttempts`：一次操作最多发出的请求数，含首次；1 到 10（`S3ObjectStorageOptions.MaxAttemptsLimit`），1 即不重试。SDK 判定连接池里的连接已被对端关闭后重发的请求不计入（那是连接池的补救，不是对端失败后的重试）。不写时取 SDK 的缺省（标准重试模式，共 3 次）。
   - `ProxyHost`、`ProxyPort`、`ProxyUserName`、`ProxyPassword`：经 HTTP 代理访问服务。主机是主机名或 IP 字面量，不带协议、端口、路径与用户信息，带区域标识的 IPv6 地址（`fe80::1%eth0`）也不收；端口 1 到 65535；两项必须同时给出。用户名与口令可选，必须同时给出，且只能与主机、端口一起给。只给了一部分是配置错误。
-  - 配置错误的处置同 `HealthBucket`：缺省实例装配失败（`ArgumentException`），命名实例 → `OBJECTSTORAGE_VALIDATION_003`。消息里只写键名与问题，带出的原值只限数值与布尔值；会话令牌、代理主机、用户名与口令的值从不进消息，服务端点（`ServiceUrl` 与绑定的主值）不合法时同样只报键名（2026-11-25 修订，ADR-0294；以前端点的原值写进消息，写成带用户信息的地址时口令进了异常与日志）。
+  - 配置错误的处置同 `HealthBucket`：缺省实例装配失败（`ArgumentException`），命名实例 → `OBJECTSTORAGE_VALIDATION_003`。消息里只写键名与问题，带出的原值只限数值与布尔值；会话令牌、代理主机、用户名与口令的值从不进消息，服务端点（`ServiceUrl` 与绑定的主值）不合法时（含带了用户信息的，ADR-0302）同样只报键名（2026-11-25 修订，ADR-0294；以前端点的原值写进消息，写成带用户信息的地址时口令进了异常与日志）。
   - `SessionToken`、`ProxyUserName`、`ProxyPassword` 是凭据，打印选项时遮蔽（RFC-0014「选项里的凭据」）。
 
 ## S3 的条件写入探测（2026-11-01 增补，ADR-0089；同日修订，ADR-0090；2026-11-02 修订，ADR-0093）
@@ -151,7 +152,7 @@ Provider 必须继承 `BlobStoreConformance` 并通过全部用例（S3 Provider
 | `multipart-parts.json` | 分片编号的范围、分片的最小字节数与完成清单的编号次序 |
 | `store-definitions.json` | 命名存储实例名的文法、内置的 Provider 名、两个定义是不是同一个定义 |
 
-向量不收的：不能编码成 UTF-8 的键与文件名（不成对的代理项）算不算合法，正文没有写；空的元数据值；预签名的有效期、列举的每页条数（都只是数值范围）；宿主代签地址的签名（正文没有给出规范串）；完成清单里 ETag 与分片大小的核对、配额与并发（由 `BlobStoreConformance` 与 `BlobMultipartStoreConformance` 核对）。
+向量不收的：不能编码成 UTF-8 的键与文件名（不成对的代理项）算不算合法，正文没有写；空的元数据值；预签名的有效期、列举的每页条数（都只是数值范围）；宿主代签地址的签名（正文没有给出规范串）；完成清单里 ETag 与分片大小的核对、配额与并发（由 `BlobStoreConformance` 与 `BlobMultipartStoreConformance` 核对）；S3 Provider 的配置写法（服务端点、代理主机、成组的设置，2026-11-25 写明，ADR-0302）：只有 .NET 的 S3 Provider 读这些配置，由它自己的测试核对。
 
 ## 错误码
 
