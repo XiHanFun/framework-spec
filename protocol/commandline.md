@@ -17,7 +17,7 @@
 
 - `invoke <operation-id> [...]` 调用操作；`<resource> <verb> [...]` 等价于 `invoke <resource>.<verb> [...]`（命令名不是已注册命令、且能拼成合法操作 ID 时）。
 - 发布范围：`Expose` 含 `CommandLine` 且非 `Stability.Internal` 的操作；其他 → `HOSTING_NOTFOUND_001`，退出码 3。
-- 载荷（JSON 对象）：`--json <object>` > `--data <file>`（`@file` 亦可）> 其余 `--<field> <value>` 选项（没有字段时为 `{}`）。`--json` 与 `--data` 的载荷原样进入。保留选项：`json`、`data`、`authorization`、`tenant`、`correlation`、`locale`、`timeout`、`help`。
+- 载荷（JSON 对象）：`--json <object>` > `--data <file>`（`@file` 亦可）> 其余 `--<field> <value>` 选项（没有字段时为 `{}`）。`--json` 与 `--data` 的载荷原样进入。`--json` 的文本严格编码成 UTF-8（RFC-0001「JSON 文本」）：编码不成（孤立的代理项）与不是 JSON 对象同样是用法错误，不换成 U+FFFD 照常调用（2026-11-26 写明，ADR-0312）。保留选项：`json`、`data`、`authorization`、`tenant`、`correlation`、`locale`、`timeout`、`help`。
 - 字段选项的类型（ADR-0128）：操作带 `OperationSchema` 时按请求 Schema 写入。属性取根的 `properties`，没有声明的取 `additionalProperties`；`$ref`、`allOf`、`anyOf`、`oneOf` 展开后取并集。允许 `string` 或不约束类型的写字符串；否则 `boolean`、`integer`、`number` 写 JSON 字面量；`array` 写数组（单值也是一元数组，元素按 `items`）。重复的选项总是数组，目标不是数组时元素写字符串。`object` 不从文本解析，嵌套对象用 `--json` 或 `--data`。
 - 转换不了的值按字符串写入，不算用法错误：进入管道后由 Validate 阶段报 `KERNEL_VALIDATION_003`，退出码 2，违规落在字段路径上。
 - 操作没有 `OperationSchema` 时值都写字符串，重复的选项成字符串数组，由请求类型的序列化上下文决定怎么读。

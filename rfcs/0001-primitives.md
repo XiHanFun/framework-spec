@@ -1,6 +1,6 @@
 # RFC-0001 原语层
 
-> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配；2026-11-19 修订：.NET 的 Result 与 Error 线上编码在内核的 `ResultJson`；同日再修订：`Error` 的文案不能只有空白，空白字符写死；2026-11-24 修订：收调用上下文的契约不另收取消令牌；同日再修订：.NET 映射补上 `DeadlineText` 与 `ActivationEvent`；同日第三次修订：JSON 文本的共同检查覆盖消息信封，.NET 映射补上 `TimestampText` 与内核的 `JsonText`；2026-11-25 修订：.NET 映射里 JSON 文本检查的入口改名 `JsonText.FindProblem`，问题带种类；同日写明：以字符串交来的文本严格编码成 UTF-8，孤立的代理项不合法） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236、0244（.NET 的线上编码）、0263、0278（截止时间文本与激活事件的 .NET 类型）、0283（时间戳文本与 JSON 文本检查的 .NET 入口）、0291（JSON 文本检查的 .NET 入口改名与问题的种类）、0301（以字符串交来的 JSON 文本严格编码） | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
+> 状态：已采纳（2026-10-28 修订：消息键首段放开下划线；2026-11-01 修订：机密遮蔽 `Redaction`；2026-11-16 修订：无值成功与 Error 成员的线上编码、消息键最长 128 个字符、接口版本只在依赖里带 `^`；同日再修订：重复成员不合法、新增原语 `TraceParent`、`WithBaggage` 核对值；同日第三次修订：JSON 文本的共同读取检查、重复成员在任何一层都不合法、文法按整串匹配；2026-11-19 修订：.NET 的 Result 与 Error 线上编码在内核的 `ResultJson`；同日再修订：`Error` 的文案不能只有空白，空白字符写死；2026-11-24 修订：收调用上下文的契约不另收取消令牌；同日再修订：.NET 映射补上 `DeadlineText` 与 `ActivationEvent`；同日第三次修订：JSON 文本的共同检查覆盖消息信封，.NET 映射补上 `TimestampText` 与内核的 `JsonText`；2026-11-25 修订：.NET 映射里 JSON 文本检查的入口改名 `JsonText.FindProblem`，问题带种类；同日写明：以字符串交来的文本严格编码成 UTF-8，孤立的代理项不合法；2026-11-26 写明：写出与转交的 JSON 文本同样在字符串与 UTF-8 之间严格转换） | 日期：2026-10-21 | 对应 ADR：0002、0038、0086、0233（SDK 共用的线上细节）、0235、0236、0244（.NET 的线上编码）、0263、0278（截止时间文本与激活事件的 .NET 类型）、0283（时间戳文本与 JSON 文本检查的 .NET 入口）、0291（JSON 文本检查的 .NET 入口改名与问题的种类）、0301（以字符串交来的 JSON 文本严格编码）、0312（写出与转交的 JSON 文本严格编码） | 参考实现：`framework/src/XiHan.Framework.Primitives` | 一致性档：`core`
 
 ## 摘要
 
@@ -87,6 +87,13 @@ XiHan 读取的 JSON 文本（Result 与 Error 的线上编码、操作载荷、
 - 字符串与成员名必须是合法的 Unicode：没有非法的 UTF-8 字节序列（含过长编码与编码成 UTF-8 的代理项），没有原始的控制字符，转义只用 RFC 8259 的那几种；`\uD800`–`\uDBFF` 后必须紧跟 `\uDC00`–`\uDFFF`，单独的低代理项也不合法。
 - 任何一层都不能有重复的成员名。名字按转义还原后逐个 UTF-16 码元比较，`"a"` 与 `"\u0061"` 重复；大小写不同不算重复。
 - 语法错误不论出现在哪里都优先于重复成员。报告位置时，语法错误只写 `$`（各语言的解析器报告的位置不同），重复成员写第一处重复（第二次出现的成员）的路径，写法同 RFC-0011 规则 2。
+
+写出与转交同一个口径（2026-11-26 写明，ADR-0312；以前只写了读取一侧，.NET 在下面列出的几处用宽松的编码）：XiHan 在字符串与 UTF-8 字节之间转换一份 JSON 文本、再写出或转交给别处读时，转换是严格的，两个方向都不先换成 U+FFFD。
+
+- 以字符串给出、要变成字节写出或转交的（命令行 `invoke --json` 的载荷，`protocol/commandline.md`；SDK 以字符串交给宿主的回调载荷，`plugin/invocation.md` §5；宿主从文本读取器拿到的一行 MCP 消息，如 .NET 的 `McpStdioTransport.RunAsync`）：孤立的代理项编码不成 UTF-8，按那一处不合法的 JSON 处理，不发出、不转交。
+- 以字节收到、要先解码成字符串再解析的（Wasm 载体的消息，`plugin/wasm.md` §2；`xihan setup` 要合并的配置文件，RFC-0016「工具链：编码助手的知识库服务」）：非法的 UTF-8 字节序列按不是 JSON 处理。
+
+换成 U+FFFD 得到的仍是一份合法的 JSON：收的一方看不出交来的文本是坏的，转交出去的已经是另一份文本（写回文件时连原来的字节也改掉了）。值里的字符串经 JSON 写出器写出时怎样处理孤立的代理项，不在这一条里。
 
 向量 `conformance/vectors/primitives/json-text.json`；Go 一致性模块的 `rules.CheckJSONText` 是同一检查的独立实现，.NET 的是内核的 `JsonText.FindProblem`（`XiHan.Framework.Kernel.Json`，内核之外读这类文本的包也用它，ADR-0283；2026-11-25 修订，ADR-0291，原名 `JsonText.Check`）：通过时返回无值的 `Maybe`，否则是第一个问题 `JsonTextProblem { Kind, Path }`。`Kind` 把上面所说的语法错误按出处分成 `Syntax`（RFC 8259 的文法，含 BOM、原始的控制字符与 RFC 8259 之外的转义）、`NestingTooDeep`、`InvalidUtf8` 与 `LoneSurrogate`，重复成员是 `DuplicateMember`，几种语法错误之间按在文本里出现的先后报第一处。这是 .NET 的诊断信息，规则与报告的位置仍照上面几条。以前各语言的解析器对这些输入各有取舍：Go 与 JavaScript 接受孤立的代理项，Python 接受很深的嵌套，System.Text.Json 不查未知成员里的重复成员。
 
