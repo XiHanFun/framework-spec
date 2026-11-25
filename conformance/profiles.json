@@ -55,11 +55,13 @@
         "plugin/binding-properties.json",
         "plugin/callback-status.json",
         "plugin/deadlines.json",
+        "plugin/envelope-times.json",
         "plugin/error-reading.json",
         "plugin/handshake-lines.json",
         "plugin/host-addresses.json",
         "plugin/plugin-messages.json",
-        "plugin/protocol-versions.json"
+        "plugin/protocol-versions.json",
+        "plugin/sdk-envelope-times.json"
       ],
       "runner": ["plugin"]
     },

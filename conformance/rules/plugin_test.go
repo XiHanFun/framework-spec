@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 	"unicode"
@@ -102,6 +103,130 @@ func TestEnvelopeTimesFollowTheVectors(t *testing.T) {
 		// 写给插件的文本按同一文法读回同一时刻
 		if read, present, ok := rules.ReadEnvelopeTime(c.Text); !ok || !present || !read.Equal(instant) {
 			t.Errorf("%q must read back as %s", c.Text, *c.Instant)
+		}
+	}
+}
+
+// envelopeTimePrecision 是 SDK 时间类型的一种精度：向量里那一项的取法、精度本身与写出时最多的小数位数。
+type envelopeTimePrecision struct {
+	name     string
+	duration time.Duration
+	digits   int
+	of       func(conformance.EnvelopeTimeTexts) string
+}
+
+// envelopeTimePrecisions 按向量的 precisions 列出四种精度。
+func envelopeTimePrecisions(digits conformance.EnvelopeTimePrecisionDigits) []envelopeTimePrecision {
+	return []envelopeTimePrecision{
+		{"nanoseconds", time.Nanosecond, digits.Nanoseconds, func(texts conformance.EnvelopeTimeTexts) string { return texts.Nanoseconds }},
+		{"hundredNanoseconds", 100 * time.Nanosecond, digits.HundredNanoseconds, func(texts conformance.EnvelopeTimeTexts) string { return texts.HundredNanoseconds }},
+		{"microseconds", time.Microsecond, digits.Microseconds, func(texts conformance.EnvelopeTimeTexts) string { return texts.Microseconds }},
+		{"milliseconds", time.Millisecond, digits.Milliseconds, func(texts conformance.EnvelopeTimeTexts) string { return texts.Milliseconds }},
+	}
+}
+
+// fractionDigits 返回 SDK 写出的 Envelope.time 里秒的小数有几位，没有小数点时是 0。
+func fractionDigits(text string) int {
+	dot := strings.IndexByte(text, '.')
+	if dot < 0 {
+		return 0
+	}
+	return len(text) - dot - len(".Z")
+}
+
+func TestSDKEnvelopeTimesFollowTheVectors(t *testing.T) {
+	vectors, err := conformance.SDKEnvelopeTimes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	precisions := envelopeTimePrecisions(vectors.Precisions)
+	for _, p := range precisions {
+		// 一秒是精度的 10 的「位数」次方倍，位数才是这种精度写得出的最多的小数
+		scale := time.Duration(1)
+		for range p.digits {
+			scale *= 10
+		}
+		if time.Second/p.duration != scale || time.Second%p.duration != 0 {
+			t.Errorf("precision %s has %d digits, which does not match %s", p.name, p.digits, p.duration)
+		}
+	}
+
+	for _, c := range vectors.Writing {
+		if c.Instant == nil {
+			for _, p := range precisions {
+				if text := p.of(c.Text); text != "" {
+					t.Errorf("%s: no time must be written as an empty string at %s, not %q", c.Name, p.name, text)
+				}
+			}
+			continue
+		}
+		instant, present, ok := rules.ReadEnvelopeTime(*c.Instant)
+		if !ok || !present {
+			t.Errorf("%s: the instant %q must follow the grammar", c.Name, *c.Instant)
+			continue
+		}
+		for _, p := range precisions {
+			want := p.of(c.Text)
+			if got := rules.FormatSDKEnvelopeTime(instant, p.duration); got != want {
+				t.Errorf("%s: %q written at %s as %q, want %q", c.Name, *c.Instant, p.name, got, want)
+			}
+			// 写出的文本合宿主读入的文法，读回的是截到精度的时刻；以大写的 Z 结尾，小数不超过精度的位数、末尾没有 0
+			back, present, ok := rules.ReadEnvelopeTime(want)
+			truncated := rules.TruncateEnvelopeTime(instant, p.duration)
+			if !ok || !present || !back.Equal(truncated) {
+				t.Errorf("%s: %q must read back as %s", c.Name, want, truncated.Format(time.RFC3339Nano))
+			}
+			if want[10] != 'T' || !strings.HasSuffix(want, "Z") || fractionDigits(want) > p.digits || (fractionDigits(want) > 0 && strings.HasSuffix(want, "0Z")) {
+				t.Errorf("%s: %q is not how an SDK writes the time at %s", c.Name, want, p.name)
+			}
+		}
+	}
+
+	for _, c := range vectors.Reading {
+		instant, present, ok := rules.ReadEnvelopeTime(c.Text)
+		if !ok || !present {
+			t.Errorf("%s: %q must be read", c.Name, c.Text)
+			continue
+		}
+		for _, p := range precisions {
+			want := mustTime(t, p.of(c.UTC))
+			got := rules.TruncateEnvelopeTime(instant, p.duration)
+			if !got.Equal(want) || got.Location() != time.UTC {
+				t.Errorf("%s: %q read at %s as %s, want %s", c.Name, c.Text, p.name, got.Format(time.RFC3339Nano), p.of(c.UTC))
+			}
+			// 截去更细的小数之后不晚于原文，也不早于原文一个精度以上
+			if want.After(instant) || !want.Add(p.duration).After(instant) {
+				t.Errorf("%s: %s is not %q truncated to %s", c.Name, p.of(c.UTC), c.Text, p.name)
+			}
+		}
+	}
+
+	for _, c := range vectors.Unreadable {
+		if got, _, ok := rules.ReadEnvelopeTime(c.Text); ok {
+			t.Errorf("%s: %q must not be read, got %s", c.Name, c.Text, got.Format(time.RFC3339Nano))
+		}
+	}
+
+	// 读入另外回放 envelope-times.json 的 valid 与 invalid，这里的读入用例不与它们重复
+	hostVectors, err := conformance.EnvelopeTimes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reused := map[string]bool{}
+	for _, c := range hostVectors.Valid {
+		reused[c.Text] = true
+	}
+	for _, text := range hostVectors.Invalid {
+		reused[text] = true
+	}
+	for _, c := range vectors.Reading {
+		if reused[c.Text] {
+			t.Errorf("%s: %q is already a case of envelope-times.json", c.Name, c.Text)
+		}
+	}
+	for _, c := range vectors.Unreadable {
+		if reused[c.Text] {
+			t.Errorf("%s: %q is already a case of envelope-times.json", c.Name, c.Text)
 		}
 	}
 }

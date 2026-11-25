@@ -23,3 +23,20 @@ func ReadEnvelopeTime(text string) (instant time.Time, present bool, ok bool) {
 func FormatEnvelopeTime(instant time.Time) string {
 	return FormatDeadline(instant)
 }
+
+// TruncateEnvelopeTime 把 Envelope.time 的时刻截到 SDK 时间类型的精度（invocation.md §4「SDK 读宿主写来的」，ADR-0306、ADR-0310）：
+// precision 是 1 秒的约数（规范列出纳秒、100 纳秒、微秒与毫秒四种），比它更细的小数截去、不进位，
+// 得到的时刻不晚于原来的时刻，纪元之前也一样；结果是 UTC。precision 不大于 0 时只换算成 UTC。
+func TruncateEnvelopeTime(instant time.Time, precision time.Duration) time.Time {
+	// Truncate 按距零时刻（0001-01-01 UTC）的整倍数向下取，零时刻是整秒，所以 precision 整除 1 秒时只截秒的小数
+	return instant.UTC().Truncate(precision)
+}
+
+// FormatSDKEnvelopeTime 写出 SDK 交给宿主的 Envelope.time（invocation.md §4「SDK 写给宿主的」，ADR-0306、ADR-0310）：
+// 先按 TruncateEnvelopeTime 截到时间类型的精度，再写成 UTC 的 YYYY-MM-DDTHH:MM:SS、秒的小数与大写的 Z，
+// 小数去掉末尾的 0、全为 0 时不写小数点，所以最多写到精度的位数。它与宿主的写法（FormatEnvelopeTime）不同，两种都合 ReadEnvelopeTime 的文法。
+// 作者没有给时间时 SDK 写空串，不经这里；不核对年份范围，0001–9999 之外的时刻写成什么规范不作规定。
+func FormatSDKEnvelopeTime(instant time.Time, precision time.Duration) string {
+	// RFC3339Nano 的小数是 .999999999：去掉末尾的 0，全为 0 时连小数点也不写；UTC 的偏移写成 Z
+	return TruncateEnvelopeTime(instant, precision).Format(time.RFC3339Nano)
+}

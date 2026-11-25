@@ -151,6 +151,54 @@ type EnvelopeTimeVectors struct {
 	Written []WrittenEnvelopeTime `json:"written"`
 }
 
+// EnvelopeTimePrecisionDigits 是规范列出的四种时间类型精度在 SDK 写出 Envelope.time 时最多的小数位数（invocation.md §4「SDK 写给宿主的」）：
+// 纳秒九位、100 纳秒七位、微秒六位、毫秒三位。
+type EnvelopeTimePrecisionDigits struct {
+	Nanoseconds        int `json:"nanoseconds"`
+	HundredNanoseconds int `json:"hundredNanoseconds"`
+	Microseconds       int `json:"microseconds"`
+	Milliseconds       int `json:"milliseconds"`
+}
+
+// EnvelopeTimeTexts 是同一个用例在四种时间类型精度下各自的文本，字段与 EnvelopeTimePrecisionDigits 一一对应；实现取自己时间类型精度的那一项。
+type EnvelopeTimeTexts struct {
+	Nanoseconds        string `json:"nanoseconds"`
+	HundredNanoseconds string `json:"hundredNanoseconds"`
+	Microseconds       string `json:"microseconds"`
+	Milliseconds       string `json:"milliseconds"`
+}
+
+// SDKEnvelopeTimeWriting 是作者发布时给的一个时刻与 SDK 写给宿主的 Envelope.time：Instant 是这个时刻，写成合 RFC-0003 规则 8 文法的文本、
+// 精确到纳秒（nil 表示作者没有给时间），SDK 按自己的精度构造它（更细的小数截去）；Text 是各精度下写出的文本，没有时间为空串。
+type SDKEnvelopeTimeWriting struct {
+	Name    string            `json:"name"`
+	Instant *string           `json:"instant"`
+	Text    EnvelopeTimeTexts `json:"text"`
+}
+
+// SDKEnvelopeTimeReading 是宿主写给插件的一个 Envelope.time 与 SDK 读出的时刻：UTC 是各精度下读出的 UTC 时刻（RFC 3339，九位小数），
+// 比精度更细的小数截去、不进位。
+type SDKEnvelopeTimeReading struct {
+	Name string            `json:"name"`
+	Text string            `json:"text"`
+	UTC  EnvelopeTimeTexts `json:"utc"`
+}
+
+// SDKEnvelopeTimeUnreadable 是 SDK 必须读不出的一个 Envelope.time：那次投递以 gRPC InvalidArgument 拒绝（invocation.md §4「插件一侧处理 HandleEvent」第 2 步）。
+type SDKEnvelopeTimeUnreadable struct {
+	Name string `json:"name"`
+	Text string `json:"text"`
+}
+
+// SDKEnvelopeTimeVectors 对应 plugin/sdk-envelope-times.json（invocation.md §4，ADR-0306、ADR-0310）：SDK 按时间类型的精度写出与读入 Envelope.time；
+// 读入另外照样回放 EnvelopeTimeVectors 的 Valid 与 Invalid，这里不重复它们。
+type SDKEnvelopeTimeVectors struct {
+	Precisions EnvelopeTimePrecisionDigits `json:"precisions"`
+	Writing    []SDKEnvelopeTimeWriting    `json:"writing"`
+	Reading    []SDKEnvelopeTimeReading    `json:"reading"`
+	Unreadable []SDKEnvelopeTimeUnreadable `json:"unreadable"`
+}
+
 // HTTPDeadlineVectors 对应 context/http-deadline.json（RFC-0003 规则 8，protocol/http.md，protocol/grpc.md，ADR-0276）：Now 是宿主时钟的当前时刻。
 type HTTPDeadlineVectors struct {
 	Now   string             `json:"now"`
@@ -766,6 +814,7 @@ var typedVectors = []TypedVector{
 	vectorFile[HostAddressVectors]("plugin/host-addresses.json"),
 	vectorFile[PluginMessageVectors]("plugin/plugin-messages.json"),
 	vectorFile[ProtocolVersionVectors]("plugin/protocol-versions.json"),
+	vectorFile[SDKEnvelopeTimeVectors]("plugin/sdk-envelope-times.json"),
 	vectorFile[WasmExportVectors]("plugin/wasm-exports.json"),
 	vectorFile[BaggageKeyVectors]("primitives/baggage-keys.json"),
 	vectorFile[CapabilityRequirementVectors]("primitives/capability-requirements.json"),
@@ -855,6 +904,11 @@ func Deadlines() (DeadlineVectors, error) {
 // EnvelopeTimes 读取插件协议 Envelope.time 的读写向量。
 func EnvelopeTimes() (EnvelopeTimeVectors, error) {
 	return typed[EnvelopeTimeVectors]()
+}
+
+// SDKEnvelopeTimes 读取 SDK 一侧按时间类型的精度写出与读入 Envelope.time 的向量。
+func SDKEnvelopeTimes() (SDKEnvelopeTimeVectors, error) {
+	return typed[SDKEnvelopeTimeVectors]()
 }
 
 // HTTPDeadlines 读取 HTTP 载体上截止时间的读法向量。

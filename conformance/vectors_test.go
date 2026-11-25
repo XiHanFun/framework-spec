@@ -153,6 +153,36 @@ var nonEmptyChecks = map[string]func(t *testing.T) any{
 		}
 		return times
 	},
+	"plugin/sdk-envelope-times.json": func(t *testing.T) any {
+		times, err := conformance.SDKEnvelopeTimes()
+		digits := times.Precisions
+		if err != nil || digits.Nanoseconds == 0 || digits.HundredNanoseconds == 0 || digits.Microseconds == 0 || digits.Milliseconds == 0 ||
+			len(times.Writing) == 0 || len(times.Reading) == 0 || len(times.Unreadable) == 0 {
+			t.Errorf("sdk envelope times: %v", err)
+		}
+		names := map[string]bool{}
+		for _, c := range times.Writing {
+			// 作者给了时间就四种精度都写得出文本，没给时间四种都是空串
+			written := c.Text.Nanoseconds != "" && c.Text.HundredNanoseconds != "" && c.Text.Microseconds != "" && c.Text.Milliseconds != ""
+			if c.Name == "" || names[c.Name] || (c.Instant != nil) != written {
+				t.Errorf("sdk envelope time writing case %q must have a unique name and a text at every precision exactly when it has an instant", c.Name)
+			}
+			names[c.Name] = true
+		}
+		for _, c := range times.Reading {
+			if c.Name == "" || names[c.Name] || c.Text == "" || c.UTC.Nanoseconds == "" || c.UTC.HundredNanoseconds == "" || c.UTC.Microseconds == "" || c.UTC.Milliseconds == "" {
+				t.Errorf("sdk envelope time reading case %q must have a unique name, a text and the instant at every precision", c.Name)
+			}
+			names[c.Name] = true
+		}
+		for _, c := range times.Unreadable {
+			if c.Name == "" || names[c.Name] || c.Text == "" {
+				t.Errorf("sdk envelope time unreadable case %q must have a unique name and a text (an empty text means no time)", c.Name)
+			}
+			names[c.Name] = true
+		}
+		return times
+	},
 	"plugin/binding-properties.json": func(t *testing.T) any {
 		bindings, err := conformance.PluginBindings()
 		if err != nil || bindings.PluginID == "" || bindings.Limits.MaxProperties == 0 || bindings.Limits.MaxNameLength == 0 || bindings.Limits.MaxBytes == 0 ||

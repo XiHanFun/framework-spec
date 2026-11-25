@@ -1,0 +1,467 @@
+{
+  "$comment": "SDK 一侧读写插件协议 Envelope.time（plugin/invocation.md §4「SDK 读宿主写来的」与「SDK 写给宿主的」，ADR-0306、ADR-0310）。precisions 是规范列出的四种时间类型精度与写出时最多的小数位数：nanoseconds 纳秒九位，hundredNanoseconds 100 纳秒七位，microseconds 微秒六位，milliseconds 毫秒三位；实现按自己时间类型的精度取 text 与 utc 里同名的一项。writing 是作者发布时给的时刻与 SDK 写给宿主的文本：instant 是这个时刻，写成合 RFC-0003 规则 8 文法的文本（与 envelope-times.json 的 valid 同一条文法），精确到纳秒，null 表示作者没有给时间；SDK 按自己的精度构造这个时刻，比精度更细的小数截去、不进位（与「SDK 读宿主写来的」相同），时间类型带偏移的宜照原文的偏移构造，好核对换算成 UTC。text 是各精度下写出的文本：换算成 UTC，写成 YYYY-MM-DDTHH:MM:SS、秒的小数与大写的 Z，小数去掉末尾的 0，全为 0 时不写小数点；没有时间写空串。年份越界的时刻写成什么规范不作规定，不收用例。reading 是宿主写给插件的文本与 SDK 读出的时刻：utc 是各精度下读出的 UTC 时刻，写成九位小数加 Z（与 envelope-times.json 的 utc 相同），比精度更细的小数截去、不进位，得到的时刻不晚于原文，纪元之前也一样。unreadable 是 SDK 必须读不出、以 gRPC InvalidArgument 拒绝那次投递的文本（invocation.md §4「插件一侧处理 HandleEvent」第 2 步），补 envelope-times.json 的 invalid 没有收的几类。envelope-times.json 同在 plugin 档，本文件不重复它的用例：它的 valid（空串是没有时间，utc 按本实现的精度截去更细的小数后比较）与 invalid 对 SDK 的读入同样适用；它的 written 是宿主写给插件的文本（七位小数、+00:00），SDK 读得出，但不是 SDK 写出的样子。时间类型表示不了的时刻（如 Windows 上 Rust 的 SystemTime 表示不了 1601 年之前），写出的用例跳过，读入的用例按读不出核对。期望值由 Go 一致性模块算出（rules.ReadEnvelopeTime 读成纳秒的 UTC 时刻，按精度截断后写出；rules.TruncateEnvelopeTime 与 rules.FormatSDKEnvelopeTime 回放），100 纳秒一列另由 .NET 参考实现的 DeadlineText.TryParse 与自定义格式 FFFFFFF 核对，unreadable 也由 DeadlineText.TryParse 核对；四列另由 Java 的 Instant 核对，微秒与毫秒两列又分别由 Python 的 datetime 与 JavaScript 的 Date 核对。",
+  "precisions": {
+    "nanoseconds": 9,
+    "hundredNanoseconds": 7,
+    "microseconds": 6,
+    "milliseconds": 3
+  },
+  "writing": [
+    {
+      "name": "整秒",
+      "instant": "2026-11-25T03:25:00Z",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00Z",
+        "microseconds": "2026-11-25T03:25:00Z",
+        "milliseconds": "2026-11-25T03:25:00Z"
+      }
+    },
+    {
+      "name": "一位小数",
+      "instant": "2026-11-25T03:25:00.5Z",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00.5Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.5Z",
+        "microseconds": "2026-11-25T03:25:00.5Z",
+        "milliseconds": "2026-11-25T03:25:00.5Z"
+      }
+    },
+    {
+      "name": "小数末尾的 0 去掉",
+      "instant": "2026-11-25T03:25:00.120Z",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00.12Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.12Z",
+        "microseconds": "2026-11-25T03:25:00.12Z",
+        "milliseconds": "2026-11-25T03:25:00.12Z"
+      }
+    },
+    {
+      "name": "小数开头的 0 保留",
+      "instant": "2026-11-25T03:25:00.001Z",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00.001Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.001Z",
+        "microseconds": "2026-11-25T03:25:00.001Z",
+        "milliseconds": "2026-11-25T03:25:00.001Z"
+      }
+    },
+    {
+      "name": "九位小数按精度截断",
+      "instant": "2026-11-25T03:25:00.123456789Z",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00.123456789Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.1234567Z",
+        "microseconds": "2026-11-25T03:25:00.123456Z",
+        "milliseconds": "2026-11-25T03:25:00.123Z"
+      }
+    },
+    {
+      "name": "七位小数按精度截断",
+      "instant": "2026-11-25T03:25:00.1234567Z",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00.1234567Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.1234567Z",
+        "microseconds": "2026-11-25T03:25:00.123456Z",
+        "milliseconds": "2026-11-25T03:25:00.123Z"
+      }
+    },
+    {
+      "name": "截断之后末尾的 0 去掉",
+      "instant": "2026-11-25T03:25:00.100000009Z",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00.100000009Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.1Z",
+        "microseconds": "2026-11-25T03:25:00.1Z",
+        "milliseconds": "2026-11-25T03:25:00.1Z"
+      }
+    },
+    {
+      "name": "截断之后全为 0 不写小数点",
+      "instant": "2026-11-25T03:25:00.000000999Z",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00.000000999Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.0000009Z",
+        "microseconds": "2026-11-25T03:25:00Z",
+        "milliseconds": "2026-11-25T03:25:00Z"
+      }
+    },
+    {
+      "name": "一微秒在毫秒精度下全为 0",
+      "instant": "2026-11-25T03:25:00.000001Z",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00.000001Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.000001Z",
+        "microseconds": "2026-11-25T03:25:00.000001Z",
+        "milliseconds": "2026-11-25T03:25:00Z"
+      }
+    },
+    {
+      "name": "截断不进位",
+      "instant": "2026-11-25T03:25:00.999999999Z",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00.999999999Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.9999999Z",
+        "microseconds": "2026-11-25T03:25:00.999999Z",
+        "milliseconds": "2026-11-25T03:25:00.999Z"
+      }
+    },
+    {
+      "name": "宿主写来的文本读出再写出",
+      "instant": "2026-11-25T03:25:00.1234500+00:00",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00.12345Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.12345Z",
+        "microseconds": "2026-11-25T03:25:00.12345Z",
+        "milliseconds": "2026-11-25T03:25:00.123Z"
+      }
+    },
+    {
+      "name": "正偏移换算成 UTC",
+      "instant": "2026-11-25T11:25:00.25+08:00",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00.25Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.25Z",
+        "microseconds": "2026-11-25T03:25:00.25Z",
+        "milliseconds": "2026-11-25T03:25:00.25Z"
+      }
+    },
+    {
+      "name": "负偏移换算到后一日",
+      "instant": "2026-11-24T22:25:00-05:00",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00Z",
+        "microseconds": "2026-11-25T03:25:00Z",
+        "milliseconds": "2026-11-25T03:25:00Z"
+      }
+    },
+    {
+      "name": "正偏移换算到前一日",
+      "instant": "2026-11-26T00:00:00+14:00",
+      "text": {
+        "nanoseconds": "2026-11-25T10:00:00Z",
+        "hundredNanoseconds": "2026-11-25T10:00:00Z",
+        "microseconds": "2026-11-25T10:00:00Z",
+        "milliseconds": "2026-11-25T10:00:00Z"
+      }
+    },
+    {
+      "name": "偏移带分钟",
+      "instant": "2026-11-25T09:10:00+05:45",
+      "text": {
+        "nanoseconds": "2026-11-25T03:25:00Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00Z",
+        "microseconds": "2026-11-25T03:25:00Z",
+        "milliseconds": "2026-11-25T03:25:00Z"
+      }
+    },
+    {
+      "name": "换算到前一年",
+      "instant": "2027-01-01T07:59:59.999999999+08:00",
+      "text": {
+        "nanoseconds": "2026-12-31T23:59:59.999999999Z",
+        "hundredNanoseconds": "2026-12-31T23:59:59.9999999Z",
+        "microseconds": "2026-12-31T23:59:59.999999Z",
+        "milliseconds": "2026-12-31T23:59:59.999Z"
+      }
+    },
+    {
+      "name": "换算到闰日",
+      "instant": "2028-03-01T01:00:00+02:00",
+      "text": {
+        "nanoseconds": "2028-02-29T23:00:00Z",
+        "hundredNanoseconds": "2028-02-29T23:00:00Z",
+        "microseconds": "2028-02-29T23:00:00Z",
+        "milliseconds": "2028-02-29T23:00:00Z"
+      }
+    },
+    {
+      "name": "纪元",
+      "instant": "1970-01-01T00:00:00Z",
+      "text": {
+        "nanoseconds": "1970-01-01T00:00:00Z",
+        "hundredNanoseconds": "1970-01-01T00:00:00Z",
+        "microseconds": "1970-01-01T00:00:00Z",
+        "milliseconds": "1970-01-01T00:00:00Z"
+      }
+    },
+    {
+      "name": "纪元之前",
+      "instant": "1969-12-31T23:59:59.987654321Z",
+      "text": {
+        "nanoseconds": "1969-12-31T23:59:59.987654321Z",
+        "hundredNanoseconds": "1969-12-31T23:59:59.9876543Z",
+        "microseconds": "1969-12-31T23:59:59.987654Z",
+        "milliseconds": "1969-12-31T23:59:59.987Z"
+      }
+    },
+    {
+      "name": "最早的时刻",
+      "instant": "0001-01-01T00:00:00Z",
+      "text": {
+        "nanoseconds": "0001-01-01T00:00:00Z",
+        "hundredNanoseconds": "0001-01-01T00:00:00Z",
+        "microseconds": "0001-01-01T00:00:00Z",
+        "milliseconds": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "name": "换算成最早的时刻",
+      "instant": "0001-01-01T08:00:00+08:00",
+      "text": {
+        "nanoseconds": "0001-01-01T00:00:00Z",
+        "hundredNanoseconds": "0001-01-01T00:00:00Z",
+        "microseconds": "0001-01-01T00:00:00Z",
+        "milliseconds": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "name": "最晚的时刻",
+      "instant": "9999-12-31T23:59:59.999999999Z",
+      "text": {
+        "nanoseconds": "9999-12-31T23:59:59.999999999Z",
+        "hundredNanoseconds": "9999-12-31T23:59:59.9999999Z",
+        "microseconds": "9999-12-31T23:59:59.999999Z",
+        "milliseconds": "9999-12-31T23:59:59.999Z"
+      }
+    },
+    {
+      "name": "最晚的时刻只到毫秒",
+      "instant": "9999-12-31T23:59:59.999Z",
+      "text": {
+        "nanoseconds": "9999-12-31T23:59:59.999Z",
+        "hundredNanoseconds": "9999-12-31T23:59:59.999Z",
+        "microseconds": "9999-12-31T23:59:59.999Z",
+        "milliseconds": "9999-12-31T23:59:59.999Z"
+      }
+    },
+    {
+      "name": "换算到最晚的整秒",
+      "instant": "9999-12-31T19:59:59.5-04:00",
+      "text": {
+        "nanoseconds": "9999-12-31T23:59:59.5Z",
+        "hundredNanoseconds": "9999-12-31T23:59:59.5Z",
+        "microseconds": "9999-12-31T23:59:59.5Z",
+        "milliseconds": "9999-12-31T23:59:59.5Z"
+      }
+    },
+    {
+      "name": "没有时间写空串",
+      "instant": null,
+      "text": {
+        "nanoseconds": "",
+        "hundredNanoseconds": "",
+        "microseconds": "",
+        "milliseconds": ""
+      }
+    }
+  ],
+  "reading": [
+    {
+      "name": "宿主写的七位小数",
+      "text": "2026-11-25T03:25:00.1234567+00:00",
+      "utc": {
+        "nanoseconds": "2026-11-25T03:25:00.123456700Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.123456700Z",
+        "microseconds": "2026-11-25T03:25:00.123456000Z",
+        "milliseconds": "2026-11-25T03:25:00.123000000Z"
+      }
+    },
+    {
+      "name": "九位小数截断不进位",
+      "text": "2026-11-25T03:25:00.999999999Z",
+      "utc": {
+        "nanoseconds": "2026-11-25T03:25:00.999999999Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.999999900Z",
+        "microseconds": "2026-11-25T03:25:00.999999000Z",
+        "milliseconds": "2026-11-25T03:25:00.999000000Z"
+      }
+    },
+    {
+      "name": "截断不进到后一日",
+      "text": "2026-11-25T23:59:59.9999999+00:00",
+      "utc": {
+        "nanoseconds": "2026-11-25T23:59:59.999999900Z",
+        "hundredNanoseconds": "2026-11-25T23:59:59.999999900Z",
+        "microseconds": "2026-11-25T23:59:59.999999000Z",
+        "milliseconds": "2026-11-25T23:59:59.999000000Z"
+      }
+    },
+    {
+      "name": "最晚的时刻截断不进到 10000 年",
+      "text": "9999-12-31T23:59:59.9999999+00:00",
+      "utc": {
+        "nanoseconds": "9999-12-31T23:59:59.999999900Z",
+        "hundredNanoseconds": "9999-12-31T23:59:59.999999900Z",
+        "microseconds": "9999-12-31T23:59:59.999999000Z",
+        "milliseconds": "9999-12-31T23:59:59.999000000Z"
+      }
+    },
+    {
+      "name": "最早的时刻之后 100 纳秒",
+      "text": "0001-01-01T00:00:00.0000001+00:00",
+      "utc": {
+        "nanoseconds": "0001-01-01T00:00:00.000000100Z",
+        "hundredNanoseconds": "0001-01-01T00:00:00.000000100Z",
+        "microseconds": "0001-01-01T00:00:00.000000000Z",
+        "milliseconds": "0001-01-01T00:00:00.000000000Z"
+      }
+    },
+    {
+      "name": "纪元之前截断不晚于原文",
+      "text": "1969-12-31T23:59:59.9999999+00:00",
+      "utc": {
+        "nanoseconds": "1969-12-31T23:59:59.999999900Z",
+        "hundredNanoseconds": "1969-12-31T23:59:59.999999900Z",
+        "microseconds": "1969-12-31T23:59:59.999999000Z",
+        "milliseconds": "1969-12-31T23:59:59.999000000Z"
+      }
+    },
+    {
+      "name": "换算到纪元之前",
+      "text": "1970-01-01T07:59:59.0000001+08:00",
+      "utc": {
+        "nanoseconds": "1969-12-31T23:59:59.000000100Z",
+        "hundredNanoseconds": "1969-12-31T23:59:59.000000100Z",
+        "microseconds": "1969-12-31T23:59:59.000000000Z",
+        "milliseconds": "1969-12-31T23:59:59.000000000Z"
+      }
+    },
+    {
+      "name": "小写的 t 与 z",
+      "text": "2026-11-25t03:25:00.1234567z",
+      "utc": {
+        "nanoseconds": "2026-11-25T03:25:00.123456700Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.123456700Z",
+        "microseconds": "2026-11-25T03:25:00.123456000Z",
+        "milliseconds": "2026-11-25T03:25:00.123000000Z"
+      }
+    },
+    {
+      "name": "小写的 t 带偏移",
+      "text": "2026-11-25t11:25:00.987654321+08:00",
+      "utc": {
+        "nanoseconds": "2026-11-25T03:25:00.987654321Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.987654300Z",
+        "microseconds": "2026-11-25T03:25:00.987654000Z",
+        "milliseconds": "2026-11-25T03:25:00.987000000Z"
+      }
+    },
+    {
+      "name": "偏移 -00:00 与 +00:00 相同",
+      "text": "2026-11-25T03:25:00.5-00:00",
+      "utc": {
+        "nanoseconds": "2026-11-25T03:25:00.500000000Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.500000000Z",
+        "microseconds": "2026-11-25T03:25:00.500000000Z",
+        "milliseconds": "2026-11-25T03:25:00.500000000Z"
+      }
+    },
+    {
+      "name": "负偏移换算到后一日再截断",
+      "text": "2026-11-24T22:25:00.0000001-05:00",
+      "utc": {
+        "nanoseconds": "2026-11-25T03:25:00.000000100Z",
+        "hundredNanoseconds": "2026-11-25T03:25:00.000000100Z",
+        "microseconds": "2026-11-25T03:25:00.000000000Z",
+        "milliseconds": "2026-11-25T03:25:00.000000000Z"
+      }
+    },
+    {
+      "name": "换算到前一年再截断",
+      "text": "2027-01-01T07:59:59.9999999+08:00",
+      "utc": {
+        "nanoseconds": "2026-12-31T23:59:59.999999900Z",
+        "hundredNanoseconds": "2026-12-31T23:59:59.999999900Z",
+        "microseconds": "2026-12-31T23:59:59.999999000Z",
+        "milliseconds": "2026-12-31T23:59:59.999000000Z"
+      }
+    },
+    {
+      "name": "四百年的闰日",
+      "text": "2000-02-29T12:00:00.000999Z",
+      "utc": {
+        "nanoseconds": "2000-02-29T12:00:00.000999000Z",
+        "hundredNanoseconds": "2000-02-29T12:00:00.000999000Z",
+        "microseconds": "2000-02-29T12:00:00.000999000Z",
+        "milliseconds": "2000-02-29T12:00:00.000000000Z"
+      }
+    }
+  ],
+  "unreadable": [
+    {
+      "name": "小数点之后没有数字",
+      "text": "2026-11-25T03:25:00.Z"
+    },
+    {
+      "name": "时为 24",
+      "text": "2026-11-25T24:00:00Z"
+    },
+    {
+      "name": "分为 60",
+      "text": "2026-11-25T03:60:00Z"
+    },
+    {
+      "name": "月为 13",
+      "text": "2026-13-01T00:00:00Z"
+    },
+    {
+      "name": "月为 00",
+      "text": "2026-00-10T00:00:00Z"
+    },
+    {
+      "name": "日为 00",
+      "text": "2026-11-00T00:00:00Z"
+    },
+    {
+      "name": "这个月没有 31 日",
+      "text": "2026-11-31T00:00:00Z"
+    },
+    {
+      "name": "百年不闰",
+      "text": "2100-02-29T00:00:00Z"
+    },
+    {
+      "name": "时只有一位",
+      "text": "2026-11-25T3:25:00Z"
+    },
+    {
+      "name": "基本格式",
+      "text": "20261125T032500Z"
+    },
+    {
+      "name": "偏移只有时",
+      "text": "2026-11-25T03:25:00+08"
+    },
+    {
+      "name": "偏移的时只有一位",
+      "text": "2026-11-25T03:25:00+8:00"
+    },
+    {
+      "name": "偏移用减号 U+2212",
+      "text": "2026-11-25T03:25:00\u221205:00"
+    },
+    {
+      "name": "时区写成 UTC",
+      "text": "2026-11-25T03:25:00UTC"
+    },
+    {
+      "name": "Z 之后又有偏移",
+      "text": "2026-11-25T03:25:00Z+08:00"
+    },
+    {
+      "name": "年份带正号",
+      "text": "+2026-11-25T03:25:00Z"
+    },
+    {
+      "name": "开头带 BOM",
+      "text": "\ufeff2026-11-25T03:25:00Z"
+    },
+    {
+      "name": "末尾带 NUL",
+      "text": "2026-11-25T03:25:00Z\u0000"
+    }
+  ]
+}
