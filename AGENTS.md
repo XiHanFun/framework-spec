@@ -88,7 +88,7 @@ XiHan Spec 是 XiHan Framework 的语言中立规范：RFC、规范性文档（�
 ## 规范的组织与修订规则
 
 - 本仓库是事实源。规范性要求必须写在正文或向量里，不能只写在 ADR 里；规范里的「ADR-NNNN」指 XiHan.Framework 仓库 `plans/adr/` 下以该编号开头的文件（RFC-0024「规范与决策记录」）。
-- .NET（XiHan.Framework）是参考实现。规范没写到、各实现之间有分歧的行为，以 .NET 实测为准写进规范；向量的期望值由 .NET 程序算出，不手算，也不取某个 SDK 的输出。拿不准 .NET 的行为或要改 .NET 时，停下来报告差异并起草规范文字，不自行发明。
+- .NET（XiHan.Framework）是参考实现。规范没写到、各实现之间有分歧的行为，以 .NET 实测为准写进规范；向量的期望值由 .NET 程序算出，不手算，也不取某个 SDK 的输出。例外是插件一侧（SDK 认领的 `plugin` 档）没有 .NET 实现的向量：期望值由 Go 一致性模块（`conformance/rules`，不是 Go SDK）的规则函数算出，再用 .NET 能用的部分与各语言的标准库交叉核对，照 `plugin/sdk-envelope-times.json`（ADR-0310）的做法。拿不准 .NET 的行为或要改 .NET 时，停下来报告差异并起草规范文字，不自行发明。
 - 公开契约的变化顺序：本仓库的 RFC → XiHan.Framework 的 ADR（`plans/adr`）→ 各实现与一致性向量。新 RFC 是 `rfcs/NNNN-<slug>.md`，状态 `草案`；评审通过后写 ADR、状态改为 `已采纳`、正文并入对应规范性目录；没有 RFC 的公开契约变更不合并。新增术语表条目同样走 RFC。
 - 修订已采纳的内容：正文就地写注记「（YYYY-MM-DD 写明 / 修订，ADR-NNNN；以前…）」，「写明」是把以前不作规定的写死，「修订」是改已经写明的；RFC 状态行追加「YYYY-MM-DD 修订：…」（同一天多次用「同日再修订」「同日第三次修订」），并把 ADR 加进「对应 ADR」。
 - 每个改动规范性内容的提交在 `CHANGELOG.md`「未发布」一节记一条，标明 PATCH、MINOR 或 MAJOR 与 ADR；三级的界定照 RFC-0024「版本」第 3 条，`v1.0.0` 之前的 MAJOR 注明「（`v1.0.0` 之前允许）」。
@@ -106,7 +106,7 @@ XiHan Spec 是 XiHan Framework 的语言中立规范：RFC、规范性文档（�
 - 运行器每一步都有截止时间（`--timeout`，默认 15 秒），`context.Context` 一路传下去；每个用例单独启动插件进程，结束时关 stdin、超时才强制终止；传给插件的环境变量只取白名单。
 - `conformance` 模块会进入 Go SDK 用户的模块图，依赖保持最少：Schema 校验等只为门禁用的库放在独立模块 `tools/speccheck`。
 - `conformance/internal/pluginv1` 是生成物，不手改；改 `plugin/plugin.proto` 后 `buf generate` 并与源同一提交。`buf.yaml` 的 lint 例外每条都写理由。
-- 向量是 JSON，顶部 `$comment` 写清字段含义、规范出处与 ADR，期望值由 .NET 算出时注明。
+- 向量是 JSON，顶部 `$comment` 写清字段含义、规范出处与 ADR，期望值由 .NET 算出时注明；属于上面例外的，注明算出期望值的规则函数，以及哪几项由 .NET、哪几项由哪种语言的标准库核对。
 
 ## 测试
 
