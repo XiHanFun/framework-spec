@@ -568,7 +568,7 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 	"workflow/expression-limits.json": func(t *testing.T) any {
 		limits, err := conformance.WorkflowExpressionLimits()
 		if err != nil || limits.ErrorCode == "" || limits.MaxLength <= 0 || limits.MaxDepth <= 0 || limits.MaxStringLength <= 0 || limits.MaxEchoLength <= 0 || len(limits.Variables) == 0 ||
-			len(limits.Blocks) == 0 || len(limits.Lengths) == 0 || len(limits.Nestings) == 0 || len(limits.Chains) == 0 || len(limits.Concatenations) == 0 || len(limits.Renderings) == 0 || len(limits.Echoes) == 0 {
+			len(limits.Blocks) == 0 || len(limits.Numerals) == 0 || len(limits.Lengths) == 0 || len(limits.Nestings) == 0 || len(limits.Chains) == 0 || len(limits.Concatenations) == 0 || len(limits.Renderings) == 0 || len(limits.Echoes) == 0 {
 			t.Errorf("workflow expression limits: %v", err)
 		}
 		var names []string

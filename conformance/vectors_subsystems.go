@@ -1047,6 +1047,15 @@ type WorkflowExpressionArray struct {
 	Repeat   int             `json:"repeat"`
 }
 
+// WorkflowExpressionNumeral 是一个原文很长的数字变量（ADR-0303）：Variable 的值是 JSON 数字，它在 JSON 文本里的原文是
+// Head 接 Repeat 个 Unit；读它的工作量按原文的长度记，回放时要从这段原文解析，不能先变成 float64 再写出来。
+type WorkflowExpressionNumeral struct {
+	Variable string `json:"variable"`
+	Head     string `json:"head"`
+	Unit     string `json:"unit"`
+	Repeat   int    `json:"repeat"`
+}
+
 // WorkflowExpressionBudget 是一条工作量的用例（ADR-0296）：源文本是 Head 接 Count 个 Link 再接 Tail，按 Mode
 // （evaluate、render）求值或渲染；Valid 为真时 Work 是累计的工作量，为假时以 budget_exceeded 失败、Expression 是错误的
 // expression 参数（求值占位里的表达式时超过的是那段表达式，读占位的结果时超过的是模板，都已截断）。
@@ -1062,7 +1071,7 @@ type WorkflowExpressionBudget struct {
 	Expression *string `json:"expression,omitempty"`
 }
 
-// WorkflowExpressionLimitVectors 对应 workflow/expression-limits.json（RFC-0021「表达式」的「长度与上限」，ADR-0287、ADR-0296）。
+// WorkflowExpressionLimitVectors 对应 workflow/expression-limits.json（RFC-0021「表达式」的「长度与上限」，ADR-0287、ADR-0296、ADR-0303）。
 type WorkflowExpressionLimitVectors struct {
 	ErrorCode       string                            `json:"errorCode"`
 	MaxLength       int                               `json:"maxLength"`
@@ -1074,6 +1083,7 @@ type WorkflowExpressionLimitVectors struct {
 	Variables       json.RawMessage                   `json:"variables"`
 	Blocks          []WorkflowExpressionBlock         `json:"blocks"`
 	Arrays          []WorkflowExpressionArray         `json:"arrays"`
+	Numerals        []WorkflowExpressionNumeral       `json:"numerals"`
 	Lengths         []WorkflowExpressionLength        `json:"lengths"`
 	Nestings        []WorkflowExpressionNesting       `json:"nestings"`
 	Chains          []WorkflowExpressionChain         `json:"chains"`

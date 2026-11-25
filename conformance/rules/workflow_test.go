@@ -1,6 +1,7 @@
 package rules_test
 
 import (
+	"encoding/json"
 	"regexp"
 	"slices"
 	"strings"
@@ -441,6 +442,54 @@ func TestWorkflowExpressionLimitsFollowTheVectors(t *testing.T) {
 			t.Errorf("the array %q is incomplete", array.Variable)
 		}
 	}
+	// 原文很长的数字：原文是合法的 JSON 数字，变量名不与别的变量重名，读它的用例有正好到上限的与超过的（ADR-0303）
+	var variables map[string]json.RawMessage
+	if err := json.Unmarshal(vectors.Variables, &variables); err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]bool{}
+	for name := range variables {
+		names[name] = true
+	}
+	for _, block := range vectors.Blocks {
+		names[block.Variable] = true
+	}
+	for _, array := range vectors.Arrays {
+		names[array.Variable] = true
+	}
+	if len(vectors.Numerals) == 0 {
+		t.Error("the limits must keep a long number")
+	}
+	for _, numeral := range vectors.Numerals {
+		text := numeral.Head + strings.Repeat(numeral.Unit, numeral.Repeat)
+		var number json.Number
+		if numeral.Variable == "" || names[numeral.Variable] || numeral.Repeat < 1 || json.Unmarshal([]byte(text), &number) != nil || number.String() != text {
+			t.Errorf("the numeral %q must be a JSON number with a name of its own", numeral.Variable)
+		}
+		names[numeral.Variable] = true
+		atLimit, over := false, false
+		for _, c := range vectors.Budgets {
+			if strings.Contains(c.Head, numeral.Variable) {
+				atLimit = atLimit || (c.Valid && c.Work != nil && *c.Work == vectors.MaxWork)
+				over = over || !c.Valid
+			}
+		}
+		if !atLimit || !over {
+			t.Errorf("the budgets must read the numeral %q up to the limit and over it", numeral.Variable)
+		}
+	}
+	// 变量里要有原文与数字的文本不同的数字：回放把它改写成规范的写法就对不上读取量
+	rewritten := false
+	for _, raw := range variables {
+		var number json.Number
+		if json.Unmarshal(raw, &number) == nil && !rules.IsWorkflowNumberText(string(raw)) {
+			rewritten = true
+		}
+	}
+	if !rewritten {
+		t.Error("the variables must keep a number written otherwise than its number text")
+	}
+
 	sides := map[string]bool{}
 	for _, c := range vectors.Budgets {
 		source := c.Head + strings.Repeat(c.Link, c.Count) + c.Tail
