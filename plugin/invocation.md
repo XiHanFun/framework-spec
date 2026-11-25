@@ -71,9 +71,12 @@
 - `HandleEventRequest.mode` 是这次投递的订阅方式（`competing` 或 `broadcast`），宿主总是填写，空同 `competing`。插件按（主题，方式）找处理器，再看类型：只交给以这种方式声明、`message_type` 为空或等于信封 `type` 的订阅。同一主题的不同类型可以各用一种方式（握手第 5 条只禁止同一（主题，类型）对重复），例如（`t`，空）竞争、（`t`，`x`）广播时，类型 `x` 的消息以两种方式各到一次，插件靠 `mode` 把竞争投递交给前者、广播投递交给后者。插件找不到以这种方式声明的订阅时返回 `error`，不改交给另一种方式的处理器。
 - `Envelope` 是 CloudEvents 1.0 属性的平铺；`attempt` 从 1 起。插件返回 `ok` 表示已处理；返回 `error` 由代理按重试与死信策略处理；插件不可用期间的投递同样按该策略处理。
 - `Envelope.time`（2026-11-25 修订，ADR-0293；以前宿主读插件写来的 `time` 用通用的日期解析：没有偏移的按 UTC 读，空格代替 `T`、没有秒、只有日期、偏移不带冒号、首尾带空白、超过九位的小数与 RFC 1123 的日期也读得出）：空串表示没有这个属性；不是空串时文法与 RFC-0009「信封」第 3 条相同，也就是 RFC-0003 规则 8 的读法（`^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?([Zz]|[+-][0-9]{2}:[0-9]{2})\z`，按整串匹配、不裁剪空白，各段的取值范围与换算成 UTC 之后的范围照规则 8），读成 UTC 时刻，比实现的时钟精度更细的小数截断、不进位。
-  - 宿主写给插件的（`HandleEventRequest.envelope`）一律合这条文法：信封没有时间写空串，有则换算成 UTC、七位小数、偏移写 `+00:00`（.NET 的 `O` 格式，与截止时间的写法相同）。SDK 原样交给作者，不另解析、不改写。
-  - 插件写给宿主的（`Host.Publish` 的信封、Wasm 的 `publish` 导入）不合文法或越界时，那一项不发布，结果是 `MESSAGING_VALIDATION_002` + `messaging.envelope.invalid_time`（参数 `time` 是原文），其余各项照常；这是 §5「逐项的核对」里「信封能否转换」那一步，宿主不换别的格式再试，也不当作没有时间。SDK 不在本地核对，原样写出作者给的文本：本地先判会改变与宿主其余逐项核对的先后（§5）。SDK 另提供以时刻类型写入 `time` 的接口时，写出的文本必须合这条文法，宜与宿主的写法相同。
-  - 向量：`conformance/vectors/plugin/envelope-times.json`。
+  - 宿主写给插件的（`HandleEventRequest.envelope`）一律合这条文法：信封没有时间写空串，有则换算成 UTC、七位小数、偏移写 `+00:00`（.NET 的 `O` 格式，与截止时间的写法相同）。SDK 怎样读见下面「SDK 读宿主写来的」。
+  - 插件写给宿主的（`Host.Publish` 的信封、Wasm 的 `publish` 导入）不合文法或越界时，那一项不发布，结果是 `MESSAGING_VALIDATION_002` + `messaging.envelope.invalid_time`（参数 `time` 是原文），其余各项照常；这是 §5「逐项的核对」里「信封能否转换」那一步，宿主不换别的格式再试，也不当作没有时间。SDK 怎样写见下面「SDK 写给宿主的」。
+  - SDK 读宿主写来的（2026-11-25 修订，ADR-0306；以前 SDK 把宿主写来的文本原样交给作者，不另解析、不改写）：SDK 把 `time` 按这条文法（RFC-0003 规则 8）读成该语言的时间类型交给作者，空串是没有时间。比该时间类型的精度更细的小数截去、不进位，得到的时刻不晚于原文，纪元之前的时刻也一样。读不出（不合文法、越界，或者合文法却超出该语言时间类型能表示的范围）时以 gRPC `InvalidArgument` 拒绝这次投递，不交给处理器：这是下面「插件一侧处理 `HandleEvent`」第 2 步「宿主写来的内容不合法」，排在找订阅之前。宿主照「宿主写给插件的」那一条写出时，只会遇到最后一种情形（如 Windows 上 Rust 的 `SystemTime` 表示不了 1601 年之前的时刻）。
+  - SDK 写给宿主的（2026-11-25 修订，ADR-0306；以前作者给的是文本，SDK 原样写出、不在本地核对，另提供以时刻类型写入的接口时要求写出的文本合这条文法、宜与宿主的写法相同）：作者发布时给该语言的时间类型，或者不给。SDK 把它换算成 UTC，写成 `YYYY-MM-DDTHH:MM:SS`、可选的秒的小数与 `Z`（`T` 与 `Z` 大写）：小数去掉末尾的 0，全为 0 时不写小数点，最多写到该时间类型的精度（纳秒九位、100 纳秒七位、微秒六位、毫秒三位）；不给时写空串。例如 `2026-11-25T03:25:00Z`、`2026-11-25T03:25:00.5Z`、`2026-11-25T03:25:00.12Z`，`2026-11-25T11:25:00.25+08:00` 这个时刻写成 `2026-11-25T03:25:00.25Z`。这与宿主的写法（七位小数、`+00:00`）不同，两种都合这条文法。
+    - SDK 不在本地核对年份范围：换算成 UTC 之后年份不在 `0001`–`9999` 之间的时刻照写（不改成范围之内的时刻，也不写成空串），由宿主按上面「插件写给宿主的」那一条以 `messaging.envelope.invalid_time` 拒绝那一项，其余各项照常。理由同 SDK 不在本地核对 `xihantenant`：本地先判会改变与宿主其余逐项核对的先后（§5）。这样的时刻写成什么文本规范不作规定（各 SDK 现在的写法不一，有五位数的年份、带正负号的年份与 `0000` 年），时间类型里不是有效时刻的值（如 JavaScript 的 `Invalid Date`）同样照写、写法不作规定。
+  - 向量：`conformance/vectors/plugin/envelope-times.json`（档 `host`：宿主读插件写来的文本与宿主写给插件的文本）。SDK 读宿主写来的文本用的是同一条文法；SDK 写给宿主的文本没有收向量（ADR-0306）。
 - `Envelope.data_schema`（字段 11，2026-11-25 增补，ADR-0305；以前协议没有这个字段，信封也不承载 `dataschema`）是 RFC-0009「信封」的 `dataschema`：空串表示没有这个属性，不是空串时照原样就是它的值，不裁剪、不规范化，取值规则与 RFC-0009 相同（与 `source` 一样只要求非空，不核对 URI 语法）。Wasm 载体的 proto3 JSON 里字段名是 `dataSchema`。
   - 宿主写给插件的（`HandleEventRequest.envelope`）：信封有 `dataschema` 时照原样写，没有写空串。SDK 原样交给作者，不另解析。
   - 插件写给宿主的（`Host.Publish` 的信封、Wasm 的 `publish` 导入）：空串是没有；不是空串时照原样作为 `dataschema` 发布，经代理到达处理器时不变。SDK 不在本地核对、原样写出作者给的文本，理由同 `time`。只有空白的值规范不作规定（同 RFC-0009「一致性」里不收进向量的写法）：.NET 宿主与 `source` 只有空白时一样拒绝那一项，`MESSAGING_VALIDATION_002` + `messaging.envelope.invalid`，这是 §5「逐项的核对」里「信封能否转换」那一步。
@@ -81,7 +84,7 @@
 - 至少一次投递：插件处理器必须幂等（可用 `baggage` 里的 `xihan.idempotency-key` 或信封 `id`）。
 - 插件一侧处理 `HandleEvent` 依次（2026-11-18 写明，ADR-0237；以前找不到订阅时各 SDK 的错误码不同，匹配多个订阅时有的只交给第一个）：
   1. 会话令牌（`handshake.md` §4）。
-  2. 没有 `envelope`，或 `mode` 不是空、`competing`、`broadcast`：gRPC `InvalidArgument`。
+  2. 宿主写来的内容不合法：没有 `envelope`，`mode` 不是空、`competing`、`broadcast`，或者信封的 `time` 不是空串却读不出（§4「SDK 读宿主写来的」；2026-11-25 修订，ADR-0306，以前 SDK 不读 `time`）：gRPC `InvalidArgument`。
   3. 按（主题，方式，类型）找订阅，一个也没有：`Status.error` 为 `KERNEL_NOTFOUND_001` + `plugins.event.unsubscribed`（`id` 为清单 ID，`topic`、`type` 取信封，`mode` 为这次投递的方式，空写 `competing`）。
   4. 插件在可服务状态（`lifecycle.md` §7.3），否则 `PLUGINS_UNAVAILABLE_001` + `plugins.process.unavailable`。
   5. 按 §2 从 `metadata` 还原上下文；匹配的订阅按握手里的声明顺序依次交给各自的处理器，第一个失败即终止并作为结果（与 RFC-0009「投递」第 2 条的派发器相同）。例如（`t`，空）与（`t`，`x`）都是竞争订阅时，类型 `x` 的一次竞争投递先后交给两者。处理器抛出为 `KERNEL_UNEXPECTED_001` + `kernel.invocation.unhandled_exception`（同 RFC-0011 规则 5）。全部成功为 `ok`。
@@ -140,7 +143,7 @@
 
 ## 7. 一致性
 
-gRPC 黑盒套件 `XiHan.Framework.Plugins.Conformance`（`PluginProtocolConformance`，任何语言的插件以其构建产物目录继承运行）以本文件、`handshake.md` 与 `lifecycle.md` 为用例来源：握手行与版本协商、无共同版本时拒绝、不带或带错会话令牌的调用以 `Unauthenticated` 拒绝（`handshake.md` §4，ADR-0202）、清单一致性（含清单不写 `contributes.pipeline`）、Configure / Start / Health / WatchHealth / Stop 与宽限内退出、未知操作 `Unimplemented`、声明的操作都返回 `status`、订阅投递确认、stdin 关闭即退出，以及插件一侧的规则（2026-11-18 补充，ADR-0237）：调用次序不对以 `FailedPrecondition` 拒绝、`Start` 之前的 `Health` 报本地状态、未就绪时的调用与投递报 `plugins.process.unavailable`（未声明的操作仍先报 `Unimplemented`）、投递找不到订阅报 `plugins.event.unsubscribed`、未知的投递方式 `InvalidArgument`、`InvokeStream` 的第一帧、配置节不是对象时进入 `Failed`、`Start` 之前的 `Stop` 应答后退出、两个会话令牌值也以 `Unauthenticated` 拒绝；每个用例都以多项的 `XIHAN_PLUGIN_HOST_ADDRESS` 启动插件。framework-spec 的黑盒运行器 `xihan-conformance plugin` 有同样的用例。回调的令牌与权限、回调的本地核对与状态映射、崩溃重启由宿主与 SDK 实现的测试覆盖（回放 `callback-status.json`）；流式帧序随流式操作契约补充。数据向量见 `conformance/vectors/plugin/`。
+gRPC 黑盒套件 `XiHan.Framework.Plugins.Conformance`（`PluginProtocolConformance`，任何语言的插件以其构建产物目录继承运行）以本文件、`handshake.md` 与 `lifecycle.md` 为用例来源：握手行与版本协商、无共同版本时拒绝、不带或带错会话令牌的调用以 `Unauthenticated` 拒绝（`handshake.md` §4，ADR-0202）、清单一致性（含清单不写 `contributes.pipeline`）、Configure / Start / Health / WatchHealth / Stop 与宽限内退出、未知操作 `Unimplemented`、声明的操作都返回 `status`、订阅投递确认、stdin 关闭即退出，以及插件一侧的规则（2026-11-18 补充，ADR-0237）：调用次序不对以 `FailedPrecondition` 拒绝、`Start` 之前的 `Health` 报本地状态、未就绪时的调用与投递报 `plugins.process.unavailable`（未声明的操作仍先报 `Unimplemented`）、投递找不到订阅报 `plugins.event.unsubscribed`、未知的投递方式 `InvalidArgument`、`InvokeStream` 的第一帧、配置节不是对象时进入 `Failed`、`Start` 之前的 `Stop` 应答后退出、两个会话令牌值也以 `Unauthenticated` 拒绝；每个用例都以多项的 `XIHAN_PLUGIN_HOST_ADDRESS` 启动插件。framework-spec 的黑盒运行器 `xihan-conformance plugin` 有同样的用例。回调的令牌与权限、回调的本地核对与状态映射、崩溃重启由宿主与 SDK 实现的测试覆盖（回放 `callback-status.json`），SDK 读写信封的 `time`（§4，ADR-0306）由 SDK 实现的测试覆盖；流式帧序随流式操作契约补充。数据向量见 `conformance/vectors/plugin/`。
 
 ## 8. 运行时的消息键
 
