@@ -1,5 +1,5 @@
 {
-  "$comment": "工作流表达式的内置函数（RFC-0021「表达式」的「内置函数」「时间」，ADR-0287）：len、contains、startsWith、endsWith、upper、lower、trim、isNullOrEmpty、abs、min、max、round、toNumber、toString、now、date，函数名不区分 ASCII 字母的大小写。字段的含义与 expression-syntax.json 相同：values 是求值成功的（type 与 text），errors 是以 errorCode 失败的（messageKey、arguments 不含 expression、syntax 为假表示求值时才失败）。now 是求值时的时刻，now() 返回它的规范文本（UTC、七位小数、+00:00，与 RFC-0003 规则 8 的写法相同）。date 读的时间文本：只有日期，或日期加时与分，秒、一到九位的小数与偏移可以省略，日期与时间之间是 T、t 或一个空格，没有偏移当作 UTC，比 100 纳秒更细的小数截断；别的写法都不是时间。upper 与 lower 逐个码位按 Unicode 的简单大小写映射，用例只收 ASCII、拉丁文增补、希腊、西里尔与全角字母：U+0130 与 U+0131 怎样转换实现自定。数字文本的文法与舍入见 expression-operators.json 的说明。期望值由 .NET 参考实现（WorkflowExpressionEvaluator）算出。",
+  "$comment": "工作流表达式的内置函数（RFC-0021「表达式」的「内置函数」「时间」，ADR-0287、ADR-0296）：len、contains、startsWith、endsWith、upper、lower、trim、isNullOrEmpty、abs、min、max、round、format、toNumber、toString、now、date，函数名不区分 ASCII 字母的大小写。format(x, n) 是 2026-11-25 加的（ADR-0296）：x 照 round(x, n) 舍入（正好一半时远离零）之后写成恰好 n 位小数的字符串，n 必须是 0 到 28 之间的整数，否则 number_out_of_range。字段的含义与 expression-syntax.json 相同：values 是求值成功的（type 与 text），errors 是以 errorCode 失败的（messageKey、arguments 不含 expression、syntax 为假表示求值时才失败）。now 是求值时的时刻，now() 返回它的规范文本（UTC、七位小数、+00:00，与 RFC-0003 规则 8 的写法相同）。date 读的时间文本：只有日期，或日期加时与分，秒、一到九位的小数与偏移可以省略，日期与时间之间是 T、t 或一个空格，没有偏移当作 UTC，比 100 纳秒更细的小数截断；别的写法都不是时间。upper 与 lower 逐个码位按 Unicode 的简单大小写映射，用例只收 ASCII、拉丁文增补、希腊、西里尔与全角字母：U+0130 与 U+0131 怎样转换实现自定。数字文本的文法与舍入见 expression-operators.json 的说明。期望值由 .NET 参考实现（WorkflowExpressionEvaluator）算出。",
   "errorCode": "WORKFLOW_VALIDATION_003",
   "now": "2026-10-26T08:00:00.1234567+00:00",
   "variables": {
@@ -1212,6 +1212,240 @@
       "expression": "STARTSWITH(s, 'H')",
       "type": "boolean",
       "text": "true"
+    },
+    {
+      "name": "format：补零到两位小数，金额显示",
+      "expression": "format(19.9, 2)",
+      "type": "string",
+      "text": "19.90"
+    },
+    {
+      "name": "format：变量里的 1.50 照样写两位小数",
+      "expression": "format(d, 2)",
+      "type": "string",
+      "text": "1.50"
+    },
+    {
+      "name": "format：整数补小数点与零",
+      "expression": "format(i, 2)",
+      "type": "string",
+      "text": "5.00"
+    },
+    {
+      "name": "format：零位小数不写小数点",
+      "expression": "format(5, 0)",
+      "type": "string",
+      "text": "5"
+    },
+    {
+      "name": "format：多余的位数舍去",
+      "expression": "format(1.2345, 2)",
+      "type": "string",
+      "text": "1.23"
+    },
+    {
+      "name": "format：正好一半时远离零（一半取偶会是 2）",
+      "expression": "format(2.5, 0)",
+      "type": "string",
+      "text": "3"
+    },
+    {
+      "name": "format：正好一半时远离零，与一半取偶相同的一侧",
+      "expression": "format(3.5, 0)",
+      "type": "string",
+      "text": "4"
+    },
+    {
+      "name": "format：两位小数正好一半时远离零（一半取偶会是 0.12）",
+      "expression": "format(0.125, 2)",
+      "type": "string",
+      "text": "0.13"
+    },
+    {
+      "name": "format：两位小数正好一半，与一半取偶相同的一侧",
+      "expression": "format(0.135, 2)",
+      "type": "string",
+      "text": "0.14"
+    },
+    {
+      "name": "format：舍入与 round 相同",
+      "expression": "format(1.005, 2) == toString(round(1.005, 2)) + '0'",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "format：不到一半舍去",
+      "expression": "format(2.449, 1)",
+      "type": "string",
+      "text": "2.4"
+    },
+    {
+      "name": "format：负数以负号开头",
+      "expression": "format(-1.5, 2)",
+      "type": "string",
+      "text": "-1.50"
+    },
+    {
+      "name": "format：负数正好一半时远离零",
+      "expression": "format(-2.5, 0)",
+      "type": "string",
+      "text": "-3"
+    },
+    {
+      "name": "format：负数舍入成零不写负号",
+      "expression": "format(-0.001, 2)",
+      "type": "string",
+      "text": "0.00"
+    },
+    {
+      "name": "format：负数舍入到最小单位",
+      "expression": "format(-0.005, 2)",
+      "type": "string",
+      "text": "-0.01"
+    },
+    {
+      "name": "format：负零就是零",
+      "expression": "format(-0, 1)",
+      "type": "string",
+      "text": "0.0"
+    },
+    {
+      "name": "format：零补零",
+      "expression": "format(0, 3)",
+      "type": "string",
+      "text": "0.000"
+    },
+    {
+      "name": "format：不到一半的舍成零",
+      "expression": "format(0.4, 0)",
+      "type": "string",
+      "text": "0"
+    },
+    {
+      "name": "format：一半进到 1",
+      "expression": "format(0.5, 0)",
+      "type": "string",
+      "text": "1"
+    },
+    {
+      "name": "format：进位进到整数部分",
+      "expression": "format(9.995, 2)",
+      "type": "string",
+      "text": "10.00"
+    },
+    {
+      "name": "format：最大的数，零位小数",
+      "expression": "format(79228162514264337593543950335, 0)",
+      "type": "string",
+      "text": "79228162514264337593543950335"
+    },
+    {
+      "name": "format：最大的数补 28 位小数，结果是 58 个码元的字符串",
+      "expression": "format(79228162514264337593543950335, 28)",
+      "type": "string",
+      "text": "79228162514264337593543950335.0000000000000000000000000000"
+    },
+    {
+      "name": "format：最小的单位写 28 位小数",
+      "expression": "format(0.0000000000000000000000000001, 28)",
+      "type": "string",
+      "text": "0.0000000000000000000000000001"
+    },
+    {
+      "name": "format：最小的单位舍到 27 位是零",
+      "expression": "format(0.0000000000000000000000000001, 27)",
+      "type": "string",
+      "text": "0.000000000000000000000000000"
+    },
+    {
+      "name": "format：28 位小数的数写 28 位不变",
+      "expression": "format(7.9228162514264337593543950335, 28)",
+      "type": "string",
+      "text": "7.9228162514264337593543950335"
+    },
+    {
+      "name": "format：小数位数是 28",
+      "expression": "format(1.23456, 28)",
+      "type": "string",
+      "text": "1.2345600000000000000000000000"
+    },
+    {
+      "name": "format：结果的长度",
+      "expression": "len(format(79228162514264337593543950335, 28))",
+      "type": "number",
+      "text": "58"
+    },
+    {
+      "name": "format：最小的数补 28 位小数，带负号是 59 个码元",
+      "expression": "len(format(-79228162514264337593543950335, 28))",
+      "type": "number",
+      "text": "59"
+    },
+    {
+      "name": "format：数字文本先当数字读",
+      "expression": "format('1.5', 2)",
+      "type": "string",
+      "text": "1.50"
+    },
+    {
+      "name": "format：数字文本可以带指数与首尾空白",
+      "expression": "format(' 1e2 ', 1)",
+      "type": "string",
+      "text": "100.0"
+    },
+    {
+      "name": "format：负的数字文本",
+      "expression": "format('-0.125', 2)",
+      "type": "string",
+      "text": "-0.13"
+    },
+    {
+      "name": "format：小数位数可以是数字文本",
+      "expression": "format(1.5, '2')",
+      "type": "string",
+      "text": "1.50"
+    },
+    {
+      "name": "format：小数位数是值为整数的小数",
+      "expression": "format(1.5, 2.0)",
+      "type": "string",
+      "text": "1.50"
+    },
+    {
+      "name": "format：小数位数的数字文本带指数",
+      "expression": "format(1, '2e0')",
+      "type": "string",
+      "text": "1.00"
+    },
+    {
+      "name": "format：结果是字符串，+ 是拼接",
+      "expression": "format(1, 2) + 1",
+      "type": "string",
+      "text": "1.001"
+    },
+    {
+      "name": "format：结果当数字比较按数值",
+      "expression": "format(1, 2) == 1",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "format：结果读回的数是 round 的结果",
+      "expression": "toNumber(format(2.345, 2)) == round(2.345, 2)",
+      "type": "boolean",
+      "text": "true"
+    },
+    {
+      "name": "format：函数名不区分大小写",
+      "expression": "FORMAT(1, 1)",
+      "type": "string",
+      "text": "1.0"
+    },
+    {
+      "name": "format：实参可以是别的函数的结果",
+      "expression": "format(abs(-3), 1)",
+      "type": "string",
+      "text": "3.0"
     }
   ],
   "errors": [
@@ -1888,6 +2122,143 @@
       "messageKey": "workflow.expression.not_date",
       "arguments": {
         "value": "[1,2]"
+      }
+    },
+    {
+      "name": "format：x 不是数字文本",
+      "expression": "format('abc', 2)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "format"
+      }
+    },
+    {
+      "name": "format：x 是 null",
+      "expression": "format(n, 2)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "format"
+      }
+    },
+    {
+      "name": "format：x 是布尔",
+      "expression": "format(t, 2)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "format"
+      }
+    },
+    {
+      "name": "format：x 是数组",
+      "expression": "format(arr, 2)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "format"
+      }
+    },
+    {
+      "name": "format：小数位数不是数字",
+      "expression": "format(1, 'x')",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "format"
+      }
+    },
+    {
+      "name": "format：小数位数是 null",
+      "expression": "format(1, n)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "format"
+      }
+    },
+    {
+      "name": "format：小数位数不是整数",
+      "expression": "format(1, 2.5)",
+      "syntax": false,
+      "messageKey": "workflow.expression.number_out_of_range",
+      "arguments": {
+        "operator": "format"
+      }
+    },
+    {
+      "name": "format：小数位数是负数",
+      "expression": "format(1, -1)",
+      "syntax": false,
+      "messageKey": "workflow.expression.number_out_of_range",
+      "arguments": {
+        "operator": "format"
+      }
+    },
+    {
+      "name": "format：小数位数超过 28",
+      "expression": "format(1, 29)",
+      "syntax": false,
+      "messageKey": "workflow.expression.number_out_of_range",
+      "arguments": {
+        "operator": "format"
+      }
+    },
+    {
+      "name": "format：小数位数的数字文本超过 28",
+      "expression": "format(1, '29')",
+      "syntax": false,
+      "messageKey": "workflow.expression.number_out_of_range",
+      "arguments": {
+        "operator": "format"
+      }
+    },
+    {
+      "name": "format：先核对 x 再核对小数位数",
+      "expression": "format('abc', 2.5)",
+      "syntax": false,
+      "messageKey": "workflow.expression.operands_not_numeric",
+      "arguments": {
+        "operator": "format"
+      }
+    },
+    {
+      "name": "format：两个实参都先求值",
+      "expression": "format(nope, 2)",
+      "syntax": false,
+      "messageKey": "workflow.expression.unknown_variable",
+      "arguments": {
+        "name": "nope"
+      }
+    },
+    {
+      "name": "format：第二个实参里的未知变量",
+      "expression": "format(1, nope)",
+      "syntax": false,
+      "messageKey": "workflow.expression.unknown_variable",
+      "arguments": {
+        "name": "nope"
+      }
+    },
+    {
+      "name": "format：少一个实参",
+      "expression": "format(1)",
+      "syntax": true,
+      "messageKey": "workflow.expression.argument_count",
+      "arguments": {
+        "function": "format",
+        "count": 2
+      }
+    },
+    {
+      "name": "format：多一个实参",
+      "expression": "format(1, 2, 3)",
+      "syntax": true,
+      "messageKey": "workflow.expression.argument_count",
+      "arguments": {
+        "function": "format",
+        "count": 2
       }
     }
   ]

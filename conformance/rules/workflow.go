@@ -126,7 +126,7 @@ var WorkflowExpressionEvaluationErrors = []string{
 // WorkflowExpressionFunctions 是表达式的内置函数（RFC-0021「表达式」的「内置函数」）；函数名不区分 ASCII 字母的大小写。
 var WorkflowExpressionFunctions = []string{
 	"len", "contains", "startsWith", "endsWith", "upper", "lower", "trim", "isNullOrEmpty",
-	"abs", "min", "max", "round", "toNumber", "toString", "now", "date",
+	"abs", "min", "max", "round", "format", "toNumber", "toString", "now", "date",
 }
 
 // WorkflowExpressionValueTypes 是表达式结果的类型，也就是 JSON 的六种值。
