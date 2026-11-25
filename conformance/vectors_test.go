@@ -146,6 +146,13 @@ var nonEmptyChecks = map[string]func(t *testing.T) any{
 		}
 		return reading
 	},
+	"plugin/envelope-times.json": func(t *testing.T) any {
+		times, err := conformance.EnvelopeTimes()
+		if err != nil || len(times.Valid) == 0 || len(times.Invalid) == 0 || times.Error.Code == "" || times.Error.Key == "" || len(times.Written) == 0 {
+			t.Errorf("envelope times: %v", err)
+		}
+		return times
+	},
 	"plugin/binding-properties.json": func(t *testing.T) any {
 		bindings, err := conformance.PluginBindings()
 		if err != nil || bindings.PluginID == "" || bindings.Limits.MaxProperties == 0 || bindings.Limits.MaxNameLength == 0 || bindings.Limits.MaxBytes == 0 ||

@@ -64,6 +64,48 @@ func TestHostAddressesFollowTheVectors(t *testing.T) {
 	}
 }
 
+func TestEnvelopeTimesFollowTheVectors(t *testing.T) {
+	vectors, err := conformance.EnvelopeTimes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range vectors.Valid {
+		got, present, ok := rules.ReadEnvelopeTime(c.Text)
+		switch {
+		case !ok:
+			t.Errorf("%q must be read", c.Text)
+		case c.UTC == nil && present:
+			t.Errorf("%q means no time, got %s", c.Text, got.Format(time.RFC3339Nano))
+		case c.UTC != nil && (!present || !got.Equal(mustTime(t, *c.UTC)) || got.Location() != time.UTC):
+			t.Errorf("%q read as %s, want %s", c.Text, got.Format(time.RFC3339Nano), *c.UTC)
+		}
+	}
+	for _, text := range vectors.Invalid {
+		if got, _, ok := rules.ReadEnvelopeTime(text); ok {
+			t.Errorf("%q must be rejected, got %s", text, got.Format(time.RFC3339Nano))
+		}
+	}
+	if vectors.Error.Code != rules.EnvelopeTimeErrorCode || vectors.Error.Key != rules.EnvelopeTimeErrorKey {
+		t.Errorf("error %+v differs from the rules", vectors.Error)
+	}
+	for _, c := range vectors.Written {
+		if c.Instant == nil {
+			if c.Text != "" {
+				t.Errorf("no time must be written as an empty string, not %q", c.Text)
+			}
+			continue
+		}
+		instant := mustTime(t, *c.Instant)
+		if got := rules.FormatEnvelopeTime(instant); got != c.Text {
+			t.Errorf("%s written as %q, want %q", *c.Instant, got, c.Text)
+		}
+		// 写给插件的文本按同一文法读回同一时刻
+		if read, present, ok := rules.ReadEnvelopeTime(c.Text); !ok || !present || !read.Equal(instant) {
+			t.Errorf("%q must read back as %s", c.Text, *c.Instant)
+		}
+	}
+}
+
 func TestDeadlinesFollowTheVectors(t *testing.T) {
 	vectors, err := conformance.Deadlines()
 	if err != nil {

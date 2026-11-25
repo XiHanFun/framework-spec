@@ -125,6 +125,32 @@ type HTTPDeadlineCase struct {
 	Deadline *string             `json:"deadline"`
 }
 
+// EnvelopeTimeCase 是宿主读得出的一个 Envelope.time 文本：UTC 是精确到纳秒的 UTC 时刻（RFC 3339，九位小数），nil 表示没有时间（空串）。
+type EnvelopeTimeCase struct {
+	Text string  `json:"text"`
+	UTC  *string `json:"utc"`
+}
+
+// EnvelopeTimeError 是宿主拒绝插件写来的 Envelope.time 时那一项的错误码与消息键；details 是 {"time": 原文}。
+type EnvelopeTimeError struct {
+	Code string `json:"code"`
+	Key  string `json:"key"`
+}
+
+// WrittenEnvelopeTime 是宿主写给插件的一个 Envelope.time：Instant 是信封里的时刻（RFC 3339，可带偏移，nil 表示没有），Text 是写出的文本。
+type WrittenEnvelopeTime struct {
+	Instant *string `json:"instant"`
+	Text    string  `json:"text"`
+}
+
+// EnvelopeTimeVectors 对应 plugin/envelope-times.json（invocation.md §4，ADR-0293）。
+type EnvelopeTimeVectors struct {
+	Valid   []EnvelopeTimeCase    `json:"valid"`
+	Invalid []string              `json:"invalid"`
+	Error   EnvelopeTimeError     `json:"error"`
+	Written []WrittenEnvelopeTime `json:"written"`
+}
+
 // HTTPDeadlineVectors 对应 context/http-deadline.json（RFC-0003 规则 8，protocol/http.md，protocol/grpc.md，ADR-0276）：Now 是宿主时钟的当前时刻。
 type HTTPDeadlineVectors struct {
 	Now   string             `json:"now"`
@@ -731,6 +757,7 @@ var typedVectors = []TypedVector{
 	vectorFile[BindingPropertyVectors]("plugin/binding-properties.json"),
 	vectorFile[CallbackStatusVectors]("plugin/callback-status.json"),
 	vectorFile[DeadlineVectors]("plugin/deadlines.json"),
+	vectorFile[EnvelopeTimeVectors]("plugin/envelope-times.json"),
 	vectorFile[ErrorReadingVectors]("plugin/error-reading.json"),
 	vectorFile[HandshakeLineVectors]("plugin/handshake-lines.json"),
 	vectorFile[HostAddressVectors]("plugin/host-addresses.json"),
@@ -819,6 +846,11 @@ func HostAddresses() (HostAddressVectors, error) {
 // Deadlines 读取 InvocationMetadata.deadline 的读法、生效的截止时间与写出向量。
 func Deadlines() (DeadlineVectors, error) {
 	return typed[DeadlineVectors]()
+}
+
+// EnvelopeTimes 读取插件协议 Envelope.time 的读写向量。
+func EnvelopeTimes() (EnvelopeTimeVectors, error) {
+	return typed[EnvelopeTimeVectors]()
 }
 
 // HTTPDeadlines 读取 HTTP 载体上截止时间的读法向量。

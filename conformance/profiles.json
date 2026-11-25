@@ -90,6 +90,7 @@
         "context/http-deadline.json",
         "plugin/binding-properties.json",
         "plugin/deadlines.json",
+        "plugin/envelope-times.json",
         "plugin/error-reading.json",
         "plugin/handshake-lines.json",
         "plugin/host-addresses.json",

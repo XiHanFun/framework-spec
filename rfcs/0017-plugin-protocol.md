@@ -1,6 +1,6 @@
 # RFC-0017 进程外插件协议
 
-> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：清单写了 `contributes.pipeline` 的插件在发现时被拒，不再静默忽略；同日第三次修订：gRPC `Cancelled` 不再按时钟改报超时，交给截止时间中间件归因；2026-11-12 修订：回调与发布只能带宿主随调用交给插件的租户；2026-11-13 修订：`HandleEventRequest` 带这次投递的订阅方式；2026-11-18 修订：宿主提供多个回调端点并至少有一个回环 TCP，插件一侧的次序、配置、就绪、停止、收尾、投递、回调与错误读写写明，运行时消息键进规范，`Host.Publish` 按元数据建上下文；2026-11-24 修订：`Configure` 的 `bindings` 在组装请求时与内核同源解析、只带主值；同日再修订：Span `xihan.plugin.invoke` 的种类、父级、标签、状态与范围，`trace_parent` 以它为父级；同日第三次修订：`Binding` 消息新增 `properties`，绑定的属性随 `Configure` 下发；2026-11-25 修订：下发之前核对来源的类型与清单的必需，`Configure` 请求有总上限，绑定目录的文件有大小上限） | 日期：2026-10-23 | 对应 ADR：0006、0085、0092、0195、0226、0237、0268、0269、0285、0292 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`；一致性：`XiHan.Framework.Plugins.Conformance` | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md` | 一致性档：`plugin`、`host`
+> 状态：已采纳（2026-11-01 修订：卸载按归属撤回代理操作与权限码，可直接再加载；同日再修订：清单写了 `contributes.pipeline` 的插件在发现时被拒，不再静默忽略；同日第三次修订：gRPC `Cancelled` 不再按时钟改报超时，交给截止时间中间件归因；2026-11-12 修订：回调与发布只能带宿主随调用交给插件的租户；2026-11-13 修订：`HandleEventRequest` 带这次投递的订阅方式；2026-11-18 修订：宿主提供多个回调端点并至少有一个回环 TCP，插件一侧的次序、配置、就绪、停止、收尾、投递、回调与错误读写写明，运行时消息键进规范，`Host.Publish` 按元数据建上下文；2026-11-24 修订：`Configure` 的 `bindings` 在组装请求时与内核同源解析、只带主值；同日再修订：Span `xihan.plugin.invoke` 的种类、父级、标签、状态与范围，`trace_parent` 以它为父级；同日第三次修订：`Binding` 消息新增 `properties`，绑定的属性随 `Configure` 下发；2026-11-25 修订：下发之前核对来源的类型与清单的必需，`Configure` 请求有总上限，绑定目录的文件有大小上限；同日再修订：`Envelope.time` 的文法与 RFC-0009 的信封相同，插件发布的不合文法即那一项不发布） | 日期：2026-10-23 | 对应 ADR：0006、0085、0092、0195、0226、0237、0268、0269、0285、0292、0293 | 参考实现：`XiHan.Framework.Plugins.OutOfProcess`；一致性：`XiHan.Framework.Plugins.Conformance` | 规范性文本：`spec/plugin/plugin.proto`、`spec/plugin/handshake.md`、`spec/plugin/lifecycle.md`、`spec/plugin/invocation.md` | 一致性档：`plugin`、`host`
 
 ## 摘要
 
@@ -45,7 +45,7 @@
 
 ## 一致性
 
-- 数据向量：`conformance/vectors/plugin/handshake-lines.json`（握手行文法）、`protocol-versions.json`（版本协商）、`host-addresses.json`（回调端点列表与选择）、`deadlines.json`（`deadline` 的读法与生效的截止时间）、`plugin-messages.json`（运行时的消息键）、`callback-status.json`（插件一侧回调失败的映射）、`error-reading.json`（读入对方写来的 `Error`）、`binding-properties.json`（下发给插件的绑定：属性名的文法与上限、宿主下发什么、插件读到什么）。
+- 数据向量：`conformance/vectors/plugin/handshake-lines.json`（握手行文法）、`protocol-versions.json`（版本协商）、`host-addresses.json`（回调端点列表与选择）、`deadlines.json`（`deadline` 的读法与生效的截止时间）、`plugin-messages.json`（运行时的消息键）、`callback-status.json`（插件一侧回调失败的映射）、`error-reading.json`（读入对方写来的 `Error`）、`binding-properties.json`（下发给插件的绑定：属性名的文法与上限、宿主下发什么、插件读到什么）、`envelope-times.json`（信封的 `time`：宿主读插件写来的文本、写给插件的文本）。
 - gRPC 黑盒套件：`XiHan.Framework.Plugins.Conformance` 的 `PluginProtocolConformance`，以本 RFC 的三份规范性文本为用例来源，对任何语言的插件实现做一致性测试；远程 Provider 的套件随各子系统的 Conformance 包。
 
 ## 与 .NET 的映射
