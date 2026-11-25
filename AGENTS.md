@@ -139,6 +139,7 @@ XiHan Spec 是 XiHan Framework 的语言中立规范：RFC、规范性文档（�
 ## Git 与提交
 
 - 使用 Conventional Commits：`<type>(<scope>): <中文说明>`。scope 默认 `spec`（规范正文、向量、规则包、运行器与 speccheck 的改动都用它）；只涉及一个子系统 RFC 时也可用术语表领域词小写；README、AGENTS.md 与技能用 `docs`，工程配置用 `build`、`ci`。有 ADR 的提交在说明末尾注明（`（ADR-NNNN）`）。
+- 提交信息只写一行标题，不写正文。说明一句话讲这次改动的结果，不超过 40 个字（汉字、字母、数字、标点各算一个，末尾的 `（ADR-NNNN）` 不计）；不再用「：」「；」往下展开，不罗列文件、成员、取值与改前改后，不写测试数量与门禁结果，这些细节写进 RFC 正文、ADR 与 `CHANGELOG.md`。细则见 `commit-msg` 技能。
 - 保留用户已有和无关改动；不要 reset、checkout 或清理它们。
 - 一项规范改动一个提交：正文、向量、规则、运行器、档表与 `CHANGELOG.md` 属于同一闭环时放在同一提交。
 - 提交前检查 `git diff --check` 与相关门禁（至少 `buf lint`、`gofmt`、`go vet`、两个模块的 `go test`）。
