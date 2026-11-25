@@ -4,6 +4,17 @@
 
 ## 未发布
 
+- MINOR：RFC-0021「活动」写明 `Delay.Until`、`UserTask.DueAt` 与按时间读的值按「表达式」的「时间」文法读、换算成 UTC（ADR-0296）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0021「关键字」的折叠由「不变文化的小写」改成逐个码位的 Unicode 简单小写映射，新增「关键字的小写」；`keyword-matching.json` 补 10 条规范化、5 条匹配用例（ADR-0296）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0021「长度与上限」由「没有另设求值步数的上限」改成工作量的计数规则与上限 16777216，新增消息键 `workflow.expression.budget_exceeded`；`expression-limits.json` 新增 `maxWork`、`stepWork`、`arrays` 与 33 条 `budgets`；一致性模块新增 `WorkflowExpressionArray`、`WorkflowExpressionBudget`、`MaxWorkflowExpressionWork`、`WorkflowExpressionStepWork`，消息键名单 26 个（ADR-0296）。
+- MINOR：RFC-0021「内置函数」新增 `format(x, n)`；`expression-functions.json` 补 39 条成功、15 条失败的用例；`rules` 的内置函数名单加上 `format`（ADR-0296）。
+- MINOR：RFC-0012「契约」写明内容类型原样存取，存储客户端写不出原值的以新登记的 `OBJECTSTORAGE_VALIDATION_007` 失败；「S3 Provider」写明 .NET 经 AWS SDK 的两类改写与读取一侧的已知缺口；「一致性」补内容类型用例（ADR-0295）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0012「标识」的内容类型照 RFC 9110 §5.6.6 收空参数（ADR-0295，修订 ADR-0282）。`;` 之后可以为空，OWS 仍只收空格，参数不解析引号，文法 `^<token>/<token>( *;[\x20-\x7E]*)?$`；`blob-content-types.json` 有 9 条挪到 valid，valid 与 invalid 另补 5 条。
+- MINOR：`packaging/app-manifest.md` 的 Kustomize 绑定 Secret 样板为 `blob` 列出 `sessionToken`（ADR-0294）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0012「S3 Provider」与「命名存储实例」（ADR-0294）。命名实例在设置里配代理要运营方打开 `XiHan:ObjectStorage:S3:NamedInstancesAllowProxy`（缺省 `false`），没打开即 `OBJECTSTORAGE_VALIDATION_003`；缺省实例只给一项密钥是配置错误，在绑定覆盖之后核对（以前走默认凭据链）；配置错误的消息带出的原值只限数值与布尔值，服务端点不合法时只报键名。
+- MAJOR（`v1.0.0` 之前允许）：插件协议：`Envelope.time` 与 RFC-0009 信封同一条文法，插件写来的不合文法即那一项 `MESSAGING_VALIDATION_002` + `messaging.envelope.invalid_time` 不发布；新增向量 `plugin/envelope-times.json`（档 `host`）（ADR-0293）。
+- MAJOR（`v1.0.0` 之前允许）：绑定：目录来源的文件有大小上限（一个文件 524288 字节、一个绑定合计 1048576 字节，超限启动失败 `KERNEL_HOSTING_005`），下发给插件之前按清单核对必需与来源的类型、整个 `ConfigureRequest` 按 protobuf 编码不超过 2097152 字节，进程内宿主加载前做同样的必需与类型核对；`plugin-messages.json` 加五条 `reason`，`binding-properties.json` 改一条、加十二条用例（ADR-0292）。
+- PATCH：RFC-0001「JSON 文本」的 .NET 映射里检查的入口由 `JsonText.Check` 改名 `JsonText.FindProblem`，写明返回 `Maybe`、问题是 `JsonTextProblem { Kind, Path }` 与五个种类（ADR-0291）；规则与向量不变。
 - PATCH：RFC-0012「S3 Provider」的 `MaxAttempts` 写明不计 SDK 判定连接池里的连接已被对端关闭后重发的请求（ADR-0281）；规则不变。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0021「表达式」：数字的文本只取决于数值（不带结尾的零）；`now()` 与 `date()` 的结果是与截止时间同一写法的字符串，时间文本只认文法；数组与对象的文本是成员按名字排序的紧凑 JSON；二元运算符与函数先求值全部操作数再核对；结果放不下是新消息键 `workflow.expression.number_out_of_range`；模板渲染出的文本不超过 4194304；错误里带出的文本一律最多 200 个码元；成员名一律按序数比较（ADR-0287）。
 - MINOR：RFC-0021「表达式」逐条写明词法、文法、每个运算符与内置函数的语义、数字文本与数字的范围（96 位整数、0 到 28 位小数、一半取偶）、模板的渲染、上限（长度按 UTF-16 码元计）与错误；`workflow` 档新增向量 `expression-syntax.json`、`expression-operators.json`、`expression-functions.json`、`expression-templates.json`、`expression-limits.json`，期望值由 .NET 算出；一致性模块新增对应的类型化入口与 `rules` 里的上限、名单、`WorkflowExpressionLength`、`EchoWorkflowExpression`、`IsWorkflowNumberText`、`IsWorkflowTimeText`（ADR-0287）。
