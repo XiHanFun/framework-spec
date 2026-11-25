@@ -227,6 +227,11 @@ func TestWorkflowExpressionVectorsAreWellFormed(t *testing.T) {
 	for _, c := range limits.Echoes {
 		keys = append(keys, c.MessageKey)
 	}
+	for _, c := range limits.Budgets {
+		if !c.Valid {
+			keys = append(keys, "workflow.expression.budget_exceeded")
+		}
+	}
 
 	// 每个消息键至少有一条用例
 	for _, key := range expressionKeys() {
@@ -234,8 +239,8 @@ func TestWorkflowExpressionVectorsAreWellFormed(t *testing.T) {
 			t.Errorf("no vector case fails with %q", key)
 		}
 	}
-	if len(expressionKeys()) != 25 {
-		t.Errorf("the expression has %d message keys, want 25", len(expressionKeys()))
+	if len(expressionKeys()) != 26 {
+		t.Errorf("the expression has %d message keys, want 26", len(expressionKeys()))
 	}
 
 	// 每个内置函数都被求值成功的用例调用过；now() 的结果就是文件里的时刻
@@ -269,6 +274,9 @@ func TestWorkflowExpressionLimitsFollowTheVectors(t *testing.T) {
 		vectors.MaxStringLength != rules.MaxWorkflowExpressionStringLength || vectors.MaxEchoLength != rules.MaxWorkflowExpressionEchoLength {
 		t.Errorf("limits = %d, %d, %d, %d; want %d, %d, %d, %d", vectors.MaxLength, vectors.MaxDepth, vectors.MaxStringLength, vectors.MaxEchoLength,
 			rules.MaxWorkflowExpressionLength, rules.MaxWorkflowExpressionDepth, rules.MaxWorkflowExpressionStringLength, rules.MaxWorkflowExpressionEchoLength)
+	}
+	if vectors.MaxWork != rules.MaxWorkflowExpressionWork || vectors.StepWork != rules.WorkflowExpressionStepWork {
+		t.Errorf("work limits = %d, %d; want %d, %d", vectors.MaxWork, vectors.StepWork, rules.MaxWorkflowExpressionWork, rules.WorkflowExpressionStepWork)
 	}
 
 	// 长度：按 UTF-16 码元数，正好在上限上的通过、多一个的不通过，还要有码位数不超而码元数超过的
@@ -352,6 +360,47 @@ func TestWorkflowExpressionLimitsFollowTheVectors(t *testing.T) {
 	}
 	if !kept || !cut || !pair {
 		t.Errorf("the echoes must keep one that is not cut (%v), one that is cut (%v) and one cut before a surrogate pair (%v)", kept, cut, pair)
+	}
+
+	// 工作量：成功的带累计的工作量、失败的带截断的文本；求值的表达式在长度以内，失败时带出的就是它；两种方式都有正好到上限的与超过的
+	for _, array := range vectors.Arrays {
+		if array.Variable == "" || len(array.Item) == 0 || array.Repeat < 1 {
+			t.Errorf("the array %q is incomplete", array.Variable)
+		}
+	}
+	sides := map[string]bool{}
+	for _, c := range vectors.Budgets {
+		source := c.Head + strings.Repeat(c.Link, c.Count) + c.Tail
+		switch {
+		case c.Mode != "evaluate" && c.Mode != "render":
+			t.Errorf("%s: the mode %q is unknown", c.Name, c.Mode)
+		case c.Valid && (c.Work == nil || *c.Work <= 0 || *c.Work > vectors.MaxWork || c.Expression != nil):
+			t.Errorf("%s: a case within the budget must carry its work, at most %d, and no expression", c.Name, vectors.MaxWork)
+		case !c.Valid && (c.Work != nil || c.Expression == nil || rules.WorkflowExpressionLength(*c.Expression) > rules.MaxWorkflowExpressionEchoLength+1):
+			t.Errorf("%s: a case over the budget must carry the echoed expression and no work", c.Name)
+		case c.Mode == "evaluate" && rules.WorkflowExpressionLength(source) > rules.MaxWorkflowExpressionLength:
+			t.Errorf("%s: the expression is over the length limit", c.Name)
+		case c.Mode == "evaluate" && !c.Valid && *c.Expression != rules.EchoWorkflowExpression(source):
+			t.Errorf("%s: echoed %q, want %q", c.Name, *c.Expression, rules.EchoWorkflowExpression(source))
+		}
+		// 只有一个布尔变量的占位各是一步，结果不读：渲染的工作量就是占位数乘以一步
+		if c.Mode == "render" && c.Head == "" && c.Tail == "" && c.Link == "{{t}}" {
+			work := int64(c.Count) * vectors.StepWork
+			if c.Valid != (work <= vectors.MaxWork) || (c.Valid && *c.Work != work) {
+				t.Errorf("%s: %d placeholders are %d units of work, valid %v", c.Name, c.Count, work, c.Valid)
+			}
+		}
+		if c.Valid && *c.Work == vectors.MaxWork {
+			sides[c.Mode+" at the limit"] = true
+		}
+		if !c.Valid {
+			sides[c.Mode+" over the limit"] = true
+		}
+	}
+	for _, side := range []string{"evaluate at the limit", "evaluate over the limit", "render at the limit", "render over the limit"} {
+		if !sides[side] {
+			t.Errorf("the budgets must keep a case %s", side)
+		}
 	}
 }
 

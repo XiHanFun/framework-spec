@@ -101,6 +101,10 @@ const (
 	MaxWorkflowExpressionStringLength = 4194304
 	// MaxWorkflowExpressionEchoLength 是错误里带出的文本的最大长度，超过的截断后接 U+2026。
 	MaxWorkflowExpressionEchoLength = 200
+	// MaxWorkflowExpressionWork 是一次求值（一次渲染的全部占位合计）的工作量上限，超过即 budget_exceeded（ADR-0296）。
+	MaxWorkflowExpressionWork = 16777216
+	// WorkflowExpressionStepWork 是一步的工作量：每开始求值一个节点、读到的容器里的每个值各记一次。
+	WorkflowExpressionStepWork = 64
 )
 
 // WorkflowExpressionErrorCode 是表达式语法不合法或求值失败的错误码（RFC-0021「表达式」的「错误」）。
@@ -120,7 +124,7 @@ var WorkflowExpressionEvaluationErrors = []string{
 	"workflow.expression.operands_not_scalar", "workflow.expression.division_by_zero", "workflow.expression.index_of_scalar",
 	"workflow.expression.number_out_of_range", "workflow.expression.member_of_non_object", "workflow.expression.index_out_of_range",
 	"workflow.expression.not_date", "workflow.expression.string_too_long", "workflow.expression.not_boolean",
-	"workflow.expression.unterminated_placeholder",
+	"workflow.expression.unterminated_placeholder", "workflow.expression.budget_exceeded",
 }
 
 // WorkflowExpressionFunctions 是表达式的内置函数（RFC-0021「表达式」的「内置函数」）；函数名不区分 ASCII 字母的大小写。

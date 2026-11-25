@@ -1004,21 +1004,47 @@ type WorkflowExpressionEcho struct {
 	Arguments  map[string]any `json:"arguments"`
 }
 
-// WorkflowExpressionLimitVectors 对应 workflow/expression-limits.json（RFC-0021「表达式」的「长度与上限」，ADR-0287）。
+// WorkflowExpressionArray 是一个很长的数组变量：Variable 的值是 Repeat 个 Item。
+type WorkflowExpressionArray struct {
+	Variable string          `json:"variable"`
+	Item     json.RawMessage `json:"item"`
+	Repeat   int             `json:"repeat"`
+}
+
+// WorkflowExpressionBudget 是一条工作量的用例（ADR-0296）：源文本是 Head 接 Count 个 Link 再接 Tail，按 Mode
+// （evaluate、render）求值或渲染；Valid 为真时 Work 是累计的工作量，为假时以 budget_exceeded 失败、Expression 是错误的
+// expression 参数（求值占位里的表达式时超过的是那段表达式，读占位的结果时超过的是模板，都已截断）。
+type WorkflowExpressionBudget struct {
+	Name       string  `json:"name"`
+	Mode       string  `json:"mode"`
+	Head       string  `json:"head"`
+	Link       string  `json:"link"`
+	Count      int     `json:"count"`
+	Tail       string  `json:"tail"`
+	Valid      bool    `json:"valid"`
+	Work       *int64  `json:"work,omitempty"`
+	Expression *string `json:"expression,omitempty"`
+}
+
+// WorkflowExpressionLimitVectors 对应 workflow/expression-limits.json（RFC-0021「表达式」的「长度与上限」，ADR-0287、ADR-0296）。
 type WorkflowExpressionLimitVectors struct {
 	ErrorCode       string                            `json:"errorCode"`
 	MaxLength       int                               `json:"maxLength"`
 	MaxDepth        int                               `json:"maxDepth"`
 	MaxStringLength int                               `json:"maxStringLength"`
 	MaxEchoLength   int                               `json:"maxEchoLength"`
+	MaxWork         int64                             `json:"maxWork"`
+	StepWork        int64                             `json:"stepWork"`
 	Variables       json.RawMessage                   `json:"variables"`
 	Blocks          []WorkflowExpressionBlock         `json:"blocks"`
+	Arrays          []WorkflowExpressionArray         `json:"arrays"`
 	Lengths         []WorkflowExpressionLength        `json:"lengths"`
 	Nestings        []WorkflowExpressionNesting       `json:"nestings"`
 	Chains          []WorkflowExpressionChain         `json:"chains"`
 	Concatenations  []WorkflowExpressionConcatenation `json:"concatenations"`
 	Renderings      []WorkflowExpressionRendering     `json:"renderings"`
 	Echoes          []WorkflowExpressionEcho          `json:"echoes"`
+	Budgets         []WorkflowExpressionBudget        `json:"budgets"`
 }
 
 // WorkflowNames 读取工作流名字文法的向量。

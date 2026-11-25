@@ -1,15 +1,25 @@
 {
-  "$comment": "工作流表达式的上限与错误里带出的文本（RFC-0021「表达式」的「长度与上限」，ADR-0120、ADR-0182、ADR-0287）。长度都按 UTF-16 码元计，基本多文种平面以外的字符算两个。lengths、nestings 与 chains 的表达式由重复的片段拼出来，不直接写出：lengths 的表达式是 head 接 count 个 padding 再接 tail，length 是它的长度，valid 为假表示只校验语法就以 workflow.expression.too_long 失败（参数 length 与 max = maxLength），先于其他任何检查；nestings 的表达式是 levels 个 open、leaf、levels 个 close，valid 为假表示以 workflow.expression.too_deep 失败（参数 max = maxDepth），为真表示能解析并求值——括号、函数的实参表、索引与一元运算符各算一层，算进同一个计数；chains 的表达式是 head 接 count 个 link，链不算嵌套，求值成功，type 与 text 是结果。blocks 给出两个很长的字符串变量：variable 的值是 repeat 个 unit（各 1048576 个码元）；它们与 variables 合起来是求值时的实例变量。concatenations：expression 求值，valid 为真表示成功、结果是长度为 length 的字符串，为假表示以 workflow.expression.string_too_long 失败（参数 length、max = maxStringLength），length 是使它超过的那一次拼接两侧的长度之和。renderings：template 渲染，valid 为真表示成功、文本的长度是 length，为假表示以 workflow.expression.string_too_long 失败，length 是接上使它超过的那一段（字面文本或占位的文本）之后的长度。echoes：source 按 mode 求值（evaluate）、当条件求值（condition）或当模板渲染（render），以 messageKey 失败，arguments 是全部参数，含 expression——错误里带出的文本最多 maxEchoLength 个码元，超过的截断后接 U+2026，第 200 个码元是代理对的前一半时只取 199 个；not_date 的 value 同样。期望值由 .NET 参考实现（WorkflowExpressionEvaluator）算出。",
+  "$comment": "工作流表达式的上限与错误里带出的文本（RFC-0021「表达式」的「长度与上限」，ADR-0120、ADR-0182、ADR-0287、ADR-0296）。长度都按 UTF-16 码元计，基本多文种平面以外的字符算两个。lengths、nestings 与 chains 的表达式由重复的片段拼出来，不直接写出：lengths 的表达式是 head 接 count 个 padding 再接 tail，length 是它的长度，valid 为假表示只校验语法就以 workflow.expression.too_long 失败（参数 length 与 max = maxLength），先于其他任何检查；nestings 的表达式是 levels 个 open、leaf、levels 个 close，valid 为假表示以 workflow.expression.too_deep 失败（参数 max = maxDepth），为真表示能解析并求值——括号、函数的实参表、索引与一元运算符各算一层，算进同一个计数；chains 的表达式是 head 接 count 个 link，链不算嵌套，求值成功，type 与 text 是结果。blocks 给出很长的字符串变量：variable 的值是 repeat 个 unit（k 与 e 各 1048576 个码元，j 是 1044224 个）；arrays 给出很长的数组变量：variable 的值是 repeat 个 item；它们与 variables 合起来是求值时的实例变量。concatenations：expression 求值，valid 为真表示成功、结果是长度为 length 的字符串，为假表示以 workflow.expression.string_too_long 失败（参数 length、max = maxStringLength），length 是使它超过的那一次拼接两侧的长度之和。renderings：template 渲染，valid 为真表示成功、文本的长度是 length，为假表示以 workflow.expression.string_too_long 失败，length 是接上使它超过的那一段（字面文本或占位的文本）之后的长度。echoes：source 按 mode 求值（evaluate）、当条件求值（condition）或当模板渲染（render），以 messageKey 失败，arguments 是全部参数，含 expression——错误里带出的文本最多 maxEchoLength 个码元，超过的截断后接 U+2026，第 200 个码元是代理对的前一半时只取 199 个；not_date 的 value 同样。budgets：工作量（2026-11-25 加的，ADR-0296）。source 是 head 接 count 个 link 再接 tail，按 mode 求值（evaluate）或当模板渲染（render）；一次求值或一次渲染累计的工作量超过 maxWork 即以 workflow.expression.budget_exceeded 失败（参数 max = maxWork）。每开始求值一个节点记 stepWork；运算求值完操作数之后、核对它们之前记它读的操作数的读取量：字符串是它的长度，数组与对象是 stepWork 乘以它里面的值的个数（它自己也算）加上全部字符串与成员名的长度，null、布尔与数字是 0；哪些运算读哪些操作数见 RFC-0021 的表；模板的全部占位共用一份，每个占位的结果在接上之前再读一次。valid 为真表示成功，work 是累计的工作量（实现能取到工作量时核对它）；为假表示以 budget_exceeded 失败，expression 是错误的 expression 参数——求值占位里的表达式时超过的是那段表达式，读占位的结果时超过的是模板，都按 maxEchoLength 截断。期望值由 .NET 参考实现（WorkflowExpressionEvaluator）算出。",
   "errorCode": "WORKFLOW_VALIDATION_003",
   "maxLength": 4000,
   "maxDepth": 64,
   "maxStringLength": 4194304,
   "maxEchoLength": 200,
+  "maxWork": 16777216,
+  "stepWork": 64,
   "variables": {
     "x": [
       0
     ],
-    "t": true
+    "t": true,
+    "s": "abc",
+    "o": {
+      "name": "请假",
+      "b": [
+        1,
+        "ab"
+      ]
+    }
   },
   "blocks": [
     {
@@ -21,6 +31,18 @@
       "variable": "e",
       "unit": "😀",
       "repeat": 524288
+    },
+    {
+      "variable": "j",
+      "unit": "a",
+      "repeat": 1044224
+    }
+  ],
+  "arrays": [
+    {
+      "variable": "z",
+      "item": 0,
+      "repeat": 1382
     }
   ],
   "lengths": [
@@ -514,6 +536,338 @@
         "expression": "'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb…",
         "name": "nope"
       }
+    }
+  ],
+  "budgets": [
+    {
+      "name": "字面量与二元运算各一步",
+      "mode": "evaluate",
+      "head": "1 + 2",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 192
+    },
+    {
+      "name": "拼接读两侧的长度",
+      "mode": "evaluate",
+      "head": "'ab' + 'c'",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 195
+    },
+    {
+      "name": "短路没有求值的右操作数不记：||",
+      "mode": "evaluate",
+      "head": "true || nope",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 128
+    },
+    {
+      "name": "短路没有求值的右操作数不记：&&",
+      "mode": "evaluate",
+      "head": "false && nope",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 128
+    },
+    {
+      "name": "括号不是节点",
+      "mode": "evaluate",
+      "head": "((1))",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 64
+    },
+    {
+      "name": "数组的下标是数字时不读",
+      "mode": "evaluate",
+      "head": "x[0]",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 192
+    },
+    {
+      "name": "对象的键读下标的长度",
+      "mode": "evaluate",
+      "head": "o['name']",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 196
+    },
+    {
+      "name": "成员访问不读对象",
+      "mode": "evaluate",
+      "head": "o.name + s",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 261
+    },
+    {
+      "name": "两侧都是容器的相等读两侧的规模",
+      "mode": "evaluate",
+      "head": "o == o",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 850
+    },
+    {
+      "name": "有一侧是 null 的相等不读",
+      "mode": "evaluate",
+      "head": "o == null",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 192
+    },
+    {
+      "name": "容器对标量的相等不读",
+      "mode": "evaluate",
+      "head": "o == 1",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 192
+    },
+    {
+      "name": "len 不读",
+      "mode": "evaluate",
+      "head": "len(o)",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 128
+    },
+    {
+      "name": "toString 读实参，容器按规模",
+      "mode": "evaluate",
+      "head": "toString(o)",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 457
+    },
+    {
+      "name": "在数组里 contains：读数组，再按元素个数读要找的值",
+      "mode": "evaluate",
+      "head": "contains(o.b, 'ab')",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 454
+    },
+    {
+      "name": "在文本里 contains：读两个实参",
+      "mode": "evaluate",
+      "head": "contains(s, 'b')",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 196
+    },
+    {
+      "name": "算术与一元负只读字符串操作数",
+      "mode": "evaluate",
+      "head": "-'5' * '2'",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 258
+    },
+    {
+      "name": "format 只读字符串实参",
+      "mode": "evaluate",
+      "head": "format('1.5', '2')",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 196
+    },
+    {
+      "name": "比较读两侧的字符串，upper 读实参",
+      "mode": "evaluate",
+      "head": "upper(s) < s",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 265
+    },
+    {
+      "name": "now 不读",
+      "mode": "evaluate",
+      "head": "now()",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 64
+    },
+    {
+      "name": "模板：占位的结果在接上之前读，字面文本不记",
+      "mode": "render",
+      "head": "a{{ s }}b{{ 1 }}",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 131
+    },
+    {
+      "name": "1382 个数字的数组：规模是 64 × 1383",
+      "mode": "evaluate",
+      "head": "z == z",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 177216
+    },
+    {
+      "name": "在 1382 个元素里找一个两个码元的字符串",
+      "mode": "evaluate",
+      "head": "contains(z, 'ab')",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 91468
+    },
+    {
+      "name": "只计步：262144 个占位正好到上限",
+      "mode": "render",
+      "head": "",
+      "link": "{{t}}",
+      "count": 262144,
+      "tail": "",
+      "valid": true,
+      "work": 16777216
+    },
+    {
+      "name": "只计步：多一个占位就超过",
+      "mode": "render",
+      "head": "",
+      "link": "{{t}}",
+      "count": 262145,
+      "tail": "",
+      "valid": false,
+      "expression": "t"
+    },
+    {
+      "name": "读字符串：正好到上限",
+      "mode": "evaluate",
+      "head": "len(upper(j))+len(upper('",
+      "link": "a",
+      "count": 64,
+      "tail": "'))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))",
+      "valid": true,
+      "work": 16777216
+    },
+    {
+      "name": "读字符串：多一个码元就超过",
+      "mode": "evaluate",
+      "head": "len(upper(j))+len(upper('",
+      "link": "a",
+      "count": 65,
+      "tail": "'))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))",
+      "valid": false,
+      "expression": "len(upper(j))+len(upper('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(upper(k))+len(uppe…"
+    },
+    {
+      "name": "读容器：正好到上限",
+      "mode": "evaluate",
+      "head": "true",
+      "link": "&&contains(z,0)",
+      "count": 189,
+      "tail": "",
+      "valid": true,
+      "work": 16777216
+    },
+    {
+      "name": "读容器：多找一次就超过",
+      "mode": "evaluate",
+      "head": "true",
+      "link": "&&contains(z,0)",
+      "count": 190,
+      "tail": "",
+      "valid": false,
+      "expression": "true&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&&contains(z,0)&…"
+    },
+    {
+      "name": "拼到拼接的上限一次",
+      "mode": "evaluate",
+      "head": "len(k+k+k+k)",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": true,
+      "work": 9437696
+    },
+    {
+      "name": "拼到拼接的上限两次就超过工作量，先于拼接的上限",
+      "mode": "evaluate",
+      "head": "len(k+k+k+k)+len(k+k+k+k)",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": false,
+      "expression": "len(k+k+k+k)+len(k+k+k+k)"
+    },
+    {
+      "name": "模板：占位的结果读到上限",
+      "mode": "render",
+      "head": "",
+      "link": "{{z}}",
+      "count": 189,
+      "tail": "",
+      "valid": true,
+      "work": 16740864
+    },
+    {
+      "name": "模板：读占位的结果时超过，错误带的是模板",
+      "mode": "render",
+      "head": "",
+      "link": "{{z}}",
+      "count": 190,
+      "tail": "",
+      "valid": false,
+      "expression": "{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}{{z}}…"
+    },
+    {
+      "name": "模板：占位里的表达式求值时超过，错误带的是那段表达式",
+      "mode": "render",
+      "head": "{{len(k+k+k+k)}}{{len(k+k+k+k)}}",
+      "link": "",
+      "count": 0,
+      "tail": "",
+      "valid": false,
+      "expression": "len(k+k+k+k)"
     }
   ]
 }
