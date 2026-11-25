@@ -182,6 +182,9 @@ func TestCloudEventEnvelopesFollowTheVectors(t *testing.T) {
 		if !reflect.DeepEqual(event.Subject, want.Subject) {
 			t.Errorf("%s: subject differs", c.Name)
 		}
+		if !reflect.DeepEqual(event.DataSchema, want.DataSchema) {
+			t.Errorf("%s: dataschema differs", c.Name)
+		}
 		// 时间按时刻比较：文档里可以带偏移，期望值是 UTC
 		switch {
 		case want.Time == nil && event.Time != nil, want.Time != nil && event.Time == nil:

@@ -69,6 +69,8 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 			t.Errorf("cloudevents envelopes: %v", err)
 		}
 		var names []string
+		// dataschema 有与没有两种读出都要有（ADR-0305）
+		withSchema, withoutSchema := false, false
 		for _, c := range envelopes.Valid {
 			names = append(names, c.Name)
 			if c.Text == "" || c.Expected.ID == "" || c.Expected.Source == "" || c.Expected.Type == "" || c.Expected.DataContentType == "" || c.Expected.Extensions == nil {
@@ -77,6 +79,14 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 			if c.Expected.Data != nil && c.Expected.DataBase64 != nil {
 				t.Errorf("cloudevents case %q must not expect both inline and binary data", c.Name)
 			}
+			if c.Expected.DataSchema != nil && *c.Expected.DataSchema == "" {
+				t.Errorf("cloudevents case %q must not expect an empty dataschema", c.Name)
+			}
+			withSchema = withSchema || c.Expected.DataSchema != nil
+			withoutSchema = withoutSchema || c.Expected.DataSchema == nil
+		}
+		if !withSchema || !withoutSchema {
+			t.Errorf("cloudevents envelopes must read documents with and without a dataschema")
 		}
 		for _, c := range envelopes.Invalid {
 			names = append(names, c.Name)

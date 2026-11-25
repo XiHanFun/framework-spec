@@ -110,14 +110,15 @@ func OutboxRetryDelay(retryDelay, maxRetryDelay time.Duration, attempts int) tim
 // 尝试次数达到 maxAttempts 即进死信，不再排下一次。
 func OutboxDeadLettered(attempts, maxAttempts int) bool { return attempts >= maxAttempts }
 
-// CloudEvent 是从结构化 JSON 文档读出的信封：Time 为 nil 表示没有时间，Subject 为 nil 表示没有主题标识；
-// Data 是内联的 JSON 数据（原文），Binary 是 data_base64 解出的字节，两者都为空表示没有数据。
+// CloudEvent 是从结构化 JSON 文档读出的信封：Time 为 nil 表示没有时间，Subject 为 nil 表示没有主题标识，
+// DataSchema 为 nil 表示没有数据模式（ADR-0305）；Data 是内联的 JSON 数据（原文），Binary 是 data_base64 解出的字节，两者都为空表示没有数据。
 type CloudEvent struct {
 	ID              string
 	Source          string
 	Type            string
 	Time            *time.Time
 	Subject         *string
+	DataSchema      *string
 	DataContentType string
 	Data            json.RawMessage
 	Binary          []byte
@@ -125,7 +126,7 @@ type CloudEvent struct {
 }
 
 // DecodeCloudEvent 按 CloudEvents 1.0 结构化 JSON 读出信封（RFC-0009「信封」的五条，protocol/cloudevents.md「入站」），不合法时返回假：
-// 没过 RFC-0001「JSON 文本」的共同检查（含任何一层重复的成员）或不是 JSON 对象；规范版本不是 1.0、缺必填属性；
+// 没过 RFC-0001「JSON 文本」的共同检查（含任何一层重复的成员）或不是 JSON 对象；规范版本不是 1.0、缺必填属性，dataschema 不是字符串或是空串；
 // time 不合 RFC-0003 规则 8 的读法；data 与 data_base64 同时出现、data_base64 不是 Base64；扩展属性名不合文法、值是对象或数组。
 // 读出的 Time 是 UTC 时刻；文档带 data_base64 而不写 datacontenttype 时内容类型是 application/octet-stream。
 func DecodeCloudEvent(document []byte) (CloudEvent, bool) {
@@ -187,6 +188,11 @@ func DecodeCloudEvent(document []byte) (CloudEvent, bool) {
 		event.Time = &parsed
 	}
 	if event.Subject, ok = text("subject"); !ok {
+		return CloudEvent{}, false
+	}
+	// dataschema 是信封承载的规范属性（ADR-0305），与 source 同一条规则：出现时非空，不核对 URI 语法；
+	// 不从 members 里拿掉就会落进扩展属性，名字是保留名，整个文档被当成不合法
+	if event.DataSchema, ok = text("dataschema"); !ok || (event.DataSchema != nil && *event.DataSchema == "") {
 		return CloudEvent{}, false
 	}
 	contentType, ok := text("datacontenttype")

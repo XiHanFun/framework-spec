@@ -4,7 +4,7 @@
 
 ## 信封映射（RFC-0009）
 
-信封就是 CloudEvents 1.0 事件：`id`、`source`、`type` 必填，`time`、`subject`、`datacontenttype`、`data` 可选，扩展属性名 `^[a-z0-9]{1,20}$` 且不是 CloudEvents 的规范属性名与结构化 JSON 格式的成员名（保留名的清单见 RFC-0009「信封」；2026-11-25 修订，ADR-0298）。信封不承载 `dataschema`：structured 文档带 `dataschema` 成员、binary 请求带 `ce-dataschema` 头即信封不合法，`ce-data` 头同样不合法。框架扩展 `xihantenant`、`xihanprincipal`、`xihancorrelation`、`xihanlocale`（按 `conventions/baggage-keys.md` 的 CloudEvents 载体进入 Baggage）与 `traceparent`（追踪）在派发时进入调用上下文。
+信封就是 CloudEvents 1.0 事件：`id`、`source`、`type` 必填，`time`、`subject`、`dataschema`、`datacontenttype`、`data` 可选（`dataschema` 的取值规则见 RFC-0009「信封」：与 `source` 一样只要求是非空字符串，不核对 URI 语法），扩展属性名 `^[a-z0-9]{1,20}$` 且不是 CloudEvents 的规范属性名与结构化 JSON 格式的成员名（保留名的清单见 RFC-0009「信封」；2026-11-25 修订，ADR-0298）。`dataschema` 在 structured 与 batch 里是同名的成员，在 binary 里是 `ce-dataschema` 头（2026-11-25 再修订，ADR-0305；ADR-0298 时信封不承载它，带这个成员或这个头即信封不合法）；`ce-data` 头仍不合法：`data` 是结构化 JSON 格式的成员名，是保留名。框架扩展 `xihantenant`、`xihanprincipal`、`xihancorrelation`、`xihanlocale`（按 `conventions/baggage-keys.md` 的 CloudEvents 载体进入 Baggage）与 `traceparent`（追踪）在派发时进入调用上下文。
 
 ## 入站（RFC-0003 上下文：承载请求的头部按 `protocol/http.md` 映射；事件自身的上下文来自扩展属性）
 
@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | structured | `Content-Type: application/cloudevents+json` | 请求体为结构化 JSON（`CloudEventsFormat`） |
 | batch | `Content-Type: application/cloudevents-batch+json` | 请求体为结构化 JSON 的数组，按顺序处理 |
-| binary | 其他内容类型且有 `ce-specversion` 头 | `ce-id`、`ce-source`、`ce-type` 必填，`ce-time`（与结构化 JSON 的 `time` 同一条文法，RFC-0009「信封」第 3 条）、`ce-subject` 可选，其余 `ce-*` 为扩展属性；`Content-Type` 为数据内容类型（缺省 `application/json`），请求体为数据；头值按百分号解码 |
+| binary | 其他内容类型且有 `ce-specversion` 头 | `ce-id`、`ce-source`、`ce-type` 必填，`ce-time`（与结构化 JSON 的 `time` 同一条文法，RFC-0009「信封」第 3 条）、`ce-subject`、`ce-dataschema`（按百分号解码之后照原样作为 `dataschema`，值为空与没有这个头相同，ADR-0305）可选，其余 `ce-*` 为扩展属性；`Content-Type` 为数据内容类型（缺省 `application/json`），请求体为数据；头值按百分号解码 |
 
 - 都不满足 → 400 `PROTOCOLS_VALIDATION_008`；信封不合法 → 400 `MESSAGING_VALIDATION_002`：structured 与 batch 的每个事件按 RFC-0009「信封」的五条判定（2026-11-24 修订，ADR-0283；以前这里只列规范版本、必填属性、时间、扩展名四类，`time` 没有偏移时 .NET 按本机时区读），binary 核对规范版本、必填属性、`ce-time` 的文法与扩展名。
 - 主题 = `XiHan:Protocols:CloudEvents:Topics:<type>`；没有映射的类型 400 `PROTOCOLS_VALIDATION_009`。打开 `XiHan:Protocols:CloudEvents:AcceptUnmappedTypes`（缺省 `false`）时，没有映射的类型以 `type` 本身为主题（须满足主题文法，否则同样 400）（2026-11-12 修订，ADR-0200；以前缺省就以类型本身为主题，只被允许投递某一种事件的发送方能投进任何有订阅的主题，包括插件订阅的主题）。
@@ -24,7 +24,7 @@
 
 ## 出站
 
-- `CloudEventsWebhookPublisher.PublishAsync(topic, envelope)`：POST 到 `XiHan:Protocols:CloudEvents:Webhooks:<topic>`；`Outbound = Binary`（默认，`ce-*` 头 + 数据体，头值按规范百分号编码非可打印 ASCII）或 `Structured`（`application/cloudevents+json` 体）。
+- `CloudEventsWebhookPublisher.PublishAsync(topic, envelope)`：POST 到 `XiHan:Protocols:CloudEvents:Webhooks:<topic>`；`Outbound = Binary`（默认，`ce-*` 头 + 数据体，头值按规范百分号编码非可打印 ASCII；信封有 `dataschema` 时写 `ce-dataschema` 头，没有则不写，ADR-0305）或 `Structured`（`application/cloudevents+json` 体）。
 - `PublishManyAsync(topic, envelopes)`（批量优先）：一条沿用上面的模式；多条用 batch 内容模式（`application/cloudevents-batch+json`，结构化事件的数组、顺序同入参）一次 POST，接收方须支持该模式，一个响应对整批生效（逐项结果相同）。
 - 没有配置 → `PROTOCOLS_NOTFOUND_004`；响应非 2xx → `PROTOCOLS_UNAVAILABLE_001`（`status` 在详情里）；连接失败 → `PROTOCOLS_UNAVAILABLE_002`。结果只看状态码，读到响应头即判定，响应体不读（2026-11-12 修订，ADR-0188；以前先把响应体整个缓冲进内存）。重试由调用方决定（经发件箱投递即获得至少一次语义）。
 - 使用命名 HttpClient `xihan.protocols.cloudevents`。

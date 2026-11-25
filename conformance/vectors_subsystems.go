@@ -87,7 +87,7 @@ type OutboxBackoffVectors struct {
 	DeadLetter []OutboxDeadLetterCase `json:"deadLetter"`
 }
 
-// CloudEventExpectation 是结构化 JSON 文档读出的信封：Time 是 UTC 时刻（nil 表示没有），
+// CloudEventExpectation 是结构化 JSON 文档读出的信封：Time 是 UTC 时刻（nil 表示没有），DataSchema 为 nil 表示没有数据模式，
 // Data 是内联的 JSON 数据，DataBase64 是 data_base64 里的字节（标准 Base64），两者都没有表示没有数据。
 type CloudEventExpectation struct {
 	ID              string            `json:"id"`
@@ -95,6 +95,7 @@ type CloudEventExpectation struct {
 	Type            string            `json:"type"`
 	Time            *string           `json:"time"`
 	Subject         *string           `json:"subject"`
+	DataSchema      *string           `json:"dataschema"`
 	DataContentType string            `json:"datacontenttype"`
 	Data            json.RawMessage   `json:"data,omitempty"`
 	DataBase64      *string           `json:"dataBase64,omitempty"`

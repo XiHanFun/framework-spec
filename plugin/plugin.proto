@@ -359,6 +359,8 @@ message Envelope {
   bytes data = 9;
   // 扩展属性。
   map<string, string> extensions = 10;
+  // `dataschema`（URI，取值规则见 RFC-0009「信封」）；可空。同一协议版本里的新增字段，较早的对端忽略它（invocation.md §4）。
+  string data_schema = 11;
 }
 
 // 插件 → 宿主：发布消息。

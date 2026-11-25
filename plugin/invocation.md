@@ -74,6 +74,10 @@
   - 宿主写给插件的（`HandleEventRequest.envelope`）一律合这条文法：信封没有时间写空串，有则换算成 UTC、七位小数、偏移写 `+00:00`（.NET 的 `O` 格式，与截止时间的写法相同）。SDK 原样交给作者，不另解析、不改写。
   - 插件写给宿主的（`Host.Publish` 的信封、Wasm 的 `publish` 导入）不合文法或越界时，那一项不发布，结果是 `MESSAGING_VALIDATION_002` + `messaging.envelope.invalid_time`（参数 `time` 是原文），其余各项照常；这是 §5「逐项的核对」里「信封能否转换」那一步，宿主不换别的格式再试，也不当作没有时间。SDK 不在本地核对，原样写出作者给的文本：本地先判会改变与宿主其余逐项核对的先后（§5）。SDK 另提供以时刻类型写入 `time` 的接口时，写出的文本必须合这条文法，宜与宿主的写法相同。
   - 向量：`conformance/vectors/plugin/envelope-times.json`。
+- `Envelope.data_schema`（字段 11，2026-11-25 增补，ADR-0305；以前协议没有这个字段，信封也不承载 `dataschema`）是 RFC-0009「信封」的 `dataschema`：空串表示没有这个属性，不是空串时照原样就是它的值，不裁剪、不规范化，取值规则与 RFC-0009 相同（与 `source` 一样只要求非空，不核对 URI 语法）。Wasm 载体的 proto3 JSON 里字段名是 `dataSchema`。
+  - 宿主写给插件的（`HandleEventRequest.envelope`）：信封有 `dataschema` 时照原样写，没有写空串。SDK 原样交给作者，不另解析。
+  - 插件写给宿主的（`Host.Publish` 的信封、Wasm 的 `publish` 导入）：空串是没有；不是空串时照原样作为 `dataschema` 发布，经代理到达处理器时不变。SDK 不在本地核对、原样写出作者给的文本，理由同 `time`。只有空白的值规范不作规定（同 RFC-0009「一致性」里不收进向量的写法）：.NET 宿主与 `source` 只有空白时一样拒绝那一项，`MESSAGING_VALIDATION_002` + `messaging.envelope.invalid`，这是 §5「逐项的核对」里「信封能否转换」那一步。
+  - 兼容：同一协议版本里的新增字段（规范的 MINOR，RFC-0024「版本」第 3、4 条），不升协议版本，也不在握手里协商。按较早的规范实现的插件忽略它（protobuf 的未知字段；Wasm 载体的 JSON 映射同样忽略未知字段，`wasm.md` §2），读到的信封没有 `dataschema`；按较早的规范实现的宿主不认它，插件发布到那样的宿主上的信封丢掉 `dataschema`、其余照常发布。宿主不按对端的 SDK 版本改变写出的内容。
 - 至少一次投递：插件处理器必须幂等（可用 `baggage` 里的 `xihan.idempotency-key` 或信封 `id`）。
 - 插件一侧处理 `HandleEvent` 依次（2026-11-18 写明，ADR-0237；以前找不到订阅时各 SDK 的错误码不同，匹配多个订阅时有的只交给第一个）：
   1. 会话令牌（`handshake.md` §4）。

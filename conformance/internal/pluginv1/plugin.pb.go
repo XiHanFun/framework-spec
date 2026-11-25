@@ -1852,7 +1852,9 @@ type Envelope struct {
 	// `data`。
 	Data []byte `protobuf:"bytes,9,opt,name=data,proto3" json:"data,omitempty"`
 	// 扩展属性。
-	Extensions    map[string]string `protobuf:"bytes,10,rep,name=extensions,proto3" json:"extensions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Extensions map[string]string `protobuf:"bytes,10,rep,name=extensions,proto3" json:"extensions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// `dataschema`（URI，取值规则见 RFC-0009「信封」）；可空。同一协议版本里的新增字段，较早的对端忽略它（invocation.md §4）。
+	DataSchema    string `protobuf:"bytes,11,opt,name=data_schema,json=dataSchema,proto3" json:"data_schema,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1955,6 +1957,13 @@ func (x *Envelope) GetExtensions() map[string]string {
 		return x.Extensions
 	}
 	return nil
+}
+
+func (x *Envelope) GetDataSchema() string {
+	if x != nil {
+		return x.DataSchema
+	}
+	return ""
 }
 
 // 插件 → 宿主：发布消息。
@@ -2476,7 +2485,7 @@ const file_plugin_proto_rawDesc = "" +
 	"\aattempt\x18\x03 \x01(\rR\aattempt\x12\x12\n" +
 	"\x04mode\x18\x04 \x01(\tR\x04mode\"F\n" +
 	"\x13HandleEventResponse\x12/\n" +
-	"\x06status\x18\x01 \x01(\v2\x17.xihan.plugin.v1.StatusR\x06status\"\xf7\x02\n" +
+	"\x06status\x18\x01 \x01(\v2\x17.xihan.plugin.v1.StatusR\x06status\"\x98\x03\n" +
 	"\bEnvelope\x12\x14\n" +
 	"\x05topic\x18\x01 \x01(\tR\x05topic\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x16\n" +
@@ -2490,7 +2499,9 @@ const file_plugin_proto_rawDesc = "" +
 	"\n" +
 	"extensions\x18\n" +
 	" \x03(\v2).xihan.plugin.v1.Envelope.ExtensionsEntryR\n" +
-	"extensions\x1a=\n" +
+	"extensions\x12\x1f\n" +
+	"\vdata_schema\x18\v \x01(\tR\n" +
+	"dataSchema\x1a=\n" +
 	"\x0fExtensionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8a\x01\n" +
