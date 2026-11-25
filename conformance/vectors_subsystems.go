@@ -26,11 +26,12 @@ type TopicVectors struct {
 	DeadLetter TopicDeadLetterVectors `json:"deadLetter"`
 }
 
-// EnvelopeExtensionNames 是扩展属性名的长度上限与合法、不合法样例。
+// EnvelopeExtensionNames 是扩展属性名的长度上限、合法与不合法样例，以及保留名（按序数升序，ADR-0298）。
 type EnvelopeExtensionNames struct {
 	MaxLength int      `json:"maxLength"`
 	Valid     []string `json:"valid"`
 	Invalid   []string `json:"invalid"`
+	Reserved  []string `json:"reserved"`
 }
 
 // EnvelopeBaggageMapping 是一个扩展属性与它对应的 Baggage 键。

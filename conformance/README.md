@@ -36,7 +36,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `caching/cache-keys.json` | 缓存键与键前缀必须接受与必须拒绝的样例：长度按 UTF-8 字节计（正好 512 字节、513 字节、UTF-16 码元数不超而字节数超过）、空白与控制字符 | RFC-0006「存储契约」、`provider/caching-distributed.md` §2 |
 | `context/http-deadline.json` | HTTP 载体从请求头读出的截止时间：`xihan-deadline` 合文法与读不出的写法（含 .NET 以前照收的宽松写法、出现多次）、没有它时的 `grpc-timeout`，期望值由 .NET 算出 | RFC-0003 规则 8、`protocol/http.md`、`protocol/grpc.md` |
 | `messaging/topics.json` | 消息主题文法的合法与不合法样例（含 128 个字符的上限两侧）、死信后缀的缺省值与死信主题 | RFC-0009「信封」 |
-| `messaging/envelope-extensions.json` | CloudEvents 扩展属性名的文法，扩展属性与 Baggage 键的对应，承载追踪与分区键的扩展，不进入消息的 Baggage 键 | RFC-0009「信封」、`conventions/baggage-keys.md` |
+| `messaging/envelope-extensions.json` | CloudEvents 扩展属性名的文法与保留名，扩展属性与 Baggage 键的对应，承载追踪与分区键的扩展，不进入消息的 Baggage 键 | RFC-0009「信封」、`conventions/baggage-keys.md` |
 | `messaging/instance-ids.json` | 消息子系统实例标识文法的合法与不合法样例（含 64 个字符的上限两侧） | RFC-0009「订阅方式」第 6 条 |
 | `messaging/outbox-backoff.json` | 发件箱失败之后的退避间隔（次数很大时截在上限而不溢出，上限远大于间隔时照样到得了上限）与进死信的时机，期望值由 .NET 算出 | RFC-0009「发件箱」 |
 | `messaging/cloudevents-envelopes.json` | 信封的 CloudEvents 结构化 JSON 编码：必须读得出的文档与读出的信封，必须拒绝的文档（没过 JSON 文本的共同检查、`time` 不合文法、`data` 与 `data_base64` 同时出现、扩展属性的值是对象或数组等），期望值由 .NET 算出 | RFC-0009「信封」、`protocol/cloudevents.md` |
@@ -93,7 +93,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 
 | 文件 | 规则 |
 | --- | --- |
-| `rules/messaging.go` | 死信主题（`DeadLetterTopic`）、扩展属性名与 Baggage 键的对应（`IsEnvelopeExtensionName`、`EnvelopeBaggageMappings`）、实例标识（`IsMessagingInstanceID`）、发件箱的退避与进死信（`OutboxRetryDelay`、`OutboxDeadLettered`）、结构化 JSON 信封的读取（`DecodeCloudEvent`：先过 `CheckJSONText`，`time` 用 `ParseDeadline` 的文法）；主题文法是 `IsTopic` |
+| `rules/messaging.go` | 死信主题（`DeadLetterTopic`）、扩展属性名、保留名与 Baggage 键的对应（`IsEnvelopeExtensionName`、`EnvelopeExtensionReservedNames`、`EnvelopeBaggageMappings`）、实例标识（`IsMessagingInstanceID`）、发件箱的退避与进死信（`OutboxRetryDelay`、`OutboxDeadLettered`）、结构化 JSON 信封的读取（`DecodeCloudEvent`：先过 `CheckJSONText`，`time` 用 `ParseDeadline` 的文法）；主题文法是 `IsTopic` |
 | `rules/multitenancy.go` | 租户 ID（`IsTenantID`）、Tenant 阶段的裁定（`ResolveTenant`）、从租户属性推出分片（`TenantShardFromProperties`） |
 | `rules/objectstorage.go` | 容器名（`IsContainerName`）、对象键、查询前缀与保留前缀（`IsBlobKey`、`IsBlobKeyPrefix`、`IsReservedBlobKey`，长度按 UTF-8 字节计）、保存的文件名（`IsBlobDownloadFileName`）、自定义元数据（`IsBlobMetadataName`、`IsBlobMetadata`，合计按 UTF-8 字节计）、内容类型（`IsBlobContentType`）、范围读取（`ResolveBlobRange`）、分片编号与完成清单（`IsBlobPartNumber`、`IsBlobPartManifest`）、命名存储实例（`IsBlobStoreName`、`IsBlobStoreProvider`、`SameBlobStoreDefinition`） |
 | `rules/scheduling.go`、`rules/cron.go` | 调度里的名字（`IsJobName`）、重试的等待与取值范围（`JobRetryWait`、`IsJobRetryPolicy`）、事件主题（`SchedulingEventTopics`）；cron 的解析与下一次触发（`ParseCron`、`CronExpression.Next`、`IsCronExpression`，与 .NET 独立实现、回放同一份向量）；计划的文本形式（`rules/jobschedule.go`：`ParseJobSchedule`、`FormatJobSchedule`、`ParseJobInterval`、`FormatJobInterval`、`IsTimeZoneName`、`IsKnownTimeZone`） |

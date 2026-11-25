@@ -1,5 +1,5 @@
 {
-  "$comment": "CloudEvents 信封的扩展属性（RFC-0009「信封」，conventions/baggage-keys.md 的 CloudEvents 载体，ADR-0277）。names：扩展属性名的文法 ^[a-z0-9]{1,20}$，只含小写字母与数字、1 到 maxLength 个字符，按整串匹配；valid 必须接受，invalid 必须拒绝（信封带着不合文法的扩展名即不合法，MESSAGING_VALIDATION_002）；valid 的末项正好 20 个字符。baggage：扩展属性与 Baggage 键的对应，发布侧按它从当前调用补齐、派发侧按它放进新调用的 Baggage，只有这四项。trace：承载追踪的扩展（值是 W3C traceparent，RFC-0003 规则 7），不进 Baggage。partitionKey：分区键（RFC-0009「流」），不进 Baggage。notCarried：不进入消息的已登记 Baggage 键（RFC-0009 投递第 4 条）。期望值由 .NET 参考实现（EnvelopeExtensions.IsValidName、EnvelopeExtensions.BaggageMappings 与同名常量）算出。",
+  "$comment": "CloudEvents 信封的扩展属性（RFC-0009「信封」，conventions/baggage-keys.md 的 CloudEvents 载体，ADR-0277）。names：扩展属性名的文法 ^[a-z0-9]{1,20}$，只含小写字母与数字、1 到 maxLength 个字符，按整串匹配，且不是 reserved 里的保留名（CloudEvents 1.0 的规范属性名与结构化 JSON 格式的成员名，按序数升序；2026-11-25 补，ADR-0298，以前文法收得下其中不带下划线的九个）；valid 必须接受，invalid 必须拒绝（信封带着不合文法的扩展名即不合法，MESSAGING_VALIDATION_002；构造信封、设扩展属性时就拒绝）；valid 的末项正好 20 个字符，前面几项是只比保留名多一个字符的名字，invalid 的末尾是全部保留名。baggage：扩展属性与 Baggage 键的对应，发布侧按它从当前调用补齐、派发侧按它放进新调用的 Baggage，只有这四项。trace：承载追踪的扩展（值是 W3C traceparent，RFC-0003 规则 7），不进 Baggage。partitionKey：分区键（RFC-0009「流」），不进 Baggage。notCarried：不进入消息的已登记 Baggage 键（RFC-0009 投递第 4 条）。期望值由 .NET 参考实现（EnvelopeExtensions.IsValidName、EnvelopeExtensions.ReservedNames、EnvelopeExtensions.BaggageMappings 与同名常量）算出。",
   "names": {
     "maxLength": 20,
     "valid": [
@@ -13,6 +13,13 @@
       "0",
       "abc123",
       "1st",
+      "ids",
+      "times",
+      "types",
+      "datas",
+      "dataschemas",
+      "subjects",
+      "specversion1",
       "abcdefghij0123456789"
     ],
     "invalid": [
@@ -30,7 +37,31 @@
       "ｘihantenant",
       "ténant",
       "abcdefghij01234567890",
-      "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "ID",
+      "Data",
+      "data",
+      "data_base64",
+      "datacontenttype",
+      "dataschema",
+      "id",
+      "source",
+      "specversion",
+      "subject",
+      "time",
+      "type"
+    ],
+    "reserved": [
+      "data",
+      "data_base64",
+      "datacontenttype",
+      "dataschema",
+      "id",
+      "source",
+      "specversion",
+      "subject",
+      "time",
+      "type"
     ]
   },
   "baggage": [

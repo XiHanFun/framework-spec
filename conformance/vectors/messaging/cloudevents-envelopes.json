@@ -1,5 +1,5 @@
 {
-  "$comment": "消息信封的 CloudEvents 1.0 结构化 JSON 编码（application/cloudevents+json；RFC-0009「信封」，protocol/cloudevents.md「信封映射」与「入站」，ADR-0277、ADR-0283）。valid：必须读得出的文档，text 是原文，expected 是读出的信封——id、source、type；time 是 UTC 时刻（RFC 3339，按时刻比较，比实现的时钟精度更细的小数截断后比较，null 表示没有）；subject（null 表示没有）；datacontenttype（文档不写时是 application/json，文档带 data_base64 而不写时是 application/octet-stream）；data 是内联的 JSON 数据（按 JSON 值比较，不比较空白与成员顺序），dataBase64 是 data_base64 里的字节（标准 Base64），两者都没有表示没有数据；extensions 是扩展属性（规范属性之外的顶层成员，名字到字符串值：字符串照原样，数字与布尔是 JSON 原文，null 的不在其中）。编码是反过来的同一张对应：JSON 数据内联在 data，其他数据放 data_base64，扩展属性写成顶层的字符串成员，specversion 写 1.0；实现把 expected 编码再解码必须得到同一个信封。invalid：必须拒绝的文档，错误码都是 code——「信封」五条里的每一类：没过 RFC-0001「JSON 文本」的共同检查（不是 JSON、BOM、注释、尾逗号、嵌套超过 64 层、孤立的代理项转义、任何一层重复的成员，含 data 内部）与不是 JSON 对象的文本；规范版本与必填属性；time 不合 RFC-0003 规则 8 的读法（空格代替 T、没有偏移、没有秒、只有日期、偏移不带冒号、首尾空白、十位小数、逗号、闰秒、HTTP 日期、越界）；data 与 data_base64 同时出现，data_base64 不是 Base64；扩展属性名不合文法，扩展属性的值是对象或数组。没有收进来的写法见 RFC-0009「一致性」：只有空白的必填属性、写成 null 的规范属性、内容类型与数据所在的成员不相称、Base64 文本里的空白。期望值由 .NET 参考实现（CloudEventsFormat.Decode）算出。",
+  "$comment": "消息信封的 CloudEvents 1.0 结构化 JSON 编码（application/cloudevents+json；RFC-0009「信封」，protocol/cloudevents.md「信封映射」与「入站」，ADR-0277、ADR-0283、ADR-0298）。valid：必须读得出的文档，text 是原文，expected 是读出的信封——id、source、type；time 是 UTC 时刻（RFC 3339，按时刻比较，比实现的时钟精度更细的小数截断后比较，null 表示没有）；subject（null 表示没有）；datacontenttype（文档不写时是 application/json，文档带 data_base64 而不写时是 application/octet-stream）；data 是内联的 JSON 数据（按 JSON 值比较，不比较空白与成员顺序），dataBase64 是 data_base64 里的字节（标准 Base64），两者都没有表示没有数据；extensions 是扩展属性（规范属性之外的顶层成员，名字到字符串值：字符串照原样，数字与布尔是 JSON 原文，null 的不在其中）。编码是反过来的同一张对应：JSON 数据内联在 data，其他数据放 data_base64，扩展属性写成顶层的字符串成员，specversion 写 1.0；实现把 expected 编码再解码必须得到同一个信封。invalid：必须拒绝的文档，错误码都是 code——「信封」五条里的每一类：没过 RFC-0001「JSON 文本」的共同检查（不是 JSON、BOM、注释、尾逗号、嵌套超过 64 层、孤立的代理项转义、任何一层重复的成员，含 data 内部）与不是 JSON 对象的文本；规范版本与必填属性；time 不合 RFC-0003 规则 8 的读法（空格代替 T、没有偏移、没有秒、只有日期、偏移不带冒号、首尾空白、十位小数、逗号、闰秒、HTTP 日期、越界）；data 与 data_base64 同时出现，data_base64 不是 Base64；扩展属性名不合文法（含带着信封不承载的规范属性 dataschema：它按扩展属性看，名字是保留名；2026-11-25 补，ADR-0298），扩展属性的值是对象或数组。没有收进来的写法见 RFC-0009「一致性」：只有空白的必填属性、写成 null 的规范属性、内容类型与数据所在的成员不相称、Base64 文本里的空白。期望值由 .NET 参考实现（CloudEventsFormat.Decode）算出。",
   "contentType": "application/cloudevents+json",
   "code": "MESSAGING_VALIDATION_002",
   "valid": [
@@ -404,6 +404,10 @@
     {
       "name": "扩展属性名带大写",
       "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"xihanTenant\":\"t1\"}"
+    },
+    {
+      "name": "带着信封不承载的规范属性 dataschema：按扩展属性看，名字是保留名（ADR-0298）",
+      "text": "{\"specversion\":\"1.0\",\"id\":\"0190b3c4-7d1e-7c3a-9f5b-2a1c3d4e5f60\",\"source\":\"/orders\",\"type\":\"orders.placed\",\"dataschema\":\"https://example.com/schemas/order.json\"}"
     },
     {
       "name": "扩展属性名带连字符",

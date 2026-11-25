@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"regexp"
+	"slices"
 	"time"
 )
 
@@ -77,8 +78,15 @@ func DeadLetterTopic(topic, suffix string) string {
 	return topic + suffix
 }
 
-// IsEnvelopeExtensionName 判断 CloudEvents 扩展属性名是否合文法（RFC-0009「信封」）：小写字母与数字，1 到 20 个字符。
-func IsEnvelopeExtensionName(name string) bool { return envelopeExtensionNamePattern.MatchString(name) }
+// EnvelopeExtensionReservedNames 是不能用作扩展属性名的保留名（RFC-0009「信封」，ADR-0298），按序数升序：
+// CloudEvents 1.0 的规范属性名与结构化 JSON 格式的成员名；data_base64 本来就不合文法，列进来是为了清单完整。
+var EnvelopeExtensionReservedNames = []string{"data", "data_base64", "datacontenttype", "dataschema", "id", "source", "specversion", "subject", "time", "type"}
+
+// IsEnvelopeExtensionName 判断 CloudEvents 扩展属性名是否合法（RFC-0009「信封」）：小写字母与数字，1 到 20 个字符，
+// 且不是 EnvelopeExtensionReservedNames 里的保留名。
+func IsEnvelopeExtensionName(name string) bool {
+	return envelopeExtensionNamePattern.MatchString(name) && !slices.Contains(EnvelopeExtensionReservedNames, name)
+}
 
 // IsMessagingInstanceID 判断消息子系统的实例标识是否合文法（RFC-0009「订阅方式」第 6 条）：
 // 1 到 64 个字符，字母或数字开头，其余是字母、数字、.、_、-。

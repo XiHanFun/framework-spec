@@ -71,6 +71,15 @@ func TestEnvelopeExtensionsFollowTheVectors(t *testing.T) {
 			t.Errorf("%q must be an invalid extension attribute name", name)
 		}
 	}
+	// 保留名与规则包的清单一致，且每一个都在必须拒绝的样例里
+	if !slices.Equal(vectors.Names.Reserved, rules.EnvelopeExtensionReservedNames) {
+		t.Errorf("names.reserved = %v, want %v", vectors.Names.Reserved, rules.EnvelopeExtensionReservedNames)
+	}
+	for _, name := range vectors.Names.Reserved {
+		if !slices.Contains(vectors.Names.Invalid, name) {
+			t.Errorf("reserved name %q must also be listed as invalid", name)
+		}
+	}
 
 	var mappings []rules.EnvelopeBaggageMapping
 	for _, mapping := range vectors.Baggage {

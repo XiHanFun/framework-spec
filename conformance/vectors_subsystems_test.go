@@ -36,7 +36,7 @@ var subsystemChecks = map[string]func(t *testing.T) any{
 	},
 	"messaging/envelope-extensions.json": func(t *testing.T) any {
 		extensions, err := conformance.EnvelopeExtensions()
-		if err != nil || extensions.Names.MaxLength != 20 || len(extensions.Names.Valid) == 0 || len(extensions.Names.Invalid) == 0 || len(extensions.Baggage) == 0 || extensions.Trace == "" || extensions.PartitionKey == "" || len(extensions.NotCarried) == 0 {
+		if err != nil || extensions.Names.MaxLength != 20 || len(extensions.Names.Valid) == 0 || len(extensions.Names.Invalid) == 0 || len(extensions.Names.Reserved) == 0 || len(extensions.Baggage) == 0 || extensions.Trace == "" || extensions.PartitionKey == "" || len(extensions.NotCarried) == 0 {
 			t.Errorf("envelope extensions: %v", err)
 		}
 		return extensions
