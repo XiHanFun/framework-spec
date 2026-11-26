@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/xihanfun/framework-spec/conformance"
 	"github.com/xihanfun/framework-spec/conformance/internal/pluginv1"
 	"github.com/xihanfun/framework-spec/conformance/rules"
 )
@@ -42,6 +43,14 @@ const missingOperation = "conformance.missing"
 
 // wrongToken 是用例里带的错误会话令牌。
 const wrongToken = "not-the-session-token"
+
+// envelopeDataSchemas 是用例 event-envelope 依次投递的 data_schema（invocation.md §7）：一个 URI 库会改写的写法（大小写、点段）、
+// 一个带非 ASCII 字符的 URN 与空串（没有 dataschema）；作者拿到的必须与投递时逐字符相同，空串是没有。
+var envelopeDataSchemas = []string{
+	"HTTPS://Schemas.Example.COM/conformance/./v1/../order.json?v=1#Frag",
+	"urn:xihan:conformance:数据模式",
+	"",
+}
 
 // 用例核对的错误码、消息键与固定的 reason（invocation.md §8、plugin/plugin-messages.json）。
 const (
@@ -404,8 +413,153 @@ func (r *runner) caseEvent(ctx context.Context) error {
 	return nil
 }
 
+// caseEventEnvelope：插件把宿主写来的信封交给作者（invocation.md §4、§7）。Start 之后向第一个订阅按它声明的方式与类型投递三条信封，
+// data_schema 依次取 envelopeDataSchemas、time 取宿主的写法，都必须得到确认；再以 {} 调用 EnvelopeOperation 指明的回显操作，
+// 三条信封都要列在 envelopes 里，dataSchema 与投递时逐字符相同，空串那一条是没有。没有订阅或没有给出回显的操作时跳过。
+func (r *runner) caseEventEnvelope(ctx context.Context) error {
+	if r.opts.EnvelopeOperation == "" {
+		return errSkip{"no operation that echoes the delivered envelopes was given (--envelopes)"}
+	}
+	s, err := r.open(ctx)
+	if err != nil {
+		return err
+	}
+	defer s.close()
+	if len(s.handshake.Subscriptions) == 0 {
+		return errSkip{"the plugin declares no subscriptions"}
+	}
+	if !slices.ContainsFunc(s.handshake.Operations, func(o *pluginv1.OperationDeclaration) bool { return o.Id == r.opts.EnvelopeOperation }) {
+		return fmt.Errorf("the operation %q that echoes the delivered envelopes is not declared in the handshake", r.opts.EnvelopeOperation)
+	}
+	written, err := hostWrittenTime()
+	if err != nil {
+		return err
+	}
+	subscription := s.handshake.Subscriptions[0]
+	if err := r.startPlugin(ctx, s); err != nil {
+		return err
+	}
+
+	// 按投递的先后记下每条信封的 ID 与 data_schema
+	type delivery struct{ id, dataSchema string }
+	deliveries := make([]delivery, 0, len(envelopeDataSchemas))
+	for _, dataSchema := range envelopeDataSchemas {
+		request := eventRequest(subscription.Topic, subscriptionType(subscription), deliveryMode(subscription.Mode))
+		request.Envelope.DataSchema = dataSchema
+		request.Envelope.Time = written
+		what := fmt.Sprintf("a delivery to the subscription %q with the data schema %q and the time %q", subscription.Topic, dataSchema, written)
+		response, err := call(ctx, r.opts.Timeout, func(c context.Context) (*pluginv1.HandleEventResponse, error) {
+			return s.client().HandleEvent(c, request)
+		})
+		if err != nil {
+			return fmt.Errorf("%s: %w", what, err)
+		}
+		if response.Status == nil || !response.Status.Ok {
+			return fmt.Errorf("%s must be acknowledged, got %s", what, describeStatus(response.Status))
+		}
+		deliveries = append(deliveries, delivery{request.Envelope.Id, dataSchema})
+	}
+
+	what := fmt.Sprintf("operation %q that echoes the delivered envelopes", r.opts.EnvelopeOperation)
+	response, err := call(ctx, r.opts.Timeout, func(c context.Context) (*pluginv1.InvokeResponse, error) {
+		return s.client().Invoke(c, &pluginv1.InvokeRequest{
+			Operation: r.opts.EnvelopeOperation,
+			Payload:   []byte("{}"),
+			Metadata:  &pluginv1.InvocationMetadata{TraceParent: traceParent},
+		})
+	})
+	if err != nil {
+		return fmt.Errorf("%s: %w", what, err)
+	}
+	if response.Status == nil || !response.Status.Ok {
+		return fmt.Errorf("%s must succeed, got %s", what, describeStatus(response.Status))
+	}
+	echoed, err := readEchoedEnvelopes(response.Payload)
+	if err != nil {
+		return fmt.Errorf("%s: %w", what, err)
+	}
+	for _, sent := range deliveries {
+		received, ok := echoed[sent.id]
+		if !ok {
+			return fmt.Errorf("%s does not list the envelope %q delivered with the data schema %q", what, sent.id, sent.dataSchema)
+		}
+		// 同一条信封交给了几个处理器就可能列几项，每一项都要对
+		for _, dataSchema := range received {
+			if dataSchema != sent.dataSchema {
+				return fmt.Errorf("the handler got the data schema %q for the envelope %q, want %q exactly (an empty one is none)", dataSchema, sent.id, sent.dataSchema)
+			}
+		}
+	}
+	return nil
+}
+
+// echoedEnvelope 是回显操作列出的一项：作者在一次投递里拿到的信封 ID 与 dataschema（null 或不写即没有）。
+type echoedEnvelope struct {
+	ID         *string `json:"id"`
+	DataSchema *string `json:"dataSchema"`
+}
+
+// readEchoedEnvelopes 读回显操作的载荷：JSON 对象，成员 envelopes 是对象的数组（invocation.md §7）；返回信封 ID 到各项 dataSchema 的映射，没有的记为空串。
+func readEchoedEnvelopes(payload []byte) (map[string][]string, error) {
+	if problem := rules.CheckJSONText(payload); problem != nil {
+		return nil, fmt.Errorf("the payload does not pass the JSON text checks at %s (syntax error: %v)", problem.Path, problem.Syntax)
+	}
+	var document struct {
+		Envelopes *[]*echoedEnvelope `json:"envelopes"`
+	}
+	if err := json.Unmarshal(payload, &document); err != nil {
+		return nil, fmt.Errorf("the payload must be a JSON object whose 'envelopes' is an array of objects with a string 'id' and a string or null 'dataSchema': %w", err)
+	}
+	if document.Envelopes == nil {
+		return nil, errors.New("the payload must be a JSON object with an 'envelopes' array")
+	}
+	echoed := make(map[string][]string, len(*document.Envelopes))
+	for index, envelope := range *document.Envelopes {
+		if envelope == nil || envelope.ID == nil {
+			return nil, fmt.Errorf("item %d of 'envelopes' must be an object with a string 'id'", index)
+		}
+		dataSchema := ""
+		if envelope.DataSchema != nil {
+			dataSchema = *envelope.DataSchema
+		}
+		echoed[*envelope.ID] = append(echoed[*envelope.ID], dataSchema)
+	}
+	return echoed, nil
+}
+
+// hostWrittenTime 是宿主写给插件的一个 Envelope.time：envelope-times.json 的 written 里第一个有时刻的文本（七位小数、+00:00）。
+func hostWrittenTime() (string, error) {
+	vectors, err := conformance.EnvelopeTimes()
+	if err != nil {
+		return "", fmt.Errorf("plugin: %w", err)
+	}
+	for _, written := range vectors.Written {
+		if written.Instant != nil {
+			return written.Text, nil
+		}
+	}
+	return "", errors.New("plugin: the vector plugin/envelope-times.json has no written time")
+}
+
+// unreadableTimes 是插件必须读不出的 Envelope.time：envelope-times.json 的 invalid 与 sdk-envelope-times.json 的 unreadable（invocation.md §4、§7）。
+func unreadableTimes() ([]string, error) {
+	host, err := conformance.EnvelopeTimes()
+	if err != nil {
+		return nil, fmt.Errorf("plugin: %w", err)
+	}
+	sdk, err := conformance.SDKEnvelopeTimes()
+	if err != nil {
+		return nil, fmt.Errorf("plugin: %w", err)
+	}
+	texts := slices.Clone(host.Invalid)
+	for _, unreadable := range sdk.Unreadable {
+		texts = append(texts, unreadable.Text)
+	}
+	return texts, nil
+}
+
 // caseUnsubscribed：Start 之后向没人订阅的主题投递，以 KERNEL_NOTFOUND_001 + plugins.event.unsubscribed 失败，方式为空时按 competing；
-// 未知的投递方式与没有信封的投递以 gRPC InvalidArgument 拒绝（invocation.md §4）。
+// 未知的投递方式、没有信封与信封的 time 读不出的投递以 gRPC InvalidArgument 拒绝（invocation.md §4、§7）。
 func (r *runner) caseUnsubscribed(ctx context.Context) error {
 	s, err := r.open(ctx)
 	if err != nil {
@@ -443,7 +597,26 @@ func (r *runner) caseUnsubscribed(ctx context.Context) error {
 	_, err = call(ctx, r.opts.Timeout, func(c context.Context) (*pluginv1.HandleEventResponse, error) {
 		return s.client().HandleEvent(c, withoutEnvelope)
 	})
-	return expectCode(err, codes.InvalidArgument, "a delivery without an envelope")
+	if err := expectCode(err, codes.InvalidArgument, "a delivery without an envelope"); err != nil {
+		return err
+	}
+
+	// 信封的 time 读不出同属宿主写来的内容不合法（第 2 步）：排在找订阅之前，所以投给没人订阅的主题也是 InvalidArgument
+	texts, err := unreadableTimes()
+	if err != nil {
+		return err
+	}
+	for _, text := range texts {
+		request := eventRequest(topic, messageType, "competing")
+		request.Envelope.Time = text
+		_, err := call(ctx, r.opts.Timeout, func(c context.Context) (*pluginv1.HandleEventResponse, error) {
+			return s.client().HandleEvent(c, request)
+		})
+		if err := expectCode(err, codes.InvalidArgument, fmt.Sprintf("a delivery whose envelope time %q cannot be read", text)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // caseStream：插件在流式契约之前不实现流式调用（invocation.md §1）：第一帧之前结束或第一帧不是 start 时以 gRPC InvalidArgument

@@ -1,6 +1,6 @@
 // xihan-conformance 是 XiHan Framework Spec 的一致性运行器命令行。
 //
-//	xihan-conformance plugin --dir <插件目录> [--timeout 15s] [--config '{}'] [--sample op=json]... [--exclude op]... [--case name]... [--json]
+//	xihan-conformance plugin --dir <插件目录> [--timeout 15s] [--config '{}'] [--sample op=json]... [--exclude op]... [--envelopes op] [--case name]... [--json]
 //	xihan-conformance vectors [--json]
 package main
 
@@ -54,7 +54,7 @@ func main() {
 // usage 打印用法。
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage:")
-	fmt.Fprintln(os.Stderr, "  xihan-conformance plugin --dir <directory> [--timeout 15s] [--config '{}'] [--sample op=json]... [--exclude op]... [--case name]... [--json] [--quiet]")
+	fmt.Fprintln(os.Stderr, "  xihan-conformance plugin --dir <directory> [--timeout 15s] [--config '{}'] [--sample op=json]... [--exclude op]... [--envelopes op] [--case name]... [--json] [--quiet]")
 	fmt.Fprintln(os.Stderr, "  xihan-conformance vectors [--json]")
 	fmt.Fprintln(os.Stderr, "cases: "+strings.Join(plugin.AllCases, ", "))
 }
@@ -67,6 +67,7 @@ func runPlugin(args []string) int {
 	configuration := flags.String("config", "{}", "JSON object passed to Configure")
 	asJSON := flags.Bool("json", false, "print results as JSON")
 	quiet := flags.Bool("quiet", false, "do not forward the plugin's stderr")
+	envelopes := flags.String("envelopes", "", "operation that echoes the envelopes handed to the plugin's handlers (case "+plugin.CaseEventEnvelope+"); empty skips that case")
 	var samples, excludes, cases multiFlag
 	flags.Var(&samples, "sample", "request JSON for an operation, as op=json (repeatable)")
 	flags.Var(&excludes, "exclude", "operation not to invoke (repeatable)")
@@ -80,13 +81,14 @@ func runPlugin(args []string) int {
 	}
 
 	opts := plugin.Options{
-		Directory:     *directory,
-		Timeout:       *timeout,
-		Configuration: *configuration,
-		Samples:       map[string]string{},
-		Exclude:       map[string]bool{},
-		Cases:         cases,
-		Stderr:        os.Stderr,
+		Directory:         *directory,
+		Timeout:           *timeout,
+		Configuration:     *configuration,
+		Samples:           map[string]string{},
+		Exclude:           map[string]bool{},
+		EnvelopeOperation: *envelopes,
+		Cases:             cases,
+		Stderr:            os.Stderr,
 	}
 	if *quiet {
 		opts.Stderr = nil

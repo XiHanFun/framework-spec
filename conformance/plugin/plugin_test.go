@@ -240,6 +240,27 @@ func TestVersionComesFromTheBuildInformation(t *testing.T) {
 	}
 }
 
+func TestEchoedEnvelopesFollowTheShape(t *testing.T) {
+	// 回显操作的载荷（invocation.md §7）：null、空串与不写都是没有 dataschema；同一 ID 可以列多项
+	echoed, err := readEchoedEnvelopes([]byte(`{"envelopes":[{"id":"a","dataSchema":"urn:x"},{"id":"b","dataSchema":null},{"id":"c"},{"id":"d","dataSchema":""},{"id":"a","dataSchema":"urn:x","extra":1}],"other":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string][]string{"a": {"urn:x", "urn:x"}, "b": {""}, "c": {""}, "d": {""}}
+	if !reflect.DeepEqual(echoed, want) {
+		t.Errorf("echoed = %v, want %v", echoed, want)
+	}
+	for _, payload := range []string{
+		`[]`, `{}`, `{"envelopes":null}`, `{"envelopes":{}}`, `{"envelopes":[1]}`, `{"envelopes":[null]}`,
+		`{"envelopes":[{}]}`, `{"envelopes":[{"id":1}]}`, `{"envelopes":[{"id":"a","dataSchema":1}]}`,
+		`{"envelopes":[],"envelopes":[]}`, `{"envelopes":[`, ``,
+	} {
+		if _, err := readEchoedEnvelopes([]byte(payload)); err == nil {
+			t.Errorf("the payload %s must be rejected", payload)
+		}
+	}
+}
+
 func TestRunRejectsUnknownCasesAndMissingDirectories(t *testing.T) {
 	if _, err := Run(context.Background(), Options{Directory: t.TempDir()}); err == nil {
 		t.Error("a directory without a manifest must be rejected")
@@ -250,7 +271,7 @@ func TestRunRejectsUnknownCasesAndMissingDirectories(t *testing.T) {
 }
 
 // TestAgainstAPluginDirectory 以环境变量 XIHAN_CONFORMANCE_PLUGIN_DIR 指向的插件目录跑全部用例；
-// XIHAN_CONFORMANCE_EXCLUDE 是逗号分隔的不调用操作。
+// XIHAN_CONFORMANCE_EXCLUDE 是逗号分隔的不调用操作，XIHAN_CONFORMANCE_ENVELOPES 是回显信封的操作（没有即跳过 event-envelope）。
 func TestAgainstAPluginDirectory(t *testing.T) {
 	directory := os.Getenv("XIHAN_CONFORMANCE_PLUGIN_DIR")
 	if directory == "" {
@@ -264,7 +285,7 @@ func TestAgainstAPluginDirectory(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	results, err := Run(ctx, Options{Directory: directory, Exclude: exclude, Stderr: os.Stderr})
+	results, err := Run(ctx, Options{Directory: directory, Exclude: exclude, EnvelopeOperation: os.Getenv("XIHAN_CONFORMANCE_ENVELOPES"), Stderr: os.Stderr})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -125,7 +125,8 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `declared-operations` | 每个声明的一元操作都返回 `status`：成功时载荷是 JSON，失败时错误码合法 |
 | `unavailable` | `Configure` 之后、`Start` 之前：未声明的操作仍以 `Unimplemented` 结束；每个声明的操作（`--exclude` 的除外）与对第一个订阅的投递都以 `PLUGINS_UNAVAILABLE_001` + `plugins.process.unavailable` 失败，`text` 为空，`details` 为 `{"id":<清单 ID>,"state":"Configured"}`（`invocation.md` §1、§4，`lifecycle.md` §7.3） |
 | `event` | 向第一个声明的订阅投递消息得到确认；没有订阅时跳过 |
-| `unsubscribed` | `Start` 之后向没人订阅的随机主题投递：`mode` 为 `competing` 或空都以 `KERNEL_NOTFOUND_001` + `plugins.event.unsubscribed` 失败，`text` 为空，`details` 为 `{"id","topic","type","mode":"competing"}`；`mode` 为 `bogus` 与没有 `envelope` 都以 `InvalidArgument` 拒绝（`invocation.md` §4） |
+| `event-envelope` | `--envelopes` 指明回显信封的操作时：向第一个订阅投递三条信封，`time` 是宿主的写法、`data_schema` 依次是会被 URI 库改写的写法、带非 ASCII 字符的 URN 与空串，都得到确认；再以 `{}` 调用那个操作，`envelopes` 里三条的 `dataSchema` 与投递时逐字符相同、空串那条为没有（`invocation.md` §4、§7，ADR-0327）；没有订阅或没有指明时跳过 |
+| `unsubscribed` | `Start` 之后向没人订阅的随机主题投递：`mode` 为 `competing` 或空都以 `KERNEL_NOTFOUND_001` + `plugins.event.unsubscribed` 失败，`text` 为空，`details` 为 `{"id","topic","type","mode":"competing"}`；`mode` 为 `bogus`、没有 `envelope`，以及信封的 `time` 逐条取 `envelope-times.json` 的 `invalid` 与 `sdk-envelope-times.json` 的 `unreadable`，都以 `InvalidArgument` 拒绝（`invocation.md` §4、§7，读不出的 `time` 排在找订阅之前，ADR-0327） |
 | `stream` | `InvokeStream` 第一帧是 `chunk`、不发帧就关闭发送方向都以 `InvalidArgument` 结束；第一帧是 `start`（未声明的操作，以及第一个声明的操作）以 `Unimplemented` 结束（`invocation.md` §1） |
 | `configuration` | 配置节为 `[]` 与语法错误的 `{"a":` 时各开一个进程：`Configure` 以 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed` 失败，`text` 为空，`details` 为 `{"id","phase":"configure","reason":"the configuration is not a JSON object"}`；之后 `Health` 报 `Failed`，`Stop` 应答 `ok`、进程在宽限内以退出码 0 退出（`lifecycle.md` §7.2、§7.5） |
 | `stop-early` | 握手后直接 `Stop`（`grace_seconds` 为 0）应答 `ok`，进程在 5 秒内以退出码 0 退出（`lifecycle.md` §7.5） |
@@ -135,7 +136,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 
 ```bash
 go install github.com/xihanfun/framework-spec/conformance/cmd/xihan-conformance@latest
-xihan-conformance plugin --dir ./bin/echo --exclude echoes.crash --sample 'echoes.create={"text":"hi"}'
+xihan-conformance plugin --dir ./bin/echo --exclude echoes.crash --sample 'echoes.create={"text":"hi"}' --envelopes events.list
 xihan-conformance plugin --dir ./bin/echo --json
 xihan-conformance vectors
 ```
@@ -147,6 +148,7 @@ xihan-conformance vectors
 | `--config` | `Configure` 下发的配置节 JSON，默认 `{}` |
 | `--sample op=json` | 某个操作的请求样例；没有的操作用 `{}` |
 | `--exclude op` | 不调用的操作（如会故意崩溃的操作） |
+| `--envelopes op` | 回显交给作者的信封的操作（载荷的形态见 `plugin/invocation.md` §7），用例 `event-envelope` 用它；不给时那个用例跳过 |
 | `--case name` | 只跑指定用例，可重复 |
 | `--json` | 结果输出为 JSON |
 | `--quiet` | 不转发插件的 stderr |
@@ -155,7 +157,7 @@ xihan-conformance vectors
 
 `xihan-conformance version` 打印运行器的版本，握手时作为宿主 SDK 版本上报的也是它（`plugin.Version`）：取自构建信息里本模块的版本，不带前缀 `v`，`go install …@<版本>` 装的就是那个版本；在仓库里直接构建或测试时取不到，是 `devel`。
 
-作为库使用：`plugin.Run(ctx, plugin.Options{Directory: dir})` 返回每个用例的 `Result`；测试 `TestAgainstAPluginDirectory` 在设置了 `XIHAN_CONFORMANCE_PLUGIN_DIR`（和可选的 `XIHAN_CONFORMANCE_EXCLUDE`）时对该目录跑全部用例。运行器自己的测试（`plugin/fake_test.go`）让测试程序扮演插件：合规的假插件必须通过全部用例，按以前各 SDK 的做法应答的假插件必须在新用例上失败。
+作为库使用：`plugin.Run(ctx, plugin.Options{Directory: dir})` 返回每个用例的 `Result`；测试 `TestAgainstAPluginDirectory` 在设置了 `XIHAN_CONFORMANCE_PLUGIN_DIR`（和可选的 `XIHAN_CONFORMANCE_EXCLUDE`、`XIHAN_CONFORMANCE_ENVELOPES`）时对该目录跑全部用例。运行器自己的测试（`plugin/fake_test.go`）让测试程序扮演插件：合规的假插件必须通过全部用例，按以前各 SDK 的做法应答的假插件必须在新用例上失败。
 
 ## 生成代码
 

@@ -39,7 +39,7 @@
 - Windows 上清单 `entry` 没有扩展名时补 `.exe`。
 - 收尾：断开连接、关闭 stdin，2 秒内不退出才强制终止。
 - 退出码：`0` 全部通过（含跳过），`1` 有用例失败，`2` 参数或目录错误。
-- 作为库：`plugin.Run(ctx, plugin.Options{Directory: dir})`；`TestAgainstAPluginDirectory` 在设置 `XIHAN_CONFORMANCE_PLUGIN_DIR`（可选 `XIHAN_CONFORMANCE_EXCLUDE`，逗号分隔）时对该目录跑全部用例。
+- 作为库：`plugin.Run(ctx, plugin.Options{Directory: dir})`；`TestAgainstAPluginDirectory` 在设置 `XIHAN_CONFORMANCE_PLUGIN_DIR`（可选 `XIHAN_CONFORMANCE_EXCLUDE`，逗号分隔；可选 `XIHAN_CONFORMANCE_ENVELOPES`，回显信封的操作）时对该目录跑全部用例。
 
 ## 用真实插件验证
 

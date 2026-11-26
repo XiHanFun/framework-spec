@@ -27,16 +27,18 @@ import (
 // fakePluginName 是测试把自己的可执行文件复制成的插件入口名：以这个名字、带着会话令牌启动时，TestMain 扮演插件。
 const fakePluginName = "xihan-fake-plugin"
 
-// fakeModeFile 是插件目录里选择假插件行为的文件：内容为 legacy 时按以前各 SDK 不合规范的做法应答。
+// fakeModeFile 是插件目录里选择假插件行为的文件：内容为 legacy 时按以前各 SDK 不合规范的做法应答，
+// 为 lenient-time 时只是不读信封的 time（ADR-0306 之前的 SDK），其余照规范。
 const fakeModeFile = "fake-mode"
 
 // fakeManifest 是假插件的清单。
-const fakeManifest = `{"id":"xihan.conformance.fake","version":"1.0.0","primitives":"1","stability":"experimental","kind":"plugin","isolation":"out-of-process","contributes":{"operations":["echoes.create"],"health":["fake"]},"permissions":["capability:kernel.pipeline"],"entry":"` + fakePluginName + `"}`
+const fakeManifest = `{"id":"xihan.conformance.fake","version":"1.0.0","primitives":"1","stability":"experimental","kind":"plugin","isolation":"out-of-process","contributes":{"operations":["echoes.create","events.list"],"health":["fake"]},"permissions":["capability:kernel.pipeline"],"entry":"` + fakePluginName + `"}`
 
-// fakeOperation 与 fakeTopic 是假插件声明的操作与订阅主题。
+// fakeOperation、fakeEnvelopeOperation 与 fakeTopic 是假插件声明的操作、回显信封的操作与订阅主题。
 const (
-	fakeOperation = "echoes.create"
-	fakeTopic     = "echo.events"
+	fakeOperation         = "echoes.create"
+	fakeEnvelopeOperation = "events.list"
+	fakeTopic             = "echo.events"
 )
 
 func TestMain(m *testing.M) {
@@ -50,7 +52,7 @@ func TestRunnerPassesARulesAbidingPlugin(t *testing.T) {
 	// 两个假插件测试可以并行：各自一个插件目录、一次 Run（自己的会话令牌、回调端点与系统分配的监听端口）。
 	// 唯一共用的是运行器按清单 ID 建的工作目录，运行器只对它 MkdirAll，假插件不读写它
 	t.Parallel()
-	results, log := runAgainstFake(t, "")
+	results, log := runAgainstFake(t, "", Options{EnvelopeOperation: fakeEnvelopeOperation})
 	if len(results) != len(AllCases) {
 		t.Fatalf("ran %d cases, want %d", len(results), len(AllCases))
 	}
@@ -66,11 +68,11 @@ func TestRunnerPassesARulesAbidingPlugin(t *testing.T) {
 
 func TestRunnerReportsAPluginThatBreaksTheRules(t *testing.T) {
 	t.Parallel()
-	results, log := runAgainstFake(t, "legacy")
+	results, log := runAgainstFake(t, "legacy", Options{EnvelopeOperation: fakeEnvelopeOperation})
 	// legacy 只违反插件一侧的新规则，原有的用例照常通过
 	failing := map[string]bool{
 		CaseHandshake: true, CaseSession: true, CaseOrder: true, CaseUnavailable: true,
-		CaseUnsubscribed: true, CaseStream: true, CaseConfiguration: true,
+		CaseEventEnvelope: true, CaseUnsubscribed: true, CaseStream: true, CaseConfiguration: true,
 	}
 	for _, result := range results {
 		if result.Passed == failing[result.Case] {
@@ -85,8 +87,28 @@ func TestRunnerReportsAPluginThatBreaksTheRules(t *testing.T) {
 	}
 }
 
-// runAgainstFake 把测试的可执行文件连同清单复制进临时的插件目录，以 mode 选定的行为跑全部用例。
-func runAgainstFake(t *testing.T, mode string) ([]Result, string) {
+func TestRunnerReportsAPluginThatAcceptsUnreadableTimes(t *testing.T) {
+	t.Parallel()
+	// 只是不读信封 time 的插件：别的都合规范，unsubscribed 因读不出的 time 没有以 InvalidArgument 拒绝而失败
+	results, log := runAgainstFake(t, "lenient-time", Options{Cases: []string{CaseUnsubscribed}})
+	if len(results) != 1 || results[0].Passed || !strings.Contains(results[0].Message, "envelope time") {
+		t.Errorf("results = %+v, want unsubscribed to fail on an unreadable envelope time", results)
+		t.Log(log)
+	}
+}
+
+func TestRunnerSkipsTheEnvelopeCaseWithoutAnEchoOperation(t *testing.T) {
+	t.Parallel()
+	results, log := runAgainstFake(t, "", Options{Cases: []string{CaseEventEnvelope}})
+	if len(results) != 1 || !results[0].Passed || !results[0].Skipped {
+		t.Errorf("results = %+v, want event-envelope skipped without EnvelopeOperation", results)
+		t.Log(log)
+	}
+}
+
+// runAgainstFake 把测试的可执行文件连同清单复制进临时的插件目录，以 mode 选定的行为跑 opts 选定的用例（Cases 为空即全部）；
+// 目录、截止时间与 stderr 由这里填。
+func runAgainstFake(t *testing.T, mode string, opts Options) ([]Result, string) {
 	t.Helper()
 	directory := t.TempDir()
 	executable, err := os.Executable()
@@ -113,7 +135,8 @@ func runAgainstFake(t *testing.T, mode string) ([]Result, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	var log syncBuffer
-	results, err := Run(ctx, Options{Directory: directory, Timeout: 10 * time.Second, Stderr: &log})
+	opts.Directory, opts.Timeout, opts.Stderr = directory, 10*time.Second, &log
+	results, err := Run(ctx, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,15 +163,25 @@ func (b *syncBuffer) String() string {
 	return b.buffer.String()
 }
 
-// fakePlugin 是按 lifecycle.md §7 与 invocation.md §1–§4 应答的最小插件；legacy 为真时改用以前各 SDK 的不合规做法。
+// fakePlugin 是按 lifecycle.md §7 与 invocation.md §1–§4 应答的最小插件；legacy 为真时改用以前各 SDK 的不合规做法，
+// lenientTime 为真时不读信封的 time。
 type fakePlugin struct {
 	pluginv1.UnimplementedPluginServer
-	legacy   bool
-	token    string
-	manifest string
-	server   *grpc.Server
-	mu       sync.Mutex
-	state    pluginv1.LifecycleState
+	legacy      bool
+	lenientTime bool
+	token       string
+	manifest    string
+	server      *grpc.Server
+	mu          sync.Mutex
+	state       pluginv1.LifecycleState
+	// envelopes 是处理器拿到的信封，按收到的先后；回显信封的操作原样列出
+	envelopes []fakeEnvelope
+}
+
+// fakeEnvelope 是假插件的处理器拿到的一条信封：ID 与 dataschema（空串为没有）。
+type fakeEnvelope struct {
+	ID         string  `json:"id"`
+	DataSchema *string `json:"dataSchema"`
 }
 
 // runFakePlugin 是假插件进程的入口：核对回调端点列表、监听回环 TCP、写握手行，stdin 关闭时退出。
@@ -171,7 +204,8 @@ func runFakePlugin() int {
 		fmt.Fprintln(os.Stderr, "error: listen:", err)
 		return 3
 	}
-	plugin := &fakePlugin{legacy: strings.TrimSpace(string(mode)) == "legacy", token: os.Getenv("XIHAN_PLUGIN_SESSION"), manifest: string(manifest)}
+	selected := strings.TrimSpace(string(mode))
+	plugin := &fakePlugin{legacy: selected == "legacy", lenientTime: selected == "lenient-time", token: os.Getenv("XIHAN_PLUGIN_SESSION"), manifest: string(manifest)}
 	plugin.server = grpc.NewServer(grpc.UnaryInterceptor(plugin.unaryToken), grpc.StreamInterceptor(plugin.streamToken))
 	pluginv1.RegisterPluginServer(plugin.server, plugin)
 	go func() {
@@ -251,7 +285,7 @@ func (p *fakePlugin) Handshake(_ context.Context, request *pluginv1.HandshakeReq
 		Primitives:      1,
 		Manifest:        strings.TrimPrefix(p.manifest, "\uFEFF"),
 		Sdk:             &pluginv1.SdkInfo{Name: fakePluginName, Version: "0.0.0", Language: "go"},
-		Operations:      []*pluginv1.OperationDeclaration{{Id: fakeOperation, Stability: "experimental"}},
+		Operations:      []*pluginv1.OperationDeclaration{{Id: fakeOperation, Stability: "experimental"}, {Id: fakeEnvelopeOperation, Stability: "experimental"}},
 		Subscriptions:   []*pluginv1.Subscription{{Topic: fakeTopic, Mode: mode}},
 		Catalogs:        []*pluginv1.MessageCatalog{{Name: "fake", Locales: []*pluginv1.LocaleTemplates{{Locale: "en-US", Templates: map[string]string{"fake.hello": "Hello."}}}}},
 	}, nil
@@ -338,11 +372,19 @@ func (p *fakePlugin) Invoke(_ context.Context, request *pluginv1.InvokeRequest) 
 	if p.legacy && !serving(state) {
 		return &pluginv1.InvokeResponse{Status: &pluginv1.Status{Error: &pluginv1.Error{Code: "PLUGINS_UNAVAILABLE_001", MessageKey: "plugins.process.unavailable", Text: "The plugin is not ready.", Details: `{"reason":"not ready"}`}}}, nil
 	}
-	if request.Operation != fakeOperation {
+	if request.Operation != fakeOperation && request.Operation != fakeEnvelopeOperation {
 		return nil, status.Errorf(codes.Unimplemented, "operation '%s' is not declared", request.Operation)
 	}
 	if !serving(state) {
 		return &pluginv1.InvokeResponse{Status: p.unavailable(state)}, nil
+	}
+	if request.Operation == fakeEnvelopeOperation {
+		// 回显处理器拿到的信封（invocation.md §7）：没有 dataschema 写 null
+		p.mu.Lock()
+		envelopes := append([]fakeEnvelope{}, p.envelopes...)
+		p.mu.Unlock()
+		echoed, _ := json.Marshal(map[string]any{"envelopes": envelopes})
+		return &pluginv1.InvokeResponse{Status: &pluginv1.Status{Ok: true}, Payload: echoed}, nil
 	}
 	payload := request.Payload
 	if len(payload) == 0 {
@@ -366,11 +408,17 @@ func (p *fakePlugin) InvokeStream(stream grpc.BidiStreamingServer[pluginv1.Strea
 	return status.Error(codes.Unimplemented, "streaming operations are not supported")
 }
 
-// HandleEvent 实现 pluginv1.PluginServer：按 invocation.md §4 的顺序核对信封与方式、订阅、是否可服务。
+// HandleEvent 实现 pluginv1.PluginServer：按 invocation.md §4 的顺序核对信封、方式与 time、订阅、是否可服务，处理器记下拿到的信封；
+// legacy 与 lenientTime 不读 time，legacy 的处理器拿不到 dataschema。
 func (p *fakePlugin) HandleEvent(_ context.Context, request *pluginv1.HandleEventRequest) (*pluginv1.HandleEventResponse, error) {
 	mode := request.Mode
 	if !p.legacy && (request.Envelope == nil || (mode != "" && mode != "competing" && mode != "broadcast")) {
 		return nil, status.Error(codes.InvalidArgument, "the delivery has no envelope or an unknown mode")
+	}
+	if !p.legacy && !p.lenientTime {
+		if _, _, ok := rules.ReadEnvelopeTime(request.Envelope.Time); !ok {
+			return nil, status.Error(codes.InvalidArgument, "the envelope time cannot be read")
+		}
 	}
 	if mode == "" {
 		mode = "competing"
@@ -385,6 +433,13 @@ func (p *fakePlugin) HandleEvent(_ context.Context, request *pluginv1.HandleEven
 	if state := p.current(); !serving(state) {
 		return &pluginv1.HandleEventResponse{Status: p.unavailable(state)}, nil
 	}
+	received := fakeEnvelope{ID: envelope.GetId()}
+	if schema := envelope.GetDataSchema(); schema != "" && !p.legacy {
+		received.DataSchema = &schema
+	}
+	p.mu.Lock()
+	p.envelopes = append(p.envelopes, received)
+	p.mu.Unlock()
 	return &pluginv1.HandleEventResponse{Status: &pluginv1.Status{Ok: true}}, nil
 }
 

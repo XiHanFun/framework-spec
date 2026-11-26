@@ -28,6 +28,7 @@ var caseTable = []testCase{
 	{CaseDeclaredOperations, (*runner).caseDeclaredOperations},
 	{CaseUnavailable, (*runner).caseUnavailable},
 	{CaseEvent, (*runner).caseEvent},
+	{CaseEventEnvelope, (*runner).caseEventEnvelope},
 	{CaseUnsubscribed, (*runner).caseUnsubscribed},
 	{CaseStream, (*runner).caseStream},
 	{CaseConfiguration, (*runner).caseConfiguration},

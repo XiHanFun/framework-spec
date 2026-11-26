@@ -27,7 +27,9 @@ const (
 	CaseUnavailable = "unavailable"
 	// CaseEvent 核对向声明的订阅投递消息得到确认；没有订阅时跳过。
 	CaseEvent = "event"
-	// CaseUnsubscribed 核对投递找不到订阅时报 plugins.event.unsubscribed、不合法的投递以 InvalidArgument 拒绝（invocation.md §4）。
+	// CaseEventEnvelope 核对插件把宿主写来信封的 data_schema 原样交给作者（invocation.md §4、§7）；没有订阅或没有给出 EnvelopeOperation 时跳过。
+	CaseEventEnvelope = "event-envelope"
+	// CaseUnsubscribed 核对投递找不到订阅时报 plugins.event.unsubscribed、不合法的投递（含读不出的信封 time）以 InvalidArgument 拒绝（invocation.md §4）。
 	CaseUnsubscribed = "unsubscribed"
 	// CaseStream 核对 InvokeStream 按第一帧以 InvalidArgument 或 Unimplemented 结束（invocation.md §1）。
 	CaseStream = "stream"
@@ -57,6 +59,8 @@ type Options struct {
 	Samples map[string]string
 	// Exclude 是不调用的操作 ID（如会故意崩溃的操作）。
 	Exclude map[string]bool
+	// EnvelopeOperation 是插件回显交给作者的信封的操作 ID（invocation.md §7）；空则跳过 CaseEventEnvelope。
+	EnvelopeOperation string
 	// Cases 是只运行的用例名；空为全部。
 	Cases []string
 	// Stderr 接收插件 stderr 与握手后 stdout 的每一行；nil 丢弃。
