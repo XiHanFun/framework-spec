@@ -22,7 +22,7 @@
 - 转换不了的值按字符串写入，不算用法错误：进入管道后由 Validate 阶段报 `KERNEL_VALIDATION_003`，退出码 2，违规落在字段路径上。
 - 操作没有 `OperationSchema` 时值都写字符串，重复的选项成字符串数组，由请求类型的序列化上下文决定怎么读。
 - 成功：响应 JSON 一行写到 stdout，退出码 0。
-- 失败：stderr 一行 `{"code":"<错误码>","detail":"<文案>","traceId":"<trace-id>"}`；退出码按 KIND：VALIDATION 2、NOTFOUND 3、DENIED 4、CONFLICT 5、UNAVAILABLE 6、TIMEOUT 7、CANCELLED 8、其他 1。用法错误（无命令、未知命令、选项或载荷不合法）→ 64，stderr 为同样的 JSON（`HOSTING_VALIDATION_001` / `HOSTING_NOTFOUND_002`）。
+- 失败：stderr 一行 `{"code":"<错误码>","detail":"<文案>","traceId":"<trace-id>"}`；退出码按 KIND：VALIDATION 2、NOTFOUND 3、DENIED 4、CONFLICT 5、UNAVAILABLE 6、TIMEOUT 7、CANCELLED 8、其他 1。用法错误（无命令、未知命令、选项或载荷不合法）→ 64，stderr 为同样的 JSON（`HOSTING_VALIDATION_001` / `HOSTING_NOTFOUND_002`）。没有发起调用就返回的失败（用法错误，以及 `invoke` 的 `HOSTING_NOTFOUND_001`）的 `detail` 同样按 `--locale` 翻译：给出的是合法的区域名时规范化后与调用一样协商出启用的区域（RFC-0010「协商与宿主」），没给或不合法时是默认区域；`mcp` 命令的会话选项不合法也是这样（2026-11-27 写明，ADR-0325；以前 .NET 的这些失败总按默认区域翻译，`--locale` 只对发起了的调用生效）。帮助的文案仍按默认区域。
 - 弃用（2026-11-24 增补，ADR-0280；以前命令行只在 `operations` 的稳定性一列看得到弃用，调用时没有任何提示）：稳定性是 `Deprecated` 的操作照常调用，stdout 的输出与退出码不变。
   - 调用进入管道之前，在 stderr 写一行弃用提示：面向人的一句话，按调用方区域（`--locale`，没有时是默认区域）翻译，带操作 ID；每次调用写一行。调用失败时这一行在失败的那一行 JSON 之前。
   - 用法错误（退出码 64）没有发起调用，不写这一行；其余级别的操作不写。
