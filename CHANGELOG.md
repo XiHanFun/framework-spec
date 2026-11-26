@@ -4,6 +4,21 @@
 
 ## 未发布
 
+- MINOR：`plugin/invocation.md` §5 写明 SDK 释放回调客户端之后的回调不发请求、不重新连接，结果是 `plugins.host.unavailable`，排在本地核对与载荷、`data` 的编码之后，编不成的仍报编码错误（ADR-0328）。
+- MINOR：`plugin/invocation.md` §7 写明套件与运行器核对插件一侧的两条：`unsubscribed` 逐条投递 `envelope-times.json` 的 `invalid` 与 `sdk-envelope-times.json` 的 `unreadable`、都须 `InvalidArgument`；新增运行器用例 `event-envelope` 与选项 `--envelopes`（`Options.EnvelopeOperation`），经被测插件声明的回显信封的操作核对 `data_schema` 原样交给作者，没有指明时跳过（ADR-0327）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0021「目录」写明改写已有定义的操作（`UpdateAsync`、`PublishAsync`、`DisableAsync`、`ArchiveAsync`、`DeleteAsync`）按定义 ID 取锁、持有到作用域结束，拿不到的那一项以取锁的错误失败；「锁」的锁键加上目录；`Workflow.Database` 的查询列回填改写定义行也在这把锁内，不再要求没有人编辑定义时运行（以前定义的写入不加锁）；「一致性」的引擎套件加一条用例（ADR-0326）。
+- MINOR：`protocol/commandline.md` 写明，没有发起调用就返回的失败（用法错误、`HOSTING_NOTFOUND_001`、`mcp` 的会话选项）的 `detail` 也按 `--locale` 翻译（ADR-0325）。
+- MINOR：`plugin/handshake.md` §4 写明，宿主校验回调的会话令牌按常数时间比较（散列查找后比较原令牌），RFC-0017 状态行同步（ADR-0325）。
+- MINOR：RFC-0006「幂等」第 2 条写明，响应编不出时用编不出的错误替换标记并作为本次调用的结果，重试回放同一个错误、不再执行（ADR-0324）。
+- MAJOR（`v1.0.0` 之前允许）：`protocol/cloudevents.md` 的 binary 入站 `ce-*` 头值按 CloudEvents 的百分号解码严格读（`%` 后不是两位十六进制、字节不是合法 UTF-8、值里有孤立代理项即信封不合法，消息键 `protocols.cloudevents.header_invalid`），空的 `ce-dataschema` 头不合法，声明为 JSON 的数据照 structured 读同一个事件核对；出站 binary 照结构化 JSON 的写出核对数据；RFC-0009「信封」的写出补数据里不合法的 UTF-8，「各传输上的 dataschema」写明与插件协议空串的区别（ADR-0323）。
+- MINOR：RFC-0009 新增「框架事件的数据模式」，应用按 CloudEvents `type` 登记 `dataschema`，领域事件、调度（RFC-0013）与工作流（RFC-0021）发布的信封带上它；取值照「信封」并另拒孤立代理项，同值只记一次，异值与超过 10000 个 `type` 是装配错误（ADR-0323）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0012「标识」规定自定义元数据的值不能含孤立的代理项；`blob-metadata.json` 补孤立与成对的代理项，孤立的以 `utf16` 按名写出码元，Go 新增 `BlobMetadataCase.UTF16` 与 `Values()`，`rules.IsBlobMetadata` 拒收不是合法 UTF-8 的值（ADR-0322）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0012「范围读取、分片上传与预签名」规定列出分片里同一编号出现两次即 `OBJECTSTORAGE_UNAVAILABLE_001`，替代「累计超过 10000 片」（ADR-0322）。
+- MINOR：RFC-0012「S3 Provider」写明读取与 `Head` 缺 `Content-Length`、列举的对象缺 `<Size>`、任一步 SDK 解析不了的应答都返回 `OBJECTSTORAGE_UNAVAILABLE_001`，整读内容对不上 `ETag` 时内容流抛出携带该码的异常，整读 `ETag` 不是十六进制的识别不靠调用栈；「S3 的条件写入探测」写明上传分片缺 `ETag` 时不发完成、尽力放弃、不另退避（ADR-0322）。
+- PATCH：RFC-0012「契约」写明写入结果要服务端时刻就再 `Head`；`conventions/error-codes.md` 的 `OBJECTSTORAGE_UNAVAILABLE_001` 补这几处（ADR-0322）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0001 新增「孤立的代理项」与原语 `UnicodeText`；Baggage 的值、资源名的 ID 段、审计细节的键、工作流的关联 ID、知识库的文档 ID、作业与触发器的说明与数据、下发的绑定的主值与属性值、Redis / 消息 / Nacos 的前缀后缀与名字都不能含孤立的代理项（RFC-0006、0008、0009、0013、0014、0015、0021、0022，`conventions/baggage-keys.md`，`plugin/lifecycle.md` §2）；`baggage-keys.json` 补 `acceptableUtf16`、`unacceptableUtf16`，新增 `security/resource-names.json`，Go 新增 `rules.IsResourceName`，`IsBaggageValueAcceptable` 拒收不是合法 UTF-8 的值（ADR-0321）。
+- MINOR：RFC-0001「写出与转交」写明 Result 与 Error 的线上编码、插件协议的 `Error.details` 与为 Schema 校验编出的类型化请求严格编码：线上编码写不出即写出的一方报错、整段文本过共同检查；细节写不出即不带细节；请求编不成即 `KERNEL_VALIDATION_001`（`reason` 为 `$`）。末段改写成范围说明，诊断输出、类型化存储、写给外部服务的文本与读进来的第三方或应用文本照缺省。RFC-0011「校验」第 1 步（只在有 Schema 时编码）与 `plugin/invocation.md` §3 同步（ADR-0320）。
+- MINOR：`protocol/mcp.md` 修订 stdio 按字节分行（LF、CR、CR LF）再严格解码，非法的 UTF-8 答复解析错误、接着读下一行；RFC-0001「写出与转交」里这一项挪到「以字节收到」一条（ADR-0320）。
 - MINOR：RFC-0011 规则 2「载荷的文本」与规则 10「编码」写明类型化响应写出的整段文本要过 RFC-0001「JSON 文本」的共同检查，嵌套超过 64 层（从响应的根算起）或任何一层有重复成员即写不出，为 `KERNEL_UNEXPECTED_001` + `kernel.invocation.unhandled_exception`，不带 `inner`，宿主与 SDK 相同；Python 的 `str` 里任何代理项码点都写不出，成对的两个也一样。RFC-0001「写出与转交」与 `plugin/invocation.md` §1「插件一侧写出应答」同步（ADR-0319）。
 - MINOR：`plugin/invocation.md` §1 与 RFC-0001「写出与转交」写明插件交回的空成功载荷表示没有响应体、不按 JSON 文本核对，只有空白的照样核对；RFC-0006「幂等」第 2、4 条写明记下没有响应体、回放时按描述解码空载荷（ADR-0318）。
 - PATCH：`protocol/commandline.md` 写明字段选项的用法错误用消息键 `hosting.commandline.invoke_field_invalid`，错误码与退出码不变（ADR-0318）。
