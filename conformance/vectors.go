@@ -692,13 +692,18 @@ type CachingDistributedVectors struct {
 }
 
 // CacheKeyCase 是一条缓存键或键前缀的样例：Text 是原文，UTF8Bytes 是它的 UTF-8 字节数，
-// UTF16Units 是 UTF-16 码元数（不参与判定，只为标出按码元计会判错的用例）。
+// UTF16Units 是 UTF-16 码元数（不参与判定，只为标出按码元计会判错的用例）。JSON 字符串写不出的键（孤立的代理项，ADR-0316）
+// 没有 Text，改由 UTF16 列出码元，也没有 UTF8Bytes；文本用 Input 取。
 type CacheKeyCase struct {
-	Name       string `json:"name"`
-	Text       string `json:"text"`
-	UTF8Bytes  int    `json:"utf8Bytes"`
-	UTF16Units int    `json:"utf16Units"`
+	Name       string    `json:"name"`
+	Text       string    `json:"text"`
+	UTF16      CodeUnits `json:"utf16"`
+	UTF8Bytes  int       `json:"utf8Bytes"`
+	UTF16Units int       `json:"utf16Units"`
 }
+
+// Input 返回键或前缀的文本：写了 UTF16 的按码元组成（CodeUnits.Text），否则是 Text。
+func (c CacheKeyCase) Input() (string, error) { return caseText(c.Name, c.Text, c.UTF16) }
 
 // CacheKeyCaseSet 是一组必须接受与必须拒绝的样例。
 type CacheKeyCaseSet struct {
@@ -706,7 +711,7 @@ type CacheKeyCaseSet struct {
 	Invalid []CacheKeyCase `json:"invalid"`
 }
 
-// CacheKeyVectors 对应 caching/cache-keys.json（RFC-0006「存储契约」与「键管理」，ADR-0276）：
+// CacheKeyVectors 对应 caching/cache-keys.json（RFC-0006「存储契约」与「键管理」，ADR-0276、ADR-0316）：
 // MaxBytes 是键与前缀按 UTF-8 编码后的最大字节数，Keys 是键，Prefixes 是键前缀（与键同一条规则，只是可以为空）。
 type CacheKeyVectors struct {
 	MaxBytes int             `json:"maxBytes"`

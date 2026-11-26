@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/xihanfun/framework-spec/conformance"
 	"github.com/xihanfun/framework-spec/conformance/rules"
@@ -194,27 +195,43 @@ func TestCacheKeysFollowTheVectors(t *testing.T) {
 		t.Fatalf("maxBytes = %d, want %d", vectors.MaxBytes, rules.MaxCacheKeyBytes)
 	}
 
-	// 向量里写的两个计数先核对：字节数是规范的判据，码元数只用来标出按码元计会判错的用例
+	// 向量里写的两个计数先核对：字节数是规范的判据，码元数只用来标出按码元计会判错的用例；
+	// 含孤立代理项的键编不成 UTF-8，以码元写出、不标字节数（ADR-0316）
 	atLimit, overOnlyInBytes := false, false
-	check := func(group string, cases []conformance.CacheKeyCase, accepts func(string) bool, want bool) {
+	var keySurrogates, prefixSurrogates surrogateCoverage
+	check := func(group string, cases []conformance.CacheKeyCase, accepts func(string) bool, want bool, surrogates *surrogateCoverage) {
 		for _, c := range cases {
-			if bytes := len(c.Text); bytes != c.UTF8Bytes {
-				t.Errorf("%s %q: utf8Bytes = %d, but the text is %d bytes", group, c.Name, c.UTF8Bytes, bytes)
+			text := caseInput(t, c.Name, c.Input)
+			units := len(utf16.Encode([]rune(text)))
+			if c.UTF16 != nil {
+				units = len(c.UTF16)
 			}
-			if units := len(utf16.Encode([]rune(c.Text))); units != c.UTF16Units {
+			if units != c.UTF16Units {
 				t.Errorf("%s %q: utf16Units = %d, but the text is %d code units", group, c.Name, c.UTF16Units, units)
 			}
-			if got := accepts(c.Text); got != want {
+			switch {
+			case !utf8.ValidString(text) && (c.UTF16 == nil || c.UTF8Bytes != 0):
+				t.Errorf("%s %q: a text with lone surrogates must be written as utf16 code units without utf8Bytes", group, c.Name)
+			case utf8.ValidString(text) && len(text) != c.UTF8Bytes:
+				t.Errorf("%s %q: utf8Bytes = %d, but the text is %d bytes", group, c.Name, c.UTF8Bytes, len(text))
+			}
+			if got := accepts(text); got != want {
 				t.Errorf("%s %q: accepted = %v, want %v", group, c.Name, got, want)
 			}
+			surrogates.note(t, c.Name, text, c.UTF16, want)
 			atLimit = atLimit || (want && c.UTF8Bytes == vectors.MaxBytes)
 			overOnlyInBytes = overOnlyInBytes || (!want && c.UTF8Bytes > vectors.MaxBytes && c.UTF16Units <= vectors.MaxBytes)
 		}
 	}
-	check("keys.valid", vectors.Keys.Valid, rules.IsCacheKey, true)
-	check("keys.invalid", vectors.Keys.Invalid, rules.IsCacheKey, false)
-	check("prefixes.valid", vectors.Prefixes.Valid, rules.IsCacheKeyPrefix, true)
-	check("prefixes.invalid", vectors.Prefixes.Invalid, rules.IsCacheKeyPrefix, false)
+	check("keys.valid", vectors.Keys.Valid, rules.IsCacheKey, true, &keySurrogates)
+	check("keys.invalid", vectors.Keys.Invalid, rules.IsCacheKey, false, &keySurrogates)
+	check("prefixes.valid", vectors.Prefixes.Valid, rules.IsCacheKeyPrefix, true, &prefixSurrogates)
+	check("prefixes.invalid", vectors.Prefixes.Invalid, rules.IsCacheKeyPrefix, false, &prefixSurrogates)
+	keySurrogates.requireAll(t, "cache key", false)
+	// 前缀只要求一部分写法：四种都在键里，前缀与键同一条规则
+	if !prefixSurrogates.trailingHigh || !prefixSurrogates.loneLow || !prefixSurrogates.pair {
+		t.Errorf("the cache key prefix vector must keep a trailing high surrogate (%v), a lone low surrogate (%v) and a valid surrogate pair (%v)", prefixSurrogates.trailingHigh, prefixSurrogates.loneLow, prefixSurrogates.pair)
+	}
 
 	// 两类边界缺一不可：正好到上限的键，以及码元数不超、字节数超过的键（只按码元计的实现会放过它）
 	if !atLimit || !overOnlyInBytes {

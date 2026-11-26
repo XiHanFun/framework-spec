@@ -1,5 +1,5 @@
 {
-  "$comment": "预签名下载地址上保存的文件名（RFC-0012「范围读取、分片上传与预签名」，ADR-0219、ADR-0282）：不为空、不全是空白（RFC-0001「空白字符」的 25 个码位）、不含控制字符（Unicode 的 Cc 类：U+0000–U+001F、U+007F–U+009F）、按 UTF-8 编码后不超过 maxBytes 字节；空格、标点与非 ASCII 字符照常可用，首尾的空格不裁剪。valid 必须接受，invalid 必须拒绝（构造预签名请求时）。每条的 text 是原文，utf8Bytes 是它的 UTF-8 字节数，utf16Units 是 UTF-16 码元数——后者不参与判定，只为标出按码元计会判错的用例（ADR-0282 之前 .NET 按码元计，名字里写着「按码元计」的用例它判为合法）。期望值由 .NET 参考实现（BlobUrlRequest.ForDownload）算出，两个计数由 Go 一致性模块的测试核对。",
+  "$comment": "预签名下载地址上保存的文件名（RFC-0012「范围读取、分片上传与预签名」与「标识」，ADR-0219、ADR-0282、ADR-0316）：不为空、不全是空白（RFC-0001「空白字符」的 25 个码位）、不含控制字符（Unicode 的 Cc 类：U+0000–U+001F、U+007F–U+009F）与孤立的代理项（不在一对之中的 U+D800–U+DFFF 码元，ADR-0316）、按 UTF-8 编码后不超过 maxBytes 字节；空格、标点、非 ASCII 字符与成对的代理项（平面以外的字符）照常可用，首尾的空格不裁剪。valid 必须接受，invalid 必须拒绝（构造预签名请求时）。每条的 text 是原文，utf8Bytes 是它的 UTF-8 字节数，utf16Units 是 UTF-16 码元数——后者不参与判定，只为标出按码元计会判错的用例（ADR-0282 之前 .NET 按码元计，名字里写着「按码元计」的用例它判为合法）。JSON 字符串写不出孤立的代理项，这样的用例没有 text，改以 utf16 列出 UTF-16 码元（四位十六进制），也没有 utf8Bytes（编不成 UTF-8），组字符串的写法同 blob-keys.json。期望值由 .NET 参考实现（BlobUrlRequest.ForDownload）算出，两个计数由 Go 一致性模块的测试核对。",
   "maxBytes": 255,
   "valid": [
     {
@@ -31,6 +31,12 @@
       "text": "报告 2026.pdf",
       "utf8Bytes": 15,
       "utf16Units": 11
+    },
+    {
+      "name": "成对的代理项：平面以外的字符 U+1F600，转义写出",
+      "text": "report-\ud83d\ude00.pdf",
+      "utf8Bytes": 15,
+      "utf16Units": 13
     },
     {
       "name": "引号、分号与反斜线",
@@ -141,6 +147,26 @@
       "text": "a\u009f.pdf",
       "utf8Bytes": 7,
       "utf16Units": 6
+    },
+    {
+      "name": "单独的高代理项 U+DBFF",
+      "utf16": ["0061", "DBFF", "0062"],
+      "utf16Units": 3
+    },
+    {
+      "name": "单独的低代理项 U+DC00",
+      "utf16": ["0061", "DC00", "0062"],
+      "utf16Units": 3
+    },
+    {
+      "name": "颠倒的一对：低代理项 U+DE00 在高代理项 U+D83D 之前",
+      "utf16": ["0061", "DE00", "D83D", "0062"],
+      "utf16Units": 4
+    },
+    {
+      "name": "末尾的高代理项 U+D800：宽松编码之后与 a 加 U+FFFD 相同",
+      "utf16": ["0061", "D800"],
+      "utf16Units": 2
     },
     {
       "name": "ASCII 256 字节",

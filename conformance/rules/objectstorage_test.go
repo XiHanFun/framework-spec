@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/xihanfun/framework-spec/conformance"
 	"github.com/xihanfun/framework-spec/conformance/rules"
@@ -57,13 +58,24 @@ type lengthCoverage struct {
 }
 
 // checkLengths 核对向量给一条样例标的两个计数属实（字节数是规范的判据，码元数只用来标出按码元计会判错的用例），并记下它盖住的边界。
-func (c *lengthCoverage) checkLengths(t *testing.T, group, name, text string, utf8Bytes, utf16Units, max int, valid bool) {
+// 含孤立代理项的文本（组出来不是合法的 UTF-8）编不成 UTF-8：它必须以码元写出、不标字节数，也不参与长度边界（ADR-0316）。
+func (c *lengthCoverage) checkLengths(t *testing.T, group, name, text string, written conformance.CodeUnits, utf8Bytes, utf16Units, max int, valid bool) {
 	t.Helper()
+	units := len(utf16.Encode([]rune(text)))
+	if written != nil {
+		units = len(written)
+	}
+	if units != utf16Units {
+		t.Errorf("%s %q: utf16Units = %d, but the text is %d code units", group, name, utf16Units, units)
+	}
+	if !utf8.ValidString(text) {
+		if written == nil || utf8Bytes != 0 {
+			t.Errorf("%s %q: a text with lone surrogates must be written as utf16 code units without utf8Bytes", group, name)
+		}
+		return
+	}
 	if bytes := len(text); bytes != utf8Bytes {
 		t.Errorf("%s %q: utf8Bytes = %d, but the text is %d bytes", group, name, utf8Bytes, bytes)
-	}
-	if units := len(utf16.Encode([]rune(text))); units != utf16Units {
-		t.Errorf("%s %q: utf16Units = %d, but the text is %d code units", group, name, utf16Units, units)
 	}
 	c.atLimit = c.atLimit || (valid && utf8Bytes == max)
 	c.overByOne = c.overByOne || (!valid && utf8Bytes == max+1)
@@ -89,39 +101,61 @@ func TestBlobKeysFollowTheVectors(t *testing.T) {
 			rules.MaxBlobKeyBytes, rules.BlobKeySeparator, rules.BlobKeyReservedSegment)
 	}
 	var keys, prefixes lengthCoverage
+	var keySurrogates, prefixSurrogates surrogateCoverage
+	byUnits := map[string]string{}
 	for _, c := range vectors.Valid {
-		keys.checkLengths(t, "valid", c.Name, c.Key, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, true)
-		if !rules.IsBlobKey(c.Key) || rules.IsReservedBlobKey(c.Key) {
-			t.Errorf("%s: %q must be a valid key outside the reserved prefix", c.Name, c.Key)
+		key := caseInput(t, c.Name, c.Input)
+		keys.checkLengths(t, "valid", c.Name, key, c.UTF16, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, true)
+		keySurrogates.note(t, c.Name, key, c.UTF16, true)
+		if !rules.IsBlobKey(key) || rules.IsReservedBlobKey(key) {
+			t.Errorf("%s: %q must be a valid key outside the reserved prefix", c.Name, key)
+		}
+		if c.UTF16 != nil {
+			byUnits[c.Name] = key
 		}
 	}
 	for _, c := range vectors.Invalid {
-		keys.checkLengths(t, "invalid", c.Name, c.Key, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, false)
-		if rules.IsBlobKey(c.Key) || rules.IsReservedBlobKey(c.Key) {
-			t.Errorf("%s: %q must be an invalid key that is not under the reserved prefix", c.Name, c.Key)
+		key := caseInput(t, c.Name, c.Input)
+		keys.checkLengths(t, "invalid", c.Name, key, c.UTF16, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, false)
+		keySurrogates.note(t, c.Name, key, c.UTF16, false)
+		if rules.IsBlobKey(key) || rules.IsReservedBlobKey(key) {
+			t.Errorf("%s: %q must be an invalid key that is not under the reserved prefix", c.Name, key)
 		}
 	}
 	for _, c := range vectors.Reserved {
 		// 保留前缀下的键不参与长度边界的覆盖：它们因保留而不合法，与长度无关
-		new(lengthCoverage).checkLengths(t, "reserved", c.Name, c.Key, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, false)
-		if rules.IsBlobKey(c.Key) || !rules.IsReservedBlobKey(c.Key) {
-			t.Errorf("%s: %q must be rejected as a key under the reserved prefix", c.Name, c.Key)
+		key := caseInput(t, c.Name, c.Input)
+		new(lengthCoverage).checkLengths(t, "reserved", c.Name, key, c.UTF16, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, false)
+		if rules.IsBlobKey(key) || !rules.IsReservedBlobKey(key) {
+			t.Errorf("%s: %q must be rejected as a key under the reserved prefix", c.Name, key)
 		}
 	}
 	for _, c := range vectors.Prefixes.Valid {
-		prefixes.checkLengths(t, "prefixes.valid", c.Name, c.Prefix, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, true)
-		if !rules.IsBlobKeyPrefix(c.Prefix) {
-			t.Errorf("%s: %q must be a valid prefix", c.Name, c.Prefix)
+		prefix := caseInput(t, c.Name, c.Input)
+		prefixes.checkLengths(t, "prefixes.valid", c.Name, prefix, c.UTF16, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, true)
+		prefixSurrogates.note(t, c.Name, prefix, c.UTF16, true)
+		if !rules.IsBlobKeyPrefix(prefix) {
+			t.Errorf("%s: %q must be a valid prefix", c.Name, prefix)
 		}
 	}
 	for _, c := range vectors.Prefixes.Invalid {
-		prefixes.checkLengths(t, "prefixes.invalid", c.Name, c.Prefix, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, false)
-		if rules.IsBlobKeyPrefix(c.Prefix) {
-			t.Errorf("%s: %q must be an invalid prefix", c.Name, c.Prefix)
+		prefix := caseInput(t, c.Name, c.Input)
+		prefixes.checkLengths(t, "prefixes.invalid", c.Name, prefix, c.UTF16, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, false)
+		prefixSurrogates.note(t, c.Name, prefix, c.UTF16, false)
+		if rules.IsBlobKeyPrefix(prefix) {
+			t.Errorf("%s: %q must be an invalid prefix", c.Name, prefix)
 		}
 	}
 	keys.requireAll(t, "blob key", vectors.MaxBytes)
 	prefixes.requireAll(t, "blob key prefix", vectors.MaxBytes)
+	keySurrogates.requireAll(t, "blob key", true)
+	prefixSurrogates.requireAll(t, "blob key prefix", false)
+	// 以码元写出的合法键与转义写出的是同一个键：组字符串的写法错了（没有把成对的代理项合成一个字符），这里就对不上
+	for name, key := range byUnits {
+		if !slices.ContainsFunc(vectors.Valid, func(c conformance.BlobKeyCase) bool { return c.UTF16 == nil && c.Key == key }) {
+			t.Errorf("%s: the key written as code units must equal a key written as a JSON string, got %q", name, key)
+		}
+	}
 	if !rules.IsBlobKeyPrefix("") || rules.IsBlobKey("") {
 		t.Error("the empty text is a valid prefix but not a valid key")
 	}
@@ -136,19 +170,25 @@ func TestDownloadFileNamesFollowTheVectors(t *testing.T) {
 		t.Fatalf("maxBytes = %d, want %d", vectors.MaxBytes, rules.MaxBlobDownloadFileNameBytes)
 	}
 	var names lengthCoverage
+	var surrogates surrogateCoverage
 	for _, c := range vectors.Valid {
-		names.checkLengths(t, "valid", c.Name, c.Text, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, true)
-		if !rules.IsBlobDownloadFileName(c.Text) {
-			t.Errorf("%s: %q must be a valid download file name", c.Name, c.Text)
+		name := caseInput(t, c.Name, c.Input)
+		names.checkLengths(t, "valid", c.Name, name, c.UTF16, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, true)
+		surrogates.note(t, c.Name, name, c.UTF16, true)
+		if !rules.IsBlobDownloadFileName(name) {
+			t.Errorf("%s: %q must be a valid download file name", c.Name, name)
 		}
 	}
 	for _, c := range vectors.Invalid {
-		names.checkLengths(t, "invalid", c.Name, c.Text, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, false)
-		if rules.IsBlobDownloadFileName(c.Text) {
-			t.Errorf("%s: %q must be an invalid download file name", c.Name, c.Text)
+		name := caseInput(t, c.Name, c.Input)
+		names.checkLengths(t, "invalid", c.Name, name, c.UTF16, c.UTF8Bytes, c.UTF16Units, vectors.MaxBytes, false)
+		surrogates.note(t, c.Name, name, c.UTF16, false)
+		if rules.IsBlobDownloadFileName(name) {
+			t.Errorf("%s: %q must be an invalid download file name", c.Name, name)
 		}
 	}
 	names.requireAll(t, "download file name", vectors.MaxBytes)
+	surrogates.requireAll(t, "download file name", false)
 }
 
 func TestBlobMetadataFollowsTheVectors(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 var (
@@ -52,7 +53,7 @@ func IsReservedBlobKey(key string) bool {
 }
 
 // IsBlobKey 判断对象键是否合文法（RFC-0012「标识」）：以 / 分段的路径，按 UTF-8 编码后 1 到 MaxBlobKeyBytes 字节，
-// 每段非空、不是 . 或 ..，不含空白、控制字符与反斜线，也不在保留前缀之下。
+// 每段非空、不是 . 或 ..，不含空白、控制字符、反斜线与孤立的代理项，也不在保留前缀之下。
 func IsBlobKey(key string) bool {
 	if key == "" || !IsBlobKeyPrefix(key) || IsReservedBlobKey(key) {
 		return false
@@ -66,12 +67,14 @@ func IsBlobKey(key string) bool {
 	return true
 }
 
-// IsBlobKeyPrefix 判断查询前缀是否合法（RFC-0012「标识」）：字符约束与字节上限同键，但可以为空、可以以 / 结尾，
+// IsBlobKeyPrefix 判断查询前缀是否合法（RFC-0012「标识」）：字符约束（含不能有孤立的代理项）与字节上限同键，但可以为空、可以以 / 结尾，
 // 对各段不作要求，也不受保留前缀限制（以保留段开头的前缀列举总是空的）。
 func IsBlobKeyPrefix(prefix string) bool {
 	// Go 的字符串就是 UTF-8 字节序列，len 给出的正是规范要的字节数；按 UTF-16 码元计（.NET 的 string.Length、
-	// Java 与 JavaScript 的 length）会把含非 ASCII 字符的超长键放过去，而 S3 的键上限正是 1024 个 UTF-8 字节
-	if len(prefix) > MaxBlobKeyBytes {
+	// Java 与 JavaScript 的 length）会把含非 ASCII 字符的超长键放过去，而 S3 的键上限正是 1024 个 UTF-8 字节。
+	// 孤立的代理项在 Go 里只能以编成 UTF-8 的代理项或别的非法字节出现，range 把它们读成 utf8.RuneError 照收，
+	// 所以先整串核对 UTF-8（ADR-0316）：宽松编码把它们换成 U+FFFD，给一个键签的地址会打开另一个对象
+	if len(prefix) > MaxBlobKeyBytes || !utf8.ValidString(prefix) {
 		return false
 	}
 	for _, char := range prefix {
@@ -84,9 +87,10 @@ func IsBlobKeyPrefix(prefix string) bool {
 }
 
 // IsBlobDownloadFileName 判断预签名下载地址上保存的文件名是否合法（RFC-0012「范围读取、分片上传与预签名」）：
-// 不为空、不全是空白、不含控制字符，按 UTF-8 编码后不超过 MaxBlobDownloadFileNameBytes 字节。
+// 不为空、不全是空白、不含控制字符与孤立的代理项，按 UTF-8 编码后不超过 MaxBlobDownloadFileNameBytes 字节。
 func IsBlobDownloadFileName(name string) bool {
-	if len(name) > MaxBlobDownloadFileNameBytes {
+	// 它进签名的规范串与地址的查询串：孤立的代理项（Go 里是非法的 UTF-8 字节）经宽松编码会签成另一个文件名（ADR-0316）
+	if len(name) > MaxBlobDownloadFileNameBytes || !utf8.ValidString(name) {
 		return false
 	}
 	blank := true

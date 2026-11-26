@@ -243,21 +243,30 @@ type ContainerNameVectors struct {
 }
 
 // BlobKeyCase 是一条对象键的样例：Key 是原文，UTF8Bytes 是它的 UTF-8 字节数，
-// UTF16Units 是 UTF-16 码元数（不参与判定，只标出按码元计会判错的用例）。
+// UTF16Units 是 UTF-16 码元数（不参与判定，只标出按码元计会判错的用例）。JSON 字符串写不出的键（孤立的代理项，ADR-0316）
+// 没有 Key，改由 UTF16 列出码元，也没有 UTF8Bytes；文本用 Input 取。
 type BlobKeyCase struct {
-	Name       string `json:"name"`
-	Key        string `json:"key"`
-	UTF8Bytes  int    `json:"utf8Bytes"`
-	UTF16Units int    `json:"utf16Units"`
+	Name       string    `json:"name"`
+	Key        string    `json:"key"`
+	UTF16      CodeUnits `json:"utf16"`
+	UTF8Bytes  int       `json:"utf8Bytes"`
+	UTF16Units int       `json:"utf16Units"`
 }
 
-// BlobKeyPrefixCase 是一条查询前缀的样例，两个计数同 BlobKeyCase。
+// Input 返回键的文本：写了 UTF16 的按码元组成（CodeUnits.Text），否则是 Key。
+func (c BlobKeyCase) Input() (string, error) { return caseText(c.Name, c.Key, c.UTF16) }
+
+// BlobKeyPrefixCase 是一条查询前缀的样例，两个计数与 UTF16 同 BlobKeyCase。
 type BlobKeyPrefixCase struct {
-	Name       string `json:"name"`
-	Prefix     string `json:"prefix"`
-	UTF8Bytes  int    `json:"utf8Bytes"`
-	UTF16Units int    `json:"utf16Units"`
+	Name       string    `json:"name"`
+	Prefix     string    `json:"prefix"`
+	UTF16      CodeUnits `json:"utf16"`
+	UTF8Bytes  int       `json:"utf8Bytes"`
+	UTF16Units int       `json:"utf16Units"`
 }
+
+// Input 返回前缀的文本：写了 UTF16 的按码元组成（CodeUnits.Text），否则是 Prefix。
+func (c BlobKeyPrefixCase) Input() (string, error) { return caseText(c.Name, c.Prefix, c.UTF16) }
 
 // BlobKeyPrefixSet 是必须接受与必须拒绝的查询前缀。
 type BlobKeyPrefixSet struct {
@@ -265,7 +274,7 @@ type BlobKeyPrefixSet struct {
 	Invalid []BlobKeyPrefixCase `json:"invalid"`
 }
 
-// BlobKeyVectors 对应 objectstorage/blob-keys.json（RFC-0012「标识」，ADR-0277、ADR-0282）：MaxBytes 是键与查询前缀
+// BlobKeyVectors 对应 objectstorage/blob-keys.json（RFC-0012「标识」，ADR-0277、ADR-0282、ADR-0316）：MaxBytes 是键与查询前缀
 // 按 UTF-8 编码后的最大字节数；Valid 必须接受，Invalid 与 Reserved 必须拒绝，Reserved 另外要被认作保留前缀下的键；
 // Prefixes 是查询前缀。
 type BlobKeyVectors struct {
@@ -278,13 +287,17 @@ type BlobKeyVectors struct {
 	Prefixes        BlobKeyPrefixSet `json:"prefixes"`
 }
 
-// DownloadFileNameCase 是一条保存的文件名的样例：Text 是原文，两个计数同 BlobKeyCase。
+// DownloadFileNameCase 是一条保存的文件名的样例：Text 是原文，两个计数与 UTF16 同 BlobKeyCase。
 type DownloadFileNameCase struct {
-	Name       string `json:"name"`
-	Text       string `json:"text"`
-	UTF8Bytes  int    `json:"utf8Bytes"`
-	UTF16Units int    `json:"utf16Units"`
+	Name       string    `json:"name"`
+	Text       string    `json:"text"`
+	UTF16      CodeUnits `json:"utf16"`
+	UTF8Bytes  int       `json:"utf8Bytes"`
+	UTF16Units int       `json:"utf16Units"`
 }
+
+// Input 返回文件名的文本：写了 UTF16 的按码元组成（CodeUnits.Text），否则是 Text。
+func (c DownloadFileNameCase) Input() (string, error) { return caseText(c.Name, c.Text, c.UTF16) }
 
 // DownloadFileNameVectors 对应 objectstorage/download-file-names.json（RFC-0012「范围读取、分片上传与预签名」，ADR-0282）：
 // MaxBytes 是文件名按 UTF-8 编码后的最大字节数，Valid 必须接受，Invalid 必须拒绝。

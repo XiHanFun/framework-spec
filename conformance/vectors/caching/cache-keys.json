@@ -1,5 +1,5 @@
 {
-  "$comment": "缓存键与键前缀的文法（RFC-0006「存储契约」与「键管理」，provider/caching-distributed.md §2，ADR-0276）：键非空、不含空白（RFC-0001「空白字符」的 25 个码位）与控制字符（Unicode 的 Cc 类：U+0000–U+001F、U+007F–U+009F）、按 UTF-8 编码后不超过 maxBytes 字节，区分大小写；前缀与键同一条规则，只是可以为空。keys 与 prefixes 各有必须接受的 valid 与必须拒绝的 invalid；每条的 text 是原文，utf8Bytes 是它的 UTF-8 字节数，utf16Units 是 UTF-16 码元数——后者不参与判定，只为标出按码元计会判错的用例。空白与控制字符的期望值由 .NET 参考实现算出；长度的期望值按规则给出，两个计数由 Go 一致性模块的测试核对：.NET 在 ADR-0276 落地之前按 UTF-16 码元计，名字里写着「按码元计」的用例它判为合法。",
+  "$comment": "缓存键与键前缀的文法（RFC-0006「存储契约」与「键管理」，provider/caching-distributed.md §2，ADR-0276、ADR-0316）：键非空、不含空白（RFC-0001「空白字符」的 25 个码位）、控制字符（Unicode 的 Cc 类：U+0000–U+001F、U+007F–U+009F）与孤立的代理项（不在一对之中的 U+D800–U+DFFF 码元，ADR-0316）、按 UTF-8 编码后不超过 maxBytes 字节，区分大小写，成对的代理项是平面以外的一个字符，照常合法；前缀与键同一条规则，只是可以为空。keys 与 prefixes 各有必须接受的 valid 与必须拒绝的 invalid；每条的 text 是原文，utf8Bytes 是它的 UTF-8 字节数，utf16Units 是 UTF-16 码元数——后者不参与判定，只为标出按码元计会判错的用例。空白与控制字符的期望值由 .NET 参考实现算出；长度的期望值按规则给出，两个计数由 Go 一致性模块的测试核对：.NET 在 ADR-0276 落地之前按 UTF-16 码元计，名字里写着「按码元计」的用例它判为合法。JSON 字符串写不出孤立的代理项，这样的用例没有 text，改以 utf16 列出 UTF-16 码元（四位十六进制），也没有 utf8Bytes（编不成 UTF-8），组字符串的写法同 RFC-0012「一致性」；孤立的代理项的期望值由 .NET 参考实现（CacheKey.IsValid、CacheKey.IsValidPrefix）算出。",
   "maxBytes": 512,
   "keys": {
     "valid": [
@@ -38,6 +38,12 @@
         "text": "a\ufeffb",
         "utf8Bytes": 5,
         "utf16Units": 3
+      },
+      {
+        "name": "成对的代理项：平面以外的字符 U+1F600，转义写出",
+        "text": "emoji:\ud83d\ude00",
+        "utf8Bytes": 10,
+        "utf16Units": 8
       },
       {
         "name": "ASCII 512 字节，正好到上限",
@@ -172,6 +178,31 @@
         "text": "a\u009fb",
         "utf8Bytes": 4,
         "utf16Units": 3
+      },
+      {
+        "name": "单独的高代理项 U+DBFF",
+        "utf16": ["0061", "DBFF", "0062"],
+        "utf16Units": 3
+      },
+      {
+        "name": "单独的低代理项 U+DC00",
+        "utf16": ["0061", "DC00", "0062"],
+        "utf16Units": 3
+      },
+      {
+        "name": "颠倒的一对：低代理项 U+DE00 在高代理项 U+D83D 之前",
+        "utf16": ["0061", "DE00", "D83D", "0062"],
+        "utf16Units": 4
+      },
+      {
+        "name": "末尾的高代理项 U+D800：宽松编码之后与 a 加 U+FFFD 相同",
+        "utf16": ["0061", "D800"],
+        "utf16Units": 2
+      },
+      {
+        "name": "高代理项之后又是高代理项：第一个是孤立的",
+        "utf16": ["0061", "D83D", "D83D", "DE00"],
+        "utf16Units": 4
       }
     ]
   },
@@ -188,6 +219,12 @@
         "text": "orders:",
         "utf8Bytes": 7,
         "utf16Units": 7
+      },
+      {
+        "name": "成对的代理项：平面以外的字符 U+1F600，转义写出",
+        "text": "\ud83d\ude00:",
+        "utf8Bytes": 5,
+        "utf16Units": 3
       },
       {
         "name": "ASCII 512 字节，正好到上限",
@@ -225,6 +262,21 @@
         "name": "控制字符 U+0001",
         "text": "p\u0001",
         "utf8Bytes": 2,
+        "utf16Units": 2
+      },
+      {
+        "name": "末尾的高代理项 U+D800",
+        "utf16": ["0061", "D800"],
+        "utf16Units": 2
+      },
+      {
+        "name": "单独的低代理项 U+DC00",
+        "utf16": ["DC00"],
+        "utf16Units": 1
+      },
+      {
+        "name": "颠倒的一对：低代理项 U+DE00 在高代理项 U+D83D 之前",
+        "utf16": ["DE00", "D83D"],
         "utf16Units": 2
       }
     ]

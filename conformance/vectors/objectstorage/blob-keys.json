@@ -1,5 +1,5 @@
 {
-  "$comment": "对象键与查询前缀的文法、保留前缀（RFC-0012「标识」，ADR-0090、ADR-0277、ADR-0282）：键是以 separator 分段的路径，按 UTF-8 编码后 1 到 maxBytes 字节；每段非空、不是 . 或 ..；不含空白（RFC-0001「空白字符」的 25 个码位）、控制字符（Unicode 的 Cc 类：U+0000–U+001F、U+007F–U+009F）与反斜线；区分大小写。首段是 reservedSegment 的键（它本身与它下面的键，区分大小写）留给框架自己的对象，不在键文法之内。valid 必须接受；invalid 与 reserved 都必须拒绝，reserved 另外要被认作保留前缀下的键（列举时跳过），invalid 的都不是。prefixes 是查询前缀：字符约束与字节上限同键，但可以为空、可以以分隔符结尾，对各段不作要求，也不受保留前缀限制；valid 必须接受，invalid 必须拒绝。每条的 key 或 prefix 是原文，utf8Bytes 是它的 UTF-8 字节数，utf16Units 是 UTF-16 码元数——后者不参与判定，只为标出按码元计会判错的用例（ADR-0282 之前 .NET 按码元计，名字里写着「按码元计」的用例它判为合法）。期望值由 .NET 参考实现（BlobKey.IsValid、BlobKey.IsReserved、BlobKey.IsValidPrefix）算出，两个计数由 Go 一致性模块的测试核对。",
+  "$comment": "对象键与查询前缀的文法、保留前缀（RFC-0012「标识」，ADR-0090、ADR-0277、ADR-0282、ADR-0316）：键是以 separator 分段的路径，按 UTF-8 编码后 1 到 maxBytes 字节；每段非空、不是 . 或 ..；不含空白（RFC-0001「空白字符」的 25 个码位）、控制字符（Unicode 的 Cc 类：U+0000–U+001F、U+007F–U+009F）、反斜线与孤立的代理项（不在一对之中的 U+D800–U+DFFF 码元，ADR-0316），成对的代理项是平面以外的一个字符，照常合法；区分大小写。首段是 reservedSegment 的键（它本身与它下面的键，区分大小写）留给框架自己的对象，不在键文法之内。valid 必须接受；invalid 与 reserved 都必须拒绝，reserved 另外要被认作保留前缀下的键（列举时跳过），invalid 的都不是。prefixes 是查询前缀：字符约束与字节上限同键，但可以为空、可以以分隔符结尾，对各段不作要求，也不受保留前缀限制；valid 必须接受，invalid 必须拒绝。每条的 key 或 prefix 是原文，utf8Bytes 是它的 UTF-8 字节数，utf16Units 是 UTF-16 码元数——后者不参与判定，只为标出按码元计会判错的用例（ADR-0282 之前 .NET 按码元计，名字里写着「按码元计」的用例它判为合法）。JSON 字符串写不出孤立的代理项，这样的用例没有 key / prefix，改以 utf16 列出 UTF-16 码元（四位十六进制），也没有 utf8Bytes（编不成 UTF-8）；各实现按 RFC-0012「一致性」的写法组出本语言的字符串（UTF-16 的语言直接组成，以字节表示字符串的语言按 WTF-8 编成字节，Python 把成对的代理项合成一个码位）。valid 里「成对的代理项按码元写出」一条也以 utf16 写出，与它前一条转义写出的是同一个键，用来核对组字符串的写法。期望值由 .NET 参考实现（BlobKey.IsValid、BlobKey.IsReserved、BlobKey.IsValidPrefix）算出，两个计数由 Go 一致性模块的测试核对。",
   "maxBytes": 1024,
   "separator": "/",
   "reservedSegment": ".xihan",
@@ -87,6 +87,18 @@
       "key": "a\ufeffb",
       "utf8Bytes": 5,
       "utf16Units": 3
+    },
+    {
+      "name": "成对的代理项：平面以外的字符 U+1F600，转义写出",
+      "key": "a\ud83d\ude00b",
+      "utf8Bytes": 6,
+      "utf16Units": 4
+    },
+    {
+      "name": "成对的代理项按码元写出：与上一条是同一个键",
+      "utf16": ["0061", "D83D", "DE00", "0062"],
+      "utf8Bytes": 6,
+      "utf16Units": 4
     },
     {
       "name": "ASCII 1024 字节，正好到上限",
@@ -247,6 +259,36 @@
       "utf16Units": 3
     },
     {
+      "name": "单独的高代理项 U+DBFF",
+      "utf16": ["0061", "DBFF", "0062"],
+      "utf16Units": 3
+    },
+    {
+      "name": "单独的低代理项 U+DC00",
+      "utf16": ["0061", "DC00", "0062"],
+      "utf16Units": 3
+    },
+    {
+      "name": "颠倒的一对：低代理项 U+DE00 在高代理项 U+D83D 之前",
+      "utf16": ["0061", "DE00", "D83D", "0062"],
+      "utf16Units": 4
+    },
+    {
+      "name": "末尾的高代理项 U+D800：宽松编码之后与 a 加 U+FFFD 相同",
+      "utf16": ["0061", "D800"],
+      "utf16Units": 2
+    },
+    {
+      "name": "高代理项之后又是高代理项：第一个是孤立的",
+      "utf16": ["0061", "D83D", "D83D", "DE00"],
+      "utf16Units": 4
+    },
+    {
+      "name": "一整段只有一个低代理项 U+DFFF",
+      "utf16": ["0061", "002F", "DFFF", "002F", "0062"],
+      "utf16Units": 5
+    },
+    {
       "name": "ASCII 1025 字节",
       "key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk/x.bin",
       "utf8Bytes": 1025,
@@ -324,6 +366,12 @@
         "utf16Units": 8
       },
       {
+        "name": "成对的代理项：平面以外的字符 U+1F600，转义写出",
+        "prefix": "\ud83d\ude00/",
+        "utf8Bytes": 5,
+        "utf16Units": 3
+      },
+      {
         "name": "空段：只是筛选不到东西",
         "prefix": "a//b",
         "utf8Bytes": 4,
@@ -396,6 +444,26 @@
         "prefix": "a\\b",
         "utf8Bytes": 3,
         "utf16Units": 3
+      },
+      {
+        "name": "单独的高代理项 U+DBFF",
+        "utf16": ["0061", "DBFF", "002F"],
+        "utf16Units": 3
+      },
+      {
+        "name": "单独的低代理项 U+DC00",
+        "utf16": ["DC00"],
+        "utf16Units": 1
+      },
+      {
+        "name": "颠倒的一对：低代理项 U+DE00 在高代理项 U+D83D 之前",
+        "utf16": ["DE00", "D83D"],
+        "utf16Units": 2
+      },
+      {
+        "name": "末尾的高代理项 U+D800",
+        "utf16": ["0061", "D800"],
+        "utf16Units": 2
       },
       {
         "name": "ASCII 1025 字节",
