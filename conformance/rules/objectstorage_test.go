@@ -202,21 +202,29 @@ func TestBlobMetadataFollowsTheVectors(t *testing.T) {
 	}
 
 	atLimit, overOnlyInBytes := false, false
+	var surrogates surrogateCoverage
 	check := func(group string, cases []conformance.BlobMetadataCase, want bool) {
 		for _, c := range cases {
-			bytes, units := 0, 0
-			for name, value := range c.Metadata {
+			metadata := caseMetadata(t, c)
+			bytes, units, encodable := 0, 0, true
+			for name, value := range metadata {
 				bytes += len(name) + len(value)
 				units += len(utf16.Encode([]rune(name))) + len(utf16.Encode([]rune(value)))
+				encodable = encodable && utf8.ValidString(value)
+				surrogates.note(t, c.Name, value, c.UTF16[name], want)
 			}
-			if bytes != c.UTF8Bytes {
+			// 值里有孤立代理项的一组编不成 UTF-8：必须以码元写出、不标字节数，也不参与上限的边界（ADR-0322）
+			switch {
+			case !encodable && (len(c.UTF16) == 0 || c.UTF8Bytes != 0):
+				t.Errorf("%s %q: metadata with lone surrogates must be written as utf16 code units without utf8Bytes", group, c.Name)
+			case encodable && bytes != c.UTF8Bytes:
 				t.Errorf("%s %q: utf8Bytes = %d, but the names and values total %d bytes", group, c.Name, c.UTF8Bytes, bytes)
 			}
-			if got := rules.IsBlobMetadata(c.Metadata); got != want {
+			if got := rules.IsBlobMetadata(metadata); got != want {
 				t.Errorf("%s %q: accepted = %v, want %v", group, c.Name, got, want)
 			}
-			atLimit = atLimit || (want && bytes == vectors.MaxBytes)
-			overOnlyInBytes = overOnlyInBytes || (!want && bytes > vectors.MaxBytes && units <= vectors.MaxBytes)
+			atLimit = atLimit || (want && encodable && bytes == vectors.MaxBytes)
+			overOnlyInBytes = overOnlyInBytes || (!want && encodable && bytes > vectors.MaxBytes && units <= vectors.MaxBytes)
 		}
 	}
 	check("sets.valid", vectors.Sets.Valid, true)
@@ -225,6 +233,18 @@ func TestBlobMetadataFollowsTheVectors(t *testing.T) {
 	if !atLimit || !overOnlyInBytes {
 		t.Errorf("the vector must keep metadata of exactly %d bytes (found: %v) and metadata over the limit only when counted in bytes (found: %v)", vectors.MaxBytes, atLimit, overOnlyInBytes)
 	}
+	// 值里四种孤立的代理项都要拒，成对的代理项要收，且有一条以码元写出的合法值核对组字符串的写法
+	surrogates.requireAll(t, "blob metadata value", true)
+}
+
+// caseMetadata 取一组元数据样例的整组值，组不出来（码元写错了、同一个名两处都写了）即失败。
+func caseMetadata(t *testing.T, c conformance.BlobMetadataCase) map[string]string {
+	t.Helper()
+	metadata, err := c.Values()
+	if err != nil {
+		t.Fatalf("%s: %v", c.Name, err)
+	}
+	return metadata
 }
 
 func TestBlobContentTypesFollowTheVectors(t *testing.T) {

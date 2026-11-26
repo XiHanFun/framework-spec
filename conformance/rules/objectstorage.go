@@ -108,12 +108,14 @@ func IsBlobDownloadFileName(name string) bool {
 // IsBlobMetadataName 判断自定义元数据名是否合文法（RFC-0012「标识」）：1 到 64 个字符的小写字母、数字与连字符，字母或数字开头。
 func IsBlobMetadataName(name string) bool { return blobShortNamePattern.MatchString(name) }
 
-// IsBlobMetadata 判断一个对象的整组自定义元数据是否合法（RFC-0012「标识」）：名都合文法，值不含控制字符，
+// IsBlobMetadata 判断一个对象的整组自定义元数据是否合法（RFC-0012「标识」）：名都合文法，值不含控制字符与孤立的代理项，
 // 名与值合计不超过 MaxBlobMetadataBytes 个 UTF-8 字节。
 func IsBlobMetadata(metadata map[string]string) bool {
 	total := 0
 	for name, value := range metadata {
-		if !IsBlobMetadataName(name) || strings.ContainsFunc(value, unicode.IsControl) {
+		// 孤立的代理项在 Go 里只能以编成 UTF-8 的代理项或别的非法字节出现，按 rune 读成 utf8.RuneError 不算控制字符，
+		// 所以先整串核对 UTF-8（ADR-0322）：宽松编码把它们换成 U+FFFD，存进去的值读回来就不是写入的值
+		if !IsBlobMetadataName(name) || !utf8.ValidString(value) || strings.ContainsFunc(value, unicode.IsControl) {
 			return false
 		}
 		// Go 的字符串就是 UTF-8 字节序列，len 给出的正是规范要的字节数

@@ -1,5 +1,5 @@
 {
-  "$comment": "对象的自定义元数据（RFC-0012「标识」，ADR-0214、ADR-0277）。names：元数据名的文法 ^[a-z0-9][a-z0-9-]{0,63}$，1 到 maxLength 个字符的小写字母、数字与连字符，字母或数字开头，按整串匹配；valid 必须接受，invalid 必须拒绝，valid 的末项正好 64 个字符。sets：一个对象的整组元数据——名都合文法，值不含控制字符（Unicode 的 Cc 类：U+0000–U+001F、U+007F–U+009F，含 CR、LF 与制表符），名与值合计不超过 maxBytes 个 UTF-8 字节（与 S3 用户元数据的上限一致）；每项的 metadata 是名到值的对象，utf8Bytes 是名与值的 UTF-8 字节数之和，valid 必须接受，invalid 必须拒绝。合计按字节计：按 UTF-16 码元计会把含非 ASCII 字符的超限元数据放过去。期望值由 .NET 参考实现（BlobPutOptions.IsValidMetadataName 与 BlobPutOptions.Metadata 的赋值是否抛出）算出，utf8Bytes 由 Go 一致性模块的测试核对。",
+  "$comment": "对象的自定义元数据（RFC-0012「标识」，ADR-0214、ADR-0277、ADR-0322）。names：元数据名的文法 ^[a-z0-9][a-z0-9-]{0,63}$，1 到 maxLength 个字符的小写字母、数字与连字符，字母或数字开头，按整串匹配；valid 必须接受，invalid 必须拒绝，valid 的末项正好 64 个字符。sets：一个对象的整组元数据——名都合文法，值不含控制字符（Unicode 的 Cc 类：U+0000–U+001F、U+007F–U+009F，含 CR、LF 与制表符），名与值合计不超过 maxBytes 个 UTF-8 字节（与 S3 用户元数据的上限一致）；每项的 metadata 是名到值的对象，utf8Bytes 是名与值的 UTF-8 字节数之和，valid 必须接受，invalid 必须拒绝。合计按字节计：按 UTF-16 码元计会把含非 ASCII 字符的超限元数据放过去。值也不含孤立的代理项（不在一对之中的 U+D800–U+DFFF 码元，ADR-0322），成对的代理项是平面以外的一个字符，照常合法。JSON 字符串写不出孤立的代理项：这样的值不写在 metadata 里，改在 utf16 里按名列出 UTF-16 码元（四位十六进制），各实现照 RFC-0012「一致性」的写法组出本语言的字符串（同 blob-keys.json）；整组元数据是 metadata 的各项与 utf16 组出的各项合在一起，同一个名不在两处都出现；有孤立代理项的一组编不成 UTF-8，没有 utf8Bytes。valid 里「按码元写出」一条与它前一条转义写出的是同一组元数据，用来核对组字符串的写法。期望值由 .NET 参考实现（BlobPutOptions.IsValidMetadataName 与 BlobPutOptions.Metadata 的赋值是否抛出）算出，utf8Bytes 由 Go 一致性模块的测试核对。",
   "names": {
     "maxLength": 64,
     "valid": [
@@ -67,6 +67,21 @@
           "note": "a\u200bb"
         },
         "utf8Bytes": 9
+      },
+      {
+        "name": "值里成对的代理项：平面以外的字符 U+1F600，转义写出",
+        "metadata": {
+          "note": "a\ud83d\ude00b"
+        },
+        "utf8Bytes": 10
+      },
+      {
+        "name": "值里成对的代理项按码元写出：与上一条是同一组元数据",
+        "metadata": {},
+        "utf16": {
+          "note": ["0061", "D83D", "DE00", "0062"]
+        },
+        "utf8Bytes": 10
       },
       {
         "name": "名与值合计正好 2048 字节",
@@ -140,6 +155,57 @@
           "owner": "a\u0085b"
         },
         "utf8Bytes": 9
+      },
+      {
+        "name": "值里单独的高代理项 U+DBFF",
+        "metadata": {},
+        "utf16": {
+          "note": ["0061", "DBFF", "0062"]
+        }
+      },
+      {
+        "name": "值里单独的低代理项 U+DC00",
+        "metadata": {},
+        "utf16": {
+          "note": ["0061", "DC00", "0062"]
+        }
+      },
+      {
+        "name": "值里颠倒的一对：低代理项 U+DE00 在高代理项 U+D83D 之前",
+        "metadata": {},
+        "utf16": {
+          "note": ["0061", "DE00", "D83D", "0062"]
+        }
+      },
+      {
+        "name": "值末尾的高代理项 U+D800：宽松编码之后与 a 加 U+FFFD 相同",
+        "metadata": {},
+        "utf16": {
+          "note": ["0061", "D800"]
+        }
+      },
+      {
+        "name": "值里高代理项之后又是高代理项：第一个是孤立的",
+        "metadata": {},
+        "utf16": {
+          "note": ["0061", "D83D", "D83D", "DE00"]
+        }
+      },
+      {
+        "name": "值只有一个低代理项 U+DFFF",
+        "metadata": {},
+        "utf16": {
+          "note": ["DFFF"]
+        }
+      },
+      {
+        "name": "合法的一项与值里有孤立代理项的一项同在",
+        "metadata": {
+          "owner": "alice"
+        },
+        "utf16": {
+          "note": ["0061", "D800", "0062"]
+        }
       },
       {
         "name": "名与值合计 2049 字节",

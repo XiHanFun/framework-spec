@@ -1,6 +1,9 @@
 package conformance
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // 本文件是各子系统档（messaging、multitenancy、objectstorage 等）向量的类型与类型化入口；
 // 文件名仍只写在 vectors.go 的向量文件表里。
@@ -314,11 +317,32 @@ type NameGrammarVectors struct {
 	Invalid   []string `json:"invalid"`
 }
 
-// BlobMetadataCase 是一个对象的整组自定义元数据：UTF8Bytes 是名与值的 UTF-8 字节数之和。
+// BlobMetadataCase 是一个对象的整组自定义元数据：UTF8Bytes 是名与值的 UTF-8 字节数之和。JSON 字符串写不出的值
+// （孤立的代理项，ADR-0322）不在 Metadata 里，改由 UTF16 按名列出码元，这样的一组没有 UTF8Bytes；整组用 Values 取。
 type BlobMetadataCase struct {
-	Name      string            `json:"name"`
-	Metadata  map[string]string `json:"metadata"`
-	UTF8Bytes int               `json:"utf8Bytes"`
+	Name      string               `json:"name"`
+	Metadata  map[string]string    `json:"metadata"`
+	UTF16     map[string]CodeUnits `json:"utf16"`
+	UTF8Bytes int                  `json:"utf8Bytes"`
+}
+
+// Values 返回整组元数据：Metadata 的各项加上 UTF16 按码元组成（CodeUnits.Text）的各项；同一个名在两处都出现即返回错误。
+func (c BlobMetadataCase) Values() (map[string]string, error) {
+	values := make(map[string]string, len(c.Metadata)+len(c.UTF16))
+	for name, value := range c.Metadata {
+		values[name] = value
+	}
+	for name, units := range c.UTF16 {
+		if _, ok := values[name]; ok {
+			return nil, fmt.Errorf("conformance: case %q gives the metadata %q both as text and as utf16 code units", c.Name, name)
+		}
+		text, err := units.Text()
+		if err != nil {
+			return nil, err
+		}
+		values[name] = text
+	}
+	return values, nil
 }
 
 // BlobMetadataSets 是必须接受与必须拒绝的整组元数据。
@@ -327,7 +351,7 @@ type BlobMetadataSets struct {
 	Invalid []BlobMetadataCase `json:"invalid"`
 }
 
-// BlobMetadataVectors 对应 objectstorage/blob-metadata.json（RFC-0012「标识」，ADR-0277）：
+// BlobMetadataVectors 对应 objectstorage/blob-metadata.json（RFC-0012「标识」，ADR-0277、ADR-0322）：
 // Names 是元数据名的文法，MaxBytes 是名与值合计的最大 UTF-8 字节数，Sets 是整组元数据。
 type BlobMetadataVectors struct {
 	Names    NameGrammarVectors `json:"names"`

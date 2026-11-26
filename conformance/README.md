@@ -46,7 +46,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `multitenancy/tenant-shards.json` | 从租户属性推出分片：连接串、小写的提供者名与去前缀的透传属性，期望值由 .NET 算出 | RFC-0007「分片」 |
 | `objectstorage/container-names.json` | 容器名文法的合法与不合法样例（3 到 63 个字符的两侧），期望值由 .NET 算出 | RFC-0012「标识」 |
 | `objectstorage/blob-keys.json` | 对象键的文法（分段、`.` 与 `..`、空白、控制字符、反斜线、孤立的代理项与成对的代理项）、保留前缀 `.xihan` 与查询前缀；长度按 UTF-8 字节计，1024 字节的上限两侧（含码元数不超而字节数超过的），每条标出字节数与码元数，期望值由 .NET 算出 | RFC-0012「标识」 |
-| `objectstorage/blob-metadata.json` | 自定义元数据：名的文法，值里的控制字符，名与值合计 2048 个 UTF-8 字节的上限两侧（含码元数不超而字节数超过的），期望值由 .NET 算出 | RFC-0012「标识」 |
+| `objectstorage/blob-metadata.json` | 自定义元数据：名的文法，值里的控制字符、孤立的代理项与成对的代理项，名与值合计 2048 个 UTF-8 字节的上限两侧（含码元数不超而字节数超过的），期望值由 .NET 算出 | RFC-0012「标识」 |
 | `objectstorage/blob-content-types.json` | 对象内容类型文法的合法与不合法样例（token 字符、`;` 两侧的空格、`;` 之后可以为空、不以空格结尾、制表符不收、255 个字符的上限两侧），期望值由 .NET 算出 | RFC-0012「标识」 |
 | `objectstorage/blob-ranges.json` | 范围读取：起点、可选的长度与总长，到实际范围（超出末尾截断）或不可满足，期望值由 .NET 算出 | RFC-0012「范围读取、分片上传与预签名」 |
 | `objectstorage/download-file-names.json` | 预签名下载地址上保存的文件名：不全是空白、不含控制字符与孤立的代理项，按 UTF-8 编码后 255 字节的上限两侧（含码元数不超而字节数超过的），每条标出字节数与码元数，期望值由 .NET 算出 | RFC-0012「范围读取、分片上传与预签名」 |
@@ -86,7 +86,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 
 各语言 SDK 的单元测试直接读取这些文件。Go 里 `go get github.com/xihanfun/framework-spec/conformance` 后经内嵌文件系统 `conformance.Vectors` 或类型化入口（`conformance.HandshakeLines()` 等）读取，不需要 submodule。`conformance.TypedVectors()` 给出向量文件表：每个向量文件一项，带它的类型化读取；`xihan-conformance vectors` 照这张表逐个解析，本模块的测试核对表与内嵌的文件一一对应。
 
-含孤立代理项的标识写不进 JSON 字符串：转义出的孤立代理项，System.Text.Json 读到即抛出，Go 的 `encoding/json` 换成 U+FFFD，Python 原样保留。`blob-keys.json`、`download-file-names.json` 与 `cache-keys.json` 里这样的用例不写原文，以 `utf16` 列出 UTF-16 码元（四位十六进制），也不标 `utf8Bytes`（ADR-0316）。各实现按码元组出本语言的字符串：UTF-16 的语言直接组成；以字节表示字符串的语言按 WTF-8 编成字节，成对的代理项合成一个字符编成 4 个字节，孤立的代理项各编成 3 个字节 `ED A0 80`–`ED BF BF`；Python 把成对的代理项合成一个码位。Go 用类型化用例的 `Input()`，它经 `conformance.CodeUnits.Text` 组出这样的字节。`blob-keys.json` 的合法键里另有一条以码元写出的成对代理项，与转义写出的那一条是同一个键，用来核对组字符串的写法。
+含孤立代理项的标识写不进 JSON 字符串：转义出的孤立代理项，System.Text.Json 读到即抛出，Go 的 `encoding/json` 换成 U+FFFD，Python 原样保留。`blob-keys.json`、`download-file-names.json` 与 `cache-keys.json` 里这样的用例不写原文，以 `utf16` 列出 UTF-16 码元（四位十六进制），也不标 `utf8Bytes`（ADR-0316）。各实现按码元组出本语言的字符串：UTF-16 的语言直接组成；以字节表示字符串的语言按 WTF-8 编成字节，成对的代理项合成一个字符编成 4 个字节，孤立的代理项各编成 3 个字节 `ED A0 80`–`ED BF BF`；Python 把成对的代理项合成一个码位。Go 用类型化用例的 `Input()`，它经 `conformance.CodeUnits.Text` 组出这样的字节。`blob-keys.json` 的合法键里另有一条以码元写出的成对代理项，与转义写出的那一条是同一个键，用来核对组字符串的写法。`blob-metadata.json` 的值同理（ADR-0322）：含孤立代理项的值不写在 `metadata` 里，改在用例的 `utf16` 里按名列出码元，整组是两处的各项合在一起，Go 用 `BlobMetadataCase.Values()` 取；合法的一侧同样有一条以码元写出的成对代理项。
 
 ## 规则（`rules/`）
 
