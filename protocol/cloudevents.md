@@ -25,6 +25,7 @@
 ## 出站
 
 - `CloudEventsWebhookPublisher.PublishAsync(topic, envelope)`：POST 到 `XiHan:Protocols:CloudEvents:Webhooks:<topic>`；`Outbound = Binary`（默认，`ce-*` 头 + 数据体，头值按规范百分号编码非可打印 ASCII；信封有 `dataschema` 时写 `ce-dataschema` 头，没有则不写，ADR-0305）或 `Structured`（`application/cloudevents+json` 体）。
+- 写不出的信封在发出之前拒绝，不发请求，几种内容模式同一个口径（RFC-0009「信封」的写出）：structured 与 batch 经结构化 JSON 的写出拒绝（.NET 的 `CloudEventsFormat.Encode`）；binary 在写任何头之前核对 `id`、`source`、`type`、`subject`、`dataschema`、`datacontenttype`（写进 `Content-Type`）与扩展属性的值，有孤立的代理项即抛出携带 `MESSAGING_VALIDATION_002` 的异常，消息带属性名，核对的属性与先后都与结构化 JSON 的写出相同（RFC-0001「写出与转交」；2026-11-26 写明，ADR-0318；以前 .NET 的 binary 模式不经这道核对，头值的百分号编码把孤立的代理项编成 U+FFFD 的 `%EF%BF%BD`，Webhook 缺省的单条发布照样写成 U+FFFD，接收方读到的是另一个值）。
 - `PublishManyAsync(topic, envelopes)`（批量优先）：一条沿用上面的模式；多条用 batch 内容模式（`application/cloudevents-batch+json`，结构化事件的数组、顺序同入参）一次 POST，接收方须支持该模式，一个响应对整批生效（逐项结果相同）。
 - 没有配置 → `PROTOCOLS_NOTFOUND_004`；响应非 2xx → `PROTOCOLS_UNAVAILABLE_001`（`status` 在详情里）；连接失败 → `PROTOCOLS_UNAVAILABLE_002`。结果只看状态码，读到响应头即判定，响应体不读（2026-11-12 修订，ADR-0188；以前先把响应体整个缓冲进内存）。重试由调用方决定（经发件箱投递即获得至少一次语义）。
 - 使用命名 HttpClient `xihan.protocols.cloudevents`。
