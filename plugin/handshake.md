@@ -57,7 +57,7 @@ xihan-plugin/1 <network> <address>
 
 ## 4. 会话令牌与回调
 
-- 插件回调 `Host` 服务时必须在元数据 `xihan-plugin-session` 里带 `XIHAN_PLUGIN_SESSION`；缺失或不匹配返回 gRPC `Unauthenticated` + `PLUGINS_DENIED_002`。
+- 插件回调 `Host` 服务时必须在元数据 `xihan-plugin-session` 里带 `XIHAN_PLUGIN_SESSION`；缺失或不匹配返回 gRPC `Unauthenticated` + `PLUGINS_DENIED_002`。宿主校验同样按常数时间比较：不以令牌本身作散列表的键查会话，先按令牌的密码学散列（如 SHA-256）找到候选，再与签发的令牌做常数时间比较，令牌作废之后即不匹配（2026-11-27 写明，ADR-0325；以前 .NET 宿主以令牌为键查字典，比较不是常数时间）。
 - 宿主调用 `Plugin` 服务的每一次 RPC（含 `Handshake`）同样在元数据 `xihan-plugin-session` 里带这个令牌。插件必须校验（按常数时间比较），缺失或不匹配以 gRPC `Unauthenticated` 拒绝、不执行（2026-11-12 修订，ADR-0202；以前只有回调带令牌，本机其他用户或同一 Pod 的边车容器直接连插件端点，就能冒充宿主、以任意主体与租户调用插件）。元数据里必须恰好有一个 `xihan-plugin-session` 值：没有、或有两个及以上（即使其中一个正确）都按不匹配拒绝（2026-11-18 写明，ADR-0237）。会话令牌的校验先于其他一切处理，包括流式调用读第一帧。
 - 令牌只对本次进程有效；重启后换新令牌。
 - 宿主的回调端点（2026-11-18 修订，ADR-0237；以前只有一个，Windows 上是命名管道，而 Python、Java、PHP 的 gRPC 库连不上命名管道，这些插件在 Windows 上回调不了宿主）：
