@@ -28,7 +28,10 @@
   - 在流式操作契约的 RFC 之前（RFC-0017「非目标」），插件不实现流式调用、也不声明流式操作（`handshake.md` §3 第 4 条），2026-11-18 写明（ADR-0237；以前有的 SDK 直接拒绝、有的读帧、有的实现了流式操作）：`InvokeStream` 核对会话令牌后读第一帧，流在第一帧之前结束或第一帧不是 `start` 时以 gRPC `InvalidArgument` 结束流，第一帧是 `start` 时以 gRPC `Unimplemented` 结束流，不论操作是否声明、插件是否就绪。
 - 调用到达时插件未 `Ready`：懒激活按 `lifecycle.md` 等待，否则 `PLUGINS_UNAVAILABLE_001`。
 - 插件一侧处理 `Invoke` 依次核对（2026-11-18 写明，ADR-0237；以前有的 SDK 先报未就绪）：会话令牌（`handshake.md` §4）；操作在握手声明里，否则 gRPC `Unimplemented`；插件在可服务状态（`lifecycle.md` §7.3），否则 `Status.error` 为 `PLUGINS_UNAVAILABLE_001` + `plugins.process.unavailable`；然后按 §2 还原上下文，经 SDK 的调用器与完整管道执行（RFC-0011），`payload` 为空等同 `{}`。
-- 插件一侧写出应答（2026-11-26 写明，ADR-0315；以前 TypeScript 以 `TextEncoder` 编码处理器以字符串交回的应答，孤立的代理项换成 U+FFFD 照发，宿主收到的是另一份合法的 JSON）：处理器以字符串交回的应答载荷（SDK 收字符串的接口），写进 `InvokeResponse.payload` 之前严格编码成 UTF-8（RFC-0001「写出与转交」）。编码不成即应答写不出，按 RFC-0011 规则 10 的「编码」处理：`Status.error` 为 `KERNEL_UNEXPECTED_001` + `kernel.invocation.unhandled_exception`（没有参数），`payload` 为空，与类型化的响应写不出（浮点成员是 NaN）相同。处理器的失败由插件一侧这样报给宿主，宿主按 §3 读入。以字节交回的应答原样写出，由宿主按上面「宿主读插件交回的应答」核对。
+- 插件一侧写出应答（RFC-0001「写出与转交」）：应答写不出时按 RFC-0011 规则 10 的「编码」处理，`Status.error` 为 `KERNEL_UNEXPECTED_001` + `kernel.invocation.unhandled_exception`（没有参数，没有 `inner`），`payload` 为空。处理器的失败由插件一侧这样报给宿主，宿主按 §3 读入。
+  - 类型化的响应由 SDK 的调用器写成 JSON（2026-11-26 写明，ADR-0318；以前各 SDK 不一：Go 写成 U+FFFD 照常交回，TypeScript 与 Python 写成 `\ud800` 这样的转义交回、由宿主按上面「宿主读插件交回的应答」以 `PLUGINS_UNEXPECTED_001` 拒绝，Java 在插件一侧以 `KERNEL_UNEXPECTED_001` 失败）：响应里的字符串（成员名与值，含字典的键）有孤立的代理项，或者在以字节存放字符串的语言（Go、PHP）里不是合法的 UTF-8，即应答写不出，与浮点成员是 NaN 相同；不写成 U+FFFD，也不写成转义交给宿主。
+  - 处理器以字符串交回的应答载荷（SDK 收字符串的接口；2026-11-26 写明，ADR-0315），写进 `InvokeResponse.payload` 之前严格编码成 UTF-8，编码不成即应答写不出（2026-11-26 更正，ADR-0318：ADR-0315 时这里的注记写成「以前 TypeScript 以 `TextEncoder` 编码处理器以字符串交回的应答，孤立的代理项换成 U+FFFD 照发」，与实际不符。TypeScript 的处理器没有以字符串交回应答的接口，应答总经调用器的 `writeJson` 写出，孤立的代理项写成 `\ud800` 这样的转义，再由宿主按上面一条拒绝；运行时随后的 `TextEncoder` 编码的是已经转义过的文本，换不出 U+FFFD）。
+  - 以字节交回的应答原样写出，由宿主按上面「宿主读插件交回的应答」核对。
 
 ## 2. 上下文映射（RFC-0003）
 
