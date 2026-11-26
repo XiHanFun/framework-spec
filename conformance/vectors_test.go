@@ -238,7 +238,7 @@ var nonEmptyChecks = map[string]func(t *testing.T) any{
 	},
 	"primitives/baggage-keys.json": func(t *testing.T) any {
 		keys, err := conformance.BaggageKeys()
-		if err != nil || len(keys.Registered) == 0 || len(keys.Values.Acceptable) == 0 || len(keys.Values.Unacceptable) == 0 {
+		if err != nil || len(keys.Registered) == 0 || len(keys.Values.Acceptable) == 0 || len(keys.Values.Unacceptable) == 0 || len(keys.Values.AcceptableUTF16) == 0 || len(keys.Values.UnacceptableUTF16) == 0 {
 			t.Errorf("baggage keys: %v", err)
 		}
 		return keys
@@ -343,6 +343,20 @@ var nonEmptyChecks = map[string]func(t *testing.T) any{
 			}
 		}
 		return keys
+	},
+	"security/resource-names.json": func(t *testing.T) any {
+		names, err := conformance.ResourceNames()
+		if err != nil || len(names.Valid) == 0 || len(names.Invalid) == 0 {
+			t.Errorf("resource names: %v", err)
+		}
+		seen := map[string]bool{}
+		for _, c := range append(append([]conformance.ResourceNameCase{}, names.Valid...), names.Invalid...) {
+			if _, err := c.Input(); err != nil || c.Name == "" || seen[c.Name] {
+				t.Errorf("resource name case %q must have a unique name and must not give both its text and its utf16 code units: %v", c.Name, err)
+			}
+			seen[c.Name] = true
+		}
+		return names
 	},
 	"security/webauthn.json": func(t *testing.T) any {
 		webauthn, err := conformance.WebAuthn()

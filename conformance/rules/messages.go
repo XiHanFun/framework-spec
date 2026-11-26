@@ -1,6 +1,9 @@
 package rules
 
-import "regexp"
+import (
+	"regexp"
+	"unicode/utf8"
+)
 
 // MaxMessageKeyLength 是消息键的最大长度（RFC-0010「消息键」，与 .NET 的 MessageTemplate.MaxKeyLength 相同）。
 const MaxMessageKeyLength = 128
@@ -19,9 +22,11 @@ func IsMessageKey(key string) bool {
 }
 
 // IsBaggageValueAcceptable 判断已登记键的值能否进入调用上下文：非空、按 UTF-16 码元计不超过
-// MaxBaggageValueLength、不含 U+0000–U+001F 与 U+007F–U+009F（ADR-0204、ADR-0233）。
+// MaxBaggageValueLength、不含 U+0000–U+001F 与 U+007F–U+009F（ADR-0204、ADR-0233），也不含孤立的代理项，
+// 以字节表示字符串时即必须是合法的 UTF-8（RFC-0001「孤立的代理项」，ADR-0321）。
 func IsBaggageValueAcceptable(value string) bool {
-	if value == "" {
+	// range 把非法的字节读成 U+FFFD 照收：编成 UTF-8 的代理项（ED A0 80–ED BF BF）就是这样混进来的，先整串核对
+	if value == "" || !utf8.ValidString(value) {
 		return false
 	}
 	units := 0

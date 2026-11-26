@@ -1,5 +1,5 @@
 {
-  "$comment": "Baggage 键格式 xihan.<name>；已登记的键见 spec/conventions/baggage-keys.md。values：已登记键的值是否可以进入调用上下文（ADR-0204、ADR-0233）：非空、按 UTF-16 码元计最多 256、不含 U+0000–U+001F 与 U+007F–U+009F；xihan.idempotency-key 不按这条丢弃。文法按整串匹配，结尾的换行不例外（ADR-0236）",
+  "$comment": "Baggage 键格式 xihan.<name>；已登记的键见 spec/conventions/baggage-keys.md。values：已登记键的值是否可以进入调用上下文（ADR-0204、ADR-0233）：非空、按 UTF-16 码元计最多 256、不含 U+0000–U+001F 与 U+007F–U+009F；也不含孤立的代理项（不在一对之中的 U+D800–U+DFFF 码元，RFC-0001「孤立的代理项」，ADR-0321）；xihan.idempotency-key 不按这条丢弃。JSON 字符串写不出孤立的代理项：acceptableUtf16 与 unacceptableUtf16 是同一条约束的样例，以 utf16 列出 UTF-16 码元（四位十六进制），组字符串的写法同 RFC-0012「一致性」，期望值由 .NET 参考实现（BaggageKeys.IsAcceptableValue）算出；acceptableUtf16 的成对代理项是平面以外的一个字符，照常合法。文法按整串匹配，结尾的换行不例外（ADR-0236）",
   "wellFormed": [
     "xihan.tenant",
     "xihan.idempotency-key",
@@ -43,6 +43,38 @@
       "nul\u0000",
       "del\u007f",
       "c1\u0085"
+    ],
+    "acceptableUtf16": [
+      {
+        "name": "成对的代理项：平面以外的字符 U+1F600，以码元写出",
+        "utf16": ["0074", "D83D", "DE00"]
+      }
+    ],
+    "unacceptableUtf16": [
+      {
+        "name": "单独的高代理项",
+        "utf16": ["0061", "D800", "0062"]
+      },
+      {
+        "name": "单独的低代理项",
+        "utf16": ["0061", "DC00", "0062"]
+      },
+      {
+        "name": "颠倒的一对：低代理项 U+DE00 在高代理项 U+D83D 之前",
+        "utf16": ["DE00", "D83D"]
+      },
+      {
+        "name": "末尾的高代理项",
+        "utf16": ["0061", "D800"]
+      },
+      {
+        "name": "高代理项之后又是高代理项",
+        "utf16": ["D83D", "D83D", "DE00"]
+      },
+      {
+        "name": "只有一个低代理项",
+        "utf16": ["DFFF"]
+      }
     ]
   }
 }

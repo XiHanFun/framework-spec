@@ -129,6 +129,26 @@ func TestBaggageValuesFollowTheVectors(t *testing.T) {
 			t.Errorf("%q must be unacceptable", value)
 		}
 	}
+	// 孤立的代理项写不进 JSON 字符串，以码元写出（ADR-0321）；四种写法与合法的成对代理项都要在
+	var coverage surrogateCoverage
+	for _, value := range vectors.Values.Acceptable {
+		coverage.note(t, value, value, nil, true)
+	}
+	for _, c := range vectors.Values.AcceptableUTF16 {
+		text := caseInput(t, c.Name, c.Input)
+		coverage.note(t, c.Name, text, c.UTF16, true)
+		if !rules.IsBaggageValueAcceptable(text) {
+			t.Errorf("%s: %q must be acceptable", c.Name, text)
+		}
+	}
+	for _, c := range vectors.Values.UnacceptableUTF16 {
+		text := caseInput(t, c.Name, c.Input)
+		coverage.note(t, c.Name, text, c.UTF16, false)
+		if rules.IsBaggageValueAcceptable(text) {
+			t.Errorf("%s: %q must be unacceptable", c.Name, text)
+		}
+	}
+	coverage.requireAll(t, "baggage value", true)
 }
 
 func TestWireEncodingFollowsTheVectors(t *testing.T) {

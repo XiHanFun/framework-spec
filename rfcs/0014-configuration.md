@@ -1,6 +1,6 @@
 # RFC-0014 远程配置与密钥
 
-> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义；2026-11-01 修订：宿主的配置源顺序；2026-11-01 修订：Nacos 凭据随绑定属性覆盖；2026-11-01 修订：选项打印遮蔽凭据；2026-11-01 修订：访问密钥 ID 也遮蔽；2026-11-01 修订：登录用户名也遮蔽；2026-11-02 修订：用户名的遮蔽范围定为不扩到系统账户与驱动消息；2026-11-24 修订：密钥库批量读取返回同序的结果列表；同日再修订：一致性向量；同日第三次修订：代理的用户名与口令同样遮蔽；同日第四次修订：Nacos 的两种文档格式逐条写明，展平后重复的键不合法） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义）、ADR-0075（配置源顺序）、ADR-0082（凭据属性）、ADR-0086（选项打印遮蔽凭据）、ADR-0089（访问密钥 ID 也遮蔽）、ADR-0090（登录用户名也遮蔽）、ADR-0093（用户名遮蔽范围已定）、ADR-0257（密钥库批量读取的返回形态）、ADR-0277（一致性向量）、ADR-0281（代理的登录凭据）、ADR-0286（Nacos 的文档格式） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance`，向量 `conformance/vectors/configuration/` | 一致性档：`configuration`
+> 状态：已采纳（2026-10-26 修订：Nacos Provider；2026-11-01 修订：加载与重读的失败语义；2026-11-01 修订：宿主的配置源顺序；2026-11-01 修订：Nacos 凭据随绑定属性覆盖；2026-11-01 修订：选项打印遮蔽凭据；2026-11-01 修订：访问密钥 ID 也遮蔽；2026-11-01 修订：登录用户名也遮蔽；2026-11-02 修订：用户名的遮蔽范围定为不扩到系统账户与驱动消息；2026-11-24 修订：密钥库批量读取返回同序的结果列表；同日再修订：一致性向量；同日第三次修订：代理的用户名与口令同样遮蔽；同日第四次修订：Nacos 的两种文档格式逐条写明，展平后重复的键不合法；2026-11-27 修订：命名空间与 Nacos 的 `Group`、`Tenant` 不含孤立的代理项） | 日期：2026-10-23 | 对应 ADR：ADR-0019（Nacos）、ADR-0068（失败语义）、ADR-0075（配置源顺序）、ADR-0082（凭据属性）、ADR-0086（选项打印遮蔽凭据）、ADR-0089（访问密钥 ID 也遮蔽）、ADR-0090（登录用户名也遮蔽）、ADR-0093（用户名遮蔽范围已定）、ADR-0257（密钥库批量读取的返回形态）、ADR-0277（一致性向量）、ADR-0281（代理的登录凭据）、ADR-0286（Nacos 的文档格式）、ADR-0321（命名空间与 Nacos 选项里的孤立代理项） | 参考实现：`XiHan.Framework.Configuration.Abstractions`、`XiHan.Framework.Configuration.Nacos` | 一致性：`XiHan.Framework.Configuration.Conformance`，向量 `conformance/vectors/configuration/` | 一致性档：`configuration`
 
 ## 摘要
 
@@ -30,6 +30,7 @@
 ## 远程配置
 
 - 文档 `ConfigurationDocument(Version, Values)`（构造时把键值复制成不区分大小写的只读副本，只差大小写的重复键抛出，2026-11-11 修订，ADR-0161）：`Values` 的键已是 `IConfiguration` 的键形式（`A:B:C`），Provider 负责把自己的格式（JSON、YAML、properties）展平；`Version` 非空，每次变化都不同（ETag、修订号或内容哈希）。
+- 命名空间（`RemoteConfigurationOptions` 的构造参数）不能只有空白，也不能有孤立的代理项（RFC-0001「孤立的代理项」），不合时构造抛出 `ArgumentException`（孤立的代理项 2026-11-27 修订，ADR-0321；以前只拒空白：Provider 把命名空间编进请求，Nacos 的 `dataId` 经 URL 的百分号编码，只差在孤立代理项上的两个命名空间取的是同一份文档）。
 - `FetchAsync(namespace, knownVersion)`：`knownVersion` 为空时总是返回文档；非空且远端未变化时返回无值。实现可以长轮询：阻塞到变化或自己的窗口到期，收到取消时返回无值而不是抛出。命名空间不存在 → `CONFIGURATION_NOTFOUND_001`；不可达 → `CONFIGURATION_UNAVAILABLE_001`；远端文档不是声明的格式（JSON 不合法等）→ `CONFIGURATION_VALIDATION_001`。
 - 适配器 `AddXiHanRemoteConfiguration(client, options)`：构建配置时同步加载一次（`IConfigurationProvider.Load` 是同步契约，受 `LoadTimeout` 约束）。首次加载的失败有三种：客户端返回失败结果（错误码照用）、超时（`CONFIGURATION_UNAVAILABLE_001`，原因 `load timeout`）、客户端抛出任何异常（`CONFIGURATION_UNAVAILABLE_001`，原因取异常消息）；三种一样处理——先回调 `OnError`，`Optional` 为假则抛出带该错误码的 `FrameworkException` 让启动失败（客户端抛出的异常作为内部异常），为真则该源为空。不论首次加载成败，`PollInterval`（默认 30 秒，`null` 关闭）非空时都按周期带已知版本轮询（首次失败时已知版本为空，第一次成功的轮询装入整份文档；计时用 `Clock`，默认系统时钟，测试换成可推进的时钟由用例触发轮询），拿到新版本就替换整份数据，键值有变化才触发重载令牌；轮询中客户端返回失败或抛出异常都回调 `OnError` 并保留最后一份成功的数据。`Prefix` 把文档挂到某个节下。
 - 客户端的归属：`AddXiHanRemoteConfiguration(client, options)` 传入的客户端由调用方持有，配置根释放时不释放它；`AddXiHanRemoteConfiguration(clientFactory, options)` 由配置源按工厂创建客户端，每次构建 Provider（构建配置根，或 `ConfigurationManager` 重建全部源）新建一个、归这个 Provider 所有，Provider 释放时先停轮询再释放它（实现 `IDisposable` 时）。
@@ -46,7 +47,7 @@
 
 `Configuration.Nacos` 实现 `IRemoteConfigurationClient`，直接用 Nacos 的 HTTP 配置接口（v1，Nacos 2.x 兼容），不依赖 SDK：
 
-- 命名空间参数即 Nacos 的 `dataId`；`Group`（默认 `DEFAULT_GROUP`）与 `Tenant`（Nacos 命名空间 ID，默认公共）来自选项。
+- 命名空间参数即 Nacos 的 `dataId`；`Group`（默认 `DEFAULT_GROUP`）与 `Tenant`（Nacos 命名空间 ID，默认公共）来自选项。三者都进取配置的查询串与监听请求的正文，按 UTF-8 编码：`Group` 不能只有空白，`Group` 与 `Tenant` 都不能有孤立的代理项，不合即启动失败，选项的初始化器与从配置读取都抛出 `ArgumentException`（孤立的代理项 2026-11-27 修订，ADR-0321）；`dataId` 见「远程配置」。
 - 版本是内容的 MD5（小写十六进制），与 Nacos 监听接口的约定一致：监听时服务端拿报来的值与它存的内容 MD5（按 UTF-8 编码计算）逐字比较。取配置响应的 `Content-MD5` 头（HTTP 上它是内容头）原文；没有这个头时按同样的算法自己算，不得换成别的摘要，否则监听永远报告变化、退化成普通轮询。`knownVersion` 非空时先以该 MD5 长轮询监听（`LongPollTimeout`，默认 30 秒），服务端报告变化才取整份文档，窗口到期或取消返回无值。
 - 文档格式 `Format`：`Json`（默认）或 `Properties`，把整份内容展平成配置的键值（2026-11-24 写明，ADR-0286；以前只有「对象按 `A:B` 展平、数组按下标、`null` 保留为空值」与「`a.b=c` → `a:b`，`#` / `!` 行是注释」两句，其余的取法只在 .NET 的代码里）。
   - 两种格式共同的：键不区分大小写（配置系统的规则；.NET 按 `OrdinalIgnoreCase` 比较），展平后同一个键出现两次——含只差大小写的——文档不合法（`CONFIGURATION_VALIDATION_001`），不取其中任何一个（2026-11-24 修订，ADR-0286；以前 .NET 悄悄取最后一个，与 .NET 自带的 JSON 配置提供程序、`ConfigurationDocument` 对重复键的处理都不一致）。展平出的键为空同样不合法：文档的键不能为空（上文「远程配置」）。不合法的原因进错误的详情：键重复时只带键名，键为空时只带行号（Properties）或不带位置（Json），都不带配置的值。

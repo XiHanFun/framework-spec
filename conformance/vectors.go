@@ -484,10 +484,27 @@ type BaggageKeyVectors struct {
 	Values     BaggageValueVectors `json:"values"`
 }
 
-// BaggageValueVectors 是已登记键的值能否进入调用上下文的样例（ADR-0204、ADR-0233）。
+// BaggageValueVectors 是已登记键的值能否进入调用上下文的样例（ADR-0204、ADR-0233）。JSON 字符串写不出的值
+// （孤立的代理项，ADR-0321）不在 Acceptable 与 Unacceptable 里，改由 AcceptableUTF16 与 UnacceptableUTF16 列出码元。
 type BaggageValueVectors struct {
-	Acceptable   []string `json:"acceptable"`
-	Unacceptable []string `json:"unacceptable"`
+	Acceptable        []string           `json:"acceptable"`
+	Unacceptable      []string           `json:"unacceptable"`
+	AcceptableUTF16   []BaggageValueCase `json:"acceptableUtf16"`
+	UnacceptableUTF16 []BaggageValueCase `json:"unacceptableUtf16"`
+}
+
+// BaggageValueCase 是一条以 UTF-16 码元写出的 Baggage 值样例；文本用 Input 取。
+type BaggageValueCase struct {
+	Name  string    `json:"name"`
+	UTF16 CodeUnits `json:"utf16"`
+}
+
+// Input 返回值的文本：按码元组成（CodeUnits.Text）；没有写码元的是向量写错了。
+func (c BaggageValueCase) Input() (string, error) {
+	if c.UTF16 == nil {
+		return "", fmt.Errorf("conformance: baggage value case %q gives no utf16 code units", c.Name)
+	}
+	return c.UTF16.Text()
 }
 
 // WireCase 是一条线上编码样例：Kind 只用于 Result（value / unit / maybe）；
@@ -719,6 +736,24 @@ type CacheKeyVectors struct {
 	Prefixes CacheKeyCaseSet `json:"prefixes"`
 }
 
+// ResourceNameCase 是一条资源名的样例：Text 是原文；JSON 字符串写不出的（孤立的代理项，ADR-0321）没有 Text，
+// 改由 UTF16 列出码元；文本用 Input 取。
+type ResourceNameCase struct {
+	Name  string    `json:"name"`
+	Text  string    `json:"text"`
+	UTF16 CodeUnits `json:"utf16"`
+}
+
+// Input 返回资源名的文本：写了 UTF16 的按码元组成（CodeUnits.Text），否则是 Text。
+func (c ResourceNameCase) Input() (string, error) { return caseText(c.Name, c.Text, c.UTF16) }
+
+// ResourceNameVectors 对应 security/resource-names.json（RFC-0008「资源名」，ADR-0321）：Valid 必须接受、
+// 解析之后再写出与原文相同，Invalid 必须拒绝。
+type ResourceNameVectors struct {
+	Valid   []ResourceNameCase `json:"valid"`
+	Invalid []ResourceNameCase `json:"invalid"`
+}
+
 // WebAuthnVectors 对应 security/webauthn.json；响应与凭据保持原样，形状见 RFC-0008「WebAuthn」。
 type WebAuthnVectors struct {
 	RelyingParty   WebAuthnRelyingParty `json:"relyingParty"`
@@ -837,6 +872,7 @@ var typedVectors = []TypedVector{
 	vectorFile[JobNameVectors]("scheduling/job-names.json"),
 	vectorFile[JobRetryDelayVectors]("scheduling/retry-delays.json"),
 	vectorFile[JobScheduleTextVectors]("scheduling/schedule-texts.json"),
+	vectorFile[ResourceNameVectors]("security/resource-names.json"),
 	vectorFile[WebAuthnVectors]("security/webauthn.json"),
 	vectorFile[WorkflowExpressionFunctionVectors]("workflow/expression-functions.json"),
 	vectorFile[WorkflowExpressionLimitVectors]("workflow/expression-limits.json"),
@@ -864,6 +900,11 @@ func typed[T any]() (T, error) {
 	}
 	var vector T
 	return vector, fmt.Errorf("conformance: no vector file is registered for %s", kind)
+}
+
+// ResourceNames 读取资源名的文法样例。
+func ResourceNames() (ResourceNameVectors, error) {
+	return typed[ResourceNameVectors]()
 }
 
 // WebAuthn 读取 WebAuthn 注册与认证的样例。

@@ -1,0 +1,127 @@
+{
+  "$comment": "统一资源名 xrn:<partition>:<service>:<tenant>:<type>/<id> 的文法（RFC-0008「资源名」，ADR-0321）：分区、服务与类型段是 [a-z0-9-]+；租户段为空（全局资源）或租户 ID（RFC-0007，[a-z0-9][a-z0-9._-]{0,63}）；ID 段是非空串，不含 /、空白（RFC-0001「空白字符」的 25 个码位）与孤立的代理项（RFC-0001「孤立的代理项」，ADR-0321）。整串匹配，结尾的换行不例外。valid 必须接受，解析之后再写出与原文相同；invalid 必须拒绝。每条的 text 是原文；JSON 字符串写不出孤立的代理项，这样的用例没有 text，改以 utf16 列出 UTF-16 码元（四位十六进制），组字符串的写法同 RFC-0012「一致性」；valid 里以码元写出的那一条与转义写出的成对代理项是同一个资源名。期望值由 .NET 参考实现（ResourceName.TryParse、ResourceName.ToString）算出。",
+  "valid": [
+    {
+      "name": "租户的资源",
+      "text": "xrn:cn:orders:t-42:order/1001"
+    },
+    {
+      "name": "全局资源：租户段为空",
+      "text": "xrn:cn:orders::order/1001"
+    },
+    {
+      "name": "租户段含点",
+      "text": "xrn:cn:orders:acme.cn:order/1"
+    },
+    {
+      "name": "租户段含下划线",
+      "text": "xrn:cn:orders:t_42:order/1"
+    },
+    {
+      "name": "租户段 64 个字符，正好到上限",
+      "text": "xrn:cn:orders:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:order/1"
+    },
+    {
+      "name": "ID 段含冒号、点与连字符",
+      "text": "xrn:cn:orders::order/a:b.c-d"
+    },
+    {
+      "name": "ID 段的非 ASCII 字符",
+      "text": "xrn:cn:docs::doc/文档一"
+    },
+    {
+      "name": "零宽空格 U+200B 不是空白",
+      "text": "xrn:cn:docs::doc/a\u200bb"
+    },
+    {
+      "name": "成对的代理项：平面以外的字符 U+1F600，转义写出",
+      "text": "xrn:a:b::c/\ud83d\ude00"
+    },
+    {
+      "name": "成对的代理项：同一个资源名，以码元写出",
+      "utf16": ["0078", "0072", "006E", "003A", "0061", "003A", "0062", "003A", "003A", "0063", "002F", "D83D", "DE00"]
+    }
+  ],
+  "invalid": [
+    {
+      "name": "空串",
+      "text": ""
+    },
+    {
+      "name": "没有 ID 段",
+      "text": "xrn:cn:orders:t-42:order"
+    },
+    {
+      "name": "ID 段为空",
+      "text": "xrn:cn:orders:t-42:order/"
+    },
+    {
+      "name": "少一段",
+      "text": "xrn:cn:orders:order/1"
+    },
+    {
+      "name": "前缀大写",
+      "text": "XRN:cn:orders::order/1"
+    },
+    {
+      "name": "分区大写",
+      "text": "xrn:CN:orders::order/1"
+    },
+    {
+      "name": "租户段大写",
+      "text": "xrn:cn:orders:Acme:order/1"
+    },
+    {
+      "name": "租户段以点开头",
+      "text": "xrn:cn:orders:.acme:order/1"
+    },
+    {
+      "name": "租户段 65 个字符",
+      "text": "xrn:cn:orders:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:order/1"
+    },
+    {
+      "name": "ID 段含斜杠",
+      "text": "xrn:cn:orders::order/a/b"
+    },
+    {
+      "name": "ID 段含空格",
+      "text": "xrn:cn:orders::order/a b"
+    },
+    {
+      "name": "ID 段含全角空格 U+3000",
+      "text": "xrn:cn:orders::order/a\u3000b"
+    },
+    {
+      "name": "ID 段含 U+0085",
+      "text": "xrn:cn:orders::order/a\u0085b"
+    },
+    {
+      "name": "结尾的换行",
+      "text": "xrn:cn:orders::order/1\n"
+    },
+    {
+      "name": "ID 段里单独的高代理项",
+      "utf16": ["0078", "0072", "006E", "003A", "0061", "003A", "0062", "003A", "003A", "0063", "002F", "0061", "D800", "0062"]
+    },
+    {
+      "name": "ID 段里单独的低代理项",
+      "utf16": ["0078", "0072", "006E", "003A", "0061", "003A", "0062", "003A", "003A", "0063", "002F", "0061", "DC00", "0062"]
+    },
+    {
+      "name": "ID 段里颠倒的一对",
+      "utf16": ["0078", "0072", "006E", "003A", "0061", "003A", "0062", "003A", "003A", "0063", "002F", "DE00", "D83D"]
+    },
+    {
+      "name": "ID 段末尾的高代理项",
+      "utf16": ["0078", "0072", "006E", "003A", "0061", "003A", "0062", "003A", "003A", "0063", "002F", "0061", "D800"]
+    },
+    {
+      "name": "ID 段里高代理项之后又是高代理项",
+      "utf16": ["0078", "0072", "006E", "003A", "0061", "003A", "0062", "003A", "003A", "0063", "002F", "D83D", "D83D", "DE00"]
+    },
+    {
+      "name": "ID 段只有一个低代理项",
+      "utf16": ["0078", "0072", "006E", "003A", "0061", "003A", "0062", "003A", "003A", "0063", "002F", "DFFF"]
+    }
+  ]
+}

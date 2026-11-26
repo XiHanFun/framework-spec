@@ -145,7 +145,7 @@
       "title": "子系统：认证与授权",
       "stability": "stable",
       "documents": ["rfcs/0008-security.md"],
-      "vectors": ["security/webauthn.json"],
+      "vectors": ["security/resource-names.json", "security/webauthn.json"],
       "runner": []
     },
     {
