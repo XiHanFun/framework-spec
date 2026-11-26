@@ -59,4 +59,8 @@ stdio 传输（命令行宿主的 `mcp` 命令：客户端启动服务端进程�
   3. 请求体不超过 `XiHan:Protocols:Mcp:MaxRequestBodyBytes`（正整数，缺省 4 MiB），否则 413；`Content-Length` 已经超过的不读，没有声明长度的边读边计数，读到上限多一个字节即停。
 - `initialize` 与 `tools/list` 不要求认证：匿名客户端能看到全部 tool 的名字与 Schema。不想公开时给整个端点加要求（`MapXiHanMcp().RequireXiHanAuthentication()`），凭据在外层认证（ADR-0209）。
 - Streamable HTTP 的请求凭据由宿主在外层认证：凭据无效时整个请求以 Problem Details 拒绝（401 `SECURITY_DENIED_003`，带 `WWW-Authenticate` 质询，见 `protocol/http.md`），不进入 JSON-RPC；应用未就绪时 503。按契约的授权在每个 `tools/call` 的管道里判定，未授权是 `isError` 结果。
-- stdio：stdin 每行一条消息（空行跳过），答复是一行紧凑 JSON 写到 stdout，通知与客户端发来的响应不答复；stdin 关闭即结束会话，命令以 0 退出。日志只写 stderr。消息顺序处理，一条处理完再读下一条。`mcp` 命令把 stdin 的字节按 UTF-8 解码（开头的 UTF-8 BOM 不算内容），与控制台代码页无关——Windows 上重定向的标准输入若按控制台输入代码页（如 936、437）解码，非 ASCII 的参数会成乱码；答复只含 ASCII 字符（JSON 里的非 ASCII 字符一律转义为 `\uXXXX`），按任何兼容 ASCII 的控制台输出代码页写出都是同样的字节，即合法的 UTF-8（ADR-0083）。
+- stdio：stdin 每行一条消息（空行跳过），答复是一行紧凑 JSON 写到 stdout，通知与客户端发来的响应不答复；stdin 关闭即结束会话，命令以 0 退出。日志只写 stderr。消息顺序处理，一条处理完再读下一条。`mcp` 命令把 stdin 的字节按 UTF-8 解码（开头的 UTF-8 BOM 不算内容），与控制台代码页无关——Windows 上重定向的标准输入若按控制台输入代码页（如 936、437）解码，非 ASCII 的参数会成乱码。读法是先按字节分行、再把每一行严格解码（RFC-0001「写出与转交」；2026-11-27 修订，ADR-0320；以前 .NET 先按宽松的 UTF-8 把整个 stdin 解码成文本再分行，非法的字节换成 U+FFFD，`tools/call` 照常执行）：
+  - 一行以 LF、CR 或 CR LF 结束，行尾不算内容；最后一行可以没有行尾。只有空白（RFC-0001「空白字符」）的行跳过。
+  - 一行里有非法的 UTF-8（编码成 UTF-8 的代理项、截断的序列、过长编码、不可能出现的字节如 `0xFF`）即这一行不是 JSON：答复解析错误（-32700，`data.code` 为 `PROTOCOLS_VALIDATION_001`，`id` 为 `null`，与上表「请求体不是 JSON」相同），这一行不处理，接着读下一行，会话不结束。
+  - 不先换成 U+FFFD 再处理：换出来的仍是合法的 JSON，`tools/call` 会以另一份参数执行。
+- stdio 的答复：答复只含 ASCII 字符（JSON 里的非 ASCII 字符一律转义为 `\uXXXX`），按任何兼容 ASCII 的控制台输出代码页写出都是同样的字节，即合法的 UTF-8（ADR-0083）。
