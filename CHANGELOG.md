@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- MINOR：RFC-0011 规则 2「载荷的文本」与规则 10「编码」写明类型化响应写出的整段文本要过 RFC-0001「JSON 文本」的共同检查，嵌套超过 64 层（从响应的根算起）或任何一层有重复成员即写不出，为 `KERNEL_UNEXPECTED_001` + `kernel.invocation.unhandled_exception`，不带 `inner`，宿主与 SDK 相同；Python 的 `str` 里任何代理项码点都写不出，成对的两个也一样。RFC-0001「写出与转交」与 `plugin/invocation.md` §1「插件一侧写出应答」同步（ADR-0319）。
 - MINOR：`plugin/invocation.md` §1 与 RFC-0001「写出与转交」写明插件交回的空成功载荷表示没有响应体、不按 JSON 文本核对，只有空白的照样核对；RFC-0006「幂等」第 2、4 条写明记下没有响应体、回放时按描述解码空载荷（ADR-0318）。
 - PATCH：`protocol/commandline.md` 写明字段选项的用法错误用消息键 `hosting.commandline.invoke_field_invalid`，错误码与退出码不变（ADR-0318）。
 - PATCH：`plugin/invocation.md` §1 更正 ADR-0315 时关于 TypeScript 应答编码的注记（ADR-0318）。
