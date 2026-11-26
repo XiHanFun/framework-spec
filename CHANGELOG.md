@@ -4,6 +4,17 @@
 
 ## 未发布
 
+- MINOR：`plugin/invocation.md` §1 与 RFC-0001「写出与转交」写明插件交回的空成功载荷表示没有响应体、不按 JSON 文本核对，只有空白的照样核对；RFC-0006「幂等」第 2、4 条写明记下没有响应体、回放时按描述解码空载荷（ADR-0318）。
+- PATCH：`protocol/commandline.md` 写明字段选项的用法错误用消息键 `hosting.commandline.invoke_field_invalid`，错误码与退出码不变（ADR-0318）。
+- PATCH：`plugin/invocation.md` §1 更正 ADR-0315 时关于 TypeScript 应答编码的注记（ADR-0318）。
+- MINOR：RFC-0011 规则 2「载荷的文本」与规则 10「编码」写明类型化响应写不成合法的 JSON 文本即写不出，为 `KERNEL_UNEXPECTED_001` + `kernel.invocation.unhandled_exception`，不带 `inner`，宿主与 SDK 相同；写不成指孤立的代理项，或以字节存放字符串的语言里不是合法的 UTF-8。RFC-0001「写出与转交」新增这一条，末句改为逐项列出仍不在规则里的写出；`plugin/invocation.md` §1「插件一侧写出应答」同步（ADR-0318）。
+- MINOR：`protocol/cloudevents.md`「出站」与 RFC-0009「信封」的写出写明 binary 模式写头之前核对属性里的孤立代理项，为 `MESSAGING_VALIDATION_002`，消息带属性名，请求不发出（ADR-0318）。
+- PATCH：`conventions/error-codes.md` 的 `OBJECTSTORAGE_UNAVAILABLE_001` 补「整读的 `ETag` 不是十六进制」，`OBJECTSTORAGE_UNAVAILABLE_004` 补「累计 10 次缺上传标识后不再探测、修好后重启才恢复」（ADR-0317）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0012「S3 的条件写入探测」写明发起分片上传的应答缺上传标识时，按连续次数从 `HealthProbeIntervalSeconds` 起加倍、最长 1 小时，其间写入不就地探测，累计 10 次后不再探测（尚未确认、缺省实例健康项为 Failed、重启才再探测），探测桶要配放弃未完成分片上传的生命周期规则；以前与连不上同一节奏、不设上限（ADR-0317）。
+- MINOR：RFC-0012「S3 Provider」写明整读的应答里 `ETag` 不是十六进制（AWS SDK for .NET 4.0 当 MD5 解码不了）时返回 `OBJECTSTORAGE_UNAVAILABLE_001`、不重发；范围读取、`Head`、列举与写入不核对（ADR-0317）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0006 与 `provider/caching-distributed.md` §2：缓存键与前缀不能含孤立的代理项，代数缓存区散列按 WTF-8 取字节，适配器严格编码键；`cache-keys.json` 同补，Go 新增 `conformance.CodeUnits` 与用例的 `Input()`（ADR-0316）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0012「标识」：对象键、查询前缀、保存的文件名与上传标识不能含孤立的代理项，宿主代签的规范串严格编码成 UTF-8；`blob-keys.json`、`download-file-names.json` 补孤立与成对的代理项，孤立的以 `utf16` 写出码元，Go 规则拒收不是合法 UTF-8 的文本（ADR-0316）。
+- PATCH：技能文件（conformance、spec-authoring）的向量约定同 `AGENTS.md` 写明插件一侧的例外（ADR-0310）。
 - MINOR：`plugin/invocation.md` §1 写明宿主核对插件交回的应答载荷（没过为 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed`，不按崩溃处理、计入熔断、空载荷照旧、幂等回放同一检查），SDK 以字符串交回的应答编不成为 `KERNEL_UNEXPECTED_001`；§5 写明 `Host.Publish` 字符串 `data` 编不成的那一项本地 `MESSAGING_VALIDATION_002`、其余照发；`plugin/lifecycle.md` §2 写明配置节有孤立代理项即配置失败；`plugin-messages.json` 加两条宿主一侧的 `reason`（ADR-0315）。
 - MINOR：RFC-0001「写出与转交」扩到 SDK 以字符串交回的应答载荷与发布的 `data`、宿主转交的插件应答载荷，以及写进 JSON 的命令行字段选项、插件配置节与信封属性（有孤立代理项即按那一处不合法的输入处理），末句只排除上面列出之外的写出器；RFC-0009「信封」的写出与 `protocol/commandline.md` 同步（ADR-0315）。
 - MINOR：RFC-0012「范围读取、分片上传与预签名」写明宿主代收的上传端点照 RFC 9110 §5.5 先去掉 `Content-Type` 首尾的空格与制表符，再比较、核对与取用，去掉之后为空即当作没给（ADR-0314）。
