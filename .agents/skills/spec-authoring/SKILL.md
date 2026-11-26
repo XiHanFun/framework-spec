@@ -30,7 +30,7 @@ grep -rn '<关键词>' rfcs conventions manifest plugin protocol packaging provi
 ## 完成条件
 
 1. 正文、修订注记、RFC 状态行、`CHANGELOG.md` 与档表一致。
-2. 新行为有向量或运行器用例（用 conformance 技能），期望值由 .NET 算出。
+2. 新行为有向量或运行器用例（用 conformance 技能），期望值由 .NET 算出；插件一侧（SDK 认领的 `plugin` 档）没有 .NET 实现的向量例外，期望值由 Go 一致性模块（`conformance/rules`，不是 Go SDK）的规则函数算出，再用 .NET 能用的部分与各语言的标准库交叉核对。
 3. testing-release 里的门禁全部通过。
 4. 需要时同步 `conformance/README.md` 与 XiHan.Framework 的 `docs/appendix/spec.md`（另一个仓库，单独提交）。
 5. 一项规范改动一个提交，说明末尾注 ADR；推送与升消费方指针只在用户要求时做。

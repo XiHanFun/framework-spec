@@ -19,8 +19,8 @@ description: 新增或修改 XiHan Spec 的一致性向量、规则包 conforman
 
 ## 规则
 
-- 期望值由 .NET 参考实现算出，不手算，不取某个 SDK 的输出；.NET 与规范不一致时停下来报告，不改向量迁就。
-- 向量文件顶部 `$comment` 写清字段含义、规范出处、ADR，以及「期望值由 .NET 参考实现算出」（如是）。
+- 期望值由 .NET 参考实现算出，不手算，不取某个 SDK 的输出；.NET 与规范不一致时停下来报告，不改向量迁就。例外是插件一侧（SDK 认领的 `plugin` 档）没有 .NET 实现的向量：期望值由 Go 一致性模块（`conformance/rules`，不是 Go SDK）的规则函数算出，再用 .NET 能用的部分与各语言的标准库交叉核对，照 `plugin/sdk-envelope-times.json`（ADR-0310）的做法。
+- 向量文件顶部 `$comment` 写清字段含义、规范出处、ADR，以及「期望值由 .NET 参考实现算出」（如是）；属于上面例外的，注明算出期望值的规则函数，以及哪几项由 .NET、哪几项由哪种语言的标准库核对。
 - 新向量文件：写进档表至少一档；有类型化入口时在 `vectors.go` 的 `typedVectors` 表加一行并加入口，在 `vectors_test.go` 的核对表里核对非空（`TestTypedVectorsCoverEveryVectorFile` 要求表覆盖全部向量文件）；规则包回放它；`conformance/README.md` 的向量表加一行。
 - 向量里出现的框架错误码必须已登记；清单向量必须与 Schema 一致（`tools/speccheck` 核对）。
 - 加用例、改期望值、加向量文件或运行器用例都要记 `CHANGELOG.md`（级别见 spec-authoring）。

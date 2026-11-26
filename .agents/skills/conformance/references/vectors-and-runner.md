@@ -23,6 +23,8 @@
 - 需要别的包时 `#:project` 引用对应项目；运行 `dotnet run <脚本>.cs`。
 - 含反斜杠或 `\uXXXX` 转义的内容不经 shell heredoc 写（可能吞掉反斜杠），编辑工具也可能把转义写成原字符；写完用脚本查一遍不可见字符，脚本里拼转义用 `chr(92)`。
 
+例外是插件一侧（SDK 认领的 `plugin` 档）没有 .NET 实现的向量：期望值由 Go 一致性模块（`conformance/rules`，不是 Go SDK）的规则函数算出，再用 .NET 能用的部分与各语言的标准库交叉核对，照 `plugin/sdk-envelope-times.json`（ADR-0310）的做法。`$comment` 注明算出期望值的规则函数，以及哪几项由 .NET、哪几项由哪种语言的标准库核对；核对用的程序同样放在临时目录，不提交。
+
 ## 规则包
 
 - 一条规范规则一个函数，命名照 `conformance/README.md`「规则」一节（`ParseHandshakeLine`、`MapCallbackStatus`、`ReadProtoError`、`CheckJSONText` …）。
