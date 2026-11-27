@@ -1,5 +1,5 @@
 {
-  "$comment": "统一资源名 xrn:<partition>:<service>:<tenant>:<type>/<id> 的文法（RFC-0008「资源名」，ADR-0321）：分区、服务与类型段是 [a-z0-9-]+；租户段为空（全局资源）或租户 ID（RFC-0007，[a-z0-9][a-z0-9._-]{0,63}）；ID 段是非空串，不含 /、空白（RFC-0001「空白字符」的 25 个码位）与孤立的代理项（RFC-0001「孤立的代理项」，ADR-0321）。整串匹配，结尾的换行不例外。valid 必须接受，解析之后再写出与原文相同；invalid 必须拒绝。每条的 text 是原文；JSON 字符串写不出孤立的代理项，这样的用例没有 text，改以 utf16 列出 UTF-16 码元（四位十六进制），组字符串的写法同 RFC-0012「一致性」；valid 里以码元写出的那一条与转义写出的成对代理项是同一个资源名。期望值由 .NET 参考实现（ResourceName.TryParse、ResourceName.ToString）算出。",
+  "$comment": "统一资源名 xrn:<partition>:<service>:<tenant>:<type>/<id> 的文法（RFC-0008「资源名」，ADR-0321、ADR-0330）：分区、服务与类型段是 [a-z0-9-]+；租户段为空（全局资源）或租户 ID（RFC-0007，[a-z0-9][a-z0-9._-]{0,63}）；ID 段是非空串，不含 /、空白（RFC-0001「空白字符」的 25 个码位）、控制字符（U+0000–U+001F 与 U+007F–U+009F，ADR-0330）与孤立的代理项（RFC-0001「孤立的代理项」，ADR-0321）。整串匹配，结尾的换行不例外。valid 必须接受，解析之后再写出与原文相同；invalid 必须拒绝。每条的 text 是原文；JSON 字符串写不出孤立的代理项，这样的用例没有 text，改以 utf16 列出 UTF-16 码元（四位十六进制），组字符串的写法同 RFC-0012「一致性」；valid 里以码元写出的那一条与转义写出的成对代理项是同一个资源名。期望值由 .NET 参考实现（ResourceName.TryParse、ResourceName.ToString）算出。",
   "valid": [
     {
       "name": "租户的资源",
@@ -28,6 +28,14 @@
     {
       "name": "ID 段的非 ASCII 字符",
       "text": "xrn:cn:docs::doc/文档一"
+    },
+    {
+      "name": "ID 段含波浪号 U+007E：控制字符之前的最后一个 ASCII 字符",
+      "text": "xrn:cn:docs::doc/a~b"
+    },
+    {
+      "name": "ID 段含 U+00A1：C1 控制字符与不换行空格之后的第一个字符",
+      "text": "xrn:cn:docs::doc/a\u00a1b"
     },
     {
       "name": "零宽空格 U+200B 不是空白",
@@ -94,6 +102,42 @@
     {
       "name": "ID 段含 U+0085",
       "text": "xrn:cn:orders::order/a\u0085b"
+    },
+    {
+      "name": "ID 段含 U+0000",
+      "text": "xrn:cn:orders::order/a\u0000b"
+    },
+    {
+      "name": "ID 段含 U+0001",
+      "text": "xrn:cn:orders::order/a\u0001b"
+    },
+    {
+      "name": "ID 段含 U+0008：空白之前的控制字符",
+      "text": "xrn:cn:orders::order/a\bb"
+    },
+    {
+      "name": "ID 段含 U+001B：终端的转义序列",
+      "text": "xrn:cn:orders::order/a\u001b[31mb"
+    },
+    {
+      "name": "ID 段含 U+001F：不是空白的控制字符",
+      "text": "xrn:cn:orders::order/a\u001fb"
+    },
+    {
+      "name": "ID 段含 U+007F",
+      "text": "xrn:cn:orders::order/a\u007fb"
+    },
+    {
+      "name": "ID 段含 U+0080：C1 控制字符的第一个",
+      "text": "xrn:cn:orders::order/a\u0080b"
+    },
+    {
+      "name": "ID 段含 U+009F：C1 控制字符的最后一个",
+      "text": "xrn:cn:orders::order/a\u009fb"
+    },
+    {
+      "name": "ID 段只有一个控制字符",
+      "text": "xrn:cn:orders::order/\u0007"
     },
     {
       "name": "结尾的换行",

@@ -81,7 +81,7 @@ Go 模块 `github.com/xihanfun/framework-spec/conformance`。
 | `ai/knowledge-chunks.json` | 知识库的固定窗口分块（重叠的裁剪、换行的统一、按码位计数、每块去掉首尾的空白、空块丢弃）、记录 ID、按租户分开的默认集合，期望值由 .NET 算出 | RFC-0022「知识库」 |
 | `ai/provider-defaults.json` | 框架自带的目录给出的默认聊天与默认嵌入 Provider 名，期望值由 .NET 算出 | RFC-0022「Provider 目录」的「默认名」 |
 | `ai/prompt-templates.json` | 提示词模板的渲染：`{name}` 占位符（名字两侧的空白去掉）与 `{{`、`}}` 转义、没有闭合的 `{`、值为 `null`，缺少参数时的错误码、消息键与报出的占位符名；期望值由 .NET 算出 | RFC-0022「聊天」 |
-| `security/resource-names.json` | 统一资源名的文法：各段的字符集、空的租户段、租户段 64 个字符的上限两侧、ID 段里的 `/`、空白与孤立的代理项、结尾的换行，合法的解析之后再写出与原文相同；期望值由 .NET 算出 | RFC-0008「资源名」 |
+| `security/resource-names.json` | 统一资源名的文法：各段的字符集、空的租户段、租户段 64 个字符的上限两侧、ID 段里的 `/`、空白、控制字符与孤立的代理项、结尾的换行，合法的解析之后再写出与原文相同；期望值由 .NET 算出 | RFC-0008「资源名」 |
 | `security/webauthn.json` | WebAuthn 注册与认证的样例响应、存储的凭据与期望结果（成功的凭据与签名计数，失败的错误码与 `reason`） | RFC-0008「WebAuthn」 |
 | `provider/caching-distributed.json` | `caching.distributed@1` 远程 Provider 的操作 ID（含批量）、请求 / 响应样例、非法键与选项 | `provider/caching-distributed.md` |
 
