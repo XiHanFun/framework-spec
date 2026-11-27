@@ -240,7 +240,7 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `WORKFLOW_CONFLICT_005` | 同一关联 ID 下已有未结束的实例（`ReusePolicy.RejectActive`） |
 | `WORKFLOW_DENIED_001` | 操作者不是任务的指派人 |
 | `WORKFLOW_DENIED_002` | 工作者没有持有外部任务的锁或锁已过期 |
-| `WORKFLOW_TIMEOUT_001` | 实例锁等待超时 |
+| `WORKFLOW_TIMEOUT_001` | 工作流的锁等待超时：锁键是实例 ID、定义 ID（定时启动、目录改写定义）或重用策略查重的派生键（RFC-0021「锁」；2026-11-27 修订，ADR-0336，以前写作「实例锁等待超时」） |
 | `WORKFLOW_UNAVAILABLE_001` | 工作流存储不可达；或引擎要自己开调用时应用不在服务状态、自己开的调用里没有可加入的事务 |
 | `WORKFLOW_UNAVAILABLE_002` | 工作流存储容量已满 |
 | `WORKFLOW_UNEXPECTED_001` | 活动抛出未处理异常或引擎内部失败 |
