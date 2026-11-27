@@ -126,7 +126,7 @@ type CloudEvent struct {
 }
 
 // DecodeCloudEvent 按 CloudEvents 1.0 结构化 JSON 读出信封（RFC-0009「信封」的五条，protocol/cloudevents.md「入站」），不合法时返回假：
-// 没过 RFC-0001「JSON 文本」的共同检查（含任何一层重复的成员）或不是 JSON 对象；规范版本不是 1.0、缺必填属性，dataschema 不是字符串或是空串；
+// 没过 RFC-0001「JSON 文本」的共同检查（含任何一层重复的成员）或不是 JSON 对象；规范版本不是 1.0、缺必填属性，dataschema 不是字符串或是空串，subject 是空串；
 // time 不合 RFC-0003 规则 8 的读法；data 与 data_base64 同时出现、data_base64 不是 Base64；扩展属性名不合文法、值是对象或数组。
 // 读出的 Time 是 UTC 时刻；文档带 data_base64 而不写 datacontenttype 时内容类型是 application/octet-stream。
 func DecodeCloudEvent(document []byte) (CloudEvent, bool) {
@@ -187,7 +187,8 @@ func DecodeCloudEvent(document []byte) (CloudEvent, bool) {
 		}
 		event.Time = &parsed
 	}
-	if event.Subject, ok = text("subject"); !ok {
+	// subject 出现时必须非空（CloudEvents 1.0，ADR-0332）：以前读成空串
+	if event.Subject, ok = text("subject"); !ok || (event.Subject != nil && *event.Subject == "") {
 		return CloudEvent{}, false
 	}
 	// dataschema 是信封承载的规范属性（ADR-0305），与 source 同一条规则：出现时非空，不核对 URI 语法；
