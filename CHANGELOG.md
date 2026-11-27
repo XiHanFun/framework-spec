@@ -4,6 +4,15 @@
 
 ## 未发布
 
+- MAJOR（`v1.0.0` 之前允许）：RFC-0013「领导选举」与 RFC-0001「孤立的代理项」写明调度的节点 ID 与 Kubernetes 的持有者标识拒收孤立的代理项，构造选项或从配置读取即启动失败（ADR-0348）。
+- MINOR：`plugin/invocation.md` §5 写明 SDK 回调宿主之前核对写进 `metadata` 的 Baggage 值，有孤立的代理项（字节串的实现里是不合法的 UTF-8）即不发请求，结果是 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed`，`reason` 与宿主一侧相同，排在截止时间之后、载荷与 `data` 的编码之前；`plugin-messages.json` 登记这条 `reason`（两个方向）（ADR-0347）。
+- MINOR：新增向量 `plugin/error-text-writing.json`（`plugin` 档）：写进插件协议的 `Error` 文案按最大子部分换成 U+FFFD，UTF-16、码点、字节三组输入，期望值由 .NET 算出；一致性模块新增 `ErrorTextWriting` 与 `rules.WriteErrorText`、`WriteErrorTextUTF16`、`WriteErrorTextCodePoints`，认领 `plugin` 档的实现须回放（ADR-0346）。
+- MINOR：`plugin/wasm.md` §2 写明 Wasm 宿主读客体写来的每条消息整条过 RFC-0001「JSON 文本」的共同检查（孤立代理项的转义、重复成员、64 层，未知字段里的也算），没过与有非法 UTF-8 的消息同一处置；RFC-0001「JSON 文本」的读取范围加上 Wasm 的协议消息（ADR-0345）。
+- MINOR：RFC-0012「S3 Provider」写明批量删除的错误项缺错误码时的 `reason`；「一致性」补上非 ASCII 元数据值的往返（ADR-0344）。
+- PATCH：`conventions/error-codes.md` 的 `OBJECTSTORAGE_UNAVAILABLE_001` 说明补上解不成合法值的原样字节（ADR-0343）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0012「S3 Provider」中，整个是 encoded-word 形状的 ASCII 元数据值改为写入前以 `OBJECTSTORAGE_VALIDATION_009` 拒收，`MetadataTooLarge` 映射为 `OBJECTSTORAGE_VALIDATION_008`，读回原样写进头的 UTF-8 字节严格按 UTF-8 解出，「Amazon S3 已知缺口」改为规则（ADR-0343）。
+- MINOR：RFC-0012「契约」写明存储收不下的元数据（`OBJECTSTORAGE_VALIDATION_008`）与会改写的元数据值（`OBJECTSTORAGE_VALIDATION_009`），`conventions/error-codes.md` 登记这两个码（ADR-0343）。
+- MINOR：RFC-0023「内核的遥测」第 3 条写明 Span 与指标的结果以调用方拿到的为准，XGI 入口在管道之后写不出响应计入失败；RFC-0011 规则 10「编码」同步（ADR-0341）。
 - MINOR：`plugin/invocation.md` §3 写明 `Error` 的文案编不成 UTF-8 的部分按最大子部分换成 U+FFFD 写出；RFC-0001「写出与转交」的范围说明补上这一类（ADR-0339）。
 - MINOR：`plugin/wasm.md` §5 写明启动阶段的失败按 `lifecycle.md` §6 退避重启实例，发现阶段的失败不重试（ADR-0337）。
 - PATCH：`conventions/error-codes.md` 的 `WORKFLOW_TIMEOUT_001` 说明不限于实例锁（ADR-0336）。
