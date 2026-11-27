@@ -171,6 +171,12 @@
     },
     {
       "key": "plugins.process.failed",
+      "phase": "<操作 ID> | publish | event | <中间件名>",
+      "reason": "baggage '{key}' has a lone surrogate and cannot be encoded as UTF-8",
+      "when": "写给对方的元数据里已登记键的值有孤立的代理项（以字节存放字符串的实现里是不合法的 UTF-8），这一次不发出；{key} 换成键名，不带值。宿主写调用、投递与 Wasm 中间件钩子的元数据时 phase 为操作 ID、event 或中间件名（invocation.md §2，ADR-0334）；SDK 回调宿主之前 phase 为操作 ID 或 publish，以字节存放字符串的实现也写这一段（invocation.md §5，ADR-0347）"
+    },
+    {
+      "key": "plugins.process.failed",
       "phase": "<阶段>",
       "reason": "{status}: {message}",
       "when": "没有对应的 gRPC 状态；{status} 是状态码的 PascalCase 名字，{message} 原样取状态的消息"
