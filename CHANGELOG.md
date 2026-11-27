@@ -4,6 +4,19 @@
 
 ## 未发布
 
+- MINOR：`plugin/invocation.md` §3 写明 `Error` 的文案编不成 UTF-8 的部分按最大子部分换成 U+FFFD 写出；RFC-0001「写出与转交」的范围说明补上这一类（ADR-0339）。
+- MINOR：`plugin/wasm.md` §5 写明启动阶段的失败按 `lifecycle.md` §6 退避重启实例，发现阶段的失败不重试（ADR-0337）。
+- PATCH：`conventions/error-codes.md` 的 `WORKFLOW_TIMEOUT_001` 说明不限于实例锁（ADR-0336）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0013 写明代码登记的作业不合法即失败，登记时判定得出的（孤立的代理项、触发器名重复）由 `AddJob` 抛出参数异常，日历未登记在调度器启动时以 `SCHEDULING_VALIDATION_001` 失败，不再每个周期重试（ADR-0335）。
+- MAJOR（`v1.0.0` 之前允许）：`plugin/invocation.md` §2 写明宿主写 `baggage` 时已登记键的值有孤立的代理项即这一次不交给插件（`PLUGINS_UNEXPECTED_001` + `plugins.process.failed`）；RFC-0021 的发起人与 `Workflow.Database` 的 `HolderId`、RFC-0023 的服务名、RFC-0015 的显式动作（另拒控制字符）拒收孤立的代理项，RFC-0001 的表、`baggage-keys.md` 与 `error-codes.md` 同步（ADR-0334）。
+- MINOR：RFC-0012「S3 Provider」写明自定义元数据的值照 RFC 2047 编码写入、解码读回（只认 UTF-8、B 与 Q，解不了即 `OBJECTSTORAGE_UNAVAILABLE_001`），批量删除在 SDK 抛 `DeleteObjectsException` 时照样逐项报告，写坏的 XML 与放弃分片上传、建桶的解析失败按不合规的应答处理，整读的内容对不上 `ETag` 只在读到末尾时报告、没读到末尾就释放不抛出（ADR-0333）。
+- MINOR：RFC-0012「范围读取、分片上传与预签名」写明列出分片交出不比这一页起点大的编号即 `OBJECTSTORAGE_UNAVAILABLE_001`，重复的先按重复报告（ADR-0333）。
+- PATCH：RFC-0012「一致性」的「向量不收的」补上元数据值的编解码；`conventions/error-codes.md` 的 `OBJECTSTORAGE_UNAVAILABLE_001` 补上这几处（ADR-0333）。
+- MAJOR（`v1.0.0` 之前允许）：`protocol/cloudevents.md` 的 binary 头值照 HTTP 绑定 1.0.2 §3.1.3.2 处理：出站编码空格与双引号，入站先解开 quoted-string 再做一轮百分号解码，坏的 quoted-string 即 `header_invalid`。RFC-0009 与 `cloudevents.md` 写明 `subject` 出现时不能是空串，binary 的空 `ce-subject` / `ce-time` 头不合法，插件协议的空串仍表示没有。`cloudevents-envelopes.json` 新增「subject 为空」，`rules.DecodeCloudEvent` 同步（ADR-0332）。
+- MINOR：RFC-0009「框架事件的数据模式」写明可从数组配置节 `XiHan:Messaging:DataSchemas` 登记，规则与冲突照代码登记（ADR-0332）。
+- MAJOR（`v1.0.0` 之前允许）：`protocol/mcp.md` 写明两种传输的每条消息先过 RFC-0001「JSON 文本」的共同检查，没过即 -32700 / `PROTOCOLS_VALIDATION_001` / HTTP 400；stdio 一行不超过 `XiHan:Protocols:Mcp:MaxStdioLineBytes`（缺省 4 MiB），超过的一行读到行尾丢弃并答复同一个解析错误；RFC-0001「JSON 文本」加上 MCP 的消息（ADR-0331）。
+- MAJOR（`v1.0.0` 之前允许）：RFC-0008「资源名」写明 ID 段不含控制字符（U+0000–U+001F 与 U+007F–U+009F），向量 `security/resource-names.json` 补用例，`rules.IsResourceName` 同步（ADR-0330）。
+- MINOR：RFC-0011「校验」第 1 步与 RFC-0001「写出与转交」写明为 Schema 校验编码的类型化请求，浮点是 NaN 或无穷、超过深度上限与原始调用同为 `KERNEL_VALIDATION_001`，64 层、最里层有值的编得出（ADR-0329）。
 - MINOR：`plugin/invocation.md` §5 写明 SDK 释放回调客户端之后的回调不发请求、不重新连接，结果是 `plugins.host.unavailable`，排在本地核对与载荷、`data` 的编码之后，编不成的仍报编码错误（ADR-0328）。
 - MINOR：`plugin/invocation.md` §7 写明套件与运行器核对插件一侧的两条：`unsubscribed` 逐条投递 `envelope-times.json` 的 `invalid` 与 `sdk-envelope-times.json` 的 `unreadable`、都须 `InvalidArgument`；新增运行器用例 `event-envelope` 与选项 `--envelopes`（`Options.EnvelopeOperation`），经被测插件声明的回显信封的操作核对 `data_schema` 原样交给作者，没有指明时跳过（ADR-0327）。
 - MAJOR（`v1.0.0` 之前允许）：RFC-0021「目录」写明改写已有定义的操作（`UpdateAsync`、`PublishAsync`、`DisableAsync`、`ArchiveAsync`、`DeleteAsync`）按定义 ID 取锁、持有到作用域结束，拿不到的那一项以取锁的错误失败；「锁」的锁键加上目录；`Workflow.Database` 的查询列回填改写定义行也在这把锁内，不再要求没有人编辑定义时运行（以前定义的写入不加锁）；「一致性」的引擎套件加一条用例（ADR-0326）。
