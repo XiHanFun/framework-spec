@@ -36,7 +36,7 @@ stdio 传输（命令行宿主的 `mcp` 命令：客户端启动服务端进程�
 
 | 情形 | `error.code` | `error.data.code` | HTTP |
 | --- | --- | --- | --- |
-| 请求体不是 JSON | -32700 | `PROTOCOLS_VALIDATION_001` | 400 |
+| 请求体（stdio 是一行）不是 JSON，或没过 RFC-0001「JSON 文本」的共同检查；stdio 的一行不是合法的 UTF-8 或超过 `MaxStdioLineBytes` | -32700 | `PROTOCOLS_VALIDATION_001` | 400 |
 | 不是 JSON-RPC 2.0 请求（非对象、`jsonrpc` 不是 `2.0`、`method` 缺失、`id` 为 `null`、`params` 非对象） | -32600 | `PROTOCOLS_VALIDATION_001` | 400 |
 | `MCP-Protocol-Version` 头不受支持 | -32600 | `PROTOCOLS_VALIDATION_002` | 400 |
 | HTTP：请求带 `Origin`，它不在 `AllowedOrigins` 里 | -32600 | `PROTOCOLS_DENIED_001` | 403 |
@@ -46,6 +46,8 @@ stdio 传输（命令行宿主的 `mcp` 命令：客户端启动服务端进程�
 | `tools/call` 缺 `name` | -32602 | `PROTOCOLS_VALIDATION_001` | 200 |
 | tool 未登记 | -32602 | `PROTOCOLS_NOTFOUND_002` | 200 |
 | `arguments` 不是对象 | -32602 | `PROTOCOLS_VALIDATION_003` | 200 |
+
+- JSON 文本的共同检查（2026-11-27 写明，ADR-0331；以前 .NET 只按 System.Text.Json 解析：任何一层重复的成员取最后一个照常处理，字符串里非法的 UTF-8 在 HTTP 上以 500 `KERNEL_UNEXPECTED_001` 的 Problem Details 结束，`method` 与 `id` 里转义出的孤立代理项在 HTTP 上同样是 500、在 stdio 上让会话以未处理的异常结束，`arguments` 里的重复成员与孤立代理项要到 `tools/call` 的 Validate 阶段才以 `isError` 结果（`KERNEL_VALIDATION_001`）报出；嵌套超过 64 层本来就是解析错误）：两种传输交来的每条消息先整条过 RFC-0001「JSON 文本」的检查——RFC 8259 的语法（含开头的 BOM，stdio 输入开头的 UTF-8 BOM 见「生命周期与传输」）、非法的 UTF-8、转义出的孤立代理项、任何一层重复的成员名、嵌套超过 64 层（消息对象是第 1 层）。没过即上表第一行：-32700，`data.code` 为 `PROTOCOLS_VALIDATION_001`，`id` 为 `null`（不从没过检查的文本里取 `id`），HTTP 400，不进入 JSON-RPC 的处理，不执行任何 tool；stdio 接着读下一行，会话不结束。`arguments` 是消息的一部分，它里面的这些问题同样在这里拒绝，不再成为 `tools/call` 的 `isError` 结果。
 
 ## 生命周期与传输
 
@@ -63,4 +65,6 @@ stdio 传输（命令行宿主的 `mcp` 命令：客户端启动服务端进程�
   - 一行以 LF、CR 或 CR LF 结束，行尾不算内容；最后一行可以没有行尾。只有空白（RFC-0001「空白字符」）的行跳过。
   - 一行里有非法的 UTF-8（编码成 UTF-8 的代理项、截断的序列、过长编码、不可能出现的字节如 `0xFF`）即这一行不是 JSON：答复解析错误（-32700，`data.code` 为 `PROTOCOLS_VALIDATION_001`，`id` 为 `null`，与上表「请求体不是 JSON」相同），这一行不处理，接着读下一行，会话不结束。
   - 不先换成 U+FFFD 再处理：换出来的仍是合法的 JSON，`tools/call` 会以另一份参数执行。
+  - 一行不超过 `XiHan:Protocols:Mcp:MaxStdioLineBytes` 个字节（正整数，缺省 4194304 即 4 MiB，与 HTTP 入口 `MaxRequestBodyBytes` 的缺省相同，同一条消息经两种传输都收得下；行尾不算，输入开头的 UTF-8 BOM 不算）。超过的一行读不进：已经读到的部分不再保留，其余的字节读到行尾为止丢弃、不缓冲，答复与非法的 UTF-8 同一个解析错误（-32700，`PROTOCOLS_VALIDATION_001`，`id` 为 `null`），这一行不处理，接着读下一行，会话不结束；输入在这一行里结束时同样答复一次，再结束会话。刚好等于上限的一行照常处理（2026-11-27 写明，ADR-0331；以前一行的长度不设上限，整行缓冲进内存，ADR-0320 备选 20）。
+  - 每一行解码之后照上面「JSON 文本的共同检查」处理。
 - stdio 的答复：答复只含 ASCII 字符（JSON 里的非 ASCII 字符一律转义为 `\uXXXX`），按任何兼容 ASCII 的控制台输出代码页写出都是同样的字节，即合法的 UTF-8（ADR-0083）。
