@@ -179,10 +179,12 @@ Sequence  = 三位数字，域内唯一，一经发布不复用
 | `OBJECTSTORAGE_VALIDATION_005` | 列举的页大小（`BlobQuery.PageSize`）不在 1 到 1000 之间（参数 `pageSize`、`max`；不在构造时抛出，各 Provider 列举时以结果返回，HTTP 400） |
 | `OBJECTSTORAGE_VALIDATION_006` | 宿主直传端点：签名没有限定内容类型，请求的 `Content-Type` 不合内容类型文法（媒体类型，最长 255 个字符；HTTP 400，不写入） |
 | `OBJECTSTORAGE_VALIDATION_007` | 存储不能原样写入的内容类型：内容类型合文法，但 Provider 所用的存储客户端写出的请求头与它不同（.NET 的 S3 Provider：AWS SDK for .NET 经 .NET 的媒体类型解析器改写 `Content-Type`，`;` 之后为空等解析不了的与 `;` 两侧的空格写法不同的都写不出原值；RFC-0012「契约」，ADR-0295）；写入与分片上传的发起在发出任何请求之前以它失败，不改写后照写（HTTP 400，参数 `contentType`） |
+| `OBJECTSTORAGE_VALIDATION_008` | 存储收不下的自定义元数据：名与值合计不超过 2048 个 UTF-8 字节（按原值计，RFC-0012「标识」），存储却按它自己的计法判定超过上限而拒收（S3：服务回 400 `MetadataTooLarge`，Amazon S3 按请求头里编码之后的字节数计）；写入与分片上传的发起以它失败，不当作存储故障，Provider 不预先按编码之后的长度拒收（HTTP 400，没有参数；RFC-0012「契约」「S3 Provider」，ADR-0343） |
+| `OBJECTSTORAGE_VALIDATION_009` | 存储不能原样存取的自定义元数据值：值合文法，但所用的存储会把它存成另一个值、读回的不是写入的值（.NET 的 S3 Provider：整个是 RFC 2047 encoded-word 形状的只有 ASCII 的值，Amazon S3 先解码再存、读回时又被当作 encoded-word 解码）；写入与分片上传的发起在发出任何请求之前以它失败，不改写后照写（HTTP 400，参数 `name` 是那一项的元数据名，不带值；RFC-0012「契约」「S3 Provider」，ADR-0343） |
 | `OBJECTSTORAGE_DENIED_001` | 预签名地址无效或已过期 |
 | `OBJECTSTORAGE_DENIED_002` | 条件写入探测被存储拒绝：凭据无效或无权写探测键、建桶或放弃探测用的分片上传（HTTP 403；启动或建实例时被拒，缺省实例启动失败（`KERNEL_HOSTING_002` 的内层）、命名实例不建；启动时连不上、之后才被拒的，后台照常重试，缺省实例的健康项 Failed 带此码，RFC-0012「S3 的条件写入探测」） |
 | `OBJECTSTORAGE_CONFLICT_001` | 对象已存在且不允许覆盖 |
-| `OBJECTSTORAGE_UNAVAILABLE_001` | 对象存储不可达或 IO 失败；服务的应答不合规同此（S3：应答成功却缺了必需的内容，如上传标识、`ETag`、修改时间、批量删除错误项的键，或分页说截断了却不前进；整读的 `ETag` 不是十六进制；读取与 `Head` 缺 `Content-Length`、列举的对象缺长度、SDK 解析不了的应答（含不是良构 XML 的响应体）、列出分片里重复或不比起点大的编号、自定义元数据里解不了的 RFC 2047 encoded-word；整读的内容对不上 `ETag` 时内容流在读到末尾时抛出携带此码的异常；RFC-0012「S3 Provider」「S3 的条件写入探测」「范围读取、分片上传与预签名」，ADR-0302、ADR-0308、ADR-0313、ADR-0317、ADR-0322、ADR-0333） |
+| `OBJECTSTORAGE_UNAVAILABLE_001` | 对象存储不可达或 IO 失败；服务的应答不合规同此（S3：应答成功却缺了必需的内容，如上传标识、`ETag`、修改时间、批量删除错误项的键，或分页说截断了却不前进；整读的 `ETag` 不是十六进制；读取与 `Head` 缺 `Content-Length`、列举的对象缺长度、SDK 解析不了的应答（含不是良构 XML 的响应体）、列出分片里重复或不比起点大的编号、自定义元数据里解不了的 RFC 2047 encoded-word 或别的写入方原样写进头、解不成合法值的字节；整读的内容对不上 `ETag` 时内容流在读到末尾时抛出携带此码的异常；RFC-0012「S3 Provider」「S3 的条件写入探测」「范围读取、分片上传与预签名」，ADR-0302、ADR-0308、ADR-0313、ADR-0317、ADR-0322、ADR-0333、ADR-0343） |
 | `OBJECTSTORAGE_UNAVAILABLE_002` | 配额或单对象大小超限 |
 | `OBJECTSTORAGE_UNAVAILABLE_003` | 不覆盖写入在本存储上无法保证：S3 兼容服务不认条件写入（`If-None-Match: *`；启动或建实例时探明的，缺省实例启动失败、命名实例不建；之后在后台或写入时才探明的，不覆盖写入一律以它失败、缺省实例的健康项 Failed），或存储以 `ConditionalWrites = false` 关闭了条件写入（`Overwrite = false` 的写入与分片上传的发起、完成一律以它失败，不访问存储） |
 | `OBJECTSTORAGE_UNAVAILABLE_004` | 不覆盖写入暂不可用：S3 兼容服务是否认条件写入尚未确认（启动或建实例时连不上，后台在重试；之后的探测被拒绝或探测桶不存在时同样以它失败；HTTP 503，参数 `container`、`key`、`reason` 为最近一次探测失败的错误码；不访问写入目标，探测通过后自动恢复；发起分片上传的应答累计 10 次缺上传标识之后不再探测，修好服务之后重启才恢复，ADR-0317；RFC-0012「S3 的条件写入探测」） |
