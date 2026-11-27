@@ -20,6 +20,9 @@ Wasm 插件可以贡献操作、事件处理器与中间件，不能贡献协议
 
 - 所有消息按 proto3 JSON 映射编码为 UTF-8 文本：字段名 lowerCamelCase，`bytes` 为 base64，枚举为名字，缺省值可省略，未知字段忽略。
 - 宿主按严格的 UTF-8 解码客体写来的消息（导出函数的响应与导入函数的请求，RFC-0001「JSON 文本」）：有非法的 UTF-8 字节序列的消息与不是合法 proto3 JSON 的消息同样处理，未知字段里的也算，不先把非法的字节换成 U+FFFD 再解析（2026-11-26 写明，ADR-0312；以前 .NET 宽松解码，换出来的消息照常读入）。宿主写给客体的消息总是合法的 UTF-8。
+- 客体写来的每条消息还要整条过 RFC-0001「JSON 文本」的共同检查：字符串与成员名里没有孤立代理项的转义，任何一层（未知字段的值也算）没有重复的成员名，嵌套不超过 64 层（最外层的对象是第 1 层）。没过的消息与不是合法 proto3 JSON 的消息同样处理，与上一条有非法 UTF-8 的消息同一处置，整条消息不合法，不挑出其中读得出的字段，与进程外插件的 protobuf 消息读不进是同一个结果（2026-11-27 写明，ADR-0345；以前 .NET 照 proto3 JSON 解析器的缺省读入：重复的成员后一个覆盖前一个，映射的键同此，未知字段里的不看，层数到解析器自己的上限为止，同一条消息在不同的读者那里可能读成不同的字段；孤立代理项的转义本来就读不出）：
+  - 导出函数的响应：这次调用以 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed` 结束（`phase` 为导出函数名，如 `xihan_invoke`，`reason` 为 `the response is not a valid JSON message`）。运行期的调用（操作、事件、健康与中间件钩子）随之按崩溃处理，实例按 §5 退避重建；中间件钩子的应答读不出时失败即关闭（§6），调用以这个错误结束。启动与发现阶段的响应读不出照 §5 那一阶段的失败处理。
+  - 导入函数的请求：只让这次回调失败，不陷阱，实例照常服务。`invoke` 以 `Status.error` 为 `PLUGINS_VALIDATION_005` + `plugins.module.invalid` 应答（`reason` 为 `xihan.invoke received an invalid InvokeRequest`）；`publish` 不发布任何一项，结果只有一项这样的错误（`reason` 为 `xihan.publish received an invalid PublishRequest`）。
 - 传入：宿主调用 `xihan_alloc(len)` 取得偏移，写入请求，再调用导出函数 `(ptr, len)`；写入的内存由插件处理完请求后自行回收。
 - 传出：导出函数返回 `i64`，`(ptr << 32) | len` 指向客体内存里的响应；宿主复制后调用 `xihan_free(ptr, len)`。返回 `0` 表示插件无法给出响应，宿主按崩溃处理。
 - `xihan_alloc` 失败返回 `0`，宿主按 `PLUGINS_UNAVAILABLE_002` 处理。
