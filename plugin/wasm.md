@@ -73,6 +73,7 @@ Wasm 插件可以贡献操作、事件处理器与中间件，不能贡献协议
 - 状态机同 `lifecycle.md`：实例化（含 `_initialize`）+ `xihan_handshake` → `Resolved`；`xihan_configure` → `Configured`；`xihan_start` → `Started` → `Ready`；健康轮询 `xihan_health`；`xihan_stop` 后丢弃实例 → `Stopped`。
 - 健康：宿主按配置的间隔轮询 `xihan_health`，连续失败达到阈值视为失效。
 - 崩溃：任何陷阱（含栈溢出、内存超限与未处理的 panic）或 `xihan_*` 返回 `0`：插件 `Failed`（`PLUGINS_UNEXPECTED_002`；细节 `trap` 只写陷阱种类或异常类型，陷阱原文只进日志，ADR-0115），宿主 `Degraded`，按 `lifecycle.md` §6 退避重建实例并重走握手、配置、启动；重建后的握手声明必须与首次一致。
+- 启动阶段的失败（2026-11-27 写明，ADR-0337；以前 .NET 不在后台重试，留给下一次调用按需再试）：宿主装配时启动 `onStartup` 的插件、运行期加载（`LoadAsync`）后启动插件，组装 `Configure` 请求（`lifecycle.md` §2）、`xihan_configure` 或 `xihan_start` 失败：丢弃实例，插件 `Failed`，与进程外插件相同（`lifecycle.md` §6）按退避重启实例并重走握手、配置、启动，计入 `RestartLimit`；运行期加载的这类失败照样返回给调用方，插件保持 `Failed` 并按策略重试，直到 `UnloadAsync`。重启时的实例化、握手与核对失败同样接着退避。退避期间的调用与投递以 `PLUGINS_UNAVAILABLE_001` 失败，不按需抢在退避之前重建，与崩溃之后的重建相同。发现阶段（按目录发现与运行期加载时的实例化与握手）失败的插件不重试；懒激活插件在首次调用时启动失败照 `lifecycle.md` §6：该次调用失败，下一次调用再尝试启动。
 - 发现时被拒（清单、权限、模块文件不存在）同 `lifecycle.md` §1：以 `Failed` 登记、是健康条目、记日志、不重试。
 - 消息目录、代理操作与清单声明的权限码的登记同 `invocation.md` §1：一个插件的目录、权限码与操作全进或全不进，同名目录的模板冲突、声明的权限码与已登记的重复、与已有操作重名、引用了未登记的权限码或不存在的策略，配置阶段发现的启动失败，运行期 `LoadAsync` 返回失败、不留下任何目录、权限码与代理操作。卸载（`UnloadAsync`）按归属撤回插件登记的代理操作、权限码、消息目录与贡献的中间件，之后可以直接再加载（`invocation.md` §1、本文 §6）。
 - 激活：`onStartup` 加载时实例化并启动；`onOperation:` / `onEvent:` 在加载时实例化、握手后丢弃实例，首次调用或投递时再实例化。
