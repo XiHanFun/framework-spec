@@ -124,6 +124,13 @@ var nonEmptyChecks = map[string]func(t *testing.T) any{
 		}
 		return callbacks
 	},
+	"plugin/error-text-writing.json": func(t *testing.T) any {
+		writing, err := conformance.ErrorTextWriting()
+		if err != nil || len(writing.UTF16) == 0 || len(writing.CodePoints) == 0 || len(writing.Bytes) == 0 {
+			t.Errorf("error text writing: %v", err)
+		}
+		return writing
+	},
 	"plugin/error-reading.json": func(t *testing.T) any {
 		reading, err := conformance.ErrorReading()
 		if err != nil || reading.PluginID == "" || len(reading.Cases) == 0 || len(reading.StatusWithoutError) == 0 {

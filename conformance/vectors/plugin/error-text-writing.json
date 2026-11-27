@@ -1,0 +1,214 @@
+{
+  "$comment": "写进插件协议的 Error 文案（text，含内部错误的）里编不成合法 UTF-8 的部分按 Unicode 的「最大子部分」（Unicode 标准 §3.9）换成 U+FFFD，每一段换一个，合法的部分（含 U+FFFD 本身）原样；见 spec/plugin/invocation.md §3「写出 Error 的文案」（ADR-0339、ADR-0346）。三组输入对应三种存放字符串的方式，各实现回放与自己相同的那一组。utf16：以 UTF-16 存放字符串的实现（.NET、Java、TypeScript），输入以 utf16 列出码元（四位十六进制），按码元组成字符串（组法同 RFC-0012「一致性」），每个孤立的代理项是一段，成对的代理项照常是一个字符；Python 按 RFC-0012 把码元组成 str（成对的代理项合成一个码位，孤立的代理项以码元值作码位）之后同样回放这一组。codePoints：Python 的 str，输入列出码点（四到六位十六进制），每个代理项码点（U+D800–U+DFFF）是一段，成对出现的两个也各是一段。bytes：以字节存放字符串的实现（Go、PHP），输入 hex 是原始字节，从不能解码的位置起，能成为某个合法 UTF-8 序列开头的最长前缀是一段，不能的一个字节是一段；以字节表示的语言不按 WTF-8 回放 utf16（编成 UTF-8 的孤立代理项在字节里是三段）。JSON 字符串写不出孤立的代理项，输入一律不写原文。expected 是替换之后写出的文案，ASCII 以外的字符写成 \\uXXXX 转义（平面以外的字符写成成对的两个转义），严格读取照常读得出。期望值由 .NET 参考实现算出：utf16 经 Encoding.UTF8 编码再解码（与 PluginErrorMapper.ToProto 写出的相同，.NET 的回放测试经 ToProto 核对），codePoints 逐个码点照此（代理项码点以单个码元交给 Encoding.UTF8），bytes 经 Encoding.UTF8.GetString；一致性模块的 rules.WriteErrorTextUTF16、rules.WriteErrorTextCodePoints 与 rules.WriteErrorText 是独立的实现，回放同一份向量；bytes 与 utf16 另由 Python 的 bytes.decode 以 utf-8、utf-16-be 加 replace 核对",
+  "utf16": [
+    {
+      "name": "单独的高代理项",
+      "utf16": ["0061", "D800", "0062"],
+      "expected": "a\ufffdb"
+    },
+    {
+      "name": "单独的低代理项",
+      "utf16": ["0061", "DC00", "0062"],
+      "expected": "a\ufffdb"
+    },
+    {
+      "name": "颠倒的一对：低代理项在高代理项之前，各换一个",
+      "utf16": ["DC00", "D800"],
+      "expected": "\ufffd\ufffd"
+    },
+    {
+      "name": "末尾的高代理项",
+      "utf16": ["0061", "0062", "D800"],
+      "expected": "ab\ufffd"
+    },
+    {
+      "name": "开头的低代理项",
+      "utf16": ["DC00", "0061", "0062"],
+      "expected": "\ufffdab"
+    },
+    {
+      "name": "连着的两个高代理项，各换一个",
+      "utf16": ["0061", "D800", "D800", "0062"],
+      "expected": "a\ufffd\ufffdb"
+    },
+    {
+      "name": "成对的代理项之后多一个低代理项：成对的照常，多的那个换掉",
+      "utf16": ["D800", "DC00", "DC00"],
+      "expected": "\ud800\udc00\ufffd"
+    },
+    {
+      "name": "多一个高代理项之后是成对的代理项：多的那个换掉，成对的照常",
+      "utf16": ["D800", "D800", "DC00"],
+      "expected": "\ufffd\ud800\udc00"
+    },
+    {
+      "name": "只有一个低代理项",
+      "utf16": ["DFFF"],
+      "expected": "\ufffd"
+    },
+    {
+      "name": "合法：成对的代理项是平面以外的一个字符 U+1F600",
+      "utf16": ["0061", "D83D", "DE00", "0062"],
+      "expected": "a\ud83d\ude00b"
+    },
+    {
+      "name": "合法：U+FFFD 本身原样",
+      "utf16": ["0061", "FFFD", "0062"],
+      "expected": "a\ufffdb"
+    },
+    {
+      "name": "合法：基本平面的多字节文本",
+      "utf16": ["8BA2", "5355", "0020", "00E9"],
+      "expected": "\u8ba2\u5355 \u00e9"
+    }
+  ],
+  "codePoints": [
+    {
+      "name": "单独的代理项码点",
+      "codePoints": ["0061", "D800", "0062"],
+      "expected": "a\ufffdb"
+    },
+    {
+      "name": "成对出现的两个代理项码点各是一段，各换一个",
+      "codePoints": ["0061", "D83D", "DE00", "0062"],
+      "expected": "a\ufffd\ufffdb"
+    },
+    {
+      "name": "颠倒的两个代理项码点",
+      "codePoints": ["DC00", "D800"],
+      "expected": "\ufffd\ufffd"
+    },
+    {
+      "name": "合法：平面以外的字符是一个码点",
+      "codePoints": ["0061", "1F600", "0062"],
+      "expected": "a\ud83d\ude00b"
+    },
+    {
+      "name": "合法：U+FFFD 本身原样",
+      "codePoints": ["FFFD"],
+      "expected": "\ufffd"
+    }
+  ],
+  "bytes": [
+    {
+      "name": "编成 UTF-8 的孤立高代理项 ED A0 80：ED 之后只能跟 80–9F，三个字节各是一段",
+      "hex": "61eda08062",
+      "expected": "a\ufffd\ufffd\ufffdb"
+    },
+    {
+      "name": "编成 UTF-8 的孤立低代理项 ED B0 80",
+      "hex": "edb080",
+      "expected": "\ufffd\ufffd\ufffd"
+    },
+    {
+      "name": "分开编成 UTF-8 的一对代理项 ED A0 BD ED B8 80：六段",
+      "hex": "eda0bdedb880",
+      "expected": "\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd"
+    },
+    {
+      "name": "截断的四字节序列 F0 9F 98 后面跟着 ASCII：最长的合法前缀是一段",
+      "hex": "f09f9862",
+      "expected": "\ufffdb"
+    },
+    {
+      "name": "末尾截断的四字节序列 F0 90 80",
+      "hex": "78f09080",
+      "expected": "x\ufffd"
+    },
+    {
+      "name": "末尾截断的三字节序列 E2 82",
+      "hex": "78e282",
+      "expected": "x\ufffd"
+    },
+    {
+      "name": "末尾截断的两字节序列 C2",
+      "hex": "c2",
+      "expected": "\ufffd"
+    },
+    {
+      "name": "截断的两字节序列 C2 后面跟着 ASCII",
+      "hex": "c241",
+      "expected": "\ufffdA"
+    },
+    {
+      "name": "截断的序列之后紧跟一个合法的序列：只换截断的那一段",
+      "hex": "e282e282ac",
+      "expected": "\ufffd\u20ac"
+    },
+    {
+      "name": "过长编码 C0 AF：C0 不能开头，两段",
+      "hex": "c0af",
+      "expected": "\ufffd\ufffd"
+    },
+    {
+      "name": "过长编码 C1 BF",
+      "hex": "c1bf",
+      "expected": "\ufffd\ufffd"
+    },
+    {
+      "name": "三字节的过长编码 E0 80 AF：E0 之后只能跟 A0–BF，三段",
+      "hex": "e080af",
+      "expected": "\ufffd\ufffd\ufffd"
+    },
+    {
+      "name": "四字节的过长编码 F0 80 80 AF：F0 之后只能跟 90–BF，四段",
+      "hex": "f08080af",
+      "expected": "\ufffd\ufffd\ufffd\ufffd"
+    },
+    {
+      "name": "超出 U+10FFFF 的 F4 90 80 80：F4 之后只能跟 80–8F，四段",
+      "hex": "f4908080",
+      "expected": "\ufffd\ufffd\ufffd\ufffd"
+    },
+    {
+      "name": "F4 90 两个字节",
+      "hex": "f490",
+      "expected": "\ufffd\ufffd"
+    },
+    {
+      "name": "不能出现的字节 F5、FF、FE 各是一段",
+      "hex": "f5fffe",
+      "expected": "\ufffd\ufffd\ufffd"
+    },
+    {
+      "name": "F5 起头的四个字节：F5 不能开头，后面三个延续字节各是一段",
+      "hex": "f5808080",
+      "expected": "\ufffd\ufffd\ufffd\ufffd"
+    },
+    {
+      "name": "单独的延续字节",
+      "hex": "80",
+      "expected": "\ufffd"
+    },
+    {
+      "name": "连在一起的几段非法：Unicode 标准表 3-8 的例子",
+      "hex": "61f18080e180c262806380bf64",
+      "expected": "a\ufffd\ufffd\ufffdb\ufffdc\ufffd\ufffdd"
+    },
+    {
+      "name": "合法：四字节的 U+1F600",
+      "hex": "61f09f988062",
+      "expected": "a\ud83d\ude00b"
+    },
+    {
+      "name": "合法：U+FFFD 本身 EF BF BD 原样",
+      "hex": "efbfbd",
+      "expected": "\ufffd"
+    },
+    {
+      "name": "合法：代理项两侧的 U+D7FF 与 U+E000",
+      "hex": "ed9fbfee8080",
+      "expected": "\ud7ff\ue000"
+    },
+    {
+      "name": "合法：最大的码位 U+10FFFF",
+      "hex": "f48fbfbf",
+      "expected": "\udbff\udfff"
+    },
+    {
+      "name": "合法：多字节文本",
+      "hex": "e8aea2e58d95",
+      "expected": "\u8ba2\u5355"
+    }
+  ]
+}

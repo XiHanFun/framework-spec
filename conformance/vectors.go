@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -289,6 +290,54 @@ type ErrorReadingVectors struct {
 	PluginID           string                   `json:"pluginId"`
 	Cases              []ErrorReadingCase       `json:"cases"`
 	StatusWithoutError []StatusWithoutErrorCase `json:"statusWithoutError"`
+}
+
+// ErrorTextUTF16Case 是以 UTF-16 存放的一段文案：UTF16 列出码元，Expected 是替换之后写出的文案。
+type ErrorTextUTF16Case struct {
+	Name     string    `json:"name"`
+	UTF16    CodeUnits `json:"utf16"`
+	Expected string    `json:"expected"`
+}
+
+// ErrorTextCodePointCase 是 Python 的 str 那样以码点存放的一段文案：CodePoints 列出码点（四到六位十六进制），
+// 代理项码点（U+D800–U+DFFF）也可以出现；Expected 是替换之后写出的文案。
+type ErrorTextCodePointCase struct {
+	Name       string   `json:"name"`
+	CodePoints []string `json:"codePoints"`
+	Expected   string   `json:"expected"`
+}
+
+// Points 解析出码点；有一项不是四到六位十六进制或超出 U+10FFFF 时返回错误。
+func (c ErrorTextCodePointCase) Points() ([]rune, error) {
+	points := make([]rune, len(c.CodePoints))
+	for i, point := range c.CodePoints {
+		value, err := strconv.ParseUint(point, 16, 32)
+		if len(point) < 4 || len(point) > 6 || err != nil || value > 0x10FFFF {
+			return nil, fmt.Errorf("conformance: code point %q of case %q must be four to six hexadecimal digits up to 10FFFF", point, c.Name)
+		}
+		points[i] = rune(value)
+	}
+	return points, nil
+}
+
+// ErrorTextBytesCase 是以字节存放的一段文案：Hex 是原始字节，Expected 是替换之后写出的文案。
+type ErrorTextBytesCase struct {
+	Name     string `json:"name"`
+	Hex      string `json:"hex"`
+	Expected string `json:"expected"`
+}
+
+// Bytes 返回文案的原始字节。
+func (c ErrorTextBytesCase) Bytes() ([]byte, error) {
+	return hex.DecodeString(c.Hex)
+}
+
+// ErrorTextWritingVectors 对应 plugin/error-text-writing.json（invocation.md §3「写出 Error 的文案」，ADR-0339、ADR-0346）：
+// 三种存放字符串的方式各一组，编不成合法 UTF-8 的部分按最大子部分换成 U+FFFD。
+type ErrorTextWritingVectors struct {
+	UTF16      []ErrorTextUTF16Case     `json:"utf16"`
+	CodePoints []ErrorTextCodePointCase `json:"codePoints"`
+	Bytes      []ErrorTextBytesCase     `json:"bytes"`
 }
 
 // BindingPropertyLimits 是下发给插件的绑定属性的上限：一个绑定的属性数、属性名的字符数、全部属性名与属性值的 UTF-8 字节数；
@@ -850,6 +899,7 @@ var typedVectors = []TypedVector{
 	vectorFile[DeadlineVectors]("plugin/deadlines.json"),
 	vectorFile[EnvelopeTimeVectors]("plugin/envelope-times.json"),
 	vectorFile[ErrorReadingVectors]("plugin/error-reading.json"),
+	vectorFile[ErrorTextWritingVectors]("plugin/error-text-writing.json"),
 	vectorFile[HandshakeLineVectors]("plugin/handshake-lines.json"),
 	vectorFile[HostAddressVectors]("plugin/host-addresses.json"),
 	vectorFile[PluginMessageVectors]("plugin/plugin-messages.json"),
@@ -975,6 +1025,11 @@ func CallbackStatus() (CallbackStatusVectors, error) {
 // ErrorReading 读取读入对方写来的 Error 与 Status 的向量。
 func ErrorReading() (ErrorReadingVectors, error) {
 	return typed[ErrorReadingVectors]()
+}
+
+// ErrorTextWriting 读取写进插件协议的 Error 文案换成 U+FFFD 的向量。
+func ErrorTextWriting() (ErrorTextWritingVectors, error) {
+	return typed[ErrorTextWritingVectors]()
 }
 
 // PluginBindings 读取下发给插件的绑定连同属性的向量：属性名的文法与上限、宿主下发什么、插件读到什么。

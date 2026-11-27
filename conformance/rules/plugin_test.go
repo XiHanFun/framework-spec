@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/xihanfun/framework-spec/conformance"
 	"github.com/xihanfun/framework-spec/conformance/rules"
@@ -452,6 +453,67 @@ func endpointsOf(entries []conformance.HostEndpoint) []rules.Endpoint {
 		endpoints = append(endpoints, rules.Endpoint{Network: entry.Network, Address: entry.Address})
 	}
 	return endpoints
+}
+
+// TestErrorTextWritingFollowsTheVectors 回放 error-text-writing.json（invocation.md §3「写出 Error 的文案」，ADR-0339、ADR-0346）：
+// 三种存放字符串的方式各由对应的规则函数换出期望的文案；期望值总是合法的 UTF-8，合法的输入原样写出。
+func TestErrorTextWritingFollowsTheVectors(t *testing.T) {
+	vectors, err := conformance.ErrorTextWriting()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var coverage surrogateCoverage
+	for _, c := range vectors.UTF16 {
+		units, err := c.UTF16.Units()
+		if err != nil {
+			t.Fatalf("%s: %v", c.Name, err)
+		}
+		// 按 WTF-8 组出的文本只用来判断写法：有孤立的代理项时不是合法的 UTF-8
+		text := caseInput(t, c.Name, c.UTF16.Text)
+		valid := utf8.ValidString(text)
+		coverage.note(t, c.Name, text, c.UTF16, valid)
+		checkWrittenText(t, c.Name, rules.WriteErrorTextUTF16(units), c.Expected, valid, text)
+	}
+	coverage.requireAll(t, "error text", false)
+
+	pairAsTwoPoints := false
+	for _, c := range vectors.CodePoints {
+		points, err := c.Points()
+		if err != nil {
+			t.Fatal(err)
+		}
+		valid := !slices.ContainsFunc(points, func(point rune) bool { return point >= 0xD800 && point <= 0xDFFF })
+		for i := 1; i < len(points); i++ {
+			pairAsTwoPoints = pairAsTwoPoints || (points[i-1] >= 0xD800 && points[i-1] <= 0xDBFF && points[i] >= 0xDC00 && points[i] <= 0xDFFF)
+		}
+		checkWrittenText(t, c.Name, rules.WriteErrorTextCodePoints(points), c.Expected, valid, string(points))
+	}
+	// Python 的 str 里成对出现的两个代理项码点不是一个字符，这条是 codePoints 一组存在的理由
+	if !pairAsTwoPoints {
+		t.Error("the codePoints group must keep a high surrogate code point followed by a low one")
+	}
+
+	for _, c := range vectors.Bytes {
+		raw, err := c.Bytes()
+		if err != nil || len(raw) == 0 {
+			t.Fatalf("%s: the hex must give some bytes: %v", c.Name, err)
+		}
+		checkWrittenText(t, c.Name, rules.WriteErrorText(raw), c.Expected, utf8.Valid(raw), string(raw))
+	}
+}
+
+// checkWrittenText 核对一条写出的文案：与期望相同、是合法的 UTF-8；合法的输入原样写出，不合法的至少换出一个 U+FFFD。
+func checkWrittenText(t *testing.T, name, got, expected string, valid bool, input string) {
+	t.Helper()
+	if got != expected || !utf8.ValidString(expected) {
+		t.Errorf("%s: wrote %q, want %q (the expected text must be valid UTF-8)", name, got, expected)
+	}
+	if valid && expected != input {
+		t.Errorf("%s: a valid text must be written as is, want %q", name, input)
+	}
+	if !valid && !strings.ContainsRune(expected, utf8.RuneError) {
+		t.Errorf("%s: an invalid text must be written with U+FFFD", name)
+	}
 }
 
 func TestErrorReadingFollowsTheVectors(t *testing.T) {

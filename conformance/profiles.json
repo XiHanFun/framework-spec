@@ -57,6 +57,7 @@
         "plugin/deadlines.json",
         "plugin/envelope-times.json",
         "plugin/error-reading.json",
+        "plugin/error-text-writing.json",
         "plugin/handshake-lines.json",
         "plugin/host-addresses.json",
         "plugin/plugin-messages.json",
