@@ -1,6 +1,6 @@
 # RFC-0023 可观测性：导出与运行信息
 
-> 状态：已采纳（2026-11-02 修订：运行进程的用户名照常打印；2026-11-24 修订：一致性向量；同日再修订：新增「内核的遥测」，操作调用的 Span 与指标带操作 ID；同日第三次修订：平台读取路径逐条写明取法，Linux 的取法收进向量；2026-11-27 修订：服务名不含孤立的代理项） | 日期：2026-10-30 | 对应 ADR：ADR-0056、ADR-0093（用户名不遮蔽）、ADR-0269（内核的遥测）、ADR-0277（一致性向量）、ADR-0286（平台读取路径的取法）、ADR-0334（服务名不含孤立的代理项） | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry`、`XiHan.Framework.Kernel`（`FrameworkDiagnostics`、`ObserveMiddleware`） | 一致性：无行为套件（读的是所在机器，按平台写用例）；向量 `conformance/vectors/observability/host-usage.json` | 一致性档：`observability`
+> 状态：已采纳（2026-11-02 修订：运行进程的用户名照常打印；2026-11-24 修订：一致性向量；同日再修订：新增「内核的遥测」，操作调用的 Span 与指标带操作 ID；同日第三次修订：平台读取路径逐条写明取法，Linux 的取法收进向量；2026-11-27 修订：服务名不含孤立的代理项；同日写明：XGI 入口写不出响应时 Span 与指标记失败） | 日期：2026-10-30 | 对应 ADR：ADR-0056、ADR-0093（用户名不遮蔽）、ADR-0269（内核的遥测）、ADR-0277（一致性向量）、ADR-0286（平台读取路径的取法）、ADR-0334（服务名不含孤立的代理项）、ADR-0341（写不出响应计入失败） | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry`、`XiHan.Framework.Kernel`（`FrameworkDiagnostics`、`ObserveMiddleware`） | 一致性：无行为套件（读的是所在机器，按平台写用例）；向量 `conformance/vectors/observability/host-usage.json` | 一致性档：`observability`
 
 ## 摘要
 
@@ -43,7 +43,7 @@
 
 1. `xihan.operation` 只取登记表里操作描述的 ID，取值因此以操作登记表的容量为界。不是操作调用时（消息处理器、作业、直接交给调用器的处理器、没有匹配到操作端点的请求）不带这个标签，不以占位值顶替；主题、作业名、请求路径不进标签。按 ID 找不到操作的调用不进管道（`KERNEL_NOTFOUND_001`），没有 Span 与指标。
 2. 操作 ID 在创建 Span 时给出，采样器可据此采样。它在进入 Observe 阶段时读：处理器在同一个上下文上再发起调用不改外层的维度。
-3. 调用的结果是失败时 Span 的状态为 Error，说明是错误码。
+3. 调用的结果是失败时 Span 的状态为 Error，说明是错误码。结果以调用方拿到的为准：XGI 入口在管道之后编码响应（RFC-0011 规则 10「编码」），写不出时调用方拿到 `KERNEL_UNEXPECTED_001`，`xihan.invoke` 的状态同样是 Error、说明 `KERNEL_UNEXPECTED_001`，`xihan.outcome` 与两个指标记 `failure`，与幂等记录写不出响应时（RFC-0006 幂等第 2 条）相同。.NET 在 Observe 阶段的内置中间件里、排在它之后的中间件都结束时编码，再定结果、结束 Span，Span 与耗时都包括编码；排在它之后的中间件（审计、熔断等）看到的仍是编码之前的结果（2026-11-27 写明，ADR-0341；以前 .NET 在 Span 结束之后才编码，写不出的调用记成 `success`、状态 Unset）。
 4. 没有监听器时不创建 Span，没有人订阅的仪表不记录。
 
 ## 运行信息
