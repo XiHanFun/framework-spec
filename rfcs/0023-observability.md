@@ -1,6 +1,6 @@
 # RFC-0023 可观测性：导出与运行信息
 
-> 状态：已采纳（2026-11-02 修订：运行进程的用户名照常打印；2026-11-24 修订：一致性向量；同日再修订：新增「内核的遥测」，操作调用的 Span 与指标带操作 ID；同日第三次修订：平台读取路径逐条写明取法，Linux 的取法收进向量） | 日期：2026-10-30 | 对应 ADR：ADR-0056、ADR-0093（用户名不遮蔽）、ADR-0269（内核的遥测）、ADR-0277（一致性向量）、ADR-0286（平台读取路径的取法） | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry`、`XiHan.Framework.Kernel`（`FrameworkDiagnostics`、`ObserveMiddleware`） | 一致性：无行为套件（读的是所在机器，按平台写用例）；向量 `conformance/vectors/observability/host-usage.json` | 一致性档：`observability`
+> 状态：已采纳（2026-11-02 修订：运行进程的用户名照常打印；2026-11-24 修订：一致性向量；同日再修订：新增「内核的遥测」，操作调用的 Span 与指标带操作 ID；同日第三次修订：平台读取路径逐条写明取法，Linux 的取法收进向量；2026-11-27 修订：服务名不含孤立的代理项） | 日期：2026-10-30 | 对应 ADR：ADR-0056、ADR-0093（用户名不遮蔽）、ADR-0269（内核的遥测）、ADR-0277（一致性向量）、ADR-0286（平台读取路径的取法）、ADR-0334（服务名不含孤立的代理项） | 参考实现：`XiHan.Framework.Observability.Abstractions`、`XiHan.Framework.Observability.Host`、`XiHan.Framework.Observability.OpenTelemetry`、`XiHan.Framework.Kernel`（`FrameworkDiagnostics`、`ObserveMiddleware`） | 一致性：无行为套件（读的是所在机器，按平台写用例）；向量 `conformance/vectors/observability/host-usage.json` | 一致性档：`observability`
 
 ## 摘要
 
@@ -21,6 +21,7 @@
 
 - 追踪、指标、日志三类信号各有开关，默认订阅框架、ASP.NET Core、`System.Net.Http` 与 `System.Runtime` 的源与仪表，配置可追加。
 - 配置了端点（或标准环境变量）才启用 OTLP 导出器；没有配置就不导出，不向本机空端口重试。协议只与端点一起配置：`Otlp:Protocol` 写了而 `Otlp:Endpoint` 没写时装配失败（参数异常），不静默忽略；只靠标准环境变量启用时，端点与协议都按 `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_PROTOCOL` 与默认端口决定。
+- 资源的服务名 `ServiceName`（`service.name`，缺省是入口程序集名）不能只有空白，也不能有孤立的代理项（RFC-0001「孤立的代理项」），不合时构造选项或从配置读取时抛出参数异常、装配失败（孤立的代理项 2026-11-27 修订，ADR-0334；以前只拒空白：服务名随每个信号编成 UTF-8 发给后端，宽松编码之后只差在孤立代理项上的两个服务在后端是同一个服务）。
 - 采样比例只作用于根 Span，有上游 trace 的沿用上游决定。内核的 `xihan.invoke` 同样遵守（RFC-0003 规则 7）：有上游（`traceparent`、宿主当前的 Activity）时沿用它的采样标志，上游「不采样」就不采样；没有上游时它是根 Span，按 `SamplingRatio` 采样，trace-id 与调用上下文的一致。
 
 ## 内核的遥测

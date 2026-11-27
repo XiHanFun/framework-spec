@@ -44,6 +44,8 @@
 
 `baggage` 里的 `xihan.tenant` 是这次调用的租户：Tenant 阶段裁定过时取裁定结果，裁定为无租户时不带；还没有裁定（宿主没有 Tenant 阶段，或调用还没走到它）时原样传递调用携带的值（2026-11-12 修订，ADR-0195）。插件回调与发布能带的租户以它为限（§5）。
 
+宿主写 `baggage`（调用、投递与 Wasm 中间件的钩子；2026-11-27 写明，ADR-0334）：已登记键的值有孤立的代理项（RFC-0001「孤立的代理项」）即这一次不交给插件，在启动进程或取得实例之前以 `PLUGINS_UNEXPECTED_001` + `plugins.process.failed` 结束（`id` 为清单 ID，`phase` 为操作 ID、`event` 或中间件名，`reason` 为 `baggage '<键>' has a lone surrogate and cannot be encoded as UTF-8`），不经宽松的编码写成 U+FFFD。上下文里只有幂等键可能带着这样的值（`conventions/baggage-keys.md`），其余已登记的键进入上下文时已经核对过。有 Idempotency 阶段的宿主在那里就以 `CACHING_VALIDATION_001` 拒绝了它（RFC-0006「幂等」），这一条管的是没有 Idempotency 阶段的宿主与排在它之前的 Wasm 中间件。以前 gRPC 载体的 protobuf 编码把孤立的代理项换成 U+FFFD，两个只差在它上面的幂等键到了插件是同一个；Wasm 载体的 JSON 写出器抛出异常，调用以 `KERNEL_UNEXPECTED_001` 结束。这是宿主一侧的失败，插件照常服务，不计入重启次数（`lifecycle.md` §6）。
+
 插件必须按 `deadline` 与 gRPC 取消停止工作；返回的 `Error` 若是超时或取消，用 `KERNEL_TIMEOUT_001` / `KERNEL_CANCELLED_001`。
 
 接收方还原上下文（插件读宿主的调用与投递、宿主读插件的回调，2026-11-18 写明，ADR-0237；以前各实现对不合法或不一致的值各有取舍）：
